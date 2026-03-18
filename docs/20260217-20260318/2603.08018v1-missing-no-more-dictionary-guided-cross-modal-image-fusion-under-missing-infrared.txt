@@ -1,0 +1,715 @@
+Title: Missing No More: Dictionary-Guided Cross-Modal Image Fusion under Missing Infrared
+
+URL Source: https://arxiv.org/pdf/2603.08018v1
+
+Published Time: Tue, 10 Mar 2026 01:56:35 GMT
+
+Number of Pages: 17
+
+Markdown Content:
+# Missing No More: Dictionary-Guided Cross-Modal Image Fusion under Missing Infrared 
+
+## Yafei Zhang 1, Meng Ma 1, Huafeng Li 1* , Yu Liu 2,
+
+> 1
+
+## Faculty of Information Engineering and Automation, Kunming University of Science and Technology, 
+
+> 2
+
+## Department of Biomedical Engineering, Hefei University of Technology 
+
+## Abstract 
+
+Infrared–visible (IR–VIS) image fusion is vital for percep-tion and security, yet most methods rely on the availabil-ity of both modalities during training and inference. When the infrared modality is absent, pixel-space generative sub-stitutes become hard to control and inherently lack in-terpretability. We address missing-IR fusion by propos-ing a dictionary-guided, coefficient-domain framework built upon a shared convolutional dictionary. The pipeline com-prises three key components: (1) Joint Shared-dictionary Representation Learning (JSRL) learns a unified and in-terpretable atom space shared by both IR and VIS modali-ties; (2) VIS-Guided IR Inference (VGII) transfers VIS co-efficients to pseudo-IR coefficients in the coefficient domain and performs a one-step closed-loop refinement guided by a frozen large language model as a weak semantic prior; and (3) Adaptive Fusion via Representation Inference (AFRI) merges VIS structures and inferred IR cues at the atom level through window attention and convolutional mix-ing, followed by reconstruction with the shared dictionary. This encode →transfer →fuse →reconstruct pipeline avoids uncontrolled pixel-space generation while ensuring prior preservation within interpretable dictionary–coefficient representation. Experiments under missing-IR settings demonstrate consistent improvements in perceptual qual-ity and downstream detection performance. To our knowl-edge, this represents the first framework that jointly learns a shared dictionary and performs coefficient-domain infer-ence–fusion to tackle missing-IR fusion. The source code is publicly available at https://github.com/harukiv/DCMIF. 
+
+## 1. Introduction 
+
+Infrared–visible (IR–VIS) image fusion is critical for robust perception in surveillance, robotics, and autonomous sys-tems. Most existing approaches assume both modalities are available during training and inference, and adopt end-to-end designs—CNNs [18, 20, 45], CNN–Transformer hy-
+
+> *Corresponding author:Huafeng Li(hfchina99@163.com)
+
+Figure 1. Comparison between existing methods and ours. For infrared-missing cross-modal fusion, (a) existing methods adopt a multi-stage framework that generates infrared images before fu-sion, while (b) we propose a single-stage framework that directly infers infrared features from visible images without generating in-frared images. 
+
+brids [19, 31, 34], GANs [21, 32] , or diffusion models [48, 50]—to directly regress a fused image from paired in-puts. While effective under standard conditions, this as-sumption often breaks in realistic missing-modality scenar-ios (e.g., VIS-only at test time). Moreover, pixel-space black-box generation offers weak physical consistency and interpretability, often resulting in unstable thermal cue com-pletion, structural detail loss, or hallucinated patterns. We address IR–VIS fusion under missing-IR conditions by predicting infrared cues from visible information and fusing them with the visible image, thereby enhancing per-ceptual quality and improving performance in downstream vision tasks such as object detection and semantic segmen-tation. As shown in Figure 1, rather than directly generating IR in pixel space, we map both modalities into a unified dic-tionary–coefficient space to perform interpretable inference and fusion in the coefficient domain, followed by recon-struction using the shared dictionary. This anchors data con-sistency and prior constraints at the atom–coefficient level, effectively avoiding the brittleness of pixel-space genera-
+
+> arXiv:2603.08018v1 [cs.CV] 9 Mar 2026
+
+tion. To this end, we propose a shared-dictionary, atom-correspondence forecasting framework (Figure 2) com-posed of three synergistic modules: Joint Shared-dictionary Representation Learning (JSRL), VIS-Guided IR Inference (VGII), and Adaptive Fusion via Representation Inference (AFRI). JSRL learns a cross-modal shared convolutional dictionary that projects IR and VIS onto a common atom space, thereby establishing atom-level correspondences in the dictionary–coefficient space. VGII builds a coefficient-domain transfer from VIS to IR by mapping visible coeffi-cients to pseudo-IR coefficients and applying a lightweight refinement to enhance thermal coverage. AFRI then feeds VIS and predicted IR coefficients into an adaptive fusion network that integrates window attention and convolutional mixing at the atom level. The network outputs fused coef-ficients, from which the final image is reconstructed using the shared dictionary. Compared with prior work, our method differs in three substantive ways: (i) modeling and inference are performed entirely in the coefficient domain under a shared dictio-nary, forming a closed loop of encode → transfer → fuse 
+
+→ reconstruct instead of pixel-space black-box generation; (ii) explicit atom-level correspondences render the trans-fer and fusion processes interpretable; and (iii) a weak se-mantic prior is introduced via simple linear modulation in-stead of a heavy generative head, enabling controllable ther-mal completion with improved stability. As a result, un-der missing-IR conditions our approach preserves IR target saliency while maintaining VIS structural detail. Our work makes the first attempt to explore how the image-fusion paradigm can enhance perceptual quality and down-stream performance from a single visible image when the infrared modality is missing . The main contributions are as follows: • Dictionary-guided coefficient-domain paradigm. We propose a unified atom space in which all computations— encode, transfer, fuse, and reconstruct—are performed in the dictionary–coefficient representation, closing the loop beyond pixel space and keeping representations and con-straints in the same domain to boost interpretability and robustness. • Controllable completion with a weak semantic prior. 
+
+We introduce a frozen language model as a lightweight semantic prior that acts only as channel- or atom-wise linear modulation in the coefficient domain, enabling a single, controllable correction for VIS →IR transfer and reducing missed thermal cues without introducing pixel-level artifacts or instability. • Simple training and low-overhead inference. Inference requires no real IR—only a visible image and the shared dictionary. Training uses reconstruction and simple con-sistency losses, avoiding adversarial or diffusion machin-ery. The system maintains stability while remaining re-producible, deployable, and efficient. 
+
+## 2. Related Work 
+
+2.1. Typical IR-VIS Image Fusion 
+
+IR–VIS image fusion methods can be categorized into four groups based on their backbone architectures: CNN-based [8, 12, 16, 23, 24, 27] , CNN–Transformer hybrid [15, 19, 22, 28, 34, 41] , GAN-based [21, 32, 33, 36, 47, 53] , and diffusion model-based [25, 40, 46, 48, 50] approaches. CNN-based methods exploit the strength of convolution in local pattern modeling. Through multi-scale convolu-tion, residual aggregation, and texture enhancement, they improve detail and contrast, as in SEDRFuse [12], ML-Fusion [16], and FusionNet [8]. These models are sta-ble and lightweight but struggle to capture global depen-dencies, leading to inconsistent contrast or structural mis-match under complex illumination or cross-modal varia-tion. CNN–Transformer hybrids, such as IVFWSR [19], CoCoNet [28] and SwinFusion [34] combine convolutional locality with Transformer-based global modeling. While achieving better dependency representation, they often suf-fer from high parameter scale, unstable training, and re-duced inference efficiency. GAN-based methods enhance perceptual realism via adversarial learning. Dual- and attention-based discriminators, such as DDcGAN [33], SD-DGAN [53], and GAN-FM [47], impose multi-dimensional perceptual constraints, improving subjective quality but risking mode collapse and convergence instability. Dif-fusion model-based approaches enhance high-fidelity gen-eration and cross-modal consistency by modeling the de-noising process as a Markov chain. For instance, Dif-Fusion [46] captures multi-channel input distributions to improve color and brightness fidelity, whereas DRMF [40] adopts multi-stage denoising for balanced structure–texture restoration. Although effective for complex content, these methods entail high sampling cost and slow convergence. Existing methods assume that both modalities are avail-able during training and inference, and learn end-to-end mappings within the pixel or feature domain. When the IR modality is missing, these black-box generative paradigms often fail to maintain physical consistency and controlla-bility. To address these limitations, this paper proposes an interpretable fusion framework for scenarios where the in-frared modality is unavailable. 
+
+2.2. Model-Driven Unfolding Networks 
+
+Model-driven unfolding transforms iterative optimization into a hierarchical framework based on the data-consistency 
+
+→ prior pattern. It maps iterations of classical algorithms to network layers and replaces hand-tuned hyperparameters with learnable ones. Networks thus learn step sizes, thresh-Figure 2. Architecture of the proposed framework. It integrates three modules (JSRL, VGII, and AFRI) to form a closed-loop pipeline of encoding, inference, fusion, and reconstruction. JSRL learns a shared dictionary for cross-modal alignment, VGII predicts latent infrared coefficients from visible ones, and AFRI fuses both modalities in the coefficient domain to reconstruct consistent, high-quality images under missing-IR conditions. 
+
+olds, and proximal operators in an end-to-end manner, en-hancing interpretability and adaptability for complex tasks. In dictionary learning and sparse coding, DKSVD [37] replaces the ℓ0 prior with an ℓ1 prior and unfolds sparse coding via ISTA [3] while parameterizing dictionaries with MLPs. Learned-CSC [5, 9, 10] integrates convolu-tional sparse coding with ISTA-based networks. Multi-scale feature extraction has been incorporated before ISTA unfolding for low-level vision tasks such as artifact re-moval. ADMM unfolding [4, 38] accelerates MRI recon-struction, while joint dictionaries with dual-branch LISTA unfolding enable multi-modal super-resolution. Proxi-mal methods [1, 6] for convolutional sparse models with side information enhance multi-modal performance, and CNN-embedded iterative alignment improves MRI–CT registration. Proximal-gradient networks benefit multi-hyperspectral fusion, and learnable modality-aware units improve medical image segmentation accuracy. This paradigm injects structured priors through explicit data consistency and learnable corrections, often outper-forming black-box models under missing-modality or mis-alignment conditions. Building on this idea, we propose a unified convolutional dictionary framework that lever-ages the traditional IR–VIS fusion paradigm to enhance visible-image perception and improve downstream task per-formance when the infrared modality is missing. 
+
+## 3. Methodology 
+
+3.1. Overview 
+
+To address cross-modal incompleteness caused by the ab-sence of the infrared image, we propose a correspondence prediction–based fusion framework grounded in dictionary learning. The core idea is to predict latent infrared rep-resentations from visible ones via a shared dictionary, en-abling effective fusion under missing-modality conditions. As illustrated in Figure 2, the framework comprises three modules: JSRL, VGII, and AFRI. JSRL learns a shared dic-tionary that establishes structural correspondence between the two modalities. VGII exploits structural cues in vis-ible coefficients to infer infrared coefficients through in-terpretable coefficient-domain prediction rather than direct generative reconstruction. AFRI fuses visible and inferred infrared coefficients and reconstructs the final image with the shared dictionary. Through their collaborative opera-tion, the framework enhances perceptual quality and down-stream task performance under missing-infrared conditions. 
+
+3.2. Joint Representation Learning 
+
+We propose JSRL to learn a cross-modal shared dictionary 
+
+that represents visible and infrared images within a unified atom space. This shared representation provides a stable and interpretable foundation for subsequent visible-guided infrared inference and fusion. The objective jointly mini-mizes reconstruction errors of both modalities while impos-ing coefficient priors and dictionary regularization: 
+
+min    
+
+> D,Svis ,Sir
+> 12
+
+Ivis − D ∗ Svis  
+
+> 2
+> F
+
++ 12 Iir − D ∗ Sir 
+
+> 2
+> F
+
++ λ1 φ1(Svis ) + λ2 φ2(Sir ) + λ3 ϕ(D) .
+
+(1) 
+
+Here, ∗ denotes convolution. Ivis ∈ Rm×n and Iir ∈
+
+Rm×n represent the visible and infrared images; D ∈
+
+RB×k×k denotes the shared dictionary; and Svis ∈
+
+RB×m×n and Sir ∈ RB×m×n denote the corresponding coefficient maps. φ1 (Svis ) and φ2 (Sir ) denote priors on the coefficients (typically a sparsity prior), and ϕ (D) de-notes a dictionary regularization term, such as column-wise normalization and near-orthogonality. λ1, λ2 and λ3 are the balance parameters. In objective (1), if φ1(Svis ), φ2(Sir ), and ϕ(D) are pre-defined, the dictionary D and coefficients can be explic-itly obtained through an optimization algorithm. However, manually defined priors and regularizations make the pro-cess complex and less generalizable to large-scale or di-verse data. Inspired by [7, 52], we introduce deep sub-networks, CoeNet and DicNet, which autonomously learn the joint representations Svis and Sir as well as the dic-tionary D from data. Built upon the theoretical founda-tion of objective (1), the network unifies dictionary learning and coefficient inference, embedding prior and regulariza-tion knowledge into trainable parameters. This design elim-inates handcrafted constraints and enhances scalability and representation capability. To maintain consistency with the underlying optimization, the coefficient maps Svis and Sir 
+
+output by CoeNet are designed to satisfy 
+
+min   
+
+> Svis ,Sir
+> 12
+
+Ivis − D ∗ Svis  
+
+> 2
+> F
+
++ 12 Iir − D ∗ Sir 
+
+> 2
+> F
+
++ λ1 φ1(Svis ) + λ2 φ2(Sir ),
+
+(2) 
+
+Since φ1(Svis ) and φ2(Sir ) are implicit, CoeNet cannot be directly trained using objective (2). To address this, aux-iliary variables S′ 
+
+> vis
+
+and S′ 
+
+> ir
+
+are introduced following the method in [52], which decomposes objective (2) into                              
+
+> min
+> Svis ,S′
+> vis
+> 12Ivis −D∗S′
+> vis
+> 2
+> F+μ1
+> 2Svis −S′
+> vis
+> 2
+> F+λ1φ1(Svis ),
+> min
+> Sir ,S′
+> ir
+> 12Iir −D∗S′
+> ir
+> 2
+> F+μ2
+> 2Sir −S′
+> ir
+> 2
+> F+λ2φ2(Sir ),
+
+(3) where S′ 
+
+> vis
+
+and S′ 
+
+> ir
+
+are updated in the data-consistency step :
+
+min  
+
+> S′
+> vis
+> 12
+
+Ivis − D ∗ S′ 
+
+> vis
+> 2
+> F
+
++ μ1 
+
+> 2
+
+Svis − S′ 
+
+> vis
+> 2
+> F
+
+,
+
+min  
+
+> S′
+> ir
+> 12
+
+Iir − D ∗ S′ 
+
+> ir
+> 2
+> F
+
++ μ2 
+
+> 2
+
+Sir − S′ 
+
+> ir
+> 2
+> F
+
+. (4) 
+
+These subproblems can be solved in the Fourier domain, from which closed-form solutions can be derived using the Sherman–Morrison formula [2] . The coefficient maps Svis 
+
+Figure 3. Structure of the IV-DLB. 
+
+and Sir are then updated via the following proximal sub-problems: 
+
+min  
+
+> Svis
+> β1
+> 2
+
+Svis − S′ 
+
+> vis
+> 2
+> F
+
++ φ1(Svis ),
+
+min  
+
+> Sir
+> β2
+> 2
+
+Sir − S′ 
+
+> ir
+> 2
+> F
+
++ φ2(Sir ), (5) 
+
+These proximal updates can be expressed as: 
+
+Svis = CoeNet( S′
+
+> vis
+
+, β 1), Sir = CoeNet( S′ 
+
+> ir
+
+, β 2), (6) 
+
+where μ1, μ2, β1 and β2 are adaptive implicit hyperparam-eters predicted by the subnetwork HypNet . They dynami-cally control the update strength according to the input con-tent and iteration stage, enabling learnable modulation of prior influence within the unfolding framework. Similarly, an auxiliary variable D′ is introduced to for-mulate the dictionary learning problem as 
+
+min   
+
+> D,D′
+> 12
+
+Ivis − D′ ∗ Svis  
+
+> 2
+> F
+
++ 12 Iir − D′ ∗ Sir 
+
+> 2
+> F
+
++ μ3 
+
+> 2
+
+D − D′ 2 
+
+> F
+
++ λ3 ϕ(D),
+
+(7) 
+
+where D′ is updated in the data-consistency step :
+
+min  
+
+> D′
+> 12
+
+Ivis − D′ ∗ Svis  
+
+> 2
+> F
+
++ 12 Iir − D′ ∗ Sir 
+
+> 2
+> F
+
++ μ3 
+
+> 2
+
+D − D′ 2 
+
+> F
+
+,
+
+(8) 
+
+and D is updated through a proximal mapping: 
+
+arg min  
+
+> D
+> β3
+> 2
+
+D − D′ 2 
+
+> F
+
++ ϕ(D). (9) 
+
+This can be implemented using DicNet as follows: 
+
+D = DicNet( D′, β 3). (10) 
+
+where μ3 and β3 is also predicted by the HypNet .To ensure consistency between the coefficient maps Svis ,
+
+Sir predicted by CoeNet and the shared dictionary D pre-dicted by DicNet in satisfying Eqs. (5) and (9), the networks are first trained with reconstruction-based losses:                              
+
+> ℓS=D(n−1) ∗Svis, (n)−Ivis 1+D(n−1) ∗Sir, (n)−Iir 1,ℓD=D(n)∗Svis, (n)−Ivis 1+D(n)∗Sir, (n)−Iir 1.
+
+(11) where n = 1 , 2, · · · , N denotes the n-th update step. As shown in Figure 2, the dictionary generation network consists of N cascaded Infrared–Visible Dictionary Learn-ing Blocks (IV-DLBs), with a HeadNet for input decompo-sition and a TailNet for image reconstruction. The HeadNet includes two convolutional layers and a ReLU. As shown in Figure 3, Each IV-DLB contains two coefficient solvers and a dictionary solver. The coefficient solver comprises a Coefficient Solving Block (CSB) and a CoeNet. CSB per-forms frequency-domain orthogonalization to reduce atom correlation and improve conditioning, while CoeNet adopts a U-Net with symmetric residual encoder–decoder mod-ules. The dictionary solver, consisting of a Dictionary Solv-ing Block (DSB) and a DicNet. DSB updates kernels d
+
+via proximal regularized least squares and solves all spa-tial positions in one pass using Cholesky decomposition. DicNet stacks three residual convolutional modules with ReLU activations. TailNet uses linear convolution with re-flection padding to preserve boundaries. This architecture realizes the data-consistency (Eqs. (4), (8)) and proximal-update (Eqs. (5), (9)) steps, embedding the shared cross-modal dictionary and interpretable atom space into train-able components. Finally, HypNet takes the scale factor σ
+
+as input and predicts stage-wise hyperparameters using two 
+
+1×1 convolutions, followed by a Softplus activation to en-sure positivity. 
+
+3.3. Visible-Guided Infrared Inference 
+
+In the previous section, a unified atom space based on the shared cross-modal dictionary is established. Unlike direct pixel-level generation, the modality transfer from visible to infrared is performed in the dictionary–coefficient do-main, ensuring structural consistency and interpretability. Specifically, the visible image Ivis is encoded by represen-tation encode network (REN) as ˜Svis = REN( Ivis ; D) ∈
+
+RB×m×n, where REN includes the pre-trained HeadNet ,CSB-VIS, and CoeNet-VIS from JSRL. All REN parame-ters are frozen during coefficient generation to strictly fol-low the “data-consistency + proximal” principle in Eqs. (4), (5), preserving the physical interpretability of the shared dictionary D and avoiding task-specific drift. This process projects visible information into the unified atom space, mitigating cross-modal inconsistencies common in pixel-domain learning. To infer the corresponding infrared co-efficients, a Representation Inference Network (RIN) is in-troduced: S(0)  
+
+> p ir
+
+= RIN( ˜Svis ) ∈ RB×m×n. RIN employs an encoder-decoder architecture with attention-based down-sampling and upsampling modules, each integrating multi-head attention for spatial and channel interaction. By op-erating in the coefficient domain rather than the pixel do-main, RIN directly learns atom-level relationships within the shared dictionary, naturally inheriting the interpretabil-ity and structural coherence of JSRL. A single transfer may fail to capture fine thermal cues in real infrared images, such as subtle temperature contrasts under low illumination. To refine these cues, a Large Lan-guage Model (LLM) is introduced as a semantic critic. The initial pseudo-infrared image is reconstructed via the shared dictionary and TailNet: I(0)  
+
+> p ir
+
+= TailNet( S(0)  
+
+> p ir
+
+, D). The pair {Ivis , I(0)  
+
+> p ir
+
+} and a task description form a prompt fed into the frozen LLM to extract text features Ftext . Two multi-layer perceptrons then predict Feature-wise Linear Modulation parameters:       
+
+> γ= Φ γ(Ftext ),β= Φ β(Ftext ).(12)
+
+Semantic-guided affine modulation is applied in the coeffi-cient domain to yield refined visible coefficients:        
+
+> Sf m =γ⊙˜Svis +β, (13)
+
+which are passed through RIN for the second-stage transfer and final reconstruction:       
+
+> S(1)
+> p ir = RIN( Sf m ),Ip ir = TailNet
+> 
+> S(1)
+> p ir ,D
+> 
+> .(14)
+
+Rather than generating pixels or discriminating outputs, the LLM provides a weak semantic prior to modulate atomic re-sponses in the coefficient space, enhancing thermal seman-tics without introducing generative noise. This closed-loop refinement operates entirely within the interpretable coeffi-cient domain, complementing the shared dictionary to im-prove semantic completion under missing-modality condi-tions. To ensure data consistency, thermal alignment, and structural fidelity, the total infrared inference loss is defined as        
+
+> ℓinf =ℓint +ℓreg +ℓgrad .(15)
+
+The consistency term constrains the pseudo-infrared image to match the real infrared in both image and coefficient do-mains:            
+
+> ℓint =∥Ip ir −Iir ∥1+∥S(1)
+> p ir −Sir ∥1.(16)
+
+Thermal regularization enforces intensity alignment using a normalized weighting map Air :               
+
+> ℓreg =∥Air ⊙Ip ir −Iir ∥1,Air =Iir −min( Iir )max( Iir )−min( Iir )+ ε(17)
+
+where ε=10 −8 avoids division by zero and ⊙ denotes element-wise multiplication. The gradient loss anchors ge-ometric consistency by aligning image edges:     
+
+> ℓgrad =∥∇ Ip ir − ∇ Ivis ∥1.(18)
+
+This design integrates coefficient-domain transfer, seman-tic modulation, and shared-dictionary reconstruction, ex-tending the interpretable “data-consistency + proximal” paradigm of JSRL. By introducing a weak semantic prior, it achieves stable and reliable visible-guided infrared infer-ence under missing-modality conditions. Figure 4. Visual comparison results on the FLIR, MSRS, and KAIST datasets for fused image quality. 
+
+3.4. Adaptive Fusion with Representation Inference 
+
+To adaptively integrate the structural information of the vis-ible modality with the predicted infrared semantics in the coefficient domain, a Reasoning Fusion Network (RFN) is constructed. RFN consists of two cascaded Convolu-tion–Attention Fusion (CAF) blocks, each combining win-dow self-attention with convolutional mixing. The first block uses {Conv, ReLU, Conv, ReLU, Conv }, and the sec-ond {Conv, ReLU, Conv }, enabling local-to-global reason-ing across atom and channel dimensions. Given the inputs 
+
+˜Svis and S(1)  
+
+> p ir
+
+, an implicit atom-wise gating mechanism 
+
+(Wvis , Wp ir ) = Ψgate (Concat( ˜Svis , S(1)  
+
+> p ir
+
+)) learns adaptive weights for each atom, producing the fused coeffi-cients           
+
+> Sf=Wvis ⊙˜Svis +Wp ir ⊙S(1)
+> p ir ,(19)
+
+where ⊙ denotes element-wise multiplication. This gating operates in the coefficient domain, allowing each dictionary atom to adaptively draw from visible or inferred infrared cues according to saliency. Atoms along structural edges favor ˜Svis , while those encoding thermal semantics rely on 
+
+S(1)  
+
+> p ir
+
+. Consequently, the framework achieves cross-modal collaboration within the unified atom space. The fused coefficients, along with the shared dictionary 
+
+D are fed into TailNet, and the generated image is given by: 
+
+If = TailNet( Sf , D). Here, the reconstruction network and dictionary are consistent with those used in encoding and inference, forming a closed loop of “encoding → in-ference → fusion → reconstruction.” This ensures that the fusion result lies within the interpretable subspace spanned by the shared atoms. To highlight thermal saliency while preserving visible structures, RFN is trained using intensity and gradient consistency losses:              
+
+> ℓf use int =∥If−max( Ip ir ,Ivis )∥1,ℓf use grad =∥∇ If−max( ∇Ip ir ,∇Ivis )∥1.(20)
+
+The element-wise “ max ” operation encourages If to inherit thermal intensity peaks and sharp structural edges from in-frared and visible inputs, respectively. The total fusion loss is then       
+
+> ℓf=ℓf use int +ℓf use grad .(21)
+
+## 4. Experiment 
+
+4.1. Experimental Setup 
+
+Datasets. We evaluate fusion performance on the FLIR, KAIST [11], and MSRS [39] datasets, and assess down-stream performance, including object detection and seman-tic segmentation, on the M 3FD [26] and FMB [27] datasets. Specifically, we randomly select 5,445 training pairs and 765 testing pairs from FLIR, 8,310 training pairs and 1,246 testing pairs from KAIST, and 536 training pairs and 179 testing pairs from MSRS. All images are randomly cropped into 128 × 128 patches. 
+
+Implementation Details. The JSRL, VGII and AFRI modules are trained sequentially. The JSRL module is trained on the MSRS for 1,000 epochs with a batch size of 24 and an initial learning rate of 0.0001.The dictio-nary trained by MSRS can be universally applied to other datasets in subsequent usage. The VGII and AFRI modules are trained for 10 epochs, both with a batch size of 10 and an initial learning rate of 0.001. The Adam optimizer [13] is used to update all parameters. In the JSRL module, the con-volutional kernel size for the joint dictionary is set to 5 × 5,and an IV-DLB is used. All experiments are conducted on Table 1. Quantitative comparison of the fusion results of our method and existing methods on the MSRS, FLIR, and KAIST datasets. The best and second-best performances are highlighted with Red and Blue backgrounds, respectively.                                                                                                                                                                                                                                             
+
+> Methods MSRS FLIR KAIST
+> AG ↑CE ↓EI ↑EN ↑Qcb ↑SF ↑AG ↑CE ↓EI ↑EN ↑Qcb ↑SF ↑AG ↑CE ↓EI ↑EN ↑Qcb ↑SF ↑
+> U2Fusion 2.308 0.840 24.692 6.145 0.483 6.288 4.645 1.353 48.215 6.916 0.410 11.302 3.262 1.626 34.797 6.092 0.505 9.399 TarDAL 2.189 2.183 23.251 6.059 0.417 6.379 3.722 0.643 39.761 7.393 0.420 9.392 1.815 1.273 19.393 6.282 0.431 5.355 CDDFuse 4.818 1.609 51.368 7.321 0.565 14.250 5.079 0.726 52.633 6.766 0.454 13.346 3.167 1.298 34.043 7.122 0.497 9.194 LRRNet 3.621 2.837 38.519 6.930 0.461 10.731 4.648 1.798 49.145 7.063 0.481 12.449 2.939 1.475 31.707 7.032 0.463 8.213 IVFWSR 3.360 1.337 36.254 6.798 0.457 9.241 3.386 1.266 36.392 7.365 0.400 8.144 2.672 0.868 28.868 6.959 0.443 7.743 CoCoNet 3.299 0.758 34.565 6.510 0.427 9.804 2.856 1.848 29.542 6.591 0.492 7.340 1.995 0.963 21.090 6.233 0.474 5.912 EMMA 4.913 1.343 52.642 7.333 0.539 14.176 3.796 0.745 40.356 6.489 0.451 10.188 3.083 0.859 33.405 7.005 0.514 8.837 TIMFusion 3.649 3.796 38.972 6.846 0.394 10.771 4.202 1.541 44.643 7.030 0.415 11.768 3.194 1.899 34.409 6.998 0.438 8.831 DCEvo 4.858 1.696 51.810 7.298 0.571 14.262 4.585 0.812 48.435 6.763 0.465 12.097 3.229 1.453 34.459 7.027 0.517 9.879 SAGE 4.452 2.058 47.134 7.030 0.529 13.285 3.254 0.697 33.860 6.646 0.376 9.115 2.950 1.037 31.467 6.799 0.520 8.835 Ours 5.037 3.142 53.168 7.188 0.454 14.898 4.518 0.596 48.784 6.639 0.435 12.554 4.414 2.227 37.115 7.073 0.405 11.031
+
+Figure 5. Qualitative comparison of object detection and semantic segmentation on the M 3FD and FMB datasets, respectively. 
+
+two NVIDIA GeForce RTX 4090 GPUs, and the model is implemented using the PyTorch 3.10.18 framework. 
+
+4.2. Comparison with State-of-the-arts 
+
+To evaluate the effectiveness of our method, we com-pare it with ten state-of-the-art infrared and visible image fusion methods, including U2Fusion [44], TarDAL [26], CDDFuse [49], LRRNet [17], IVFWSR [20], Co-CoNet [28], EMMA [51], TIMFusion [30], DCEvo [29], and SAGE [42]. In our experiments, the proposed method requires only visible images as input, whereas all compari-son methods require both infrared and visible images. Figure 4 presents the qualitative results of different meth-ods. Our method shows superior detail fidelity, thermal in-formation representation, brightness and contrast balance, and overall visual consistency. These observations indi-cate that, even without access to the infrared modality, our method can effectively recover infrared information. The quantitative comparisons are summarized in Table 1. The results show that our method achieves performance com-parable to fusion approaches that take both infrared and visible images as input across all evaluation metrics. It is worth noting that the supplementary material also in-cludes comparisons with results obtained by fusing visi-ble images with generated infrared images .
+
+4.3. Performance on Downstream Tasks 
+
+To further evaluate the effect of different methods on down-stream tasks, we conduct object detection and semantic seg-mentation experiments on the M 3FD and FMB datasets, re-spectively. The results are shown in Table 2 and Figure 5. For object detection, the fused images are used to train and test the YOLOv5s 1 model, while for semantic segmenta-tion, they are used to train and test the SegFormer-b5 [43] model. As shown in Table 2, our method exhibits performance comparable to that of full-modal fusion methods in terms of the mAP metric, with the AP values for most object cat-egories reaching high levels. The visual results in Figure 5 further confirm that, even in the absence of the infrared modality, the detection model is able to accurately recog-nize and localize objects based on the images generated by our method. The detection confidence is consistent with that of the full-modal fusion images. Furthermore, as shown in Table 2, in the semantic segmentation task, the perfor-mance of our method is comparable to that of full-modal fusion methods, and in some metrics, it even outperforms them. The qualitative results in Figure 5 further illustrate that, compared to full-modal fusion methods, the images generated by our method are more accurately segmented into distinct semantic regions, with clearer boundaries and 
+
+> 1
+
+https://github.com/ultralytics/yolov5 Table 2. Quantitative comparison of the object detection and semantic segmentation results of our method and existing methods on the M3FD and FMB datasets, respectively. Best results are highlighted in red and second-best in blue .                                                                                                                                                                                       
+
+> Methods M3FD FMB
+> people car bus motor truck lamp mAP wall building sky floor tree road mIoU VIS 0.864 0.964 0.990 0.926 0.908 0.970 0.931 89.461 58.723 85.666 33.918 67.091 95.984 61.794 U2Fusion 0.841 0.959 0.989 0.918 0.878 0.970 0.926 89.523 57.843 85.234 33.852 65.076 94.965 60.829 TarDAL 0.896 0.976 0.993 0.951 0.913 0.983 0.952 87.462 52.695 77.013 31.397 53.117 90.756 56.194 CDDFuse 0.883 0.974 0.991 0.943 0.903 0.976 0.945 89.811 57.901 87.383 32.988 67.748 96.055 61.649 LRRNet 0.898 0.978 0.993 0.958 0.904 0.986 0.953 89.705 59.081 86.685 34.596 66.974 95.678 62.942 IVFWSR 0.876 0.974 0.991 0.948 0.927 0.984 0.952 88.673 59.003 85.711 34.307 63.281 95.324 60.801 CoCoNet 0.893 0.974 0.991 0.947 0.899 0.982 0.948 89.630 57.803 86.597 32.492 64.982 95.653 58.513 EMMA 0.898 0.978 0.994 0.956 0.909 0.984 0.953 90.132 55.686 87.584 33.191 68.315 96.055 61.952 TIMFusion 0.896 0.977 0.993 0.958 0.913 0.984 0.954 89.911 56.663 87.015 32.953 66.018 95.874 62.836 DCEvo 0.885 0.975 0.989 0.946 0.907 0.977 0.946 89.372 56.562 87.231 33.876 68.513 96.075 60.366 SAGE 0.900 0.977 0.993 0.960 0.924 0.985 0.956 88.189 55.754 86.682 33.715 66.070 95.774 60.777 Ours 0.902 0.972 0.994 0.967 0.919 0.990 0.948 89.549 65.923 87.178 36.346 67.578 95.967 62.939
+
+improved internal consistency. These findings strongly sug-gest that the high-quality images produced by our method offer enhanced adaptability for downstream tasks. 
+
+Table 3. Quantitative comparison between our model and its ab-lated variants. The best result for each metric is highlighted in Red .                                                  
+
+> Methods Dictionary LLM AG ↑CE ↓EI ↑EN ↑Qcb ↑SF ↑
+> Model I✗✗3.320 1.452 45.531 6.058 0.396 9.238 Model II ✓✗4.363 1.046 48.351 6.578 0.434 11.936 Model III ✗✓4.256 0.619 48.154 6.423 0.418 11.175 Ours ✓✓4.518 0.596 48.784 6.639 0.435 12.554
+
+Figure 6. Qualitative comparison between our model and its ab-lated variants. 
+
+4.4. Ablation Study 
+
+The core of our method lies in the joint sparse dictionary and the LLM-based modulation. To evaluate the contribu-tion of these two components to infrared and visible im-age fusion under the condition of missing infrared modal-ity, we perform an ablation study on the FLIR dataset. The results are reported in Table 3 and Figure 6. We construct Model I as the baseline. In Model I, the joint dictionary is replaced with an encoder-decoder architecture that con-sists of three 3×3 convolutional layers, and the LLM-based modulation for infrared prediction is removed. As shown in Figure 6, Model I fails to recover infrared information and produces blurry results with noticeable artifacts compared to the source visible images. 
+
+Effectiveness of the Joint Sparse Dictionary. Building upon Model I, we replace the encoder and decoder struc-ture composed of convolutional layers with a joint dictio-nary, resulting in Model II. The joint dictionary guides the process of image encoding and reconstruction. As shown in Figure 6, the introduction of the joint dictionary enables Model II to integrate infrared information into the generated images, thereby enhancing the thermal regions. The met-rics in Table 3 further demonstrate improved image quality. These results indicate that the joint dictionary allows the model to more effectively capture cross modal correspon-dences in the joint representation space, facilitating better thermal compensation and fusion. 
+
+Effectiveness of LLM Modulation. Additionally, we integrate LLM guidance into Model I to provide discrimina-tive supervision for infrared reasoning, resulting in Model III. As illustrated in Figure 6, the images generated by Model III display enhanced brightness and contrast, along with clearer edge details. The quantitative results in Table 3 further show that Model III outperforms Model I across all evaluation metrics. These findings imply that LLM effec-tively provides semantic constraints and discriminative cues during infrared reasoning, enabling the model to more ac-curately capture and preserve key thermal features. In our full model, both the joint dictionary and LLM modulation are incorporated. As shown in Figure 6, the images generated by our model achieve the best visual performance, featuring superior detail preservation, texture quality, color fidelity, and enhancement of thermal regions. Moreover, as presented in Table 3, our method attains the highest scores across all evaluation metrics. These results underscore the complementary contributions of the joint dictionary and LLM modulation. More experiments and analysis are provided in the supplementary material. 5. Conclusion 
+
+We propose an IR-VIS fusion method tailored for scenar-ios where the infrared modality is absent. This method conducts coefficient domain fusion by imposing transfer and consistency constraints between visible coefficients and pseudo infrared coefficients within a shared dictionary space. The JSRL module establishes cross modal coef-ficient consistency. Under this consistency, the RIN per-forms interpretable reasoning for the missing modality and reconstructs thermal information from the visible represen-tation. The AFRI module further enhances semantic con-sistent fusion and reconstruction by utilizing both visible and pseudo infrared representations, generating high qual-ity images that preserve structural details and thermal cues. Experiments demonstrate that, despite the lack of infrared input, the proposed method achieves performance compa-rable to that of full modal fusion approaches. Moreover, it exhibits stable and superior performance in downstream tasks such as object detection and semantic segmentation. 
+
+## Acknowledgments 
+
+This work was supported in part by the National Nat-ural Science Foundation of China(62571222, 62276120, 62576163, 62161015), and the Yunnan Fundamental Re-search Projects (202501AS070123, 202301AV070004). 
+
+## References 
+
+[1] Jonas Adler and Ozan ¨ Oktem. Learned primal-dual recon-struction. IEEE Transactions on Medical Imaging , 37(6): 1322–1332, 2018. 3 [2] Mehmet A Akg¨ un, John H Garcelon, and Raphael T Haftka. Fast exact linear and non-linear structural reanalysis and the sherman–morrison–woodbury formulas. International Journal for Numerical Methods in Engineering , 50(7):1587– 1606, 2001. 4 [3] Amir Beck and Marc Teboulle. A fast iterative shrinkage-thresholding algorithm for linear inverse problems. SIAM Journal on Imaging Sciences , 2(1):183–202, 2009. 3 [4] Stephen Boyd, Neal Parikh, Eric Chu, Borja Peleato, Jonathan Eckstein, et al. Distributed optimization and sta-tistical learning via the alternating direction method of mul-tipliers. Foundations and Trends in Machine learning , 3(1): 1–122, 2011. 3 [5] Hilton Bristow, Anders Eriksson, and Simon Lucey. Fast convolutional sparse coding. In Proceedings of the IEEE Conference on Computer Vision and Pattern Recognition ,pages 391–398, 2013. 3 [6] Antonin Chambolle and Thomas Pock. A first-order primal-dual algorithm for convex problems with applications to imaging. Journal of Mathematical Imaging and Vision , 40 (1):120–145, 2011. 3 [7] Xin Deng, Jingyi Xu, Fangyuan Gao, Xiancheng Sun, and Mai Xu. Deep M2cdl: Deep multi-scale multi-modal con-volutional dictionary learning network. IEEE Transactions on Pattern Analysis and Machine Intelligence , 46(5):2770– 2787, 2023. 4 [8] Keying Du, Huafeng Li, Yafei Zhang, and Zhengtao Yu. Chitnet: A complementary to harmonious information trans-fer network for infrared and visible image fusion. IEEE Transactions on Instrumentation and Measurement , 74:1– 17, 2025. 2 [9] Xueyang Fu, Zheng-Jun Zha, Feng Wu, Xinghao Ding, and John Paisley. Jpeg artifacts reduction via deep convolutional sparse coding. In Proceedings of the IEEE/CVF Interna-tional Conference on Computer Vision , pages 2501–2510, 2019. 3 [10] Shuhang Gu, Wangmeng Zuo, Qi Xie, Deyu Meng, Xi-angchu Feng, and Lei Zhang. Convolutional sparse coding for image super-resolution. In Proceedings of the IEEE Inter-national Conference on Computer Vision , pages 1823–1831, 2015. 3 [11] Soonmin Hwang, Jaesik Park, Namil Kim, Yukyung Choi, and In So Kweon. Multispectral pedestrian detection: Benchmark dataset and baseline. In Proceedings of the IEEE Conference on Computer Vision and Pattern Recognition ,pages 1037–1045, 2015. 6 [12] Lihua Jian, Xiaomin Yang, Zheng Liu, Gwanggil Jeon, Min-gliang Gao, and David Chisholm. Sedrfuse: A symmetric encoder–decoder with residual block network for infrared and visible image fusion. IEEE Transactions on Instrumen-tation and Measurement , 70:1–15, 2020. 2 [13] Diederik P. Kingma and Jimmy Lei Ba. Adam: A method for stochastic optimization. In International Conference on Learning Representations (ICLR) , pages 1–15, 2015. 6 [14] Dong-Guw Lee, Myung-Hwan Jeon, Younggun Cho, and Ayoung Kim. Edge-guided multi-domain rgb-to-tir image translation for training vision tasks with challenging labels. 
+
+arXiv preprint arXiv:2301.12689 , 2023. 2 [15] Hui Li and Xiao-Jun Wu. Crossfuse: A novel cross atten-tion mechanism based infrared and visible image fusion ap-proach. Information Fusion , 103:102147, 2024. 2 [16] Huafeng Li, Yueliang Cen, Yu Liu, Xun Chen, and Zhengtao Yu. Different input resolutions and arbitrary output resolu-tion: A meta learning-based deep framework for infrared and visible image fusion. IEEE Transactions on Image Process-ing , 30:4070–4083, 2021. 2 [17] Hui Li, Tianyang Xu, Xiao-Jun Wu, Jiwen Lu, and Josef Kit-tler. Lrrnet: A novel representation learning guided fusion network for infrared and visible images. IEEE Transactions on Pattern Analysis and Machine Intelligence , 45(9):11040– 11052, 2023. 7 [18] Huafeng Li, Junzhi Zhao, Jinxing Li, Zhengtao Yu, and Guangming Lu. Feature dynamic alignment and refinement for infrared–visible image fusion: Translation robust fusion. 
+
+Information Fusion , 95:26–41, 2023. 1 [19] Huafeng Li, Junyu Liu, Yafei Zhang, and Yu Liu. A deep learning framework for infrared and visible image fusion without strict registration. International Journal of Com-puter Vision , 132:1625–1644, 2024. 1, 2 [20] Huafeng Li, Zengyi Yang, Yafei Zhang, Wei Jia, Zheng-tao Yu, and Yu Liu. Mulfs-cap: Multimodal fusion-supervised cross-modality alignment perception for unreg-istered infrared-visible image fusion. IEEE Transactions on Pattern Analysis and Machine Intelligence , 47(5):3673– 3690, 2025. 1, 7 [21] Jing Li, Hongtao Huo, Chang Li, Renhua Wang, and Qi Feng. Attentionfgan: Infrared and visible image fusion us-ing attention-based generative adversarial networks. IEEE Transactions on Multimedia , 23:1383–1396, 2020. 1, 2 [22] Jing Li, Jianming Zhu, Chang Li, Xun Chen, and Bin Yang. Cgtf: Convolution-guided transformer for infrared and visi-ble image fusion. IEEE Transactions on Instrumentation and Measurement , 71:1–14, 2022. 2 [23] Xingyuan Li, Yang Zou, Jinyuan Liu, Zhiying Jiang, Long Ma, Xin Fan, and Risheng Liu. From text to pixels: Acontext-aware semantic synergy solution for infrared and visible image fusion. arXiv preprint arXiv:2401.00421 ,2023. 2 [24] Xingyuan Li, Jinyuan Liu, Zhixin Chen, Yang Zou, Long Ma, Xin Fan, and Risheng Liu. Contourlet residual for prompt learning enhanced infrared image super-resolution. In European Conference on Computer Vision , pages 270– 288. Springer, 2024. 2 [25] Xingyuan Li, Zirui Wang, Yang Zou, Zhixin Chen, Jun Ma, Zhiying Jiang, Long Ma, and Jinyuan Liu. Difiisr: A diffu-sion model with gradient guidance for infrared image super-resolution. In Proceedings of the Computer Vision and Pat-tern Recognition Conference , pages 7534–7544, 2025. 2 [26] Jinyuan Liu, Xin Fan, Zhanbo Huang, Guanyao Wu, Risheng Liu, Wei Zhong, and Zhongxuan Luo. Target-aware dual adversarial learning and a multi-scenario multi-modality benchmark to fuse infrared and visible for object detection. In Proceedings of the IEEE/CVF Conference on Computer Vision and Pattern Recognition , pages 5802–5811, 2022. 6, 7[27] Jinyuan Liu, Zhu Liu, Guanyao Wu, Long Ma, Risheng Liu, Wei Zhong, Zhongxuan Luo, and Xin Fan. Multi-interactive feature learning and a full-time multi-modality benchmark for image fusion and segmentation. In Proceed-ings of the IEEE/CVF international conference on computer vision , pages 8115–8124, 2023. 2, 6 [28] Jinyuan Liu, Runjia Lin, Guanyao Wu, Risheng Liu, Zhongxuan Luo, and Xin Fan. Coconet: Coupled con-trastive learning network with multi-level feature ensemble for multi-modality image fusion. International Journal of Computer Vision , 132(5):1748–1775, 2024. 2, 7 [29] Jinyuan Liu, Bowei Zhang, Qingyun Mei, Xingyuan Li, Yang Zou, Zhiying Jiang, Long Ma, Risheng Liu, and Xin Fan. Dcevo: Discriminative cross-dimensional evolutionary learning for infrared and visible image fusion. In Proceed-ings of the Computer Vision and Pattern Recognition Con-ference , pages 2226–2235, 2025. 7 [30] Risheng Liu, Zhu Liu, Jinyuan Liu, Xin Fan, and Zhongxuan Luo. A task-guided, implicitly-searched and meta-initialized deep model for image fusion. IEEE Transactions on Pat-tern Analysis and Machine Intelligence , 46(10):6594–6609, 2024. 7 [31] Yu Liu, Lei Wang, Huafeng Li, and Xun Chen. Multi-focus image fusion with deep residual learning and focus property detection. Information Fusion , 86:1–16, 2022. 1 [32] Jiayi Ma, Wei Yu, Pengwei Liang, Chang Li, and Junjun Jiang. Fusiongan: A generative adversarial network for in-frared and visible image fusion. Information Fusion , 48:11– 26, 2019. 1, 2 [33] Jiayi Ma, Han Xu, Junjun Jiang, Xiaoguang Mei, and Xiao-Ping Zhang. Ddcgan: A dual-discriminator conditional gen-erative adversarial network for multi-resolution image fu-sion. IEEE Transactions on Image Processing , 29:4980– 4995, 2020. 2 [34] Jiayi Ma, Linfeng Tang, Fan Fan, Jun Huang, Xiaoguang Mei, and Yong Ma. Swinfusion: Cross-domain long-range learning for general image fusion via swin transformer. 
+
+IEEE/CAA Journal of Automatica Sinica , 9(7):1200–1217, 2022. 1, 2 [35] Fangyuan Mao, Jilin Mei, Shun Lu, Fuyang Liu, Liang Chen, Fangzhou Zhao, and Yu Hu. Pid: physics-informed diffusion model for infrared image generation. Pattern Recognition ,page 111816, 2025. 2 [36] Dongyu Rao, Tianyang Xu, and Xiao-Jun Wu. Tgfuse: An infrared and visible image fusion approach based on trans-former and generative adversarial network. IEEE Transac-tions on Image Processing , 2023. 2 [37] Meyer Scetbon, Michael Elad, and Peyman Milanfar. Deep k-svd denoising. IEEE Transactions on Image Processing ,30:5944–5955, 2021. 3 [38] Jian Sun, Huibin Li, Zongben Xu, et al. Deep admm-net for compressive sensing mri. Advances in Neural Information Processing Systems , 29, 2016. 3 [39] Linfeng Tang, Jiteng Yuan, Hao Zhang, Xingyu Jiang, and Jiayi Ma. Piafusion: A progressive infrared and visible im-age fusion network based on illumination aware. Information Fusion , 83:79–92, 2022. 6 [40] Linfeng Tang, Yuxin Deng, Xunpeng Yi, Qinglong Yan, Yix-uan Yuan, and Jiayi Ma. Drmf: Degradation-robust multi-modal image fusion via composable diffusion prior. In Pro-ceedings of the 32nd ACM International Conference on Mul-timedia , pages 8546–8555, 2024. 2 [41] Wei Tang, Fazhi He, Yu Liu, Yansong Duan, and Tongzhen Si. Datfuse: Infrared and visible image fusion via dual atten-tion transformer. IEEE Transactions on Circuits and Systems for Video Technology , 33(7):3159–3172, 2023. 2 [42] Guanyao Wu, Haoyu Liu, Hongming Fu, Yichuan Peng, Jinyuan Liu, Xin Fan, and Risheng Liu. Every sam drop counts: Embracing semantic priors for multi-modality image fusion and beyond. In Proceedings of the Computer Vision and Pattern Recognition Conference , pages 17882–17891, 2025. 7 [43] Enze Xie, Wenhai Wang, Zhiding Yu, Anima Anandkumar, Jose M Alvarez, and Ping Luo. Segformer: Simple and efficient design for semantic segmentation with transform-ers. Advances in Neural Information Processing Systems ,34:12077–12090, 2021. 7 [44] Han Xu, Jiayi Ma, Junjun Jiang, Xiaojie Guo, and Haibin Ling. U2fusion: A unified unsupervised image fusion net-work. IEEE Transactions on Pattern Analysis and Machine Intelligence , 44(1):502–518, 2020. 7 [45] Zengyi Yang, Yafei Zhang, Huafeng Li, and Yu Liu. Instruction-driven fusion of infrared–visible images: Tailor-ing for diverse downstream tasks. Information Fusion , 121: 103148, 2025. 1 [46] Jun Yue, Leyuan Fang, Shaobo Xia, Yue Deng, and Jiayi Ma. Dif-fusion: Toward high color fidelity in infrared and visible image fusion with diffusion models. IEEE Transactions on Image Processing , 32:5705–5720, 2023. 2 [47] Hao Zhang, Jiteng Yuan, Xin Tian, and Jiayi Ma. Gan-fm: Infrared and visible image fusion using gan with full-scale skip connection and dual markovian discriminators. 
+
+IEEE Transactions on Computational Imaging , 7:1134– 1147, 2021. 2 [48] Hao Zhang, Lei Cao, and Jiayi Ma. Text-difuse: An inter-active multi-modal image fusion framework based on text-modulated diffusion model. Advances in Neural Information Processing Systems , 37:39552–39572, 2024. 1, 2 [49] Zixiang Zhao, Haowen Bai, Jiangshe Zhang, Yulun Zhang, Shuang Xu, Zudi Lin, Radu Timofte, and Luc Van Gool. Cddfuse: Correlation-driven dual-branch feature decompo-sition for multi-modality image fusion. In Proceedings of the IEEE/CVF Conference on Computer Vision and Pattern Recognition , pages 5906–5916, 2023. 7 [50] Zixiang Zhao, Haowen Bai, Yuanzhi Zhu, Jiangshe Zhang, Shuang Xu, Yulun Zhang, Kai Zhang, Deyu Meng, Radu Timofte, and Luc Van Gool. Ddfm: denoising diffusion model for multi-modality image fusion. In Proceedings of the IEEE/CVF International Conference on Computer Vi-sion , pages 8082–8093, 2023. 1, 2 [51] Zixiang Zhao, Haowen Bai, Jiangshe Zhang, Yulun Zhang, Kai Zhang, Shuang Xu, Dongdong Chen, Radu Timofte, and Luc Van Gool. Equivariant multi-modality image fusion. In 
+
+Proceedings of the IEEE/CVF Conference on Computer Vi-sion and Pattern Recognition , pages 25912–25921, 2024. 7 [52] Hongyi Zheng, Hongwei Yong, and Lei Zhang. Deep con-volutional dictionary learning for image denoising. In Pro-ceedings of the IEEE/CVF Conference on Computer Vision and Pattern Recognition , pages 630–641, 2021. 4 [53] Huabing Zhou, Wei Wu, Yanduo Zhang, Jiayi Ma, and Haibin Ling. Semantic-supervised infrared and visible image fusion via a dual-discriminator generative adversarial net-work. IEEE Transactions on Multimedia , 25:635–648, 2021. 2Missing No More: Dictionary-Guided Cross-Modal Image Fusion under Missing Infrared 
+
+# Supplementary Material 
+
+## A. More Detail of Our Method 
+
+We present the process of Joint Shared-dictionary Repre-sentation Learning (JSRL) in Algorithm 1. First, the in-frared and visible images are fed into the HeadNet to gener-ate their coefficient maps, with the shared dictionary being initialized to zeros. Subsequently, these initial represen-tations are progressively refined through N IV-DLBs, en-abling the final coefficients and shared dictionary to accu-rately reconstruct the input infrared and visible images. 
+
+Algorithm 1 Joint Shared-dictionary Representation Learn-ing 
+
+Input: Infrared image Iir , visible image Ivis , scale factor σ, the number of IV-DLBs N
+
+Output: Reconstructed infrared image I′ 
+
+> ir
+
+, Reconstructed visible image I′
+
+> vis
+
+, shared dictionary D
+
+1: Svis, (0) = HeadNet (Ivis ), Sir, (0) = HeadNet (Iir ),
+
+D(0) = 0 
+
+2: for n = 1 to N do 
+
+3: {μ1,(n), μ 2,(n), μ 3,(n), β 1,(n), β 2,(n), β 3,(n)} =
+
+HypNet (σ)
+
+4: S′ 
+
+> vis, (n)
+
+= CSB-VIS  Ivis , D(n−1) , Svis, (n−1) , μ 1,(n)
+
+
+
+5: Svis, (n) = CoeNet-VIS  S′
+
+> vis, (n)
+
+, β 1,(n)
+
+
+
+6: S′ 
+
+> ir, (n)
+
+= CSB-IR  Iir , D(n−1) , Sir, (n−1) , μ 2,(n)
+
+
+
+7: Sir, (n) = CoeNet-IR  S′
+
+> ir, (n)
+
+, β 2,(n)
+
+
+
+8: D′ 
+
+> (n)
+
+= DSB  Ivis , Iir , D(n−1) , Svis, (n), Sir, (n), μ 3,(n)
+
+
+
+9: D(n) = DicNet  D′
+
+> (n)
+
+, β 3,(n)
+
+
+
+10: end for 
+
+11: I′ 
+
+> vis
+
+= D(N ) ∗ Svis, (N ), I′ 
+
+> ir
+
+= D(N ) ∗ Sir, (N )
+
+In addition, we summarize the training pipeline for the VIS-Guided IR Inference (VGII) and Adaptive Fusion via Representation Inference (AFRI) modules in Algorithm 2. 
+
+## B. Hyperparameter Analysis 
+
+The proposed method involves two key hyperparameters: the kernel size of the dictionary and the number of IV-DLBs. In our implementation, we set the kernel size of the dictionary to 5 × 5 and use a single IV-DLB layer. In this section, we analyze the influence of the hyperparameters on model performance on the FLIR dataset. 
+
+Influence of the dictionary kernel size. To evaluate the impact of the dictionary kernel size on model perfomance, we evaluate three different kernel configurations: 3 × 3, 5 ×
+
+5, and 7× 7. As shown in Table 4, increasing the kernel size from 3 × 3 to 5 × 5 results in notable improvements across all metrics. However, further enlarging the kernel to 7 × 7
+
+Algorithm 2 VIS-Guided IR Inference and Adaptive Fu-sion via Representation Inference 
+
+Input: visible image Ivis , shared dictionary D, pretrained LLM: Qwen-7B-Chat 
+
+Output: Fusion image If
+
+1: ˜Svis = REN (Ivis , D)
+
+2: S(0)  
+
+> p ir
+
+= RIN( ˜Svis )
+
+3: I(0)  
+
+> p ir
+
+= TailNet( S(0)  
+
+> p ir
+
+, D)
+
+4: Ftext = LLM  Ivis , I(0)  
+
+> p ir
+
+)
+
+5: γ = Φ γ (Ftext ), β = Φ β (Ftext )
+
+6: S(1)  
+
+> p ir
+
+= RIN( γ ⊙ ˜Svis + β)
+
+7: {Wvis , Wp ir } = Ψ gate (Concat( ˜Svis , S(1)  
+
+> p ir
+
+)) 
+
+8: If = TailNet (Wvis , ˜Svis , Wp ir , S(1)  
+
+> p ir
+
+)
+
+Table 4. Influence of the dictionary kernel size on model per-fomance. The best performance for each metric is marked with Red .                                     
+
+> Kernel size AG ↑CE ↓EI ↑EN ↑Qcb ↑SF ↑
+> 3×34.156 1.357 44.882 6.545 0.430 11.195
+> 5×54.518 0.596 48.784 6.639 0.435 12.554
+> 7×74.499 1.298 48.560 6.627 0.356 12.300
+
+leads to varying degrees of performance degradation. 5 × 5
+
+yields the best overall fusion performance. 
+
+Influence of the number of IV-DLB. To evaluate the effect of the number of IV-DLBs, we conduct experiments with N = 1 , 2, 3. As shown in Table 5, increasing N from 1 to 2 leads to only marginal performance gains, while the FLOPs nearly doubles. Further increasing N to 3 results in a degradation of performance. Therefore, we introduce an IV-DLB layer in our experiments to achieve a favorable trade-off between model performance and computational complexity. 
+
+Table 5. Influence of the number of IV-DLBs on model perfo-mance. The best performance for each metric is marked with Red .                                   
+
+> NAG ↑CE ↓EI ↑EN ↑Qcb ↑SF ↑GFLOPS 14.518 0.596 48.784 6.639 0.435 12.554 63.023 24.529 0.565 49.096 6.598 0.432 12.671 120.795 34.485 0.679 48.641 6.705 0.432 12.265 178.567
+
+Influence of the textual prompt. To evaluate the impact of textual prompt from LLM on the model performance, we conducted experiments by setting up three different types of text prompts. As shown in the Table6, the experiment proved that the change in cues had an impact on the effect of fusion.The simplified prompts used in this experiment and the contrast experiment are shown in the Figure 7 below. Among them, our prompts achieved the best performance. 
+
+Table 6. Influence of the textual prompt on model perfomance. The best performance for each metric is marked with Red .                               
+
+> Prompt AG ↑CE ↓EI ↑EN ↑Qcb ↑SF ↑
+> No Prompt 4.183 1.016 47.166 6.215 0.401 11.694 Simplified Prompt 4.431 0.610 48.687 6.613 0.419 12.186 Complete Prompt 4.518 0.596 48.784 6.639 0.435 12.554
+
+Figure 7. Two different types of text prompts. A is the complete prompt used in the experiment, while B is the simplified version of the prompt. 
+
+## C. Evalution Metrics 
+
+Since there is no existing metric that can prove the absolute excellence of the fused image, we employed six widely rec-ognized image fusion evaluation metrics to objectively as-sess the quality of the fusion results.Among them, the aver-age gradient ( AG ) measures the edge intensity of the image, indicating that the fused image can effectively restore the boundary of the target object; The contrast entropy ( CE )measures the distribution of contrast in an image; the edge intensity ( EI ) measures the clarity and strength of edges in the image; the image entropy ( EN ) measures the complex-ity of details in the image. A higher image entropy indicates that the image contains more information and has more vari-ations; the quality consistency based on fusion ( Qcb ) mea-sures the quality consistency between the fused image and the reference image; the spatial frequency ( SF ) measures the spatial frequency of the image to ensure a better visual effect and clearer details in the fused image. 
+
+## D. Complexity Analysis 
+
+In this section, we conduct a complexity analysis of the pro-posed method and compare it with several infrared-visible fusion methods that rely on infrared image generation. Ta-ble 7 presents the complexity comparison results and infer-ence time for each image among different methods. Com-pared with other pixel-level generation fusion methods, our method shows a significantly lower number of learnable pa-rameters, moderate FLOPs and inference time, while main-taining superior performance. This advantage stems from our feature-level infrared modal inference and fusion frame-work, which eliminates the need for generating infrared im-ages, thereby reducing computational complexity. 
+
+Table 7. Complexity analysis of fusion models with missing in-frared modality. All parameters listed in the table represent the learnable parameters of the models. The FLOPs and inference time for each model are calculated using input images of size 
+
+256 × 256 . ’E’ denotes the EGGAN method, while ’P’ denotes the PID method.                                                                                          
+
+> Model Param (M) FLOPs (G) Time (s) Qcb ↑
+> E+U2Fusion 48.064 710.385 0.103 0.368 E+TarDAL 46.892 96.768 0.052 0.304 E+CDDFuse 47.784 194.176 0.059 0.429 E+LRRNet 46.644 80.347 0.026 0.390 E+IVFSWR 60.098 936.753 0.176 0.422 E+CoCoNet 55.709 118.866 0.075 0.409 E+EMMA 48.111 85.935 0.038 0.427 E+TIMFusion 47.827 111.154 0.053 0.396 E+DCEvo 48.601 272.027 0.059 0.432 E+SAGE 46.731 212.942 0.062 0.403 P+U2Fusion 242.895 2,921.78 11.066 0.388 P+TarDAL 241.723 2,308.16 11.015 0.282 P+CDDFuse 242.614 2,405.57 11.022 0.403 P+LRRNet 241.475 2,291.74 10.989 0.408 P+IVFSWR 254.929 3,148.14 11.139 0.377 P+CoCoNet 250.541 2,330.26 11.038 0.433 P+EMMA 242.776 2,297.33 11.002 0.390 P+TIMFusion 242.658 2,322.54 11.026 0.404 P+DCEvo 243.431 2,483.42 11.032 0.412 P+SAGE 241.562 2,424.33 11.025 0.339
+> Ours 21.798 542.001 5.793 0.435
+
+## E. More experimental results 
+
+To further evaluate the performance of our method, we con-duct additional comparative experiments under missing-IR modility. Specifically, we first employ pixel-level infrared generation methods to reconstruct the missing infrared im-ages and then fused the generated infrared images with vis-ible images. The selected infrared generation methods in-clude PID [35], a GAN-based approach EGGAN [14], and , a diffusion-based approach. The fusion process still adopts the ten mainstream fusion methods used in the main paper. Our method does not generate infrared images. lnstead, it directly infers infrared features from the input visible im-ages and produces enhanced images through the adaptive fusion of infrared andvisible features. As illustrated in Figures 8 and 9, the qualitative results show that our method achieves an optimal balance among detail fidelity, thermal-target enhancement, and overall vi-sual naturalness. The proposed approach effectively pre-serves the thermal information while fully integrating the structural and textural features of the visible image. In contrast, methods based on infrared generation suffer from modality imbalance, and their fusion results exhibit issues such as blurring, ghosting, and excessively bright or dark regions. The quantitative results in Tables 8 and 9 fur-ther validate that our method delivers superior performance across all evaluation metrics. These resluts clearly confirm that, for infrared–visible image fusion under missing in-frared modality, our approach achieves state-of-the-art per-formance. 
+
+## F. Limitations and Future Work 
+
+Although the proposed method is effective, it still has cer-tain limitations. The method primarily addresses the catas-trophic effects of missing infrared images but cannot fully replace the role of infrared images inchallenging imaging environments. For example, under extreme weather condi-tions such as heavy fog, visible light imaging devices of-ten fail to capture key targets, making it difficult to reliably infer significant infrared information from the visible im-ages. This limitation constrains the upper bound of the fu-sion framework. In future work, we will further investigate fusion paradigms under missing infrared conditions, with a focus on enhancing the visual representation of visible im-ages in uncontrollable imaging environments and reducing the uncertainty introduced by variations in imaging condi-tions and infrared feature inference. Additionally, we plan to incorporate more robust priors and learnable constraints to improve the method’s generalization and stability in com-plex scenarios. Figure 8. Visual comparison of different fusion methods on the FLIR, MSRS, and KAIST datasets, where the infrared images are generated from visible images using the EGGAN method. Figure 9. Visual comparison of different fusion methods on the FLIR, MSRS, and KAIST datasets, where the infrared images are generated from visible images using the PID method. Table 8. Quantitative comparison of different fusion methods on the FLIR, MSRS, and KAIST datasets, where the infrared images are generated from visible images using the EGGAN method. The best and second-best performances are highlighted with Red and Blue backgrounds, respectively. 
+
+Datasets MSRS FLIR KAIST Methods AG ↑ CE ↓ EI ↑ EN ↑ Qcb ↑ SF ↑ AG ↑ CE ↓ EI ↑ EN ↑ Qcb ↑ SF ↑ AG ↑ CE ↓ EI ↑ EN ↑ Qcb ↑ SF ↑
+
+U2Fusion 3.289 3.309 34.980 5.447 0.327 9.310 2.320 1.453 24.107 5.045 0.368 6.517 2.425 2.734 25.699 5.489 0.388 6.259 TarDAL 3.205 3.458 34.550 6.640 0.363 8.602 2.341 2.756 25.123 6.536 0.304 6.898 1.916 1.728 20.399 6.197 0.382 5.807 CDDFuse 3.644 2.839 38.606 6.513 0.318 11.581 3.004 0.515 31.810 6.406 0.429 8.746 2.944 4.315 31.419 6.225 0.374 8.835 LRRNet 3.979 4.924 42.225 6.617 0.340 12.258 3.905 1.993 41.323 6.866 0.390 11.946 3.086 2.443 33.250 6.642 0.418 8.862 IVFWSR 3.229 4.218 34.902 6.461 0.378 8.608 3.000 3.704 32.530 6.349 0.422 7.818 2.635 2.631 28.661 6.462 0.414 6.959 CoCoNet 3.930 2.664 41.488 6.312 0.385 11.626 3.948 3.267 41.592 6.363 0.409 11.136 2.716 3.055 28.735 6.006 0.390 7.524 EMMA 4.466 3.236 47.469 6.608 0.366 13.207 3.028 0.691 32.297 6.467 0.427 8.689 3.178 2.969 34.234 6.405 0.414 8.941 TIMFusion 3.887 5.072 41.836 6.839 0.356 11.165 3.892 2.938 41.172 6.571 0.396 11.900 3.479 2.473 37.688 6.894 0.446 9.279 DCEvo 4.170 4.718 44.500 6.814 0.308 13.240 3.246 0.591 34.602 6.532 0.432 9.768 3.451 4.359 37.032 6.628 0.375 9.887 SAGE 4.150 3.057 44.114 6.777 0.327 12.560 2.724 1.160 28.303 5.966 0.403 8.138 3.376 2.986 35.924 6.608 0.430 9.534 Ours 5.037 3.142 53.168 7.188 0.454 14.898 4.518 0.596 48.784 6.639 0.435 12.554 4.414 2.227 37.115 7.073 0.405 11.031 
+
+Table 9. Quantitative comparison of different fusion methods on the FLIR, MSRS, and KAIST datasets, where the infrared images are generated from visible images using the PID method. The best and second-best performances are highlighted with Red and Blue backgrounds, respectively. 
+
+Datasets MSRS FLIR KAIST Methods AG ↑ CE ↓ EI ↑ EN ↑ Qcb ↑ SF ↑ AG ↑ CE ↓ EI ↑ EN ↑ Qcb ↑ SF ↑ AG ↑ CE ↓ EI ↑ EN ↑ Qcb ↑ SF ↑
+
+U2Fusion 3.074 1.668 32.810 6.047 0.428 9.168 3.277 1.353 33.900 6.576 0.388 8.329 2.533 0.828 27.040 6.180 0.459 6.911 TarDAL 1.938 2.342 20.524 6.030 0.378 5.654 2.516 0.643 26.795 7.055 0.282 6.860 1.937 1.268 20.667 6.302 0.427 5.766 CDDFuse 4.821 1.651 51.500 7.191 0.466 14.142 3.837 0.726 39.804 6.517 0.403 10.254 3.349 1.361 35.909 7.064 0.488 9.859 LRRNet 3.815 2.837 40.509 7.049 0.445 11.150 3.970 1.798 42.038 6.955 0.408 11.154 3.125 1.432 33.685 7.017 0.439 8.740 IVFWSR 3.994 1.342 43.035 7.046 0.470 11.054 2.976 1.266 31.999 7.180 0.377 7.546 2.878 0.857 31.010 6.962 0.442 8.313 CoCoNet 3.357 0.801 35.271 6.477 0.418 10.386 2.456 1.848 25.333 6.417 0.433 6.589 2.200 1.073 23.195 6.240 0.456 6.444 EMMA 4.904 1.353 52.540 7.187 0.440 14.253 3.150 0.745 33.517 6.280 0.390 8.830 3.334 0.813 36.033 6.979 0.495 9.655 TIMFusion 3.952 3.928 42.063 6.936 0.374 11.708 3.967 1.541 42.121 6.982 0.404 11.572 3.430 1.877 36.806 7.004 0.434 9.509 DCEvo 4.722 1.983 50.492 7.231 0.476 13.974 3.468 0.812 36.719 6.531 0.412 9.516 3.439 1.209 36.676 6.998 0.497 10.381 SAGE 4.447 1.867 47.126 7.005 0.436 13.246 2.690 0.697 27.959 6.379 0.339 7.818 3.234 1.035 34.370 6.805 0.416 9.574 Ours 5.037 3.142 53.168 7.188 0.454 14.898 4.518 0.596 48.784 6.639 0.435 12.554 4.414 2.227 37.115 7.073 0.405 11.031

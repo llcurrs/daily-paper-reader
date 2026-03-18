@@ -1,0 +1,245 @@
+Title: Multimodal MRI Report Findings Supervised Brain Lesion Segmentation with Substructures
+
+URL Source: https://arxiv.org/pdf/2602.20994v1
+
+Published Time: Wed, 25 Feb 2026 02:12:34 GMT
+
+Number of Pages: 4
+
+Markdown Content:
+## MULTIMODAL MRI REPORT FINDINGS SUPERVISED BRAIN LESION SEGMENTATION WITH SUBSTRUCTURES 
+
+## Yubin Ge 1†, Yongsong Huang 2,3†, Xiaofeng Liu 2∗ 
+
+> 1
+
+## Amazon AWS, 2 Yale University, 3 Tohoku University 
+
+ABSTRACT 
+
+Report-supervised (RSuper) learning seeks to alleviate the need for dense tumor voxel labels with constraints derived from radiology reports (e.g., volumes, counts, sizes, loca-tions). In MRI studies of brain tumors, however, we often involve multi-parametric scans and substructures. Here, fine-grained modality/parameter-wise reports are usually provided along with global findings and are correlated with different substructures. Moreover, the reports often describe only the largest lesion and provide qualitative or uncertain cues (“mild,” “possible”). Classical RSuper losses (e.g., sum volume consistency) can over-constrain or hallucinate unre-ported findings under such incompleteness, and are unable to utilize these hierarchical findings or exploit the priors of var-ied lesion types in a merged dataset. We explicitly parse the global quantitative and modality-wise qualitative findings and introduce a unified, one-sided, uncertainty-aware formulation (MS-RSuper) that: (i) aligns modality-specific qualitative cues (e.g., T1c enhancement, FLAIR edema) with their cor-responding substructures using existence and absence losses; (ii) enforces one-sided lower-bounds for partial quantitative cues (e.g., largest lesion size, minimal multiplicity); and (iii) adds extra- vs. intra-axial anatomical priors to respect co-hort differences. Certainty tokens scale penalties; missing cues are down-weighted. On 1238 report-labeled BraTS-MET/MEN scans, our MS-RSuper largely outperforms both a sparsely-supervised baseline and a naive RSuper method. 
+
+Index Terms — Report supervision, multimodal MRI, meningioma, brain metastases, segmentation. 
+
+1. INTRODUCTION 
+
+Accurate delineation of lesion structures is a fundamental step in clinical diagnosis, intervention, and treatment planning [1]. However, voxel-wise annotation for 3D multimodal MRI is costly and subjective, especially when substructures of tu-mor core (TC), enhancing tumor (ET), and edema (ED) must be delineated across sequences with different contrast mech-anisms [1]. How to utilize existing, routinely summarized radiology reports to aid (or assist) segmentation model train-  
+
+> †contribute equally. ∗corresponding author: xiaofeng.liu@yale.edu
+
+ing is of great importance for more practical utilization of big medical data. To exploit the valuable and relatively large-scale text in-formation, early attempts usually form a multi-task learning with an auxiliary task in addition to the segmentation with either the extracted tumor present/absent label for classifi-cation [2], or a contrastive language-image pre-training ob-jective [3]. While the benefits of auxiliary tasks to segmen-tation are indirect and occasionally minor, the recently de-veloped Report-supervised learning (RSuper) [4] promises to directly leverage the detailed volumes, counts, and sizes ex-tracted from abundant abdominal CT radiology reports and enforces the corresponding loss functions alongside the con-ventional segmentation loss for only a small portion of seg-mentation labeled samples (e.g., 50 scans). This approach therefore largely reduces the burden of manual labeling. However, in MRI studies of brain tumors, we often in-volve multi-parametric scans of T1, T1c, T2, and FLAIR as well as substructures of TC, ET, and ED. In which the fine-grained modality/ parameter-wise finding reports are usually provided along with the global finding reports, and correlated to different substructures. How to systematically exploit both the global descriptors (falx-/skull-base adjacency vs. deep parenchyma, approximate size, multiplicity, edema/midline shift) and modality-wise descriptors (T1c enhancement pat-tern; FLAIR hyperintensity) is largely underexplored. Moreover, the reports often describe only the largest le-sion, provide qualitative or uncertain cues (“mild,” “possi-ble”). Specifically, in brain lesions, reports are often par-tially specified : many cases provide only the largest lesion size dmax , omit axes for diameters, and/or use certainty quali-fiers ( mild , possible , equivocal ); and the counts are sometimes qualitative (“multiple”). Simply adopt the classical RSuper volume loss, which penalizes the difference of predicted and labeled sum volume of all tumors, may (a) learn to suppress small lesions that the report does not enumerate, or (b) unduly shrink tumors to match a partial volume hint. Finally, when combining image-report records from mul-tiple diseases, cohort-specific priors are lost. For example, 
+
+BraTS-MET (metastases) typically includes multiple intra-axial parenchymal lesions, often with ring enhancement. In contrast, BraTS-MEN (meningioma) is typically extra-axial and dural-based (e.g., falx, skull base) with solid enhance-
+
+> arXiv:2602.20994v1 [eess.IV] 24 Feb 2026
+
+ment. A report-derived supervision should transfer across cohorts without imposing contradictory biases. A naive RSu-per loss cannot leverage these strong anatomical priors. To address these limitations, we propose a novel multi-modality with substructure RSuper framework for brain le-sion segmentation. Our main contributions are: 
+
+•Modality-Substructure Alignment: We introduce a loss that links modality-specific report findings (e.g., T1c enhancement, FLAIR edema) directly to their corresponding segmentation substructures (ET and ED, respectively). 
+
+•One-Sided Partial-Report Loss: We propose a ”lower-bound” size loss and ”minimal-multiplicity” count loss to handle incomplete reports that only describe the largest le-sion or use qualitative counts, avoiding penalty for valid, unreported lesions. 
+
+•Cohort-Specific Priors: We integrate an anatomical prior loss that penalizes intra-axial predictions for MEN and extra-axial predictions for MET, guided by cohort-level cues from the reports. We validated its effectiveness on the combined BraTS-MET and BraTS-MEN with segmentation and report 1.
+
+2. METHODOLOGY 
+
+Our framework trains a 3D segmentation network using a par-tially segmented dataset, i.e., a large set of image-report pairs (DR) and a small set of fully-masked data ( DM ). The model is trained with a composite loss. For data in DM , we use a standard supervised segmentation loss, Lseg (e.g., a combina-tion of Dice and Cross-Entropy loss). For data in DR, we introduce a novel report-supervised loss, Lreport , designed to handle the hierarchical, qualitative, and partial nature of mul-timodal MRI reports. 
+
+2.1. Hierarchical Report Parsing and Mapping 
+
+We first employ a Large Language Model (LLM) with domain-specific prompts to parse each free-text radiology report. Critically, we categorize the extracted cues into two distinct types based on their nature and scope: 
+
+(A) Quantitative Global Cues: These are specific measure-ments, typically found in the ”global findings” section, that apply to the entire lesion or provide a total count. These are often partial (e.g., “largest lesion measuring 45x39x47 mm,” ”multiple punctate... lesions”). 
+
+(B) Qualitative Modality-Specific Cues: These are usually descriptive, non-numeric findings tied to a specific MRI sequence, which inherently map to tumor substructures. Though sometimes the tumor size is provided, it is the same as the global finding, which does not provide incremental information. For example, T1c often includes “obvious en-hancement,” “ring enhancement,” “no enhancement,” while 
+
+> 1https://huggingface.co/datasets/JiayuLei/RadGe nome-Brain_MRI/tree/main
+
+Fig. 1 . Overview of our proposed report-supervised frame-work. An LLM parses hierarchical findings from reports. Our losses align modality-specific findings, handle partial cues, and enforce anatomical location priors. FLAIR includes “surrounding extensive edema,” “mild hy-perintense signal.” Based on this parsing, we propose to establish a Modality-Substructure Alignment Principle . This is not a loss func-tion itself, but a crucial mapping rule that directs how con-straints are applied: 
+
+• T1c findings (enhancement) constrain the Enhancing Tumor ( PET ) probability map. 
+
+• FLAIR findings (edema, non-specific hyperintensity) constrain the Edema ( PED ) probability map. 
+
+• T1 or T2 findings (e.g., ”hypointense core”) constrain the Tumor Core ( PT C ) map. 
+
+• Global cues (e.g., total size, count) constrain the Whole Tumor ( PW T ) map, where PW T = PET + PED + PT C .Uncertainty cues (e.g., ”possible,” ”mild”) are parsed into a scaling weight λ ∈ [0 , 1] for the corresponding loss term. 
+
+2.2. Unified Report Constraint Loss ( Lreport )
+
+Our primary report loss, Lreport , combines constraints from both qualitative and quantitative cues, applying them to the aligned substructure maps identified in §2.1.
+
+2.2.1. Substructure Qualitative Existence and Absence Loss 
+
+As identified, most modality-specific cues are qualitative (e.g., ”edema is present”) and lack quantitative volumes. We cannot use a symmetric L1/L2 volume loss [4]. In-stead, we formulate a loss based on the existence or ab-sence of a finding. For a given substructure class k (e.g., 
+
+k ∈ {ET, ED, TC }), let Vk be the predicted volume of 
+
+Pk(x) ≥ 0.5 for that substructure. If the report confirms the presence of substructure k (e.g., ”surrounding edema” → k = ED) with confidence λk, pos ,we apply an ”Existence Loss.” This loss penalizes the model only if it fails to predict any presence (volume < 1) of that substructure L(k) 
+
+> exist
+
+= max(0 , 1 − Vk), which encourages the model to segment at least 1 voxel for class k, without halluci-nating a specific target volume. Conversely, if the report explicitly confirms the absence 
+
+of a substructure k (e.g., ”no enhancement” → k = ET), we apply an loss that penalizes any prediction for that class 
+
+L(k) 
+
+> exist
+
+= Vk. Therefore, we have 
+
+L(k) 
+
+> exist
+
+=
+
+
+
+max(0 , 1 − Vk) if presence confirmed, 
+
+Vk if absence confirmed, 
+
+0 otherwise. (1) 
+
+2.2.2. Global One-Sided Partial Cue Loss (Size and Count) 
+
+We handle the quantitative but partial nature of global cues: 
+
+• Size Loss: Reports often provide only the 3D-dim or diameter(s) of the largest lesion, dmax . Let Cpred be the set of predicted connected components for the whole tu-mor ( PW T ≥ 0.5). Let dc be the volume of a component 
+
+c ∈ Cpred . The loss is: 
+
+Lsize = |dmax − max 
+
+> c∈Cpred
+
+dc|.
+
+This loss used mean absolute error, which is more robust to small inaccurate measure of dmax .
+
+• Count Loss: Reports often use qualitative counts like ”multiple” or ”a few.” We parse this to a minimal integer Nqual 
+
+(e.g., ”multiple” → Nqual = 2 ). We apply a one-sided count loss: 
+
+Lcount = max(0 , N qual − | Cpred |).
+
+It penalizes the model if it predicts fewer than Nqual lesions. Therefore, we have Lglobal = wsize Lsize + wcount Lcount .
+
+2.3. Cohort-Specific Anatomical Prior Loss ( Lprior )
+
+Finally, we leverage global location cues (e.g., “falx,” “parenchy-mal”) to identify the cohort (MEN or MET) and apply a strong anatomical prior. We use pre-defined binary masks for the dura/extra-axial space ( Mdural ) and the brain parenchyma/ intra-axial space ( Mparench ). 
+
+• If the report suggests Meningioma (MEN) , which is extra-axial, we penalize any intra-axial predictions: 
+
+Lprior = X
+
+> x
+
+(PW T (x) · Mparench (x)) .
+
+• If the report suggests Metastases (MET) , which are intra-axial, we penalize extra-axial predictions: 
+
+Lprior = X
+
+> x
+
+(PW T (x) · Mdural (x)) .
+
+This loss effectively guides the model to search in the correct anatomical compartment, resolving ambiguity and reducing false positives. 
+
+2.4. Total Loss Function 
+
+The model is first pre-trained on DM using Lseg . It is then fine-tuned on the combined dataset DM ∪ DR. For a mixed batch B = BM ∪ BR, the total loss is: 
+
+Ltotal = 1
+
+|BM |
+
+X
+
+> i∈BM
+
+L(i) 
+
+> seg
+
++ wr
+
+|BR|
+
+X
+
+> j∈BR
+
+L(j)
+
+> report
+
+,
+
+where wr is a balancing weight for the report-based supervi-sion, and Lreport is the sum of our proposed constraint losses: 
+
+Lreport =
+
+> 3
+
+X
+
+> k
+
+L(k) 
+
+> exist
+
++ wsize Lsize + wcount Lcount + wprior Lprior ,
+
+where wsize , wcount , and wprior are weights for each component of the report-supervised loss. 
+
+3. EXPERIMENTS AND RESULTS 
+
+We used two large-scale, multi-modal MRI segmentation datasets. Their associated radiology reports are manually generated in RadGenome-Brain MRI dataset [5] 1. Each sub-ject has a global finding and four modality-wise findings. 
+
+• BraTS-MEN (Meningioma): A collection of 1000 subjects (4000 3D mpMRI scans) with meningioma. Reports frequently describe extra-axial, dural-based lesions (e.g., ”falx cerebri,” ”skull base,” ”cerebellopontine angle”) with ”marked,” ”uniform” enhancement on T1c. 
+
+• BraTS-MET (Metastases): A collection of 238 sub-jects (952 3D mpMRI scans) with brain metastases. Reports describe ”multiple,” ”parenchymal” (intra-axial) lesions, of-ten with ”ring enhancement” and ”extensive surrounding edema” on FLAIR. We held out 50 MEN and 50 MET for testing, and re-maining subjects for training (all with reports, while 50 MEN and 50 MET has segmentation masks). The LLM parser was implemented using Llama 3.1 70B as in [4] with prompts engineered to extract the hierarchical attributes, uncertainty weights, and cohort priors. We used the 3D nnU-Net framework as our base segmen-tation architecture due to its strong performance. The model was pre-trained on BraTS2018 for Glioblastoma (different tu-mor from MEN or MET) with the supervised CE loss for labeled substructures of TC, ET, and ED [1]. No report is Table 1 . Dice Score on the held-out test sets.                             
+
+> Method Test Set WT (DSC) TC (DSC) ET (DSC)
+> Masks-Only MEN 0.481 0.323 0.370 R-Super [4] MEN 0.452 0.301 0.353
+> MS-RSuper(Ours) MEN 0.554 0.428 0.489
+> Masks-Only MET 0.420 0.385 0.321 RSuper [4] MET 0.443 0.391 0.333
+> MS-RSuper(Ours) MET 0.529 0.494 0.452
+
+available. Loss weights were set empirically as wr = 0 .2,
+
+wsize = 1 .0, wcount = 0 .5, and wprior = 0 .2.We compare three methods: (1) Masks-Only (Base-line): fine-tuned only on the 100 labeled scans ( DM ). (2) 
+
+R-Super [4] finetuned on DM ∪ DR, using the summed volume and count applied to the ”Whole Tumor” (WT = ET+ED+TC) prediction. (3) Ours MS-RSuper: multimodal with substructure supervised by Lreport .As shown in Table 1, our method largely outperforms both baselines. The Masks-Only model suffers from poor general-ization, as expected from only 50 labels in each disease. The RSuper [4] baseline dose not provides improvement, since its symmetric “summed volume” loss is confused by the par-tial reports (e.g., only the largest lesion), leading to subopti-mal performance. Our MS-RSuper achieves the highest Dice scores across all substructures and both cohorts. The gains are promising in the MET dataset, where our Lcount (handling “multiple” lesions) and our qualitative losses ( Lexist ) (which align ’edema’ to PED and ‘enhancement’ to PET ) are critical. For the MEN dataset, Lprior (enforcing extra-axial location) was key to reducing false positives in the brain parenchyma. An ablation study (Table 2) on the MET dataset confirms that each of our proposed loss components contributes to the final performance. The quantitative, partial-cue losses ( Lexist )provide the first major boost by handling size and count. Adding the qualitative modality-aligned losses ( Lglobal ) fur-ther improves performance by correctly using the T1c and FLAIR cues. Finally, the cohort prior ( Lprior ) provides an additional gain by penalizing anatomically implausible pre-dictions. 
+
+4. CONCLUSION 
+
+We introduced a novel report-supervised learning framework tailored for the complexities of multi-parametric brain MRI and substructure segmentation. Unlike prior work on CT, our method addresses three key challenges: (1) it aligns qualita-tive modality-specific findings with their corresponding seg-mentation substructures using novel existence and absence losses, (2) it uses one-sided, uncertainty-aware losses to ro-bustly handle partial quantitative reports (e.g., “largest lesion only,” “multiple”), and (3) it integrates cohort-level anatom-ical priors (intra- vs. extra-axial) derived from report key-words. We evaluate on a large dataset of 1238 meningioma and metastases scans, our approach largely outperformed both 
+
+Table 2 . Ablation study on the BraTS-MET Test set (WT Dice). Each component of our proposed loss ( Lexist , Lglobal ,
+
+Lprior ) provides a cumulative benefit.                  
+
+> Method WT (DSC)
+> Masks-Only (Baseline) 0.420 +Lexist (Partial size/count) 0.475 +Lexist +Lglobal (Adds qualitative) 0.513 +Lexist +Lglobal +Lprior (Full MS-RSuper) 0.529
+
+a sparsely-supervised baseline and a naive application of ex-isting RSuper methods. This work demonstrates that by de-signing losses that faithfully reflect the hierarchical and often-incomplete nature of radiology reports, we can effectively leverage large-scale text data to improve multi-class segmen-tation in multimodal imaging. 
+
+5. COMPLIANCE WITH ETHICAL STANDARDS 
+
+This retrospective study used open-access human subject data; no additional ethical approval was required. 
+
+6. ACKNOWLEDGMENTS 
+
+Supported in part by NIH R21EB034911 and NVIDIA Aca-demic Grant Program. 
+
+7. REFERENCES 
+
+[1] Xiaofeng Liu, Helen A Shih, Fangxu Xing, Emiliano Santarnecchi, Georges El Fakhri, and Jonghye Woo, “In-cremental learning for heterogeneous structure segmenta-tion in brain tumor mri,” in MICCAI . Springer, 2023. [2] Yongtao Zhang, Haimei Li, Jie Du, Jing Qin, Tianfu Wang, Yue Chen, Bing Liu, Wenwen Gao, Guolin Ma, and Baiying Lei, “3d multi-attention guided multi-task learning network for automatic gastric tumor segmenta-tion and lymph node classification,” IEEE TMI , 2021. [3] Louis Blankemeier, Joseph Paul Cohen, Ashwin Ku-mar, Dave Van Veen, Syed Jamal Safdar Gardezi, Mag-dalini Paschali, Zhihong Chen, Jean-Benoit Delbrouck, Eduardo Reis, Cesar Truyts, et al., “Merlin: A vision lan-guage foundation model for 3d computed tomography,” 
+
+Research Square , pp. rs–3, 2024. [4] Pedro RAS Bassi, Wenxuan Li, Jieneng Chen, Zheren Zhu, Tianyu Lin, Sergio Decherchi, Andrea Cavalli, Kang Wang, Yang Yang, Alan L Yuille, et al., “Learn-ing segmentation from radiology reports,” in MICCAI .Springer, 2025. [5] Jiayu Lei, Xiaoman Zhang, Chaoyi Wu, Lisong Dai, Ya Zhang, Yanyong Zhang, Yanfeng Wang, Weidi Xie, and Yuehua Li, “Autorg-brain: Grounded report genera-tion for brain mri,” arXiv:2407.16684 , 2024.

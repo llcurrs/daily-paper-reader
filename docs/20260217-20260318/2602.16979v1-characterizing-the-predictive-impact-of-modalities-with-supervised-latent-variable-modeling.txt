@@ -1,0 +1,1004 @@
+Title: Characterizing the Predictive Impact of Modalities with Supervised Latent-Variable Modeling
+
+URL Source: https://arxiv.org/pdf/2602.16979v1
+
+Published Time: Fri, 20 Feb 2026 01:21:24 GMT
+
+Number of Pages: 19
+
+Markdown Content:
+# Characterizing the Predictive Impact of Modalities with Supervised Latent-Variable Modeling 
+
+## Divyam Madaan ∗ Sumit Chopra ∗,† Kyunghyun Cho ∗,‡,§
+
+Abstract 
+
+Despite the recent success of Multimodal Large Language Models (MLLMs), existing approaches predominantly assume the availability of multiple modalities during training and inference. In practice, multimodal data is often incomplete because modalities may be missing, collected asynchronously, or available only for a subset of examples. In this work, we propose PRIMO , a supervised latent-variable imputation model that quantifies the pr edictive impact of any missing mo dality within the multimodal learning setting. PRIMO enables the use of all available training examples, whether modalities are complete or partial. Specifically, it models the missing modality through a latent variable that captures its relationship with the observed modality in the context of prediction. During inference, we draw many samples from the learned distribution over the missing modality to both obtain the marginal predictive distribution (for the purpose of prediction) and analyze the impact of the missing modalities on the prediction for each instance. We evaluate PRIMO on a synthetic XOR dataset, Audio-Vision MNIST, and MIMIC-III for mortality and ICD-9 prediction. Across all datasets, PRIMO obtains performance comparable to unimodal baselines when a modality is fully missing and to multimodal baselines when all modalities are available. PRIMO quantifies the predictive impact of a modality at the instance level using a variance-based metric computed from predictions across latent completions. We visually demonstrate how varying completions of the missing modality result in a set of plausible labels. 
+
+# 1 Introduction 
+
+A central challenge in practical multimodal learning is the limited availability of all modalities for a downstream task. Many curated benchmarks, both in healthcare (Soenksen et al., 2022; Huang et al., 2025; Gu et al., 2025) and in standard multimodal learning (Antol et al., 2015; Goyal et al., 2017; Dancette et al., 2021; Tong et al., 2024; Liu et al., 2024; Yue et al., 2024; Wu & Xie, 2024), assume that all modalities are observed at training and inference. In practice, modalities are missing for many instances, especially in healthcare, where paired data is often incomplete (von Kleist et al., 2023a,b; Erion et al., 2022). When a patient arrives at the hospital, only a limited set of measurements may be collected initially, and additional tests are ordered only when clinicians suspect a specific condition. This matters because acquiring additional modalities can be expensive and can pose risks to patients. For instance, in prostate cancer screening, MRI before biopsy can improve downstream decision-making, but it also adds cost and exposes patients to additional procedures and potential risks (Callender et al., 2021). In these settings, the goal is not to fill in the missing inputs, but to understand what the missing modality would actually change for the prediction. This motivates the central question of our work: 
+
+For a given multimodal example, how does a modality affect the prediction? 
+
+Most existing approaches model missing modalities as an imputation problem. They infer the missing modality conditioned on the observed modality and then treat the imputed value as observed. Many methods  
+
+> ∗New York University. Correspondence to divyam.madaan@nyu.edu
+> †New York University Grossman School of Medicine
+> ‡Genentech
+> §CIFAR
+
+1 
+
+> arXiv:2602.16979v1 [cs.CV] 19 Feb 2026 Density
+> Clustering
+> Complete
+> Missing
+> Complete
+> Missing
+> Classifier
+> Encoder  Encoder
+> Plausible Labels Effect of on
+> Complete or missing modality instances
+
+Figure 1: Overview of PRIMO. Given an observed modality xo and an additional modality xm that may be missing, PRIMO samples a latent variable z conditioned on the available modalities. The classifier maps (xo, z) to predictions, and the conditional variance Vz [p(y | xo, z)] quantifies how changes in z affect the prediction. When both modalities are observed (orange), V is lower. When a modality is missing (red), V is higher. PRIMO then clusters the output logits across latent samples to visualize plausible labels under each availability scenario. use generative models (Suzuki et al., 2017; Wu & Goodman, 2018; Shi et al., 2019; Sutter et al., 2020, 2021; Joy et al., 2022; Palumbo et al., 2023) to tackle this problem during inference by optimizing a variational lower bound on the data likelihood. This objective prioritizes reconstructing the input modalities; however, improved generative modeling does not necessarily translate into better discriminative performance. This is because there can be many ways to fill in a modality, and only some of them matter for prediction. Mancisidor et al. (2024) partially mitigates this issue by incorporating a discriminative objective, but assumes fully observed multimodal training data. Other approaches discard partially observed examples and either use only complete training data (Suzuki et al., 2017; Wu & Goodman, 2018; Shi et al., 2019; Sutter et al., 2020, 2021) or make predictions only on fully paired data (Lee et al., 2023; Wu et al., 2024). None of these methods jointly optimize a discriminative objective while supporting partially observed modalities during both training and inference. We thus need an approach that (i) uses both complete and partially observed examples during training and inference, and (ii) captures uncertainty in the missing modality pertaining to the predictions for each instance. The goal is not to produce a single value of the missing modality, but to characterize how different plausible completions of the missing modality would change the predictive distribution for a given instance. To achieve this, we propose PRIMO , a supervised latent-variable model that quantifies the pr edictive impact of any mo dality. At a high level, PRIMO measures the impact of each missing modality by modeling it as a latent variable. During inference, PRIMO draws many samples from the learned distribution over the missing modality to obtain a set of final predictions that captures the marginal predictive distribution and the uncertainty due to the missing modality (see Figure 1). More formally, let xo denote the observed modality, xm denote the additional modality that may be missing for some instances, and a target label y. Since modalities can be high-dimensional, directly modeling what part of xm is relevant for y can be challenging. We thus use a continuous latent variable z to capture the information associated with the missing modality that is relevant for predicting y. PRIMO is trained end-to-end to maximize the predictive distribution p(y | xo) when xm is unavailable and p(y | xo, xm) when both modalities are observed. When xm is absent during inference, z is sampled from a conditional prior 
+
+p(z | xo). When both modalities are available, it is sampled from p(z | xo, xm). This latent-variable formulation enables the characterization of predictive impact due to the missing modality for each instance. Particularly, we measure Vz[p(y | xo, z)] to quantify the effect of changes in z on the output predictions. Small values of V imply that the output is less dependent on the missing modality, whereas large values indicate a greater dependence. The distribution over logits yields instance-level estimates of modality impact and captures the range of plausible predictions induced by different latent samples. This also allows us to use PRIMO as a diagnostic tool in complete-modality scenarios to test modality dependence and identify when multimodal models rely on shortcuts (Fu et al., 2024; Tong et al., 2024; Madaan et al., 2025; Gu et al., 2025). We evaluate PRIMO on synthetic and real-world multimodal benchmarks. These include a synthetic XOR dataset, Audio-Vision MNIST (Liang et al., 2021) with audio and vision modalities, and MIMIC-III (Johnson et al., 2016; Liang et al., 2021) with patient demographics and clinical time-series for mortality and ICD-9 2code prediction. Across all datasets, PRIMO obtains performance comparable to unimodal baseline p(y | xo)when a modality is missing, and to a multimodal baseline p(y | xo, xm) when all modalities are available. Beyond predictive performance, PRIMO provides insight into the impact of different modalities for a given task. For example, we show that patient demographic information is sufficient for mortality prediction and neoplasm ICD-9 code prediction in MIMIC-III, while clinical time-series is essential for respiratory ICD-9 code prediction. 
+
+# 2 Learning with Both Complete and Missing Modalities 
+
+We consider supervised multimodal learning where a modality can be missing during training and inference. For clarity, we focus on two modalities. Each example consists of an observed modality xo, an additional modality xm that may be absent, and a label y ∈ ∆C−1 over C classes. The dataset contains complete examples Dcomplete = {(xo,i , xm,i , yi)}Nc 
+
+> i=1
+
+and missing-modality examples Dmissing = {(xo,j , yj )}Nm
+
+> j=1
+
+. PRIMO learns a predictor that maps the available modalities to y, using ( xo, xm) when xm is present, and only xo
+
+otherwise. To characterize the impact of a missing modality, our goal is not to reconstruct xm but to capture the uncertainity in xm that is relevant for prediction. PRIMO is a supervised latent-variable model trained end-to-end (Section 2.1) that supports both complete and missing-modality inputs. It samples latent completions from p(z | xo) when xm is missing and from p(z | xo, xm) when both modalities are observed, which typically reduces predictive variance. This enables us to quantify how predictions vary across completions and use PRIMO for both prediction and modality impact analysis at inference time (Section 2.2). 
+
+## 2.1 Learning objective yz xo
+
+## xm
+
+Figure 2: DGP for missing modalities. The dashed line denotes an a priori correlation between the two modalities. We optimize variational lower bounds on the conditional log-likelihoods log p(y | xo, xm) and log p(y | xo). Following the data generating process (DGP) in Figure 2, we model the label-relevant information in the missing modality xm with a continuous latent variable z ∈ Rd. We assume that y
+
+is conditionally independent of xm given ( xo, z). Under this assumption, the predictive distributions for complete and missing-modality inputs are 
+
+p(y | xo, xm) = 
+
+Z
+
+pθ (y | xo, z) pω (z | xo, xm) dz,p(y | xo) = 
+
+Z
+
+pθ (y | xo, z) pω (z | xo) dz,
+
+(1) where pθ is the predictive model and pω parameterizes the conditional latent distributions. Since these integrals are intractable, we introduce an approxi-mate posterior qϕ and maximize the resulting evidence lower bounds (ELBOs) for both scenarios (see Section A of the Appendix for complete derivations). 
+
+Case 1: Complete modalities (Dcomplete ). When both modalities are observed, we approximate the true posterior p(z | xo, xm, y) with qϕ(z | xo, xm, y) as the variational posterior. We use a conditional prior 
+
+pω (z | xo, xm). We maximize the following ELBO: 
+
+LELBO complete = Ez∼qϕ(z|xo,xm,y)
+
+h
+
+log pθ (y | xo, z)
+
+i
+
+− KL( qϕ(z | xo, xm, y) ∥ pω (z | xo, xm)) . (2) 
+
+Case 2: Missing modality (Dmissing ). When xm is missing, we use the variational posterior qϕ(z | xo, y)and the conditional prior pω (z | xo). The resulting ELBO is 
+
+LELBO missing = Ez∼qϕ(z|xo,y)
+
+h
+
+log pθ (y | xo, z)
+
+i
+
+− KL( qϕ(z | xo, y) ∥ pω (z | xo)) . (3) We jointly maximize both ELBOs across the training set to learn a shared latent representation in complete and missing-modality scenarios. Both ELBOs maximize log pθ (y | xo, z) and contain no reconstruction term for the missing modality. 3When trained jointly, the unimodal and multimodal conditional priors can shift together in z without changing the KL. Because KL divergence is translation invariant, a common shift of both distributions leaves the KL invariant, creating a shift symmetry in z. We break this symmetry by anchoring pω (z | xo) to 
+
+N (0, I) (Mansimov et al., 2019) and tying pω (z | xo, xm) to pω (z | xo) for the same xo using a regularizer R:
+
+R =
+
+> Nc+Nm
+
+X
+
+> i=1
+
+KL( pω (z | xo,i ) ∥ N (0, I)) + 
+
+> Nc
+
+X
+
+> i=1
+
+KL( pω (z | xo,i , xm,i ) ∥ pω (z | xo,i )) , (4) We parameterize the conditional priors pω (z | · ) and the variational posteriors qϕ(z | · ) as diagonal Gaussians, where the mean and variance are given by shared amortized networks. The conditioning variables depend on modality availability, with the priors conditioned on xo or ( xo, xm), and the posteriors conditioned on ( xo, y)or ( xo, xm, y). 
+
+pω (z | · ) = N  z; μω (·), diag  σω (·)2 , qϕ(z | · ) = N  z; μϕ(·), diag  σϕ(·)2 . (5) To prevent posterior collapse, we follow Zhu et al. (2020) and apply batch normalization ( BN ) to the posterior mean μϕ(·) with fixed scale γ and learnable offset β. We compute BN statistics using mini-batch statistics during training. This prevents the posterior from trivially matching the prior by encouraging the KL term to remain non-zero. During training, we use the reparameterization trick to allow backpropagation through samples from these distributions: 
+
+z = μϕ(·) + σϕ(·) ⊙ ε, ε ∼ N (0, I), (6) where ⊙ denotes the element-wise (Hadamard) product. The final training objective is max 
+
+> θ,ϕ,ω Nc
+
+X
+
+> i=1
+
+LELBO complete ,i +
+
+> Nm
+
+X
+
+> j=1
+
+LELBO missing ,j − R , (7) where we optimize jointly over all model parameters. 
+
+## 2.2 Inference 
+
+During testing, the labels y are unknown. We obtain predictions by marginalizing out the latent variable under the appropriate conditional prior and approximate the resulting integral via Monte Carlo sampling. We draw K latent samples from the prior and average the resulting predictive probabilities: 
+
+pθ (y | xo) ≈ 1
+
+K
+
+> K
+
+X
+
+> k=1
+
+pθ (y | xo, z(k)), z(k) ∼ pω (z | xo). (8) Following Figure 2, when both modalities are available at test time, we use the complete prior pω (z | xo, xm). To evaluate whether the missing modality is informative, we measure how the predictions change as we vary latent samples. We define V ≡ V z[pθ (· | xo, z)] as the expected total variation distance (TVD) between the predictive distribution pθ (· | xo, z) and its mean given by ¯ pθ (· | xo) = Ez∼pω (z|xo)[pθ (· | xo, z)]: 
+
+V = Ez∼pω (z|xo)
+
+h
+
+TVD( pθ (· | xo, z), ¯pθ (· | xo)) 
+
+i
+
+. (9) We denote this quantity by Vmissing when z ∼ pω (z | xo), and by Vcomplete when z ∼ pω (z | xo, xm). Larger 
+
+Vmissing indicates that xm can substantially alter the predictions. To characterize plausible outputs under missingness, we draw z ∼ pω (z | xo), get the corresponding output logits from pθ (· | xo, z), and cluster these logits using a Dirichlet Process Gaussian Mixture Model (DPGMM). We label each cluster by its mean predicted class distribution, yielding a set of plausible labels for the input. If the clusters contain multiple plausible labels, this indicates that the latent variable (and thus the missing modality) significantly influences the prediction. Conversely, if the clusters are dominated by a single label, this suggests that the observed modality is sufficient. 43 Related Work 
+
+Data imputation. Missing data imputation has been studied extensively outside multimodal learning. Earlier works used simple heuristics such as zero-filling (Liu et al., 2023; Parthasarathy & Sundaram, 2020) and averaging-based variants such as mean/mode imputation or nearest neighbors. Many benchmarks evaluate imputation methods under different datasets and missingness assumptions (Luengo et al., 2012; Poulos & Valle, 2018; Wo´ znica & Biecek, 2020; Le Morvan et al., 2021; Shadbahr et al., 2023; Li et al., 2024; Morvan & Varoquaux, 2025). These evaluations focus on imputation quality rather than downstream predictive performance. Prior works have shown that improved imputations do not always translate to better downstream accuracy (Shadbahr et al., 2023; Morvan & Varoquaux, 2025). Under the missing completely at random assumption, Paterakis et al. (2024) similarly reports limited gains beyond simple mean and mode baselines. Similarly to our work, Ramchandran et al. (2024) proposes a latent-variable model that treats missing covariates as latent variables and marginalizes them out during inference. Their model, however, differs from ours in that it creates a single latent variable for all covariates, and their analysis does not investigate how the imputation distribution affects the predictive distribution in a fine-grained manner. 
+
+Multimodal learning with missing modalities. Many Variational Autoencoder (VAE)-based multimodal models have also been proposed to handle missing modalities (Suzuki et al., 2017; Vedantam et al., 2018; Tsai et al., 2019; Shi et al., 2019; Sutter et al., 2021; Gong et al., 2021; Joy et al., 2022; Palumbo et al., 2023). These methods focus on generative modeling by optimizing a marginal-likelihood objective via an ELBO, learning to reconstruct the inputs while regularizing the latent distribution toward a prior. As a result, z captures variation in the inputs, but it does not align z with the discriminative decision boundary required for modeling p(y | · ) under missing modalities. CMMD (Mancisidor et al., 2024) takes a step in this direction by incorporating a discriminative component into the multimodal latent framework, but assumes fully observed data during training. MEME (Joy et al., 2022) and VSVAE (Gong et al., 2021) consider partial modality availability, where only a subset of training examples contains all modalities, but they also focus on generative modeling. In contrast, PRIMO focuses on discriminative prediction under heterogeneous modality availability during both training and inference. Additional details of these methods are provided in Section B of the Appendix. 
+
+Multimodal learning with complete modalities. One aspect of multimodal learning that has gained interest in recent years is the propensity of multimodal models to rely on a single modality rather than utilizing all available modalities (Agrawal et al., 2018; Singh et al., 2019; Dancette et al., 2021; Si et al., 2021; Madaan et al., 2024; Yue et al., 2025). More recently, the community has thus shifted its attention to analyzing these multimodal datasets by using various diagnostic checks and metrics. These include measuring performance change under modality removal or shuffling (Gu et al., 2025; Madaan et al., 2025), defining modality importance scores (Gat et al., 2021; Park et al., 2025), or circular evaluation (Liu et al., 2024). These approaches often lack either a way to analyze these multimodal data at an instance level or a mathematically interpretable justification. Our approach, PRIMO, on the other hand, allows us to inspect the impact of a (missing) modality at the level of individual instances in a fine-grained manner. 
+
+# 4 Experiments 
+
+We evaluate the effectiveness of PRIMO on a diverse set of multimodal datasets spanning synthetic, vision-audio, and healthcare settings. We use a synthetic XOR dataset, Audio-Vision MNIST (Liang et al., 2021) with missing audio or vision, and MIMIC-III (Johnson et al., 2016; Liang et al., 2021) with patient demographics (static) and clinical measurements (time-series). Additional dataset, hyperparameters, and architecture details are provided in Section C of the Appendix. Across all datasets, we compare PRIMO under both complete and missing modality conditions against (i) a unimodal baseline that observes only xo, and (ii) a multimodal ( xo, xm) baseline that observes both modalities when available. To evaluate when a missing modality is informative, we use our proposed metric 
+
+V and the clustering analysis defined in Section 2.2. We report ECDFs of V over the test set to summarize its instance-level distribution. 5Complete Missing    
+
+> 60
+> 70
+> 80
+> 90
+> 100
+> Accuracy (%)  xo
+> (xo,xm)
+> MVAE
+> MMVAE
+> CMMD
+> LVAE
+> PRIMO −2 02
+
+xo
+
+> −2
+> 0
+> 2
+> xm
+> 0.0
+> 0.1
+> 0.2
+> 0.3
+> missing  − complete
+
+Figure 3: Evaluation on the XOR dataset. (Left.) Accuracy under complete and missing-modality inputs. PRIMO matches the unimodal baseline ( xo) when xm is missing and matches the multimodal baseline (xo, xm) when both modalities are observed, outperforming the remaining baselines. (Right.) Scatter plot of the predictive impact gap Vmissing − V complete . The gap is small for examples with xo > 0, where the label can be determined by xo only, and larger for xo < 0, where xm affects the label. 
+
+## 4.1 Synthetic XOR 
+
+We consider two 1D modalities xo and xm, always observing xo and masking xm at random with probability 0.5. We sample ( xo, xm) from a mixture of three Gaussians with σ = 0 .5 centered at ( −1, −1), ( −1, 1), and (1 , −1), and assign XOR labels based on the signs of ( xo, xm). This yields examples where for xo < 0 the label depends on xm, while for xo > 0 it can be determine by xo only. 
+
+Results. Figure 3 (left) shows accuracy in complete and missing scenarios. Alongside unimodal and multimodal baselines, we compare against MVAE (Wu & Goodman, 2018) and MMVAE (Shi et al., 2019) (generative baselines), CMMD Mancisidor et al. (2024) (discriminative missing-modality baseline), and LVAE (Ramchandran et al., 2024) (imputation for missing covariates). With xm missing, all methods perform comparably to the unimodal baseline using only xo. With complete inputs, only PRIMO and LVAE match the multimodal model evaluated on complete inputs, consistent with MVAE/MMVAE not being optimized for classification. In our setup, CMMD is not directly applicable to the complete-modality scenario because during inference it always uses the conditional prior pω (z | xo), even when xm is observed. Figure 3 (right) shows the predictive impact gap between missing and complete scenarios, Vmissing −V complete .Examples on the left exhibit a larger gap because the label depends on both modalities, whereas examples on the right are predictable from xo alone. This demonstrates that PRIMO captures the predictive impact of the missing modality. Section C in the Appendix further visualizes the latent space and predictions across methods. 
+
+## 4.2 Audio-vision MNIST (AV-MNIST) 
+
+AV-MNIST is a multimodal digit classification dataset with ten classes using written digits from the MNIST dataset (Lecun et al., 1998) and human spoken digits from the Free Spoken Digit Dataset (FSDD) (Jackson et al., 2018). To control the task difficulty, the dataset variant introduced by Liang et al. (2021) varies the information content in each modality. For audio samples, it adds real-world environmental sounds from the ESC-50 dataset (Piczak, 2015). These are randomly selected from one of the ESC-50 categories. For image samples, it uses PCA-based energy reduction. We consider two missing-modality settings, masking either the audio modality or the image modality independently with probability 0 .5. 
+
+Results. Table 1 shows the accuracy when audio or vision modality is missing. In both scenarios, PRIMO performs comparably to the unimodal ( xo) and the multimodal I2M2 (Madaan et al., 2024) baselines. We compare the distribution of V in both missing-modality scenarios in Figure 4 and Figure 5. Missing vision results in a significantly higher V (μmiss = 0 .57) than missing audio ( μmiss = 0 .37). In contrast, when 6Table 1: Accuracy on AV-MNIST. 
+
+We consider audio-missing and vision-missing settings. PRIMO performs comparably to the unimodal baseline that uses the available modality and to the multimodal baseline in both scenarios. Audio Vision 
+
+xo 64 .23 0.17 40 .36 0.80 
+
+PRIMO 63 .06 0.72 37 .58 1.29 
+
+(xo, xm) 71 .14 0.42 71 .32 0.30 
+
+PRIMO 68 .17 1.42 68 .27 1.35 0.0 0.2 0.4 0.6 0.8 
+
+> 
+> 0.0
+> 0.8
+> 1.6
+> 2.4
+> 3.2
+> Density
+> Missing
+> Complete
+
+Figure 4: Distribution of V when audio is missing. Strong overlap between Vmissing and Vcomplete in-dicates that predictions are often insensitive to the audio modality for those examples. 0.0 0.2 0.4 0.6 0.8 
+
+> 
+> 0
+> 4
+> 8
+> 12
+> 16
+> Density
+> Missing
+> Complete
+
+Figure 5: Distribution of V when vision is missing. Vmissing is shifted to the right relative to 
+
+Vcomplete , indicating greater sen-sitivity to plausible vision com-pletions. 6 8 3 5 1 2 9 7 4                                                  
+
+> 0.0
+> 0.1
+> 0.2
+> Fraction  = 0.6535 863512794
+> 0.0
+> 0.2
+> Fraction  = 0.6531 1
+> 0.0
+> 0.5
+> 1.0
+> Fraction  = 0.0000 17
+> 0.0
+> 0.5
+> 1.0
+> Fraction  = 0.0009 1876043295
+> 0.0
+> 0.2
+> Fraction  = 0.6424 387906412
+> 0.0
+> 0.1
+> 0.2
+> Fraction  = 0.6419 807163942
+> 0.0
+> 0.5
+> Fraction  = 0.3021 807691342
+> 0.0
+> 0.5
+> Fraction  = 0.3080
+
+Figure 6: Qualitative analysis of modality impact on AV-MNIST under audio-missing (top) and vision-missing (bottom) . We visualize plausible label outcomes induced by varying the latent completion z.High-V examples yield multiple plausible label clusters under missingness, while low-V examples concentrate on a single dominant label. audio is missing, many examples exhibit V comparable to the complete input setting, suggesting that the prediction is often insensitive to the audio modality for those instances. In Figure 6, we further characterize how the latent z capturing the missing modality affects predictive distribution using the clustering analysis from Section 2.2. We visualize which labels are most likely under the missing-audio (top row) and missing-vision (bottom row) settings. We visualize high- and low-variance examples with their corresponding Vmissing reported as V. We observe that high-V examples often correspond to multiple plausible labels, reflecting that different latent completions of the missing modality can change the predicted label distribution. For low-V examples, there is a concentration on a single dominant label across different latent completions in both settings. These results illustrate that PRIMO captures how missing modalities alter the set of plausible predictions differently for different examples. 
+
+## 4.3 MIMIC-III 
+
+MIMIC-III (Johnson et al., 2016) is a clinical dataset that contains Electronic Health Records (EHR) data from approximately 40 ,000 patients at Beth Israel Deaconess Medical Center from 2001 to 2012. We use two modalities: (a) static modality containing patient-level information such as age, admission type, and chronic conditions (acquired immunodeficiency syndrome, hematologic malignancy, and metastatic cancer), and (b) time-series modality with 12 physiological measurements recorded hourly over the first 24 hours after ICU admission. The raw time-series modality contains missing measurements. We use the processed benchmark version (Purushotham et al., 2018; Liang et al., 2021), which applies forward and backward 7Table 2: MIMIC-III accuracy. 
+
+We consider mortality and ICD-9 group prediction under missing and complete modality settings. We re-port mean and standard deviation across five runs for the unimodal baseline ( xo), the multimodal base-line ( xo, xm), and PRIMO in each setting. Mortality ICD-9 140-239 460-519                        
+
+> xo76 .36 0.01 91 .42 0.00 56 .22 0.46
+> PRIMO 76 .17 0.07 91 .41 0.01 54 .95 1.44
+> (xo,xm)77 .89 0.17 91 .37 0.10 68 .22 0.52
+> PRIMO 77 .08 0.25 91 .41 0.03 65 .78 1.08 17-53 53-66 66-78 78-100+
+> Age
+> 0
+> 20
+> 40
+> 60
+> 80
+> 100
+> Label Distribution
+> 012345No Yes
+> Chronic Condition
+> 0
+> 20
+> 40
+> 60
+> 80
+> 100
+> Label Distribution
+> 01
+
+Figure 7: (Left) Cluster-induced plausible label distribution for mor-tality prediction stratified by age. (Right) Cluster-induced plausible label distribution for ICD-9 neoplasms (140–239) stratified by chronic condition. Distributions are computed from predictions across latent completions of the time-series modality. 0.0 0.2 0.4 0.6 0.8        
+
+> 
+> 0
+> 2
+> 4
+> 6
+> 8
+> 10
+> Density
+> Missing
+> Complete 0.0 0.1 0.2 0.3 0.4
+> 
+> 0
+> 30
+> 60
+> 90
+> 120
+> 150
+> Density
+> Missing
+> Complete 0.00 0.15 0.30 0.45
+> 
+> 0
+> 4
+> 8
+> 12
+> 16
+> Density
+> Missing
+> Complete
+
+Figure 8: Predictive impact under missing and complete time-series modality with sampling z. We compare V for (left) mortality prediction, (center) ICD-9 140–239 (neoplasms), and (right) ICD-9 460–519 (respiratory diseases). The time-series modality has little impact for ICD-9 140–239, but it affects ICD-9 460–519 and mortality prediction. filling, with mean imputation for features that are entirely missing. We investigate the predictive impact of the time-series modality across multiple tasks by masking it at random with probability 0 .5. We consider mortality prediction as a 6-class problem (death within 1 day, 2 days, 3 days, 1 week, 1 year, or >1 year) and two ICD-9 groups binary prediction tasks, where we consider Group 1 (codes 140–239, neoplasms) and Group 7 (codes 460–519, respiratory diseases). 
+
+Mortality prediction. Time-series modality is often assumed to be important (Liang et al., 2021; Madaan et al., 2024) for this task since patient trajectories can capture deterioration patterns beyond static features. Table 2 shows that the aggregate performance gain from including the time-series modality is relatively small. 
+
+V in Figure 8 shows that for most patients, the predictions are stable across plausible completions of the time series modality. To investigate the tail of patients in this distribution, we conduct the clustering-based analysis from Section 2.2. Figure 7 (left) shows that the resulting label distribution from the clusters shifts towards high-risk mortality outcomes as age increases. This suggests that time-series might be more informative for older-aged patients. We show plausible labels for individual patients in Figure 9 (in the main text) and Figure 13 (in the Appendix). Consistent with our results, we observe that low-V cases usually correspond to low-risk predictions. In contrast, high-V cases concentrate among patients closer to high-risk mortality classes, where time-series modality can be critical. 
+
+ICD-9 code prediction. For predicting neoplasms (ICD-9 140–239), we obtain high accuracy in Table 2 and low Vmissing in Figure 8 despite the absence of time-series modality. This suggests that static modality is sufficient for this task. This is consistent with our clustering analysis in Figure 9 and Figure 14, where the predictions do not change much even in high-V samples and are dominated by a single label. This is 84 0 5 2 1
+
+Label 
+
+0.0 
+
+0.2 
+
+0.4 
+
+> Fraction
+
+ = 0.5697 (a) Mortality 1 0
+
+Label 
+
+0.0 
+
+0.5 
+
+> Fraction
+
+ = 0.1739 (b) ICD-9 (140–239) 1 0
+
+Label 
+
+0.0 
+
+0.2 
+
+0.4 
+
+> Fraction
+
+ = 0.4578 (c) ICD-9 (460–519) 
+
+Figure 9: Patient-level analysis on MIMIC-III under missing time-series modality. We report 
+
+Vmissing as V and visualize the fraction of clusters assigned to each label. High-V examples yield clusters spread across multiple labels, indicating ambiguity for (a) mortality risk and (c) respiratory disease diagnosis, whereas (b) neoplasm prediction concentrates on a single label and remains stable. supported by static modality containing chronic disease features, which are informative descriptors for this ICD block (see Figure 7 (right)). In contrast, for respiratory disease (ICD-9 460-519), we obtain near-random performance in Table 2 and high Vmissing when the time-series modality is missing in Figure 8. This is because respiratory diagnoses in the ICU depends on various time-series measurements. For instance, oxygenation-related variables such as PaO 2/FiO 2 are direct indicators of respiratory impairment, while other features such as temperature, WBC count, heart rate capture systemic instability, and infection that often co-occur with respiratory disease. Our patient-level analysis in Figure 9 and Figure 15 shows that missing time series leads to high-Vmissing and ambiguity in the output predictions for most examples. Overall, for a given dataset, depending on the task, modality importance can vary significantly. While for neoplasms, time series is often not essential, it plays an important role for respiratory diseases. These results show that PRIMO captures these nuances, obtaining good performance while providing patient-level analysis. 
+
+## 4.4 Bias Analysis 
+
+Let p∗(· | xo) = E[y | xo] denote the Bayes-optimal predictor given only xo. PRIMO defines a predictive distribution conditioned on ( xo, z), pθ (· | xo, z). Marginalizing over the learned conditional prior gives ¯pθ (· | xo) = Ez∼pω (z|xo)
+
+pθ (· | xo, z). (10) We measure the discrepancy between this mean prediction and the Bayes-optimal unimodal predictor using: 
+
+Bmissing = TVD( p∗(· | xo), ¯pθ (· | xo)) . (11) When both modalities ( xo, xm) are observed, we define ¯pθ (· | xo, xm) analogously by replacing the prior with pω (z | xo, xm), and we define Bcomplete by comparing to the Bayes-optimal multimodal predictor 
+
+p∗(· | xo, xm) = E[y | xo, xm]. This quantifies how well the learned priors recover the Bayes-optimal unimodal and multimodal predictors after marginalizing over z.PRIMO  PRIMO 
+
+Figure 10: Bias analysis with vision miss-ing. PRIMO( xo) stays close to the unimodal ora-cle, while PRIMO( xo, xm) stays close to the multi-modal oracle. The dashed arc shows the unimodal– multimodal oracle gap. To obtain an unbiased estimate, we partition the dataset into two disjoint halves. Using the complete-modality half, we train unimodal and multimodal oracles. Using the remaining half, we train PRIMO with a 50% missing rate and evaluate it under the same missingness pattern at inference time for both missing and complete scenarios. Figure 10 shows the bias for the missing-vision set-ting. The oracle distances provide a practical lower bound and are non-zero due to finite-sample effects and optimization noise. Under missing vision modality, PRIMO ( xo) is closer to the unimodal oracle trained on xo. When both modalities are available, PRIMO ( xo, xm) is closer to the multimodal oracle trained on (xo, xm), consistent with the unimodal–multimodal oracle gap induced by observing xm.95 Limitations and Future Work 
+
+Constraints on validating modality importance. In practical multimodal settings, we often do not have access to certain modalities at inference time, and in many applications labels may also be missing. This makes it challenging to evaluate whether instance-level modality impact estimates are correct. Our qualitative results on MIMIC-III suggest that modality relevance can vary substantially across tasks and examples within the same dataset. Validating this instance-level modality importance without any ground truth, however, remains an open problem. Incorporating human feedback with automated evaluation protocols would be an interesting direction for future work. 
+
+Evaluation with many modalities. Another practical constraint in multimodal learning is the scarcity of benchmarks with multiple modalities and heterogeneous missingness patterns. PRIMO can extend to any number of modalities by introducing a latent variable for each potentially missing modality, however, current standard benchmarks focus primarily on audio, vision, and text. This limits evaluation in settings with sensory data, tabular data, and multiple imaging modalities. We hope this work motivates benchmarks with three or more modalities and heterogeneous missingness patterns, enabling more realistic evaluation of imputation-based multimodal learning and instance-level modality importance under incomplete data. 
+
+# 6 Conclusion 
+
+We propose PRIMO, a supervised latent-variable model for characterizing predictions under plausible completions of a missing modality. PRIMO supports both complete and missing-modality settings, and achieves performance comparable to unimodal baselines when a modality is missing and multimodal baselines when all modalities are observed. Beyond predictive performance, PRIMO provides instance-level estimates of how missing modalities affect predictions across datasets and modality combinations. We find that modality contributions vary across tasks and across examples within the same dataset. These results highlight the heterogeneity of multimodal datasets. PRIMO provides a principled way to capture this heterogeneity as modality availability and relevance change. 
+
+# Acknowledgement 
+
+This work was supported by the Institute of Information & Communications Technology Planning & Evaluation (IITP) with a grant funded by the Ministry of Science and ICT (MSIT) of the Republic of Korea in connection with the Global AI Frontier Lab International Collaborative Research, Samsung Advanced Institute of Technology (under the project Next Generation Deep Learning: From Pattern Recognition to AI), National Science Foundation (NSF) award No. 1922658, Center for Advanced Imaging Innovation and Research (CAI2R), National Center for Biomedical Imaging and Bioengineering operated by NYU Langone Health, and National Institute of Biomedical Imaging and Bioengineering through award number P41EB017183. The computational requirements for this work were supported by NYU IT High Performance Computing resources, services, and staff expertise and NYU Langone High Performance Computing Core’s resources and personnel. This content is solely the responsibility of the authors and does not represent the views of the funding agencies. 10 References 
+
+Agrawal, A., Batra, D., Parikh, D., and Kembhavi, A. Don’t just assume; look and answer: Overcoming priors for visual question answering. In Proceedings of the IEEE International Conference on Computer Vision and Pattern Recognition (CVPR) , 2018. 5 Antol, S., Agrawal, A., Lu, J., Mitchell, M., Batra, D., Zitnick, C. L., and Parikh, D. Vqa: Visual question answering. In Proceedings of the International Conference on Computer Vision (ICCV) , 2015. 1 Callender, T., Emberton, M., Morris, S., Pharoah, P. D. P., and Pashayan, N. Benefit, Harm, and Cost-effectiveness Associated With Magnetic Resonance Imaging Before Biopsy in Age-based and Risk-stratified Screening for Prostate Cancer. Journal of Mathematical Analysis and Applications , 2021. 1 Dancette, C., Cadene, R., Teney, D., and Cord, M. Beyond question-based biases: Assessing multimodal shortcut learning in visual question answering. In Proceedings of the International Conference on Computer Vision (ICCV) , 2021. 1, 5 Daunhawer, I., Sutter, T. M., Chin-Cheong, K., Palumbo, E., and Vogt, J. E. On the Limitations of Multimodal VAEs. In Proceedings of the International Conference on Learning Representations (ICLR) ,2022. 15 Erion, G., Janizek, J. D., Hudelson, C., Utarnachitt, R. B., McCoy, A. M., Sayre, M. R., White, N. J., and Lee, S.-I. A cost-aware framework for the development of AI models for healthcare applications. Nature Biomedical Engineering , 2022. 1 Fu, X., Hu, Y., Li, B., Feng, Y., Wang, H., Lin, X., Roth, D., Smith, N. A., Ma, W.-C., and Krishna, R. Blink: Multimodal large language models can see but not perceive. In Proceedings of the European Conference on Computer Vision (ECCV) , 2024. 2 Gat, I., Schwartz, I., and Schwing, A. Perceptual score: What data modalities does your model perceive? 
+
+Advances in Neural Information Processing Systems (NeurIPS) , 2021. 5 Gong, Y., Hajimirsadeghi, H., He, J., Durand, T., and Mori, G. Variational selective autoencoder: Learning from partially-observed heterogeneous data. In Proceedings of the International Conference on Artificial Intelligence and Statistics (AISTATS) , 2021. 5, 15, 16 Goyal, Y., Khot, T., Summers-Stay, D., Batra, D., and Parikh, D. Making the v in vqa matter: Elevating the role of image understanding in visual question answering. In Proceedings of the IEEE International Conference on Computer Vision and Pattern Recognition (CVPR) , 2017. 1 Gu, Y., Fu, J., Liu, X., Valanarasu, J. M. J., Codella, N., Tan, R., Liu, Q., Jin, Y., Zhang, S., Wang, J., Wang, R., Song, L., Qin, G., Usuyama, N., Wong, C., Hao, C., Lee, H., Sanapathi, P., Hilado, S., Jiang, B., Alvarez-Valle, J., Wei, M., Gao, J., Horvitz, E., Lungren, M., Poon, H., and Vozila, P. The Illusion of Readiness: Stress Testing Large Frontier Models on Multimodal Medical Benchmarks, 2025. arXiv:2509.18234. 1, 2, 5 Huang, H., Deniz, C., Cho, K., Chopra, S., and Madaan, D. Hist-aid: Leveraging historical patient reports for enhanced multi-modal automatic diagnosis. In Machine Learning for Health (ML4H) , 2025. 1 Jackson, Z., Souza, C., Flaks, J., Pan, Y., Nicolas, H., and Thite, A. Jakobovski/free-spoken-digit-dataset: v1.0.8, 2018. 6 Johnson, A. E., Pollard, T. J., Shen, L., Lehman, L.-w. H., Feng, M., Ghassemi, M., Moody, B., Szolovits, P., Anthony Celi, L., and Mark, R. G. MIMIC-III, a freely accessible critical care database. Scientific data ,2016. Publisher: Nature Publishing Group. 2, 5, 7 Joy, T., Shi, Y., Torr, P., Rainforth, T., Schmon, S. M., and N, S. Learning Multimodal VAEs through Mutual Supervision. In Proceedings of the International Conference on Learning Representations (ICLR) ,2022. 2, 5, 15, 16 11 Le Morvan, M., Josse, J., Scornet, E., and Varoquaux, G. What’sa good imputation to predict with missing values? Advances in Neural Information Processing Systems (NeurIPS) , 2021. 5 Lecun, Y., Bottou, L., Bengio, Y., and Haffner, P. Gradient-based learning applied to document recognition. 
+
+Proceedings of the IEEE , 1998. 6 Lee, Y.-L., Tsai, Y.-H., Chiu, W.-C., and Lee, C.-Y. Multimodal prompting with missing modalities for visual recognition. In Proceedings of the IEEE International Conference on Computer Vision and Pattern Recognition (CVPR) , 2023. 2 Li, J., Guo, S., Ma, R., He, J., Zhang, X., Rui, D., Ding, Y., Li, Y., Jian, L., Cheng, J., and others. Comparison of the effects of imputation methods for missing data in predictive modelling of cohort study datasets. BMC Medical Research Methodology , 2024. 5 Liang, P., Lyu, Y., Fan, X., Wu, Z., Cheng, Y., Wu, J., Chen, L., Wu, P., Lee, M., Zhu, Y., and others. MultiBench: Multiscale Benchmarks for Multimodal Representation Learning. In Advances in Neural Information Processing Systems (NeurIPS) , 2021. 2, 5, 6, 7, 8 Liu, H., Wei, D., Lu, D., Sun, J., Wang, L., and Zheng, Y. M3AE: Multimodal representation learning for brain tumor segmentation with missing modalities. In Proceedings of the AAAI National Conference on Artificial Intelligence (AAAI) , 2023. 5 Liu, Y., Duan, H., Zhang, Y., Li, B., Zhang, S., Zhao, W., Yuan, Y., Wang, J., He, C., Liu, Z., and others. Mmbench: Is your multi-modal model an all-around player? In Proceedings of the European Conference on Computer Vision (ECCV) , 2024. 1, 5 Luengo, J., Garc´ ıa, S., and Herrera, F. On the choice of the best imputation methods for missing values considering three groups of classification methods. Knowledge and information systems , 2012. 5 Madaan, D., Makino, T., Chopra, S., and Cho, K. Jointly Modeling Inter- & Intra-Modality Dependencies for Multi-modal Learning. In Advances in Neural Information Processing Systems (NeurIPS) , 2024. 5, 6, 8 Madaan, D., Muhunthan, V., Cho, K., and Chopra, S. Multi-modal data spectrum: Multi-modal datasets are multi-dimensional. arXiv preprint arXiv:2509.23499 , 2025. 2, 5 Mancisidor, R. A., Kampffmeyer, M., Aas, K., and Jenssen, R. Discriminative multimodal learning via conditional priors in generative models. Neural Networks , 2024. Publisher: Elsevier. 2, 5, 6, 16 Mansimov, E., Mahmood, O., Kang, S., and Cho, K. Molecular geometry prediction using a deep generative graph neural network. Scientific reports , 2019. 4 Morvan, M. L. and Varoquaux, G. Imputation for prediction: beware of diminishing returns. In Proceedings of the International Conference on Learning Representations (ICLR) , 2025. 5 Palumbo, E., Daunhawer, I., and Vogt, J. E. MMVAE+: Enhancing the Generative Quality of Multimodal VAEs without Compromises. In Proceedings of the International Conference on Learning Representations (ICLR) , 2023. 2, 5, 15, 16 Park, J., Jang, K. J., Alasaly, B., Mopidevi, S., Zolensky, A., Eaton, E., Lee, I., and Johnson, K. Assessing modality bias in video question answering benchmarks with multimodal large language models. In 
+
+Proceedings of the AAAI National Conference on Artificial Intelligence (AAAI) , 2025. 5 Parthasarathy, S. and Sundaram, S. Training strategies to handle missing modalities for audio-visual expression recognition. In Proceedings of the International Conference on Multimodal Interaction , 2020. 5 Paterakis, G., Fafalios, S., Charonyktakis, P., Christophides, V., and Tsamardinos, I. Do we really need imputation in AutoML predictive modeling? ACM Transactions on Knowledge Discovery from Data , 2024. 512 Piczak, K. J. ESC: Dataset for Environmental Sound Classification. In Proceedings of the 23rd Annual ACM Conference on Multimedia , 2015. 6 Poulos, J. and Valle, R. Missing data imputation for supervised learning. Applied Artificial Intelligence , 2018. 5Purushotham, S., Meng, C., Che, Z., and Liu, Y. Benchmarking deep learning models on large healthcare datasets. Journal of biomedical informatics , 2018. Publisher: Elsevier. 7 Ramchandran, S., Tikhonov, G., L¨ onnroth, O., Tiikkainen, P., and L¨ ahdesm¨ aki, H. Learning conditional variational autoencoders with missing covariates. Pattern Recognition , 2024. 5, 6 Shadbahr, T., Roberts, M., Stanczuk, J., Gilbey, J., Teare, P., Dittmer, S., Thorpe, M., Torn´ e, R. V., Sala, E., Li´ o, P., and others. The impact of imputation quality on machine learning classifiers for datasets with missing values. Communications medicine , 2023. 5 Shi, Y., Paige, B., Torr, P., and others. Variational mixture-of-experts autoencoders for multi-modal deep generative models. Advances in Neural Information Processing Systems (NeurIPS) , 2019. 2, 5, 6, 15 Si, Q., Lin, Z., yu Zheng, M., Fu, P., and Wang, W. Check It Again: Progressive Visual Question Answering via Visual Entailment. In Proceedings of the Annual Meeting of the Association for Computational Linguistics and the International Joint Conference on Natural Language Processing (Volume 1: Long Papers) , 2021. 5 Singh, A., Natarajan, V., Shah, M., Jiang, Y., Chen, X., Batra, D., Parikh, D., and Rohrbach, M. Towards vqa models that can read. In Proceedings of the IEEE International Conference on Computer Vision and Pattern Recognition (CVPR) , 2019. 5 Soenksen, L. R., Ma, Y., Zeng, C., Boussioux, L., Villalobos Carballo, K., Na, L., Wiberg, H. M., Li, M. L., Fuentes, I., and Bertsimas, D. Integrated multimodal artificial intelligence framework for healthcare applications. Nature Digital Medicine , 2022. 1 Sutter, T., Daunhawer, I., and Vogt, J. Multimodal generative learning utilizing jensen-shannon-divergence. 
+
+Advances in Neural Information Processing Systems (NeurIPS) , 2020. 2, 16 Sutter, T. M., Daunhawer, I., and Vogt, J. E. Generalized Multimodal ELBO. In Proceedings of the International Conference on Learning Representations (ICLR) , 2021. 2, 5, 15 Suzuki, M., Nakayama, K., and Matsuo, Y. Joint Multimodal Learning with Deep Generative Models. In 
+
+Proceedings of the International Conference on Learning Representations (ICLR) , 2017. 2, 5, 15 Tong, S., Liu, Z., Zhai, Y., Ma, Y., LeCun, Y., and Xie, S. Eyes wide shut? exploring the visual shortcomings of multimodal llms. In Proceedings of the IEEE International Conference on Computer Vision and Pattern Recognition (CVPR) , 2024. 1, 2 Tsai, Y.-H. H., Liang, P. P., Zadeh, A., Morency, L.-P., and Salakhutdinov, R. Learning Factorized Multimodal Representations. In Proceedings of the International Conference on Learning Representations (ICLR) , 2019. 5, 15 Vedantam, R., Fischer, I., Huang, J., and Murphy, K. Generative Models of Visually Grounded Imagination. In Proceedings of the International Conference on Learning Representations (ICLR) , 2018. 5, 15 von Kleist, H., Zamanian, A., Shpitser, I., and Ahmidi, N. Evaluation of active feature acquisition methods for static feature settings. arXiv preprint arXiv:2312.03619 , 2023a. 1 von Kleist, H., Zamanian, A., Shpitser, I., and Ahmidi, N. Evaluation of active feature acquisition methods for time-varying feature settings. arXiv preprint arXiv:2312.01530 , 2023b. 1 Wo´ znica, K. and Biecek, P. Does imputation matter? Benchmark for predictive models. arXiv preprint arXiv:2007.02837 , 2020. 5 13 Wu, M. and Goodman, N. Multimodal generative models for scalable weakly-supervised learning. Advances in Neural Information Processing Systems (NeurIPS) , 2018. 2, 6, 15 Wu, P. and Xie, S. Vˆ*: Guided visual search as a core mechanism in multimodal llms. In Proceedings of the IEEE International Conference on Computer Vision and Pattern Recognition (CVPR) , 2024. 1 Wu, Z., Dadu, A., Tustison, N., Avants, B., Nalls, M., Sun, J., and Faghri, F. Multimodal patient representation learning with missing modalities and labels. In Proceedings of the International Conference on Learning Representations (ICLR) , 2024. 2 Yue, X., Ni, Y., Zhang, K., Zheng, T., Liu, R., Zhang, G., Stevens, S., Jiang, D., Ren, W., Sun, Y., and others. Mmmu: A massive multi-discipline multimodal understanding and reasoning benchmark for expert agi. In Proceedings of the IEEE International Conference on Computer Vision and Pattern Recognition (CVPR) , 2024. 1 Yue, X., Zheng, T., Ni, Y., Wang, Y., Zhang, K., Tong, S., Sun, Y., Yu, B., Zhang, G., Sun, H., et al. Mmmu-pro: A more robust multi-discipline multimodal understanding benchmark. In Proceedings of the Annual Meeting of the Association for Computational Linguistics (ACL) , 2025. 5 Zhu, Q., Bi, W., Liu, X., Ma, X., Li, X., and Wu, D. A batch normalized inference network keeps the KL vanishing away. In Proceedings of the Annual Meeting of the Association for Computational Linguistics (ACL) , 2020. 4 14 Organization. The Appendix includes ELBO derivations (Section A), detailed related work on multimodal learning with missing modalities (Section B), and the experimental setup with additional results (Section C). 
+
+# A ELBO derivations 
+
+## A.1 Complete modalities ( Dcomplete )
+
+When both modalities xo and xm are available, we maximize the conditional log-likelihood log p(y | xo, xm). Following the dependencies from our graphical model in Figure 2, the joint distribution of the label and latent variable factorizes as p(y, z | xo, xm) = pθ (y | xo, z)pω (z | xo, xm), where y ⊥ xm | { z, xo}. By introducing the variational posterior qϕ(z | xo, xm, y), we derive the ELBO as follows: log p(y | xo, xm) = log 
+
+Z
+
+pθ (y | xo, z)pω (z | xo, xm) dz
+
+= log 
+
+Z
+
+qϕ(z | xo, xm, y) pθ (y | xo, z)pω (z | xo, xm)
+
+qϕ(z | xo, xm, y) dz
+
+≥
+
+Z
+
+qϕ(z | xo, xm, y) log 
+
+ pθ (y | xo, z)pω (z | xo, xm)
+
+qϕ(z | xo, xm, y)
+
+
+
+dz (Jensen’s Inequality) = Eqϕ [log pθ (y | xo, z)] + Eqϕ
+
+
+
+log pω (z | xo, xm)
+
+qϕ(z | xo, xm, y)
+
+
+
+= Eqϕ(z|xo,xm,y) [log pθ (y | xo, z)] − KL ( qϕ(z | xo, xm, y) ∥ pω (z | xo, xm)) .
+
+## A.2 Missing modality ( Dmissing )
+
+In the case where xm is unavailable, we maximize log p(y | xo). The dashed edge in Figure 2 indicates a correlation between xo and xm, implying that xo carries information about the missing modality. We thus utilize a conditional prior pω (z | xo) to infer z. Using the variational posterior qϕ(z | xo, y), we derive the ELBO as: log p(y | xo) = log 
+
+Z
+
+pθ (y | xo, z)pω (z | xo) dz
+
+= log 
+
+Z
+
+qϕ(z | xo, y) pθ (y | xo, z)pω (z | xo)
+
+qϕ(z | xo, y) dz
+
+≥
+
+Z
+
+qϕ(z | xo, y) log 
+
+ pθ (y | xo, z)pω (z | xo)
+
+qϕ(z | xo, y)
+
+
+
+dz (Jensen’s Inequality) = Eqϕ [log pθ (y | xo, z)] − Eqϕ
+
+
+
+log qϕ(z | xo, y)
+
+pω (z | xo)
+
+
+
+= Eqϕ(z|xo,y) [log pθ (y | xo, z)] − KL ( qϕ(z | xo, y) ∥ pω (z | xo)) .
+
+# B Related Work on Multimodal learning with Missing Modalities 
+
+Many prior multimodal VAE studies (Suzuki et al., 2017; Vedantam et al., 2018; Tsai et al., 2019; Shi et al., 2019; Sutter et al., 2021; Gong et al., 2021; Joy et al., 2022; Palumbo et al., 2023) focus on generative modeling by optimizing the marginal likelihood max θ Eq(z|xo) [log pθ (xo | z)] − βKL (q(z | xo)∥p(z)) rather than improving discriminative performance under missing modalities. JMVAE (Suzuki et al., 2017) and tELBO (Vedantam et al., 2018) model the joint distribution p(x, x′). These methods use paired multimodal examples during training to learn an inference network pθ (z | x, x′) conditioned on all modalities. To scale beyond two modalities, MVAE (Wu & Goodman, 2018) combines modality-specific posteriors using product-of-experts qϕ(z | x1: M ) ∝ Q 
+
+> m
+
+qϕm (z | xm), while MMVAE (Shi et al., 2019) uses a mixture of experts 
+
+qϕ(z | x1: M ) = P 
+
+> m
+
+πm qϕm (z | xm). MoPoE (Sutter et al., 2021) further generalizes these objectives using a mixture of product of experts. These methods commonly rely on sub-sampling modality subsets, which imposes an undesirable upper bound on the multimodal ELBO (Daunhawer et al., 2022). Similarly, while 15 mmJSD (Sutter et al., 2020) and MMVAE+ (Palumbo et al., 2023) seperated modality-specific and shared latent spaces, they fundamentally optimize log p(xo) and use fully paired multimodal data for training. Optimizing a generative ELBO learns a z that captures the input variation, which might not align with the optimal class decision boundary required for modeling p(y | · ). CMMD (Mancisidor et al., 2024) took a step in this direction by incorporating a discrimiantive component into the multimodal latent framework, but assumes fully observed multimodal data during training. Using fully paired multimodal data in this setup creates a train-test mismatch, the posterior learnt during training q(z | xo, xm, y) has access to xm but at test time only xo is available. MEME (Joy et al., 2022) and VSVAE (Gong et al., 2021) considered partial multimodal missignenss (only a subset of training examples contains all modalities), but they were limited to generative modeling. We argue that both these settings are crucial because we need to align the z when the modality is observed and missing. PRIMO explicitly addresses the above limitations and is designed for discriminative setups when modalities are partially observed during both training and testing. 
+
+# C Additional Experiments 
+
+This section summarizes the hyperparameters and architectural details (see Section C.1) with additional experimental results (see Section C.2). 
+
+## C.1 Experimental Setup 
+
+XOR. We generate a synthetic 2D XOR classification task with 40,000 samples drawn from four Gaussian clusters centered at ( ±1, ±1) with standard deviation 0.5. Three quadrants are used to create a dataset where 
+
+xm provides non-redundant information for classification. We use a 70/30 train/test split and randomly drop the second modality xm for 50% of training examples. Each modality is a single scalar feature encoded through a shared two-layer MLP architecture. The prior and posterior are two-layer MLPs with hidden dimension 128, projecting to a two-dimensional latent space. We train with AdamW (learning rate 1 × 10 −3
+
+and weight decay 1 × 10 −4). For evaluation, we use 200 Monte Carlo samples. Results are averaged over four random seeds. 
+
+AVMNIST. We use modality-specific LeNet encoders (three layers for vision and five layers for audio), each followed by a linear projection to a 128-dimensional latent space. The prior and posterior are implemented as MLPs, with the posterior conditioned on both modalities and the label, and the prior conditioned on the fused representation. We share the same prior/posterior parameters across complete and missing-modality scenarios; when a modality is missing, its representation is zeroed out before fusion. We train with AdamW (learning rate 5 × 10 −4). At evaluation, results are estimated using 2000 Monte Carlo samples. 
+
+MIMIC-III. We use an 80 /10 /10 train/validation/test split and randomly drop time-series modality for 50% of training examples. Static features are encoded with a two-layer MLP and time-series features with a GRU; both are projected to a 64-dimensional latent space. The prior and posterior are MLPs conditioned on the available modalities (and the label for the posterior). As in AVMNIST, we share prior/posterior parameters across complete and missing-modality settings, and zero out the representation of any missing modality. We train with AdamW (learning rate 5 × 10 −4). For evaluation, we use 500 Monte Carlo samples. 
+
+## C.2 Additional Results 
+
+We report XOR predictions and latent-space visualizations in Figure 11 and Figure 12, respectively. We also provide additional qualitative examples for mortality prediction in Figure 13, ICD-9 140–239 (neoplasms) prediction in Figure 14, and ICD-9 460–519 (respiratory diseases) prediction in Figure 15. 16 −2 0 2
+
+> −2
+> −1
+> 0
+> 1
+> 2
+> Missing\n xm
+
+Ground Truth   
+
+> −2 02
+> −2
+> −1
+> 0
+> 1
+> 2
+
+PRIMO (66.0%)   
+
+> −2 02
+> −2
+> −1
+> 0
+> 1
+> 2
+
+MVAE (65.4%)   
+
+> −2 02
+> −2
+> −1
+> 0
+> 1
+> 2
+
+MMVAE (64.7%)   
+
+> −2 02
+> −2
+> −1
+> 0
+> 1
+> 2
+
+CMMD (65.4%)   
+
+> −2 02
+> −2
+> −1
+> 0
+> 1
+> 2
+
+LVAE (66.5%)   
+
+> −2 02
+> xo
+> −2
+> −1
+> 0
+> 1
+> 2
+> Complete\n xm
+
+Ground Truth   
+
+> −2 02
+> xo
+> −2
+> −1
+> 0
+> 1
+> 2
+
+PRIMO (98.5%)   
+
+> −2 02
+> xo
+> −2
+> −1
+> 0
+> 1
+> 2
+
+MVAE (83.9%)   
+
+> −2 02
+> xo
+> −2
+> −1
+> 0
+> 1
+> 2
+
+MMVAE (78.0%)   
+
+> −2 02
+> xo
+> −2
+> −1
+> 0
+> 1
+> 2
+
+CMMD (65.4%)   
+
+> −2 02
+> xo
+> −2
+> −1
+> 0
+> 1
+> 2
+
+LVAE (97.5%) Figure 11: XOR predictions under missing and complete modalities. Each column shows a method and each row corresponds to the modality-availability setting (top: xm missing, bottom: complete). For each input xo, we sample latent completions and visualize the induced distribution over predicted labels; points are colored by the predicted class. Methods that capture label-relevant uncertainty produce multiple plausible labels in regions where the XOR label depends on xm (e.g., xo < 0), while predictions concentrate on a single label when xo is sufficient (e.g., xo > 0). Accuracies are shown in the column headers. −0.1 0.0 
+
+z1
+
+> −0.02
+> 0.00
+> 0.02
+> Incomplete
+> z2
+
+PRIMO   
+
+> Class 0
+> Class 1
+> −2.5 0.0 2.5
+
+z1
+
+> −2
+> 0
+> 2
+> z2
+
+MVAE   
+
+> −2.5 0.0 2.5
+
+z1
+
+> −4
+> −2
+> 0
+> 2
+> z2
+
+MMVAE  
+
+> 02
+
+z1
+
+> −1.5
+> −1.0
+> −0.5
+> 0.0
+> 0.5
+> z2
+
+CMMD   
+
+> −0.5 0.0 0.5
+
+z1
+
+> −0.5
+> 0.0
+> 0.5
+> 1.0
+> z2
+
+LVAE  
+
+> −1 0
+
+z1
+
+> −0.4
+> −0.2
+> 0.0
+> 0.2
+> 0.4
+> Complete
+> z2
+
+PRIMO   
+
+> −2.5 0.0 2.5
+
+z1
+
+> −2
+> 0
+> 2
+> z2
+
+MVAE   
+
+> −2.5 0.0 2.5
+
+z1
+
+> −2
+> 0
+> 2
+> z2
+
+MMVAE  
+
+> 02
+
+z1
+
+> −1.5
+> −1.0
+> −0.5
+> 0.0
+> 0.5
+> z2
+
+CMMD   
+
+> −0.5 0.0 0.5
+
+z1
+
+> −1.0
+> −0.5
+> 0.0
+> 0.5
+> 1.0
+> z2
+
+LVAE 
+
+Figure 12: XOR latent-space structure across methods. We visualize the 2D latent representations used by each method for incomplete inputs (top row) and complete inputs (bottom row). Points are colored by the predicted class under the corresponding latent sample. 17 5 0 4 2 1
+
+Label 
+
+0.0 
+
+0.2 
+
+> Fraction
+
+ = 0.5642 4 0 5 1 3
+
+Label 
+
+0.0 
+
+0.2 
+
+> Fraction
+
+ = 0.5598 5 4 0
+
+Label 
+
+0.0 
+
+0.2 
+
+0.4 
+
+> Fraction
+
+ = 0.5579 0
+
+Label 
+
+0.0 
+
+0.5 
+
+1.0 
+
+> Fraction
+
+ = 0.0000 0
+
+Label 
+
+0.0 
+
+0.5 
+
+1.0 
+
+> Fraction
+
+ = 0.0000 0
+
+Label 
+
+0.0 
+
+0.5 
+
+1.0 
+
+> Fraction
+
+ = 0.0000 Figure 13: Patient-level mortality results on MIMIC-III under missing time-series inputs. Each panel shows the fraction of clusters assigned to each mortality class, with Vmissing reported as V. The top row shows high-V examples with clusters spread across multiple risk classes, while the bottom row shows low-V examples dominated by a single class. 1 0
+
+Label 
+
+0.0 
+
+0.5 
+
+1.0 
+
+> Fraction
+
+ = 0.0654 1 0
+
+Label 
+
+0.0 
+
+0.5 
+
+1.0 
+
+> Fraction
+
+ = 0.0599 1 0
+
+Label 
+
+0.0 
+
+0.5 
+
+1.0 
+
+> Fraction
+
+ = 0.0467 1
+
+Label 
+
+0.0 
+
+0.5 
+
+1.0 
+
+> Fraction
+
+ = 0.0000 0
+
+Label 
+
+0.0 
+
+0.5 
+
+1.0 
+
+> Fraction
+
+ = 0.0000 0
+
+Label 
+
+0.0 
+
+0.5 
+
+1.0 
+
+> Fraction
+
+ = 0.0000 
+
+Figure 14: Patient-level ICD-9 (140–239) results on MIMIC-III under missing time-series inputs. 
+
+Each panel shows the fraction of clusters assigned to each label, with Vmissing reported as V. The top row shows high-V examples and the bottom row shows low-V examples; in both cases, clusters are largely dominated by a single label, indicating stable predictions. 18 1 0
+
+Label 
+
+0.0 
+
+0.2 
+
+0.4 
+
+> Fraction
+
+ = 0.4570 0 1
+
+Label 
+
+0.0 
+
+0.2 
+
+0.4 
+
+> Fraction
+
+ = 0.4557 1 0
+
+Label 
+
+0.00 
+
+0.25 
+
+0.50 
+
+> Fraction
+
+ = 0.4554 1 0
+
+Label 
+
+0.0 
+
+0.5 
+
+1.0 
+
+> Fraction
+
+ = 0.2072 0 1
+
+Label 
+
+0.0 
+
+0.5 
+
+> Fraction
+
+ = 0.2158 0 1
+
+Label 
+
+0.0 
+
+0.5 
+
+> Fraction
+
+ = 0.2220 Figure 15: Patient-level ICD-9 (460–519) results on MIMIC-III under missing time-series inputs. 
+
+Each panel shows the fraction of clusters assigned to each label, with Vmissing reported as V. The top row shows high-V examples with clusters spread across multiple labels, indicating ambiguity when time-series is missing, while the bottom row shows low-V examples dominated by a single label. 19

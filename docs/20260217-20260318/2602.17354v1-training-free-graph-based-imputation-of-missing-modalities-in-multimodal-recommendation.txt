@@ -1,0 +1,587 @@
+Title: Training-free Graph-based Imputation of Missing Modalities in Multimodal Recommendation
+
+URL Source: https://arxiv.org/pdf/2602.17354v1
+
+Published Time: Fri, 20 Feb 2026 01:47:34 GMT
+
+Number of Pages: 14
+
+Markdown Content:
+> ACCEPTED IN IEEE TRANSACTIONS ON KNOWLEDGE AND DATA ENGINEERING, 2026 1
+
+# Training-free Graph-based Imputation of Missing Modalities in Multimodal Recommendation 
+
+Daniele Malitesta ∗, Emanuele Rossi †, Claudio Pomo ‡, Tommaso Di Noia ‡, Fragkiskos D. Malliaros ∗∗Universit´ e Paris-Saclay, CentraleSup´ elec, Inria, Gif-sur-Yvette, France 
+
+†VantAI, Barcelona, Spain 
+
+‡Politecnico di Bari, Bari, Italy Email: ∗name.surname@centralesupelec.fr, †emanuele.rossi1909@gmail.com, ‡name.surname@poliba.it 
+
+Abstract —Multimodal recommender systems (RSs) represent items in the catalog through multimodal data (e.g., product images and descriptions) that, in some cases, might be noisy or (even worse) missing. In those scenarios, the common practice is to drop items with missing modalities and train the multimodal RSs on a subsample of the original dataset. To date, the problem of missing modalities in multimodal recommendation has still received limited attention in the literature, lacking a precise formalisation as done with missing information in traditional machine learning. In this work, we first provide a problem for-malisation for missing modalities in multimodal recommendation. Second, by leveraging the user-item graph structure, we re-cast the problem of missing multimodal information as a problem of graph features interpolation on the item-item co-purchase graph. On this basis, we propose four training-free approaches that propagate the available multimodal features throughout the item-item graph to impute the missing features. Extensive experiments on popular multimodal recommendation datasets demonstrate that our solutions can be seamlessly plugged into any existing multimodal RS and benchmarking framework while still preserving (or even widen) the performance gap between multimodal and traditional RSs. Moreover, we show that our graph-based techniques can perform better than traditional im-putations in machine learning under different missing modalities settings. Finally, we analyse (for the first time in multimodal RSs) how feature homophily calculated on the item-item graph can influence our graph-based imputations. 
+
+Index Terms —Multimodal recommendation, graph learning, missing modalities. 
+
+I. I NTRODUCTION AND MOTIVATION 
+
+Recommender systems (RSs) are powerful machine learning algorithms designed to derive useful preference patterns of customers over products or services on online platforms (e.g., Amazon, Netflix, Zalando). Despite their large success, mostly built around the collaborative filtering (CF) paradigm, they still fail in inferring users’ preferences when the training data is highly sparse [1], a phenomenon that occurs quite often in the literature and real-world settings. Among popular solutions to address the issue, one of the most effective ways is to leverage products’ side information to empower the RSs of useful knowledge regarding users and items in the system. In this respect, multimodal recommender systems [2]–[7] have long settled as the state-of-the-art in personalized recommendation, largely outperforming tradi-tional CF-based recommender systems in providing accurate recommendations. In domains such as fashion [8], music [9], food [10], and micro-video [11] recommendation, multimodal RSs leverage multimodal data accompanying items (e.g., prod-uct images and descriptions) to extract high-level multimodal features and inject them into the recommendation framework. Nevertheless, any multimodal RS seeks high-quality multi-modal data to derive useful information for the downstream recommendation task, but this requirement cannot always be ensured. In fact, in real-world settings, multimodal data might be noisy or (even worse) missing [12]. For instance, let us consider a common scenario in e-commerce where, for each product in the catalog, the figure and the description are displayed on the product webpage. It is not rare to encounter situations where the image or also the description are not available. Indeed, the phenomenon is not only limited to real-world settings, as analysing the Amazon Reviews dataset [1] (Table I) suggests that this also happens in academic research. In this respect, the standard practice in multimodal recom-mendation is to drop items with missing modalities and, after this pre-filtering phase, train and evaluate the recommendation model on a subset of the original recommendation data. We maintain that this procedure, despite being common practice in the related literature, becomes counteractive to the idea of enhancing the recommendation data through multimodal data to tackle dataset sparsity. To further support the statement, we also show some motivating experimental results (that will be better detailed in Section VI-A). As depicted in Figure 1, we report the performance improvement (Recall@20) of a multi-modal recommender (NGCF-M [12]) over its non-multimodal counterpart (NGCF [13]) on Music and Beauty categories of the Amazon Reviews dataset, when we drop items with miss-ing modalities and when we impute them (as a pre-processing step). Indeed, we observe that in the imputed setting, the performance improvement of NGCF-M over NGCF is much higher (and even reverted) than the one calculated between the same models in the dropped setting. This demonstrates that, also empirically, imputing missing modalities in multimodal recommendation can be beneficial to widen the performance gap between traditional and multimodal RSs, as extensively demonstrated in the related literature [1], [14]–[21]. On such a basis, it becomes fundamental to design aproper imputation method to recover missing modalities in multimodal recommendation. The problem of missing infor-mation in machine learning has been historically discussed and addressed over the past few decades [22]. When it comes       
+
+> arXiv:2602.17354v1 [cs.IR] 19 Feb 2026 ACCEPTED IN IEEE TRANSACTIONS ON KNOWLEDGE AND DATA ENGINEERING, 2026 2010 20
+> Recall@20
+> Imputed
+> Dropped
+> Music
+> 0510
+> Recall@20
+> Beauty
+> NGCF NGCF-M
+
+Fig. 1: Motivating example where we show the performance improvement (Recall@20) between NGCF (blue) and NGCF-M (brown) in the dropped and imputed settings, for the Music and Beauty datasets. As is evident, the performance improvement of NGCF-M over NGCF becomes wider (or even reverts on the Music dataset) with the imputed setting. to recommendation, several works have tackled the issue of missing information in the user-item interaction data [23]–[25] and, in a very few cases, users’ and items’ metadata [26], [27]. However, despite the extensive literature on missing modalities in other multimodal learning tasks [28]–[30], the problem has encountered limited (and only recent) attention in multimodal recommendation. The few existing approaches addressing the missingness of modalities in multimodal rec-ommendation [31]–[35] work within the end-to-end training of the multimodal recommender model by either learning how to impute the missing features or making the recommender system robust to the absence of modalities. However, such solutions are bind to the specific multimodal recommender system they come with, and cannot be applied to any other existing multimodal recommender systems out there. We con-sider this as a critical limitation since the literature outlines a consistent number of state-of-the-art multimodal recommender systems demonstrating high recommendation performance in standard settings without missing modalities. To address the outlined issues, in this work, we propose a family of novel approaches that can be plugged into any multi-modal recommender system to impute the missing multimodal features as a pre-processing step before the training of the multimodal recommendation model. Then, unlike the existing solutions, our approaches leverage the graph structure of the user-item recommendation data. Concretely, by considering the item-item co-occurrence graph connecting items that have been interacted by the same users, we propose to re-sketch the problem of missing multimodal features as a graph features imputation problem [36]. That is, for each modality, we impute the missing features through the available ones by propagating them at multiple hops in the item-item graphs. Our contributions can be summarized as follows: 1) We provide, for the first time in the literature, a problem formalisation for missing modalities in multimodal rec-ommendation, which explicitly outlines differences with missing information in traditional machine learning. 2) We propose a group of novel imputation approaches that leverage the item-item co-occurrence graph, thus re-interpreting the problem as a task of graph features interpolation. These solutions can be plugged into any existing multimodal RSs and act in a pre-processing manner (i.e., they are training-free methods). 3) Extensive experiments conducted on six recommenda-tion datasets from the Amazon catalog with 2 modalities, one short-video recommendation dataset with 3 modal-ities, and 14 (multimodal) recommendation models em-pirically demonstrate that imputing missing modalities through our approaches can preserve (or even improve) the performance gap between traditional and multimodal RSs. Noticeably, we implement the (multimodal) rec-ommenders either with Elliot [2], MMRec [37], or with their own codebase: this further demonstrates how easy and effective is to apply our imputation pipeline to any already-existing framework in the literature. 4) Further results prove that our graph-based imputations can outperform traditional imputation methods in ma-chine learning for several settings of missing modalities. 5) By recognizing the importance that feature ho-mophily [38] (on the item-item graph) can hold on our graph-based imputations, we provide, for the first time in multimodal recommendation with missing modalities, an empirical investigation on their interdependence. Code is accessible at: https://github.com/danielemalitesta/ Graph-Missing-Modalities-TKDE. II. R ELATED WORK 
+
+In this section, we present the related literature on the two main topics for this work: (i) multimodal recommendation and (ii) missing information in recommendation. 
+
+A. Multimodal recommendation 
+
+In diverse domains such as e-commerce [39], fashion [8], music [9], food [10], and micro-video [11] recommendation, the inclusion of multimodal content associated with items has proven to significantly enhance the representational capability of recommender systems. With the advancements in multi-modal learning [40], multimodal recommender systems strive to address persistent challenges in personalized recommenda-tion, such as data sparsity and cold-start [1], [9]. Addition-ally, exploiting multimodal content can help uncover user-item interactions and intentions through attention mechanisms, thereby enhancing the interpretability of recommendations [8]. In the following paragraphs, we provide a comprehensive overview of the multimodal recommendation domain, as high-lighted in recent surveys on the topic [2]–[7]. Given the recent surge in graph neural networks for rec-ommendation [41], several techniques have begun integrating multimodality into user-item bipartite graphs and knowledge graphs [42]. These techniques refine the multimodal repre-sentations of users and items through various approaches employing the message-passing schema. While initial efforts involved simply injecting multimodal item features into the graph-based pipeline [14], more advanced methods now learn separate graph representations for each modality and disentan-gle users’ preferences at the modality level [43], considering both global and local user’s interests [20]. Further approaches ACCEPTED IN IEEE TRANSACTIONS ON KNOWLEDGE AND DATA ENGINEERING, 2026 3
+
+also concentrate on unveiling multimodal structural distinc-tions among items in the catalogue [16], [17], [44], [45], sometimes leveraging self-supervised [18], [19], [21], [46], [47] and contrastive [48], [49] learning. Finally, recent works propose to introduce powerful generative approaches such as variational autoencoders [50], [51], diffusion models [52], and large language models [53], while others translate the multimodal features to the frequency domain [54], [55], trans-fer the multimodal knowledge from larger to smaller model architectures [56], [57], or enhance the recommendation of long-tail items from the catalog [58]. In this work, we propose a group of training-free graph-based imputation methods to address missing modalities in multimodal recommendation. Such approaches can be plugged into any multimodal recommender systems presented above. Thus, we select representative (both well-established and re-cent) multimodal recommender systems and test our solutions on top of them: VBPR [1], NGCF-M [12], LightGCN-M [19], FREEDOM [17], BM3 [18], MGCN [46], MMSSL [19], LGMRec [20], DiffMM [52], and MENTOR [21]. 
+
+B. Missing information in recommendation 
+
+In a broader sense, the issue of missing information has al-ways been debated in recommendation. The literature outlines two main research directions regarding missing information on (i) user-item feedback and (ii) content/metadata. Indubitably, the missing feedback issue is widely recognised as a crucial challenge. On the one hand [59], the underneath assumption is that ratings in real-world recommendation data are missing at random since the missing probability does not depend on the ratings themselves; in such a context, learning from observed (not-missing) data is sufficient to provide optimal predictions. On the other hand [59], a more complex and interesting scenario is the one of missing not at random ratings, where multiple mechanisms determine the missing feedback ratings; hence, the recommendation algo-rithm should not ignore these mechanisms during the training. Indeed, the latter setting has been largely investigated over the last few decades [23]–[25], for instance in multicriteria [60], social [61], and movies recommendation [62]. Conversely, the issue of missing content in recommendation has been poorly explored in the related literature so far. Based on a careful review, the two principal application scenarios involve items’ metadata [26], [27]. Such works [26], [27] address the problem of missing attribute entries in the users’ and items’ metadata following two different strategies, namely, feature sampling towards model’s robustness [26] and graph convolutional networks propagating features on a tripartite graph of users, items, and attributes nodes [27]. Finally, we consider the problem of missing multimodal information in multimodal recommendation [31]–[35], that may fall into the second categorization we made from above. To the best of our knowledge, the literature regarding this aspect is very limited and quite recent [12]. The solution presented in [31] is one of the first approaches, and works through a generative technique which is trained to reconstruct specific missing modalities embeddings; the only modalities involved are visual and textual. Second, the authors from [32] design a train a novel multimodal model making it robust to the absence of modalities through modality-specific variational autoencoders. Then, the approach proposed in [33] leverages inter- and intra-modality views to impute missing modalities and combine the two outcomes into what pseudo-features replacing the missing ones. More recently, the works in [34], [35] exploit single-branch networks and invariant learning to address missing modalities, but they to not perform any actual multimodal imputation within their pipeline. Unlike the outlined works, our proposed solutions show sev-eral advantages: (i) they act during the pre-processing phase, being completely model-agnostic and avoiding any end-to-end training within the recommendation pipeline; (ii) they leverage information coming from the iter-item co-purchase graph, thus exploiting, for the first time in the related literature, graph-based imputation techniques. Note that, since our approaches are conceptually and technically different from the related works in the literature (i.e., operate during the pre-processing instead of being trained end-to-end), we purposely decide not to compare them one another, as their comparison would be unfeasible and unfair for the above reasons. III. B ACKGROUND NOTIONS 
+
+In this section, we provide useful background notions for our paper and methodology. Specifically, we will formalise the problem of missing information in machine learning and present popular methods to address it. Then, we will formalise the multimodal recommendation task. 
+
+A. Missing information in machine learning 
+
+The problem of missing data information in machine learn-ing has been historically discussed for decades [22]. Without loss of generality, let X ∈ RS×C be a matrix of S ob-served samples, each characterised by C features. Then, let 
+
+Y ∈ RS×K be a vector mapping each sample to a one-hot encoding class label, where we consider K possible classes. In a multi-class classification problem, we aim to learn a machine learning model (e.g., a neural network) such that it can predict (with a certain approximation error) the class of each label: 
+
+ˆY = ML (X), (1) where ˆY ∈ RS×K is the predicted vector of labels for each data sample by the learned ML( ·) function. In real-world settings, the input data may be missing some of (or all) its features. While a possible workaround could be to drop those samples having missing information, another popular procedure involves imputing those missing values in the input data. Let B ∈ RS×C be a binary matrix such that 
+
+Bsc = 1 if the c-th feature value is available for sample s, 0 otherwise. Thus, if Bsc = 0 , we design an I MPUTE (·) function that approximates the missing value of c for the sample s:
+
+ˆXsc = IMPUTE (X∗c[B∗c]) , (2) where we select, from the input data, all values for feature 
+
+c and retrieve (with the binary mask and the view operator 
+
+[·]) only the available values and impute the missing one. In ACCEPTED IN IEEE TRANSACTIONS ON KNOWLEDGE AND DATA ENGINEERING, 2026 4
+
+general, to impute missing values on the feature c, we use the available values from the same feature. We indicate such an imputed value with ˆXsc . The I MPUTE (·) function may be designed in different manners. For instance, we could approx-imate the missing data with all zero values (i.e., Z EROS ), with the mean of the available data (i.e., G LOBAL MEAN ), or random values (i.e., R ANDOM ). Once we imputed all missing values from the input data, we train the machine learning model to provide output predictions based on the available and imputed data: 
+
+ˆY = ML (X[B], ˆX). (3) 
+
+B. Multimodal recommendation 
+
+Let U and I be the sets of users and items, respectively, where |U| = U and |I| = I. Then, assuming an implicit feedback scenario, we indicate with R ∈ RU ×I the user-item interaction matrix, where Rui = 1 if there exists a recorded interaction between user u ∈ U and item i ∈ I , 0 otherwise. As in any latent factor-based approaches for recommen-dation, we map users’ and items’ IDs to embeddings in the latent space, where Eu ∈ RD and Ei ∈ RD represent the D-dimensional embeddings for user u ∈ U and item i ∈ I , with 
+
+D ≪ U, I . On such a basis, the recommendation task is about reconstructing the user-item interaction matrix ˆR by learning meaningful representations for the user and item embeddings 
+
+Eu and Ei through the existing user-item matrix R:
+
+ˆR = REC SYS (R, Eu, Ei) ∀u ∈ U , i ∈ I . (4) In any multimodal recommendation setting (e.g., fashion, song, micro-video, or food recommendation), items’ represen-tation may be suitably enriched by considering the multimodal content describing them, such as products’ images, descrip-tions, or audio tracks. Thus, let M be the set of modalities (with |M| = M the number of admissible modalities), and 
+
+F ∈ RI×M ×C be the multimodal feature tensor of all items, where Fi∗ ∈ RM ×C is the tensor of all multimodal features of item i ∈ I , F∗m ∈ RI×C is the tensor of all item features accounting for the modality m ∈ M , and Fim ∈ RC is the feature of item i accounting for the m modality (e.g., the visual feature extracted from the product image of item i through a pre-trained deep convolutional network [63]). In both machine learning and multimodal recommendation settings, C refers to data features, standing for data columns (e.g., age, gender, job) in the former, and latent embedding dimension of multimodal features (e.g., 2048 as in the case of ResNet50 to extract visual features from product images) in the latter. On such preliminaries, the multimodal recommendation task is about reconstructing the user-item interaction matrix ˆR by learning meaningful user and item embeddings Eu and Ei
+
+through the existing user-item interaction matrix R and the multimodal items’ features F:
+
+ˆR = MMR EC SYS (R, Eu, Ei, F) ∀u ∈ U , i ∈ I . (5) IV. P ROPOSED METHODOLOGY 
+
+Unlike other data types in machine learning, recommen-dation data is modeled by a bipartite and undirected graph representing various relations: user-item, user-user, and item-item. Based on these foundations and motivated by recent advancements in graph learning [36], we propose to frame the problem of imputing missing modalities in recommendation as a problem of graph feature interpolation on the item-item graph. Specifically, we aim to impute missing multimodal features of an item through the existing (i.e., non-missing) multimodal features of the items in the item-item graph. This section is structured as follows. To begin with, it provides a formal definition (for the first time in the literature) of missing modalities in multimodal recommendation. Then, it re-interprets it under the lens of graph feature interpolation. Finally, it presents our pipeline for missing modalities impu-tation in multimodal recommendation leveraging graph-aware imputation methods. In Figure 2, we visually represent the main stages of our graph-based imputation strategies. 
+
+A. Missing modalities in multimodal recommendation 
+
+The problem of missing modalities in multimodal rec-ommendation refers to the unavailability of some (or all) multimodal feature vectors for a specific subset of items (see again Table I). For instance, when considering a twofold modality setting (e.g., visual and textual), it could happen that item i is missing either the visual or textual modality or both; in every such case, we say item i has some missing modalities. The purpose is to design an imputation function I MPUTE (·)that, similarly to the definition provided in Section III-A, can approximate the missing multimodal features through the available ones. Nevertheless, unlike traditional machine learning, we consider another version of the binary mask as 
+
+B ∈ RI×M ×C such that: 
+
+Bim =
+
+(
+
+1C if modality m is available for i
+
+0C otherwise , (6) where 1C = [1 , 1, . . . , 1] ∈ RC and 0C = [0 , 0, . . . , 0] ∈
+
+RC . The above outlines that, in the considered setting, the 
+
+whole feature vector can be available (missing) for item i and modality m. Thus, if Bim = 0C , we design an I MPUTE (·)function that approximates the modality m for item i:
+
+ˆFim = IMPUTE (F∗m[B∗m]) , (7) where we select, from the input multimodal features, those accounting for modality m, and retrieve (with a binary mask) only the items with this available modality. Similarly to the definition provided for machine learning, we assume again that we can impute missing multimodal features with the available features from the same modality (e.g., visual with visual, and textual with textual). Nevertheless, in the most general setting, we may want to impute missing multimodal features with any available multimodal features (e.g., visual with textual and vice-versa). We will devote future work to test strategies which apply cross-modal imputation, following similar solutions in the literature which propose the alignment across modalities [18], [19], [21], [47]. ACCEPTED IN IEEE TRANSACTIONS ON KNOWLEDGE AND DATA ENGINEERING, 2026 5<latexit sha1_base64="yCidu2LJctwuCATmZzOsCCow9eE=">AAACJnicbVC7TsNAEDzzJrwClDQnIiQoiOwIAWUEDSUgAkhxFK2PDZy4O1t3a0Rk+T/4BL6CFio6hCiQ+BTskILXVKOZXe3sRImSjnz/zRsZHRufmJyarszMzs0vVBeXTl2cWoEtEavYnkfgUEmDLZKk8DyxCDpSeBZd75f+2Q1aJ2NzQv0EOxoujexJAVRI3WojJLylbB02eMuh3ZSEmmsgK295mFyBoVhnPM95WIhXUS87zrvVml/3B+B/STAkNTbEYbf6Hl7EItVoSChwrh34CXUysCSFwrwSpg4TENdwie2CGtDoOtngt5yvpQ4o5glaLhUfiPh9IwPtXF9HxWSZ0P32SvE/r51Sb7eTSZOkhEaUh0gqHBxywsqiNOQX0iIRlMmRS8MFWCBCKzkIUYhp0WKl6CP4/f1fctqoB9v17aOtWnNv2MwUW2GrbJ0FbIc12QE7ZC0m2B17YI/sybv3nr0X7/VrdMQb7iyzH/A+PgGVM6YN</latexit> 
+
+(a) User-item matrix R <latexit sha1_base64="rLqWGuxE0lOnwyDibviB+LXssV8=">AAACF3icbVC7TsNAEDzzDOEVoKQ5ESFBE9kIBcoIGsogkYCURGh93sDB+WzdrRGRlQ/gE/gKWqjoEC0lBf/CJaSAhKlGM7Pa3QlTJS35/qc3NT0zOzdfWCguLi2vrJbW1ps2yYzAhkhUYi5CsKikxgZJUniRGoQ4VHge3h4P/PM7NFYm+ox6KXZiuNKyKwWQky5L5TbhPeU74S6vm+QGBWHEQUfcpuCmuhKjvkv5FX8IPkmCESmzEeqXpa92lIgsRk1CgbWtwE+pk4MhKRT2i+3MYgriFq6w5aiGGG0nHz7T59uZBUp4ioZLxYci/p7IIba2F4cuGQNd23FvIP7ntTLqHnZyqdOMUIvBIpIKh4usMNK1hDySBolgcDlyqbkAA0RoJAchnJi52oquj2D8+0nS3KsE1Ur1dL9cOxo1U2CbbIvtsIAdsBo7YXXWYII9sCf2zF68R+/Ve/Pef6JT3mhmg/2B9/ENlW2fwg==</latexit> 
+
+(b) Projected and sparsified <latexit sha1_base64="p5kDmNRdn4HDfGdaAj9uV+9dQKE=">AAACPHicbVC7ThwxFPXwZiGwgZLGYoVEw2omQpuUKGmgI4gFpJ1ldcfcBQvbM7LvIJA1v5RP4CtoKKCiQ2mp8SxbJMAtrONz7vNkhZKO4vg+mpicmp6ZnZtvLCx+WVpufl05cnlpBXZFrnJ7koFDJQ12SZLCk8Ii6EzhcXb5q9aPr9A6mZtDuimwr+HcyKEUQIEaNHdTwmvyklBv1Q/XQFZe87S4AEO59ryqeJqHFvUEnwb5Ihv6g6o6ffsIUH4v5Ayarbgdj4J/BMkYtNg49gfNh/QsF6VGQ0KBc70kLqjvwZIUCqtGWjosQFzCOfYCNKDR9f3o4opvlA4o5wVaLhUfkfhvhQft3I3OQma9pHuv1eRnWq+k4Y++l6YoCY2oB5FUOBrkhJXBB+Rn0iIR1Jsjl4YLsECEVnIQIpBl8LYR/EjeX/8RHH1rJ5125/d2a+fn2Jk5tsbW2SZL2He2w3bZPusywf6wO/bAHqPb6Cl6jv6+pU5E45pV9l9EL69vRLDM</latexit> 
+
+item-item matrix RI <latexit sha1_base64="Eh4IQ5wTNc847I0vAiyEzqpLuAU=">AAACS3icbVDBShxBEO1ZNTEbTVZzzKVxCajIMhOCehHEgMSbCVlX2FmXmrZ2beyeGbprRGn60/yEfEAOnnJNTrkFD85MVtDVOj3eq6pX9ZJcSUth+DNozMzOvXg5/6r5emHxzdvW0vKRzQojsCsylZnjBCwqmWKXJCk8zg2CThT2kvPPld67QGNlln6nqxwHGsapHEkBVFLDVi/WQGfJyO37oVvXnu/wmPCSrHAHOi8I/ep9R5yViyof9837E1fTApQ78H6DT61ZG7baYSesiz8F0QS02aQOh62b+DQThcaUhAJr+1GY08CBISkU+mZcWMxBnMMY+yVMQaMduDoAzz8UFijjORouFa9JfDjhQFt7pZOys7rTTmsV+ZzWL2i0PXAyrZJIRWVEUmFtZIWRZSDIT6VBIqguRy5TLsAAERrJQYiSLMqom2Ue0fT3T8HRx0602dn8+qm9uzdJZp69ZytslUVsi+2yL+yQdZlg1+wX+83+BD+Cv8G/4PZ/ayOYzLxjj6oxdwem/bWw</latexit> 
+
+F→m = Impute (RI , F→m)
+
+<latexit sha1_base64="p6G/CK1JBAZbnj+UBJ9JJHncTwk=">AAACCXicbVC7TsNAEDyHVwgvA6KiOREhhSayEQqUETTQBYk8pMSKzpdNOOX80N0aEVn5Ar6CFio6RMtXUPAvXIwLCEw1mtnVzo4fS6HRcT6swsLi0vJKcbW0tr6xuWVv77R0lCgOTR7JSHV8pkGKEJooUEInVsACX0LbH1/M/PYdKC2i8AYnMXgBG4ViKDhDI/XtvR7CPaYVfkSvgjjBTJ727bJTdTLQv8TNSZnkaPTtz94g4kkAIXLJtO66ToxeyhQKLmFa6iUaYsbHbARdQ0MWgPbSLP6UHiaaYURjUFRImonwcyNlgdaTwDeTAcNbPe/NxP+8boLDMy8VofkLQj47hEJCdkhzJUwvQAdCASKbJQcqQsqZYoigBGWcGzExjZRMH+78939J67jq1qq165Ny/Txvpkj2yQGpEJeckjq5JA3SJJyk5JE8kWfrwXqxXq2379GCle/skl+w3r8AF/SaJA==</latexit> 
+
+(c) Imputation  <latexit sha1_base64="F/wBeSq7T/j8f0+X7gnwKC+5IMo=">AAACEHicbVC7TsNAEDzzDOEVoITiRIQUmshGCCgjaKADiQBSYkXrywZOOT90t4dAVho+ga+ghYoO0fIHFPwLdnABCVONZna1OxMkShpy3U9nYnJqema2NFeeX1hcWq6srF6Y2GqBTRGrWF8FYFDJCJskSeFVohHCQOFl0D/K/ctb1EbG0TndJ+iHcB3JnhRAmdSpbLQJ7yitdbf5SZhYwi7vIViyGs2gU6m6dXcIPk68glRZgdNO5avdjYUNMSKhwJiW5ybkp6BJCoWDctsaTED04RpbGY0gROOnwxQDvmUNUMwT1FwqPhTx90YKoTH3YZBNhkA3ZtTLxf+8lqXegZ/KKI8XifwQSYXDQ0ZomdWDvCs1EkH+OXIZcQEaiFBLDkJkos36Kmd9eKPpx8nFTt3bq++d7VYbh0UzJbbONlmNeWyfNdgxO2VNJtgDe2LP7MV5dF6dN+f9Z3TCKXbW2B84H992V50N</latexit> 
+
+(d) Imputed feautures 
+
+<latexit sha1_base64="6hLFsvAsdz4hf5RQ9vmk8lcp7B8=">AAACGnicbVC7TgJBFJ3FN75QS5uJRGMj2TUGLY0WWmoiQgKE3B0uMGH2kZm7RrLZP/AT/ApbreyMrY2F/+LuSqHgKSYn59zH3OOGShqy7U+rMDM7N7+wuFRcXlldWy9tbN6aINICayJQgW64YFBJH2skSWEj1Aieq7DuDs8zv36H2sjAv6FRiG0P+r7sSQGUSp3SXovwnuL8dXvxhYZwcJAN7HLphRHlZUnSKZXtip2DTxNnTMpsjKtO6avVDUTkoU9CgTFNxw6pHYMmKRQmxVZkMAQxhD42U+qDh6Yd5/ckfDcyQAEPUXOpeC7i744YPGNGnptWekADM+ll4n9eM6LeSTuWfnoY+iJbRFJhvsgILdOgkHelRiLIfo5c+lyABiLUkoMQqRilkRTTPJzJ66fJ7WHFqVaq10fl07NxMotsm+2wfeawY3bKLtkVqzHBHtgTe2Yv1qP1ar1Z7z+lBWvcs8X+wPr4BvI5ojk=</latexit> 
+
+Graph-based imputation 
+
+<latexit sha1_base64="JNlDXo+juO6Lta3nNJ4R4exLTkk=">AAACBHicbVC7TsNAEDyHVwgvAyXNiQiJKrIRCpQRNJRBwkmkJIrOl0045Xy27tYRkZWWr6CFig7R8h8U/Au2cQEJU41mdjW740dSGHScT6u0srq2vlHerGxt7+zu2fsHLRPGmoPHQxnqjs8MSKHAQ4ESOpEGFvgS2v7kOvPbU9BGhOoOZxH0AzZWYiQ4w1Qa2HYP4QETz4CmKhzCfGBXnZqTgy4TtyBVUqA5sL96w5DHASjkkhnTdZ0I+wnTKLiEeaUXG4gYn7AxdFOqWACmn+SXz+lJbBiGNErThaS5CL83EhYYMwv8dDJgeG8WvUz8z+vGOLrsJ0JFMYLiWRAKCXmQ4VqklQAdCg2ILLscqFCUM80QQQvKOE/FOO2okvbhLn6/TFpnNbdeq9+eVxtXRTNlckSOySlxyQVpkBvSJB7hZEqeyDN5sR6tV+vNev8ZLVnFziH5A+vjG8NCmFk=</latexit> 
+
+User node 
+
+<latexit sha1_base64="ppO6QdMCkEMRxf4Bdm+KYXKle50=">AAACBHicbVC7TsNAEDzzDOFloKQ5ESFRRTZCgTKCBrogkYeUWNH5sgmnnM/W3ToistLyFbRQ0SFa/oOCf8E2LiBhqtHMrnZ2/EgKg47zaS0tr6yurZc2yptb2zu79t5+y4Sx5tDkoQx1x2cGpFDQRIESOpEGFvgS2v74KvPbE9BGhOoOpxF4ARspMRScYSr1bbuH8IDJDUJAVTiAWd+uOFUnB10kbkEqpECjb3/1BiGPA1DIJTOm6zoRegnTKLiEWbkXG4gYH7MRdFOqWADGS/LkM3ocG4YhjUBTIWkuwu+NhAXGTAM/nQwY3pt5LxP/87oxDi+8RKgoRlA8O4RCQn7IcC3SSoAOhAZEliUHKhTlTDNE0IIyzlMxTjsqp324898vktZp1a1Va7dnlfpl0UyJHJIjckJcck7q5Jo0SJNwMiFP5Jm8WI/Wq/Vmvf+MLlnFzgH5A+vjG6nQmEk=</latexit> 
+
+Item node 
+
+<latexit sha1_base64="TUoKqifWjAFK35xklF8dg4c9Wts=">AAACDXicbVDLSgNBEJyN7/ha9SReBoPgKeyKRI9RLx4VjAaSEHonnThk9sFMbzAswU/wK7zqyZt49Rs8+C/Oxhw0WqeiqpvuqiBR0pDnfTiFmdm5+YXFpeLyyurauruxeW3iVAusiVjFuh6AQSUjrJEkhfVEI4SBwpugf5b7NwPURsbRFQ0TbIXQi2RXCiArtd3tJuEdZScDkArsEu8iUKrRjNpuySt7Y/C/xJ+QEpvgou1+NjuxSEOMSCgwpuF7CbUy0CSFwlGxmRpMQPShhw1LIwjRtLJxhBHfSw1QzBPUXCo+FvHnRgahMcMwsJMh0K2Z9nLxP6+RUve4lckoSQkjkR8iaWPmh4zQ0naDvCM1EkH+OXIZcQEaiFBLDkJYMbVlFW0f/nT6v+T6oOxXypXLw1L1dNLMItthu2yf+eyIVdk5u2A1Jtg9e2RP7Nl5cF6cV+fte7TgTHa22C8471/4YJxO</latexit> 
+
+Available features 
+
+<latexit sha1_base64="UH88d+OFfXIOqCBjh1rm3h9ZdMc=">AAACC3icbVC7TsNAEDzzDOEVoKCgOREhUUU2QoEygoYGKUjkISVRtL5swinns3W3RkSWP4GvoIWKDtHyERT8C05IAQlTjWZ2tTvjR0pact1PZ2FxaXllNbeWX9/Y3Nou7OzWbRgbgTURqtA0fbCopMYaSVLYjAxC4Cts+MPLsd+4R2NlqG9pFGEngIGWfSmAMqlb2G8TPlByLa2VesD7CBQbtGm3UHRL7gR8nnhTUmRTVLuFr3YvFHGAmoQCa1ueG1EnAUNSKEzz7dhiBGIIA2xlVEOAtpNMAqT8KLZAIY/QcKn4RMTfGwkE1o4CP5sMgO7srDcW//NaMfXPO4nUUUyoxfgQSYWTQ1YYmTWDvCcNEsH4c+RScwEGiNBIDkJkYpxVlc/68GbTz5P6Sckrl8o3p8XKxbSZHDtgh+yYeeyMVdgVq7IaEyxlT+yZvTiPzqvz5rz/jC4405099gfOxzeYfJuT</latexit> 
+
+Missing features 
+
+<latexit sha1_base64="rj+ctZOgBe6FDc1lFeAH0ruRxuc=">AAACC3icbVC7TsNAEDzzDOEVoKCgOREhUUU2QoEygga6IJGHlFjR+rIJp5wfulsjIiufwFfQQkWHaPkICv4F26SAhKlGM7vanfEiJQ3Z9qe1sLi0vLJaWCuub2xubZd2dpsmjLXAhghVqNseGFQywAZJUtiONILvKWx5o8vMb92jNjIMbmkcoevDMJADKYBSqVfa7xI+UHLtRzFhnw8QKNZoJr1S2a7YOfg8caakzKao90pf3X4oYh8DEgqM6Th2RG4CmqRQOCl2Y4MRiBEMsZPSAHw0bpIHmPCj2ACFPELNpeK5iL83EvCNGfteOukD3ZlZLxP/8zoxDc7dRAZZukBkh0gqzA8ZoWXaDPK+1EgE2efIZcAFaCBCLTkIkYpxWlUx7cOZTT9PmicVp1qp3pyWaxfTZgrsgB2yY+awM1ZjV6zOGkywCXtiz+zFerRerTfr/Wd0wZru7LE/sD6+AZVNm5E=</latexit> 
+
+Imputed features 
+
+<latexit sha1_base64="3X7xmYXnsJn4FpaahcDJ41w0sAA=">AAACCnicbVC7TsNAEDyHVwgvAxINzYkIiSqyEQqUETQUFEEiDymJovNlE045n627NSIy/gO+ghYqOkTLT1DwL9gmBSRMsRrN7Gp3xwulMOg4n1ZhYXFpeaW4Wlpb39jcsrd3miaINIcGD2Sg2x4zIIWCBgqU0A41MN+T0PLGF5nfugNtRKBucBJCz2cjJYaCM0ylvr3XRbjHOK/eML6CEahBkvTtslNxctB54k5JmUxR79tf3UHAIx8UcsmM6bhOiL2YaRRcQlLqRgZCxsdsBJ2UKuaD6cX5/Qk9jAzDgIagqZA0F+H3RMx8Yya+l3b6DG/NrJeJ/3mdCIdnvVioMEJQPFuEQkK+yHAt0mCADoQGRJZdDlQoyplmiKAFZZynYpQmVUrzcGe/nyfN44pbrVSvT8q182kyRbJPDsgRcckpqZFLUicNwskDeSLP5MV6tF6tN+v9p7VgTWd2yR9YH98tTJtg</latexit> 
+
+Legend 
+
+<latexit sha1_base64="iTqTOe6pk4AJTnHN1P7F5dCznhc=">AAACD3icbVC7TsNAEDyHVwgvA2WaExESVWQjFCgjaKALEnlIiRWdL5twyvmhuzUislzwCXwFLVR0iJZPoOBfsI0LSJjiNJrZ1d6MG0qh0bI+jdLS8srqWnm9srG5tb1j7u51dBApDm0eyED1XKZBCh/aKFBCL1TAPFdC151eZH73DpQWgX+DsxAcj018MRacYSoNzeoA4R7j/HXH8ZUXRphbOkmGZs2qWznoIrELUiMFWkPzazAKeOSBj1wyrfu2FaITM4WCS0gqg0hDyPiUTaCfUp95oJ04D5HQw0gzDGgIigpJcxF+b8TM03rmuemkx/BWz3uZ+J/Xj3B85sTCT5OBz7NDKCTkhzRXIm0H6EgoQGTZz4EKn3KmGCIoQRnnqRilnVTSPuz59Iukc1y3G/XG9UmteV40UyZVckCOiE1OSZNckhZpE04eyBN5Ji/Go/FqvBnvP6Mlo9jZJ39gfHwDsrud4A==</latexit> 
+
+Imputations 
+
+<latexit sha1_base64="SIP9jJUCfSq08kTKICfQNsM/b3c=">AAACW3icbVBdSxtBFJ2sVdOt1djSp74MhoIKDbsi0RchtKW0b6mYREhiuDvexMHZD2buCjLMT+wP6EN+RV9b6O4mLTV6nw7nnnvPvSfKlDQUBD9q3tqz9Y3N+nP/xdbL7Z3G7qu+SXMtsCdSlerLCAwqmWCPJCm8zDRCHCkcRLcfy/7gDrWRaXJB9xmOY5glcioFUEFNGrNRDHQTTe1nN7GHseNnfN/+5T65qwUWoOxX59zBlX0fOj5Ki5Wl4z/luVuR8pW9k0YzaAVV8ccgXIImW1Z30piPrlORx5iQUGDMMAwyGlvQJIVC549ygxmIW5jhsIAJxGjGtgrE8Xe5AUp5hppLxSsS/5+wEBtzH0eFsjzTrPZK8qneMKfp6djKJMsJE1EakVRYGRmhZREL8mupkQjKy5HLhAvQQIRachCiIPMier/II1z9/jHoH7XCdqv97bjZ+bBMps7esj22z0J2wjrsC+uyHhPsO/vJfrHftbm35vne1kLq1ZYzr9mD8t78ATrYuWc=</latexit> 
+
+F→m = ( DI )↑1RI F→m
+
+<latexit sha1_base64="8KLPrCCNTAaPuFWVOp99Nkyv7yA=">AAACkXicjVFdTxNBFJ1dUKCoVHjkZUJj0prQ7PIlPJg0aoyGFyQWSNrS3B1uYcLsR2bukpDJ/BR/mA/+F2c3q5HiA/fp5JxzP+ZMUihpKIp+BuHC4rPnS8srrdUXL1+ttV+vn5m81AKHIle5vkjAoJIZDkmSwotCI6SJwvPk9mOln9+hNjLPvtN9gZMUrjM5kwLIU9P2j3EKdJPM7Gd3abvUc1P7NnX8Pe/aP8onr9RYgLJfnXO9S7sd9fcdH+d+dLX5r/fUzZmfNufBDXybx80d03Yn6kd18ccgbkCHNXUybf8aX+WiTDEjocCYURwVNLGgSQqFrjUuDRYgbuEaRx5mkKKZ2DpGx9+UBijnBWouFa9J/LfDQmrMfZp4Z3Wwmdcq8n/aqKTZ4cTKrCgJM1EtIqmwXmSElj5E5FdSIxFUlyOXGReggQi15CCEJ0v/YS2fRzz/+sfgbKcfH/QPvu11Bh+aZJbZJttiXRazd2zAvrATNmQiWAh6wU6wG26ER+EgbLxh0PRssAcVHv8Gkr7JFA==</latexit> 
+
+F(t)
+
+→m = ( DI )↑0.5RI (DI )↑0.5F(t↑1) 
+
+→m
+
+<latexit sha1_base64="t49/jmWwDL72+9nRi5c3629Kq8c=">AAACuHicjVFNb9QwEHVSoGX5WuiRi8UKKVupqwRBi5AqVYAQ3BbEtoXNdpm4s1urzofsSaXK8r/jT3Dgv+CEFNEtB+YQvbw343l+ziolDcXxjyBcu3Hz1vrG7d6du/fuP+g/fHRgyloLnIhSlfooA4NKFjghSQqPKo2QZwoPs7M3jX54jtrIsvhMFxXOclgWciEFkKfm/e9pDnSaLew7d2wjGrq53cod3+PAU4ULii71xPFtHiX+A8PIXrJv/VSLBSj7wTk3PLbb8eiF42np1zau/vR+civN/D/OSbVcnlLzl7irVr2TpLM77w/iUdwWvw6SDgxYV+N5/2d6Uoo6x4KEAmOmSVzRzIImKRS6XlobrECcwRKnHhaQo5nZNm3Hn9YGqOQVai4Vb0n8e8JCbsxFnvnOxrBZ1RryX9q0psXLmZVFVRMWollEUmG7yAgtfZ7IT6RGImicI5cFF6CBCLXkIIQna/+uPZ9Hsnr76+Dg2SjZGe18fD7Yf90ls8EesycsYgnbZfvsPRuzCRPBVjAOvgRfw1fht3AZyt+tYdDNbLIrFepf44DXNQ==</latexit> 
+
+F(t)
+
+→m = a
+
+(
+
+1 → (1 → a)( DI )↑0.5RI (DI )↑0.5)↑1
+
+F(t↑1) 
+
+→m
+
+<latexit sha1_base64="Euj2G5CT2vqVcyzx1IeC49DdpUo=">AAACvnicjVFdb9MwFHXC1yhfBR55saiQWqRWyQSDF6RqmxC8DUS7SU0XHO+ms2YnkX0zbbL8B/kHe9h/wUnbCToeuC85Ofdc3+PjrJLCYBRdBeGdu/fuP9h62Hn0+MnTZ93nL6amrDWHCS9lqY8yZkCKAiYoUMJRpYGpTMJhdrbX9A/PQRtRFj/wsoK5YotC5IIz9FTa/ZUohqdZbj+71L5V7tj2ceDoJ5rARZVIyLE/zOgSrKWxo0Pat+vffT/UYs6k/eqcGxzbYTR672hS+tWNsxvtd7ch/p9zEi0WpzhYf24MN169k3iwtJ52e9EoaoveBvEK9MiqDtLudXJS8lpBgVwyY2ZxVOHcMo2CS3CdpDZQMX7GFjDzsGAKzNy2mTv6pjYMS1qBpkLSloQ/JyxTxlyqzCsbw2az15D/6s1qzD/OrSiqGqHgzSIUEtpFhmvhEwV6IjQgssY5UFFQzjRDBC0o49yTtX/djs8j3rz9bTDdHsU7o51v73rj3VUyW+QVeU36JCYfyJh8IQdkQngQBdMgDX6G4zAPVVgupWGwmnlJ/qrw4jf0gtsW</latexit> 
+
+F(t)
+
+→m = exp 
+
+(
+
+→b
+
+(
+
+1 → (DI )↑0.5RI (DI )↑0.5)) 
+
+F(t↑1) 
+
+→m
+
+<latexit sha1_base64="MDrLjHrta8+SqjVL1e28pUC6nTQ=">AAACDXicbVA9SwNBEN3zM8avqJXYLAbBKtyJREvRxkaJYD4gOcLcOsbFvb1jd06UI/gT/BW2WtmJrb/Bwv/i5bxCja8YHu/NMDMviJW05LofzsTk1PTMbGmuPL+wuLRcWVlt2SgxApsiUpHpBGBRSY1NkqSwExuEMFDYDq6PRn77Bo2VkT6nuxj9EAZaXkoBlEn9ynqP8JbSvFqRnqIcXJ0g6OGwX6m6NTcHHydeQaqsQKNf+exdRCIJUZNQYG3Xc2PyUzAkhcJhuZdYjEFcwwC7GdUQovXT/IUh30osUMRjNFwqnov4cyKF0Nq7MMg6Q6Ar+9cbif953YQu9/1U6jgh1GK0iKTCfJEVRmbZIL+QBolgdDlyqbkAA0RoJAchMjHJwipneXh/vx8nrZ2aV6/Vz3arB4dFMiW2wTbZNvPYHjtgx6zBmkywe/bIntiz8+C8OK/O23frhFPMrLFfcN6/AIvxnKk=</latexit> 
+
+NeighMean 
+
+<latexit sha1_base64="t5OsycJ0ptin8w4vQrfa5Y90yeQ=">AAACDHicbVDLSsNAFJ3UV62vqBvBzWARXJVEpLosuulGqGAf0IYymd7WoZMHMzdiCfET/Aq3unInbv0HF/6LScxCq2dxOZxzL/fe44ZSaLSsD6O0sLi0vFJeraytb2xumds7HR1EikObBzJQPZdpkMKHNgqU0AsVMM+V0HWnF5nfvQWlReBf4ywEx2MTX4wFZ5hKQ3NvgHCHcV41jy8jiaIZhEkyNKtWzcpB/xK7IFVSoDU0PwejgEce+Mgl07pvWyE6MVMouISkMog0hIxP2QT6KfWZB9qJ8w8SehhphgENQVEhaS7Cz4mYeVrPPDft9Bje6HkvE//z+hGOz5xY+GGE4PNsEQoJ+SLNlUijAToSChBZdjlQ4VPOFEMEJSjjPBWjNKtKmoc9//1f0jmu2fVa/eqk2jgvkimTfXJAjohNTkmDNEmLtAkn9+SRPJFn48F4MV6Nt+/WklHM7JJfMN6/AANunGU=</latexit> 
+
+MultiHop 
+
+<latexit sha1_base64="NRJMphKCc5jff5ZDq3Iu+3xbm2Y=">AAACEHicbVC7TgMxEPSFVwivACUUFhESVXSHUKBE0FAGRAJSEkV7zgJWfL6TvYdApzR8Al9BCxUdouUPKPgXnCMFJExhjWZ2Nd4JEyUt+f6nV5ianpmdK86XFhaXllfKq2tNG6dGYEPEKjaXIVhUUmODJCm8TAxCFCq8CPvHQ//iFo2VsT6n+wQ7EVxreSUFkJO65c024R1l+WtFVnejdbjGM9D9waBbrvhVPwefJMGIVNgI9W75q92LRRqhJqHA2lbgJ9TJwJAUCgeldmoxAdF3CS1HNURoO1l+xYBvpxYo5gkaLhXPRfy9kUFk7X0UuskI6MaOe0PxP6+V0tVBJ5M6SQm1GAaRVJgHWWGkqwd5TxokguHPkUvNBRggQiM5COHE1PVVcn0E49dPkuZuNahVa6d7lcOjUTNFtsG22A4L2D47ZCeszhpMsAf2xJ7Zi/fovXpv3vvPaMEb7ayzP/A+vgEBAJ3+</latexit> 
+
+PersPageRank 
+
+<latexit sha1_base64="yt2CIOIBW82EyRDjVYHLPaAaQg4=">AAACCHicbVC7TgJREL2LL8QXPjqbG4mJFdk1Bi2JNpSYyCMBQmYvA95w95F7Z4244Qf8Clut7Iytf2Hhv7i7Uih4isnJOTOZmeOGShqy7U8rt7S8srqWXy9sbG5t7xR395omiLTAhghUoNsuGFTSxwZJUtgONYLnKmy546vUb92hNjLwb2gSYs+DkS+HUgAlUr940CW8pzirRsQ1BJpO+8WSXbYz8EXizEiJzVDvF7+6g0BEHvokFBjTceyQejFokkLhtNCNDIYgxjDCTkJ98ND04uz6KT+ODFDAQ9RcKp6J+HsiBs+YiecmnR7QrZn3UvE/rxPR8KIXSz+MCH2RLiKpMFtkhJZJLMgHUiMRpJcjlz4XoIEIteQgRCJGSU6FJA9n/vtF0jwtO5Vy5fqsVL2cJZNnh+yInTCHnbMqq7E6azDBHtgTe2Yv1qP1ar1Z7z+tOWs2s8/+wPr4Bqhymo0=</latexit> 
+
+Heat 
+
+Fig. 2: Visual representation of our graph-based imputations. Starting from the user-item graph with incomplete multimodal features (a), we project and sparsify it to obtain the item-item co-purchase graph (b). Then, we propagate the available multimodal features in the obtained item-item graph (c), which allows us to impute the missing features (d). Once we imputed all missing modalities, we train the multimodal recommender system to provide output predictions based on the available and imputed multimodal data: 
+
+ˆR = MMR EC SYS (R, Eu, Ei, F[B], ˆF) ∀u ∈ U , i ∈ I . (8) 
+
+B. Graph-aware imputation 
+
+We propose to frame the problem of imputing missing modalities in multimodal recommendation as a problem of 
+
+graph feature interpolation on the item-item co-interactions graph. As observed in the literature [36], graph feature interpo-lation requires some prior assumptions on the input graph. One of the common assumptions is the feature homophily , which states that the features of each node should be close to those of its neighbors. Translated into our scenario, we assume (with support from the literature [16], [17], [44]) that co-interacted items are likely to present semantically-similar multimodal features , aligning with the same principle behind collaborative filtering (users sharing similar preferences tend to interact with the same items). In Section VI-D, we provide a finer-grained evaluation of this aspect, assessing the performance of our approach to different levels of feature homophily [38]. Starting from the user-item bipartite graph, we build the item-item graph as the projection on the item partition: 
+
+RI = R⊤R where RI ∈ RI×I and RI
+
+ij is the number of users who interacted with both items i and j, namely, the co-interactions among items from the catalog. As the projected item-item graph may be too dense (i.e., with noisy item-item interactions), we perform the sparsification of the item-item matrix through T OP N( ·) sparsification (compare with [16]): 
+
+RI
+
+ij = SPARSE 
+
+ RI , N  =
+
+(
+
+1 if RI
+
+ij ∈ TOP N  RI
+
+i
+
+
+
+0 otherwise , (9) where RI is the sparsified item-item matrix, while T OP N(·) is the function returning the N highest values of a matrix row-wise, with N setting the sparsification rate. Regarding this operation, we acknowledge that the proposed sparsification strategy may lead to possible popularity bias issues where pop-ular items are largely represented in the projected graph; thus, more refined solutions using dynamic thresholding or taking into account interaction frequency might limit the issue [39]. However, our graph-based imputation strategies apply some ad-hoc matrix normalisations, which might effectively prevent this problem (see the following for further details). Our goal is to design the graph-aware imputation func-tion I MPUTE (·) able to approximate the missing multimodal features. Unlike the definition provided in Equation (7), the function takes the available multimodal features and the item-item co-interaction matrix. In other words, the I MPUTE (·)function approximates the missing multimodal features of an item node through the multimodal features of its neighbors. In general, these latter features may be missing themselves. To address this aspect, we design the I MPUTE (·) function taking as inputs the whole set of multimodal features, and the item-item co-interactions matrix. For the missing multimodal features, and inspired by [36], we initialise their embeddings to the zero vector. Thus, to impute the missing features on a ACCEPTED IN IEEE TRANSACTIONS ON KNOWLEDGE AND DATA ENGINEERING, 2026 6
+
+given modality m ∈ M , we do the following:  
+
+> (i):
+
+P = F∗m[B], F∗m[¬B] = ZEROS ()  
+
+> (ii):
+
+F∗m = IMPUTE (RI , F∗m) 
+
+> (iii):
+
+F∗m[B] = P, ˆF∗m = F∗m[¬B],
+
+(10) where we (i) save the available features in a placeholder vector 
+
+P and initialise the missing features with the zero vector 1; (ii) impute the missing features with the item-item co-interaction matrix, and all features accounting for that modality; (iii) we extract the imputed missing features and restore the available ones to their original values. In the following, we list four alternatives to design the I MPUTE (·) function. 
+
+1) NEIGH MEAN : We extend the G LOBAL MEAN imputa-tion through the mean of multimodal features from the one-hop neighborhood (N EIGH MEAN ): 
+
+F∗m = ( DI )−1RI F∗m, (11) where DI ∈ RI×I is the degree matrix for the item-item co-interaction matrix. 
+
+2) MULTI HOP : As we leverage the item-item graph, we can also consider multi-hops relationships between items. Thus, our second graph-aware method iteratively aggregates features from neighborhood nodes (M ULTI HOP ): 
+
+F(t) 
+
+> ∗m
+
+= ( DI )−0.5RI (DI )−0.5F(t−1)  
+
+> ∗m
+
+, (12) where F(t−1)  
+
+> ∗m
+
+[B] = P to ensure that, at each new iteration 
+
+t ∈ {1, . . . , T }, we re-initialize the available features to their original values [36]. Note that we are normalising the aggregated features at each iteration to ensure low-degree nodes are not over-penalised over high-degree ones. This ensures that items initially quite popular in the user-item graph will not be overrepresented during the item-item imputation, thereby limiting the popularity bias problem. 
+
+3) PERS PAGE RANK : While the normalisation operation from above only accounts for the 1-hop neighborhoods, the recent literature has demonstrated that graph diffusion at multiple hops [64] may improve graph learning; the idea is to leverage an enhanced representation of the interaction matrix, as personalized PageRank [65]. Hence, we propose a third graph-aware imputation that modifies the M ULTI HOP strategy by incorporating person-alised PageRank as a normalisation of the item-item co-interactions matrix (P ERS PAGE RANK ): 
+
+F(t) 
+
+> ∗m
+
+= a
+
+
+
+1 − (1 − a)( DI )−0.5RI (DI )−0.5−1
+
+F(t−1)  
+
+> ∗m
+
+,
+
+(13) where a ∈ [0 , 1] is the probability of following an edge from the current item or jumping back to a specified set of nodes. 
+
+4) HEAT : With similar rationales to the P ERS PAGE RANK 
+
+approach from above, in the H EAT strategy we use heat diffusion [66] for the normalisation of the item-item co-interactions matrix: 
+
+F(t) 
+
+> ∗m
+
+= exp 
+
+
+
+−b
+
+
+
+1 − (DI )−0.5RI (DI )−0.5 
+
+F(t−1)  
+
+> ∗m
+
+,
+
+(14) 
+
+> 1We use the “ ¬” operator to indicate the logical negation operator for the binary matrix.
+
+where exp( ·) is the exponential function over matrices, and b
+
+is the diffusion time. 
+
+C. Differences with item-item recommendation strategies 
+
+Our graph-based imputation solutions present analogies with already-existing multimodal recommendation approaches leveraging item-item similarities, such as [16], [17], [44], [45]. Thus, it is important to distinguish those methodologies from the proposed ones, evidencing how our graph-based imputations settle as novel techniques in the current literature. We clarify it under two main perspectives.  
+
+> •
+
+The task is different. Unlike other approaches from the literature, our techniques are specifically tailored to ad-dress the imputation of missing modalities in multimodal recommendation. To the best of our knowledge, this is the first attempt in the literature to solve this problem through the graph topology of the user-item dataset.  
+
+> •
+
+The item-item structure is different. While the re-sulting item-item similarity graph may appear similar to those proposed in related works, the structure of this graph is technically and conceptually different. The item-item similarity graph implemented in the literature leverages only the multimodal signals, as it is built on the similairities (i.e., cosine similarity) among multimodal embeddings of items. Conversely, in our setting and scenario, some items are missing (part of) their multi-modal embeddings, thus it would not be technically and conceptually possible to build an item-item similarity graph through them. That is why we decide to exploit an additional signal, the collaborative one encoded in the user-item dataset, and derive item-item similarities based upon users’ interactions (i.e., two items are connected if at least of user has interacted with both of them). 
+
+D. Further discussion on the proposed imputations 
+
+While effective, our graph-based imputation strategies may, in principle, suffer from inherent limitations stemming from their dependence on the quality of user-item feedback (used to construct the item-item co-interaction graph) and on the availability and reliability of multimodal embeddings, which are exploited to infer missing representations. In this regard, well-known challenges in recommender systems, such as user and item cold-start as well as noisy information, may nega-tively impact the effectiveness of the proposed imputations. Specifically, items with very limited interactions may be poorly represented in the item-item graph (cold-start), while noisy multimodal embeddings may lead to the unintended propagation of noise during the imputation process. That said, we emphasize that the primary focus of this work is the problem of missing multimodal information in recom-mendation, an aspect that remains largely underexplored in both prior and recent literature. We acknowledge that none of the related studies simultaneously address the three challenges discussed here, namely missing multimodal information, cold-start, and noisy data, within a unified framework. Nevertheless, we plan to extend the proposed imputation methodologies to explicitly account for cold-start and noise-related issues, with ACCEPTED IN IEEE TRANSACTIONS ON KNOWLEDGE AND DATA ENGINEERING, 2026 7
+
+TABLE I: Datasets statistics, where we show items with missing Visual and Textual information, before and after they have been dropped (without and with the apex), and the missing percentage over all the items in the catalog.                                                 
+
+> Datasets |U| /|U ′||I| /|I ′||R| /|R ′|Missing
+> Visual Textual Tot. % Office 4,905 / 4,891 2,420 / 1,746 53,258 / 35,185 0674 28% Music 5,541 / 5,349 3,568 / 2,453 64,706 / 51,516 21,114 31% Baby 19,445 / 19,440 7,050 / 6,382 160,792 / 138,149 13 667 9% Toys 19,412 / 19,410 11,924 / 11,089 167,597 / 146,640 17 832 7% Beauty 22,363 / 22,293 12,101 / 11,124 198,502 / 165,772 7977 8% Sports 35,598 / 35,526 18,357 / 15,633 296,337 / 251,201 70 2,701 15%
+
+the goal of ensuring their robustness and effectiveness also in these particularly challenging scenarios. V. E XPERIMENTAL SETTINGS 
+
+In this section, we describe the experimental settings we adopted in terms of selected recommendation datasets, recom-mendation baselines and (graph-based) imputation methods, and the reproducibility details to fully replicate our results. 
+
+A. Datasets 
+
+For the sake of this paper, we select six categories of the famous Amazon Reviews dataset [1]: Office Products (Products ), Digital Music ( Music ), Baby , Toys & Games (Toys ), Beauty , and Sports & Outdoors ( Sports ). For each dataset, we consider two versions: (i) dropped , where we remove items with at least one missing modality, along with interactions involving those items and users having interacted only with those items; (ii) imputed , where we impute the items’ missing multimodal features. We report the complete statistics of the selected datasets in the two settings, where we distinguish the dropped version from the imputed one through an apex (Table I). From the available items’ multimodal data (i.e., product images and textual descriptions), we extract their visual [63] and textual embeddings [67]. 
+
+B. Baselines 
+
+To test our methodologies, we select recommendation base-lines accounting for traditional models (without the adoption of multimodal information) and multimodal ones. These are: BPRMF [68], NGCF [13], LightGCN [41], and SGL [69] for the traditional recommendation, and VBPR [1], NGCF-M [12], LightGCN-M [19], FREEDOM [17], BM3 [18], MGCN [46], MMSSL [19], LGMRec [20], DiffMM [52], and MENTOR [21] for the multimodal case. Specifically, BPRMF, NGCF, LightGCN, SGL, VBPR, NGCF-M, LightGCN-M, FREEDOM, BM3, and MGCF are implemented in the frame-work Elliot [2], while LGMRec and MENTOR with the framework MMRec [37], and finally MMSSL and DiffMM with their original codebase. This further demonstrates how our (graph)-based imputations can be seamlessly plugged into any existing multimodal recommendation framework. As for the imputation approaches, we use classical machine learning methods, generative approaches based upon autoen-coders , and the proposed four graph-aware techniques. The classical machine learning methods are: (i) Z EROS 
+
+imputes all missing multimodal embeddings to the all-zeros vector. (ii) R ANDOM imputes all missing multimodal embed-dings to the all-random values vector, by choosing a uniform random distribution. (iii) G LOBAL MEAN imputes the missing embeddings from one modality to the average of the available embeddings from the same modality. Then, for the autoencoder-based imputations, we select: (i) AUTO ENC [28] trains an autoencoder to reconstruct missing features from one modality m1 through the available features from another modality m2. The model is trained on the portion of items having both modalities, and then used in inference on the actual missing features. (ii) G RAPH AUTO ENC applies a similar approach to A UTO ENC , with the difference that it uses a graph-based encoder (i.e., a graph convolutional network [70]) operating on the item-item co-purchase graph, obtained through the projection and T OP N sparsification from the user-item graph on the item partition. Then, the decoder is again a multi-layer perceptron as in the A UTO ENC approach. Finally, our proposed graph-based imputations are (see Section IV-B): (i) NEIGH MEAN , (ii) MULTI HOP , (iii) PERS PAGE RANK , and (iv) H EAT .
+
+C. Reproducibility 
+
+For the training and test of the baselines models, we split the recommendation datasets following the hold-out strategy into train and test sets (80%/20%). As for the hyper-parameter search of the recommendation models, we select a shared grid search space with the learning rate in [0.0001, 0.0005, 0.001, 0.005, 0.01] and the regularization term in [1e-5, 1e-2], leaving the other parameters to the best values for each model, and fix the batch size at 1024 and the epochs at 200. Regarding the hyper-parameters for graph-based imputation approaches, we explore the T OP N sparsification in [10, 20, . . . , 100] and the propagation hops in [1, 2, . . . , 20]. We use the Recall@20 and the nDCG@20 as test metrics and retain 10% of the train set as validation, with Recall@20 as a validation metric. VI. R ESULTS AND DISCUSSION 
+
+In this section, we aim to answer the following research questions (RQs): RQ1) Can the proposed graph-based im-putation methods be beneficial in standard multimodal rec-ommendation settings from the literature? RQ2) How do the traditional, autoencoder-, and graph-based imputation meth-ods differently affect the final recommendation performance? 
+
+RQ3) What is the impact of different sparsification rates ACCEPTED IN IEEE TRANSACTIONS ON KNOWLEDGE AND DATA ENGINEERING, 2026 8
+
+and propagation hops on the item-item co-purchase graph for graph-based imputation methods? RQ4) How does the level of feature homophily in the item-item co-purchase graph influence the imputation performance for graph-based impu-tation approaches? RQ5) What is the performance variation under various percentages of missing modalities for traditional, autoencoders-, and graph-based imputation methods? RQ6) 
+
+Do the imputation strategies effectively extend to multimodal recommendation datasets with more than two modalities? 
+
+A. RQ1) Graph-based imputations in standard multimodal recommendation 
+
+We analyse the impact of our proposed graph-based impu-tation methods in standard multimodal recommendation set-tings. We conduct this investigation through two experiments, described in the following. In the first investigation, we seek to assess whether and to what extent such imputation methodologies can widen the performance gap between traditional and multimodal rec-ommendation systems. To this end, we select three popular recommendation models, namely, BPRMF, NGCF, and Light-GCN, alongside their multimodal versions where we only inject the multimodal items’ features (i.e., VBPR, NGCF-M, and LightGCN-M, respectively). We choose these three models because, in their multimodal versions, we do not perform any additional modifications to their original mod-els’ architectures apart from the injection of the multimodal features; thus, we can precisely assess the impact of our graph-based imputations of missing modalities and avoid the performance influence from other strategies (e.g., denoising procedures as in FREEDOM). Table II shows the performance improvement on Recall@20 and nDCG@20 for the three multimodal recommender sys-tems over their original versions, both in the dropped and in imputed settings, where the imputed setting uses the best graph-based imputation according to the Recall@20 calcu-lated on the validation set. We highlight that our analysis focuses on the performance improvements between each non-multimodal recommender and its multimodal counterpart, rather than on the single performance because the dropped and imputed datasets should be regarded, in general, as different datasets (see again Table I), so we could not provide a fair and consistent comparison otherwise. As observable in the table, results largely confirm that the imputed setting not only can preserve the performance gap between traditional and multi-modal recommender systems but, in several cases, can widen or even revert it (e.g., consider the case of BPRMF/VBPR on Music or LightGCN/LightGCN-M on Office and Beauty). As a confirmation of the outlined outcomes, in our second investigation (i.e., Table III), we provide an extensive bench-marking of traditional and multimodal recommender systems from the literature in the dropped setting. Once again, the missing modalities were imputed through the best graph-based imputation method according to the Recall@20 on the validation set. Results generally highlight the performance predominance of multimodal recommender systems over tra-ditional approaches. Moreover, more recent recommendation techniques (e.g., LightGCN and SGL on the traditional side, MMSSL, LGMRec, and MENTOR on the multimodal side) can provide higher recommendation performance. All things considered, the reported results demonstrate that the application of our proposed graph-based imputation meth-ods for missing modalities can preserve the trends observed in the literature, or even amplify/revert the performance gap between traditional and multimodal approaches. Indeed, the advantages of the imputed setting are to retain important information from the datasets (without the need to perform any filtering/dropping on them) and recover the missing modalities through high-quality strategies. 
+
+B. RQ2) Impact of traditional, autoencoder-, and graph-based imputations 
+
+In the current analysis, we compare the recommenda-tion performance of selected multimodal recommender sys-tems in the dropped setting when equipped with traditional, autoencoder-, and graph-based imputation strategies. Table IV displays the results on all the recommendation datasets in terms of Recall@20 and nDCG@20. From a general overview, a consistent trend across all datasets and recommendation models suggests that graph-based imputation strategies (the ones proposed in this pa-per) settle as the best or second-best imputation approaches compared to all other techniques. However, it is important to highlight that for some recommendation models, such as VBPR, MGCN, and MMSSL, autoencoder-based imputations can still provide sufficient performance on specific datasets, maybe thanks to their ability to learn from the data how to recover one missing modality from the other available. Imputation-wise, we observe that, for traditional imputation, there is no recognisable trend, where each of the three ap-proaches can provide improved performance depending on the considered recommendation model and dataset. Conversely, in terms of autoencoder-based imputation, we notice that, in most cases, G RAPH AUTO ENC is the most successful solution among the two tested ones; this further confirms our intuition to adopt the item-item co-purchase graph structure to impute missing modalities. Finally, when it comes to graph-based imputation, approaches that propagate multimodal features at multiple hops (i.e., M ULTI HOP ), with more refined normali-sation solutions (i.e., P ERS PAGE RANK and H EAT ) tend to be the most powerful techniques. In conclusion, our proposed training-free graph-based impu-tation methods largely outperform other families of imputation approaches on all the recommendation models and datasets. Moreover, we highlight the importance of leveraging the item-item co-purchase graph in the imputation, especially by exploring its topology at multiple hops. Finally, even against strong imputation strategies (such as the autoencoder-based ones which are trained to perform their task) our solutions can still provide high-quality imputations while being much more computationally-efficient (as they are training-free). 
+
+C. RQ3) Impact of sparsification rates and hop propagations 
+
+This study serves to provide a hyper-parameter sensitivity analysis for the sparsification rate (TopN) and number of ACCEPTED IN IEEE TRANSACTIONS ON KNOWLEDGE AND DATA ENGINEERING, 2026 9
+
+TABLE II: Performance improvement of VBPR, NGCF-M, and LightGCN-M over BPRMF, NGCF, and LightGCN (respec-tively) in the dropped and imputed settings. For multimodal recommender systems, the selected graph-based imputation method is the one performing the best on the validation set.                                                                                                                               
+
+> Models Dropped Imputed (Ours) Office Music Beauty Office Music Beauty
+> Recall nDCG Recall nDCG Recall nDCG Recall nDCG Recall nDCG Recall nDCG BPRMF 7.74 3.65 26.50 14.24 9.81 5.00 8.51 4.55 24.59 13.69 9.43 4.85 VBPR 9.99 4.82 25.22 13.71 11.12 5.86 9.47 5.23 26.25 14.58 10.92 5.71 Improvement (%) +29.07% +32.05% -4.83% -3.72% +13.35% +17.20% +11.28% +14.95% +6.75%* +6.50%* +15.80%* +17.73%* NGCF 9.90 4.49 24.39 12.61 8.64 4.28 8.18 3.91 24.12 13.06 8.92 4.56 NGCF-M 13.10 6.36 24.12 12.73 9.68 4.94 11.07 5.59 25.04 13.53 11.37 5.97 Improvement (%) +31.32% +41.65% -1.11% +0.95% +12.04% +15.42% +35.33%* +42.97%* +3.81%* +3.60%* +27.47%* +30.92* LightGCN 13.95 6.70 27.86 14.74 11.79 6.13 11.55 6.12 26.61 14.49 11.61 6.02 LightGCN-M 13.18 6.36 28.06 15.29 11.38 5.99 11.55 6.38 26.82 14.89 12.12 6.32 Improvement (%) -5.52% -5.07% +0.72% +3.73% -3.48% -2.28% +0.00%* +4.25%* +0.79%* +2.76% +4.39%* +4.98%* *The performance improvement is higher in our imputed setting than in the dropped one.
+
+TABLE III: Recommendation performance in the imputed setting. For multimodal recommender systems, the selected graph-based imputation method is the one performing the best on the validation set. Boldface and underlined are the best and second-best values, respectively.                                                                                                                                                                                          
+
+> Models Office Music Baby Toys Beauty Sports
+> Recall nDCG Recall nDCG Recall nDCG Recall nDCG Recall nDCG Recall nDCG BPRMF 8.51 4.55 24.59 13.69 4.56 2.23 8.55 4.55 9.43 4.85 5.32 2.73 NGCF 8.18 3.91 24.12 13.06 5.59 2.81 8.22 4.23 8.92 4.56 4.97 2.52 LightGCN 11.55 6.12 26.61 14.49 7.36 3.76 10.22 5.43 11.61 6.02 8.26 4.34 SGL 10.28 5.81 27.59 15.86 6.08 3.27 10.89 6.05 12.20 6.72 7.87 4.27 VBPR 9.47 5.23 26.25 14.58 5.90 3.03 10.36 5.63 10.92 5.71 6.65 3.39 NGCF-M 11.07 5.59 25.04 13.53 6.96 3.46 9.21 4.88 11.37 5.97 7.43 3.77 LightGCN-M 11.55 6.38 26.82 14.89 7.72 3.91 11.24 6.10 12.12 6.32 7.50 3.89 FREEDOM 12.01 6.56 26.53 14.48 8.34 4.36 13.01 6.77 13.59 7.14 9.26 4.75 BM3 11.20 5.94 23.99 13.10 7.89 4.01 9.87 5.17 11.51 6.00 8.55 4.44 MGCN 11.63 6.25 24.60 13.41 8.44 4.26 12.35 6.59 12.73 6.88 8.53 4.49 MMSSL 13.50 11.38 29.28 21.92 8.80 6.55 12.04 8.69 13.72 10.06 9.22 7.10 LGMRec 13.19 7.28 29.05 17.11 8.91 4.58 12.74 6.82 13.76 7.56 9.23 4.89 DiffMM 12.60 6.93 28.49 16.46 8.81 4.49 11.92 6.33 13.27 7.13 9.29 4.90
+> MENTOR 12.76 7.25 27.63 15.76 8.73 4.47 13.23 7.04 14.04 7.68 9.33 4.87
+
+explored hops (Hops) in our graph-based imputation strategies. Spefically, we consider the performance variation on VBPR and MGCN equipped with the H EAT imputation on the Sports recommendation dataset (Figure 3). Starting from VBPR, we see that the performance tends to slightly degrade when retaining bigger portions of neighbors for each node (i.e., higher TopN values). This aligns with the rationale that retaining only the most similar neighbors for each node should improve the informativeness level of the item-item co-purchase graph, thus improving the graph-based imputation and the recommendation performance. Regarding the Hops, we acknowledge that even with a few explorations, the graph-based imputation can reach a sufficiently high-quality reconstruction of missing features in VBPR, as we see improved recommendation performance for those settings and negligible performance improvements with increasing Hops. Trends are more or less aligned on MGCN in terms of Hops. However, focusing on the TopN, we clearly notice that retain-ing more neighbors for each node in the item-item co-purchase can, this time, improve the imputation and, consequently, the final recommendation performance. We ascribe this difference to the different nature of VBPR and MGCN, where the latter is a graph-based multimodal recommender system working on the user-item graph. In this respect, the careful reader would note that the item-item co-purchase graph used in our paper carries unexplicit information from the user-item graph (i.e., items that have been interacted by the same users). Thus, it seems reasonable that the H EAT imputation working on a graph-based multimodal recommender system such as MGCN can benefit from larger neighbors to efficiently support the graph-based multimodal recommender system. All in all, the above investigation outlines that the proposed graph-based imputation require careful hyper-parameter selec-tion depending on the strategies and methodologies adopted by the multimodal recommender system. 
+
+D. RQ4) Impact of feature homophily 
+
+Inspired by [36], we study the impact of feature homophily of the item-item co-purchase graph on the proposed graph-based imputation methods. To the best of our knowledge, this is the first time such an investigation is conducted in multimodal recommendation with missing modalities. As the traditional and more common definition of node homophily [71] is not applicable to our setting, where no class nodes are available, we leverage the definition of feature ACCEPTED IN IEEE TRANSACTIONS ON KNOWLEDGE AND DATA ENGINEERING, 2026 10 
+
+TABLE IV: Impact of all imputation methods on the performance of selected multimodal recommender systems for all the tested datasets. Boldface and underlined stand for best and second-best, respectively. 
+
+Models Imputation Office Music Baby Toys Beauty Sports 
+
+Recall nDCG Recall nDCG Recall nDCG Recall nDCG Recall nDCG Recall nDCG VBPR +Z EROS 9.49 5.24 24.85 14.02 5.03 2.49 10.07 5.42 9.80 5.08 6.31 3.15 +R ANDOM 8.57 4.75 25.65 14.24 5.24 2.64 9.80 5.37 10.09 5.22 6.52 3.30 +G LOBAL MEAN 9.46 5.30 24.81 14.03 4.98 2.46 9.76 5.33 10.55 5.55 6.31 3.15 +A UTO ENC 9.34 5.02 24.76 13.95 5.01 2.48 9.45 5.09 10.13 5.33 6.30 3.13 +G RAPH AUTO ENC 10.11 5.46 24.88 13.70 5.63 2.80 10.43 5.68 10.87 5.74 6.54 3.30 +N EIGH MEAN 9.43 5.20 24.77 13.69 4.99 2.48 10.10 5.45 9.80 5.08 6.71 3.42 
+
++M ULTI HOP 10.09 5.41 26.03 14.56 5.68 2.81 10.31 5.61 10.83 5.73 6.56 3.38 +P ERS PAGE RANK 9.47 5.23 26.25 14.58 5.83 2.95 10.36 5.63 10.91 5.74 6.66 3.40 +H EAT 10.21 5.64 25.23 14.39 5.90 3.03 10.35 5.63 10.92 5.71 6.65 3.39 FREEDOM +Z EROS 11.10 5.87 25.41 13.57 7.30 3.73 9.66 5.18 10.65 5.54 7.48 3.94 +R ANDOM 12.30 6.53 26.49 14.72 8.37 4.30 12.71 6.63 13.12 6.87 9.00 4.66 +G LOBAL MEAN 12.36 6.63 26.84 14.92 8.25 4.23 12.52 6.53 13.08 6.80 8.89 4.63 +A UTO ENC 12.42 6.51 25.99 14.20 7.51 3.81 9.46 5.08 12.00 6.32 7.61 4.02 +G RAPH AUTO ENC 12.23 6.42 26.73 14.50 7.60 3.87 9.96 5.34 12.11 6.45 7.65 4.01 +N EIGH MEAN 12.30 6.45 26.57 14.55 8.63 4.42 12.69 6.67 13.23 6.88 8.96 4.63 +M ULTI HOP 12.31 6.68 26.53 14.48 8.54 4.39 12.86 6.78 13.59 7.14 9.11 4.71 +P ERS PAGE RANK 12.01 6.56 26.69 14.72 8.34 4.36 12.94 6.79 13.28 6.98 9.26 4.75 
+
++H EAT 12.25 6.48 26.52 14.43 8.68 4.44 13.01 6.77 13.40 7.00 8.96 4.67 BM3 +Z EROS 11.31 5.93 24.64 12.99 7.64 3.87 9.75 5.02 11.31 5.92 8.43 4.43 +R ANDOM 10.76 5.80 24.29 12.93 7.53 3.84 9.64 5.07 11.43 5.94 8.49 4.45 +G LOBAL MEAN 10.93 5.79 24.27 12.88 7.70 3.94 9.84 5.13 11.37 5.87 8.56 4.45 +A UTO ENC 10.92 5.87 25.04 13.48 7.86 3.99 9.98 5.24 11.30 5.92 8.25 4.40 +G RAPH AUTO ENC 10.86 5.92 24.53 13.00 7.85 4.00 10.17 5.26 11.41 5.95 8.52 4.45 +N EIGH MEAN 10.91 5.71 24.46 12.95 7.62 3.91 9.77 5.09 11.43 5.94 8.36 4.35 +M ULTI HOP 11.40 5.60 24.67 13.14 7.87 4.01 9.87 5.17 11.49 6.04 8.46 4.42 +P ERS PAGE RANK 11.20 5.94 23.99 13.10 7.89 4.01 9.79 5.12 11.31 5.92 8.55 4.44 +H EAT 11.35 6.04 24.41 12.97 7.89 4.01 10.12 5.27 11.51 6.00 8.63 4.49 
+
+MGCN +Z EROS 11.17 5.80 20.90 10.97 5.64 2.79 5.51 2.88 10.77 5.92 5.13 2.75 +R ANDOM 11.64 6.06 21.16 11.75 8.28 4.24 11.93 6.35 12.69 6.83 8.31 4.34 +G LOBAL MEAN 11.45 6.12 22.00 11.89 8.20 4.20 11.91 6.30 12.62 6.72 8.29 4.36 +A UTO ENC 11.76 6.21 23.27 12.91 5.93 2.98 7.47 4.01 12.21 6.67 5.70 2.99 +G RAPH AUTO ENC 11.38 6.05 23.68 13.09 6.15 3.12 7.19 3.88 12.22 6.71 5.65 3.01 +N EIGH MEAN 11.81 6.20 22.43 12.07 8.21 4.21 12.40 6.62 12.54 6.74 8.54 4.45 +M ULTI HOP 11.79 6.13 24.15 13.28 8.40 4.28 12.35 6.59 12.63 6.80 8.53 4.49 +P ERS PAGE RANK 11.41 6.24 23.46 12.93 8.44 4.26 12.33 6.60 12.76 6.89 8.55 4.50 +H EAT 11.63 6.25 24.60 13.41 8.26 4.21 12.17 6.48 12.73 6.88 8.59 4.51 
+
+MMSSL +Z EROS 13.40 11.36 28.83 21.42 8.84 6.55 12.06 8.65 13.76 10.05 9.11 7.00 +R ANDOM 12.37 10.83 28.03 20.70 8.52 6.35 11.54 8.47 13.36 9.78 8.93 6.93 +G LOBAL MEAN 13.07 11.00 28.89 21.55 8.86 6.58 12.00 8.68 13.58 9.87 9.21 7.09 +A UTO ENC 13.50 11.38 28.85 21.47 8.83 6.58 11.73 8.55 13.61 9.98 9.05 7.01 +G RAPH AUTO ENC 13.22 10.93 28.85 21.41 8.95 6.65 11.97 8.64 13.72 10.06 9.17 7.12 +N EIGH MEAN 13.29 11.31 28.94 21.48 8.91 6.62 12.06 8.73 13.69 10.07 9.17 7.07 +M ULTI HOP 13.16 11.11 29.28 21.92 8.90 6.63 12.05 8.74 13.72 10.08 9.26 7.14 
+
++P ERS PAGE RANK 13.39 11.31 29.33 21.60 8.86 6.59 12.13 8.73 13.72 10.01 9.22 7.10 +H EAT 13.48 11.29 29.35 21.67 8.80 6.55 12.04 8.69 13.77 10.09 9.27 7.14 
+
+DiffMM +Z EROS 13.34 7.36 27.83 15.97 8.69 4.52 11.59 6.23 13.04 7.03 9.23 4.89 +R ANDOM 12.85 7.34 28.33 16.61 8.65 4.53 11.77 6.23 13.27 7.12 9.06 4.82 +G LOBAL MEAN 13.20 7.42 28.02 16.17 8.61 4.47 11.42 6.10 13.35 7.32 8.92 4.68 +A UTO ENC 13.17 7.31 28.04 16.17 8.71 4.51 11.65 6.19 13.25 7.16 9.26 4.88 +G RAPH AUTO ENC 12.79 7.19 28.37 16.27 8.67 4.50 12.00 6.37 13.08 7.03 9.18 4.82 +N EIGH MEAN 12.89 7.04 28.50 16.31 8.68 4.52 11.77 6.25 13.31 7.19 9.25 4.90 
+
++M ULTI HOP 12.69 6.98 28.73 16.38 8.72 4.50 11.82 6.30 13.24 7.12 9.29 4.90 
+
++P ERS PAGE RANK 12.83 6.99 28.25 16.30 8.81 4.49 11.93 6.34 13.25 7.11 9.26 4.88 +H EAT 12.60 6.93 28.49 16.46 8.66 4.50 11.92 6.33 13.27 7.13 9.28 4.90 
+
+homophily proposed in [38]. Specifically, we adapt its formu-lation to our case, where it is calculated for each modality in the system. Note that we consider the feature homophily only in the dropped setting as we need all available multimodal features to calculate it. The measure is high when close nodes in the graph tend to have similar features, and low otherwise. ACCEPTED IN IEEE TRANSACTIONS ON KNOWLEDGE AND DATA ENGINEERING, 2026 11 25 50 75 100           
+
+> TopN
+> 6.0
+> 6.5
+> Recall
+> 3.0
+> 3.5
+> 4.0 510 15 20
+> Hops
+> 6.2
+> 6.4
+> 6.6
+> 3.0
+> 3.5
+> 4.0
+> nDCG
+> (a) VBPR 25 50 75 100
+> TopN
+> 7.0
+> 8.0
+> 9.0
+> Recall
+> 3.0
+> 3.5
+> 4.0
+> 4.5 510 15 20
+> Hops
+> 8.0
+> 8.3
+> 8.5
+> 8.7
+> 4.1
+> 4.3
+> 4.5
+> 4.7
+> 4.9
+> nDCG Recall nDCG
+> (b) MGCN
+
+Fig. 3: Performance variation for (a) VBPR and (b) MGCN with the H EAT imputation method by considering different sparsification rates and propagation hops on the Sports dataset. Figure 4 depicts the performance variation for VBPR and MGCN on Sports dataset, equipped with H EAT imputation, considering various levels of feature homophily ( x-axis) and TopN sparsification ( y-axis). The study is conducted on the Visual and Textual modalities separately, as we calculate the feature homophily on each of them. The first two observable trends suggest that: (i) in general, feature homophily is very low and limited to the range [0, 0.20]; (ii) TopN sparsification and feature homophily are indirectly correspondent, as higher TopN values (so retaining more and low-quality neighbors of each node) inevitably lead to lower feature homophily and vice-versa. Indeed, observation (i) is confirmed by the outcomes from [38], highlighting that the user-item graph in recommendation shows, in most cases, low levels of feature homophily. Then, by considering the overall plots, we see again dif-ferent trends between VBPR and MGCN. Regarding VBPR, we recognize higher recommendation performance coinciding with high levels of feature homophily, which seems to be aligned with what observed by the authors in [36]. Differently, on MGCN, we clearly notice higher recommendation perfor-mance for lower levels of homophily. Once again, this behavior might be ascribed to MGCN working with the user-item graph, whose perspective is strictly related to that of the item-item co-purchase graph we use for the graph-based imputations. Thus, as such imputations work by supporting the graph-based multimodal recommender systems in exploring vast portions of the user-item graph, they benefit from higher values of TopN and, consequently, lower levels of feature homophily. That is, feature homophily might be less impacting than for other multimodal recommender systems. In conclusion, this study confirms the importance of hyper-parameter selection for the proposed graph-based approaches 0.05 0.10 0.15 
+
+> Feature Homophily
+> 25
+> 50
+> 75
+> 100
+> TopN
+
+Visual 0.05 0.10 0.15 
+
+> Feature Homophily
+> 25
+> 50
+> 75
+> 100
+
+Textual 6.30 6.40 6.50 6.60   
+
+> Recall
+> (a) VBPR 0.05 0.10 0.15
+> Feature Homophily
+> 25
+> 50
+> 75
+> 100
+> TopN
+
+Visual 0.05 0.10 0.15 
+
+> Feature Homophily
+> 25
+> 50
+> 75
+> 100
+
+Textual 7.25 7.50 7.75 8.00 8.25 8.50 
+
+> Recall
+> (b) MGCN
+
+Fig. 4: Performance variation (Recall) on Sports for (a) VBPR and (b) MGCN and with H EAT imputation. Specifically, we display how the Recall changes with different levels of feature homophily ( x-axis) and item-item sparsification ( y-axis). depending on the specific setting (as reported in the previous RQ). Moreover, regarding the generally low values of feature homophily, it underlines the necessity of better understanding and assessing this aspect, especially in the case this is pre-venting our solutions from providing even better performance. Thus, we will devote future work to the outlined direction. 
+
+E. RQ5) Impact of missing features percentage for traditional, autoencoder-, and graph-based imputations 
+
+This analysis is devoted to assessing the recommenda-tion performance variation when considering selected impu-tation methods with different percentages of missing modal-ities. Specifically, we select FREEDOM and LGMRec as multimodal recommendation models, equipped with G LOB -
+
+> AL
+
+MEAN , AUTO ENC , and HEAT imputation methods, on the Baby recommendation dataset. Then, we simulate five scenarios where, either on the Visual, the Textual, or the Visual + Textual modalities, the 10%, 50%, or 90% of items have missing features. For each of these configurations, we repeat the items sampling five times to ensure independence from the single-conducted sampling. Results are reported in Table V in terms of Recall@20, where the first performance column refers to the Recall in the setting with all complete modalities, corresponding to our dropped setting (where no item has missing multimodal features). Overall, results show that the graph-based imputation method (H EAT ) is the approach that performs the best in most cases; this becomes especially evident on LGMRec, where ACCEPTED IN IEEE TRANSACTIONS ON KNOWLEDGE AND DATA ENGINEERING, 2026 12 
+
+TABLE V: Performance variation (Recall) of FREEDOM and LGMRec (equipped with G LOBAL MEAN , A UTO ENC , and H EAT 
+
+imputations) on the Baby dataset, with different percentages of missing features (i.e., Complete, 10%, 50%, and 90%) on the Visual, Textual, and Visual + Textual modalities.                                                                                                                 
+
+> FREEDOM LGMRec Imputation Visual Imputation Visual Complete 10% 50% 90% Complete 10% 50% 90% +G LOBAL MEAN 8.95 8.54 ±0.10 8.60 ±0.09 8.47 ±0.09 +G LOBAL MEAN 8.87 8.83 ±0.11 8.54 ±0.20 8.18 ±0.05 +A UTO ENC 8.95 8.60 ±0.15 8.50 ±0.11 8.50 ±0.12 +A UTO ENC 8.87 8.85 ±0.16 8.76 ±0.16 8.49 ±0.14
+> +H EAT 8.95 8.63 ±0.10 8.50 ±0.07 8.50 ±0.05 +H EAT 8.87 8.91 ±0.07 8.82 ±0.06 8.48 ±0.04
+> Imputation Textual Imputation Textual Complete 10% 50% 90% Complete 10% 50% 90% +G LOBAL MEAN 8.95 8.25 ±0.05 7.46 ±0.20 7.43 ±0.12 +G LOBAL MEAN 8.87 8.74 ±0.12 8.19 ±0.15 7.59 ±0.17 +A UTO ENC 8.95 8.46 ±0.21 7.92 ±0.08 7.70 ±0.11 +A UTO ENC 8.87 8.81 ±0.07 8.25 ±0.18 7.40 ±0.05 +H EAT 8.95 8.33 ±0.11 7.59 ±0.10 7.19 ±0.17 +H EAT 8.87 8.82 ±0.05 8.36 ±0.14 7.96 ±0.15 Imputation Visual + Textual Imputation Visual + Textual Complete 10% 50% 90% Complete 10% 50% 90% +G LOBAL MEAN 8.95 8.23 ±0.10 7.24 ±0.18 6.88 ±0.09 +G LOBAL MEAN 8.87 8.52 ±0.14 7.49 ±0.21 6.36 ±0.28
+> +A UTO ENC 8.95 7.16 ±0.15 6.96 ±0.14 6.88 ±0.13 +A UTO ENC 8.87 8.62 ±0.09 7.63 ±0.37 5.80 ±0.13 +H EAT 8.95 8.30 ±0.07 7.48 ±0.12 6.99 ±0.08 +H EAT 8.87 8.68 ±0.16 7.83 ±0.21 6.24 ±0.14
+
+HEAT is able to preserve recommendation performance even for higher percentages of missing modalities (e.g., see the Textual modality setting for 90% of missing information, or the Visual + Textual modality setting for 50% of missing information). The exception to the observed trend is the Tex-tual modality for FREEDOM, where the autoencoder-based imputation (A UTO ENC ) is steadily the best. However, if we consider those scenarios with the percentage of missingness limited to 50% (which are the most realistic ones according to Table I, see the last column), our method settles as the best or second-to-best solution even in the Textual modality. To summarise, graph-based imputation approaches demon-strate very high performance in most settings with various percentages of missing modalities, and in realistic scenarios, they still provide sufficiently improved results. Nevertheless, we will devote future directions of our work to delving into the results from the Textual missingness setting, which could represent an area for further investigation. 
+
+F. RQ6) Impact of missing features on multimodal scenarios with more than two modalities 
+
+We ultimately examine a multimodal recommendation sce-nario involving three modalities. In particular, we select the recent MicroLens dataset 2 [72]. Unlike the Amazon datasets we used in the previous RQs, MicroLens comes with 3modalities: visual, textual, and video. Starting from the orig-inal MicroLens-100K version, we apply an iterative k-core algorithm (with k = 7 ) to retain users and items with the most interactions, resulting in the following statistics: 7,556 users, 4,628 items, and 81,505 interactions. Then, we simulate the missingness of modalities for 30% of the items in the catalog. Table VI reports results of MGCN when imputing missing modalities with two traditional strategies (i.e., R ANDOM and GLOBAL MEAN ) and two graph-based techniques (i.e., M UL -
+
+> TI
+
+HOP and P ERS PAGE RANK ). As previously observed in our 
+
+> 2https://github.com/westlake-repl/MicroLens.
+
+TABLE VI: Impact of traditional and graph-based imputation methods on the performance of MGCN for the MicroLens dataset having 3 modalities with 30% of missing modalitie.           
+
+> Imputation Recall nDCG
+> +R ANDOM 23.28 ±0.28 10.48 ±0.14 +G LOBAL MEAN 23.38 ±0.35 10.55 ±0.18 +M ULTI HOP 23.41 ±0.37 10.45 ±0.22 +P ERS PAGE RANK 23.45 ±0.46 10.60 ±0.25
+
+analyses, this further confirms the efficacy of our proposed graph-based imputations, which can also effectively operate in multimodal scenarios with more than two modalities. VII. C ONCLUSION AND FUTURE WORK 
+
+In this paper, we tackled the problem of missing modalities in multimodal recommendation, which has found very limited attention in the recent literature. First, we formalised (for the first time) the issue by outlining differences with the problem of missing information in machine learning. Then, we pro-posed to leverage the item-item co-purchase graph to re-sketch the problem of missing modalities as a task of graph feature interpolation. Our solutions act as model-agnostic techniques applicable to any existing multimodal recommender systems without affecting their training (they run during the pre-processing phase), and are completely training-free. Extensive experiments on 7 datasets (with either 2 or 3 modalities), 14 (multimodal) recommenders, and against 5 imputation base-lines (traditional and autoencoder-based imputation) outlined important aspects of our approaches. First, the graph-based imputations can preserve or even widen the performance gap between traditional and multimodal recommender systems. Second, the graph-based solutions largely outperform the other imputation strategies. Moreover, further analyses demonstrate that our approaches need careful hyperparameter selection to adapt to the specific multimodal recommender system. Despite their largely-demonstrated efficacy, final results regarding the impact of feature homophily and the percentage of missing ACCEPTED IN IEEE TRANSACTIONS ON KNOWLEDGE AND DATA ENGINEERING, 2026 13 
+
+features on each modality underline some performance limita-tions in our approaches, paving the way for interesting future directions of the current work. Among others, we plan to re-design our graph-based imputation strategies with more refined sparsifications [39] and integrate them into the end-to-end recommendation pipeline with the multimodal recommenda-tion model. This would ensure that the framework exploits the information-rich item-item similarity graph as done in the related literature [17], [21], [73], along with ad-hoc modality alignment constraints to provide further guidance signal to the imputation of missing modalities [18], [19], [21], [47], and works effectively in cold-start/noisy scenarios. ACKNOWLEDGMENTS 
+
+D.M. and F.D.M. acknowledge the support of the Innov4-ePiK project managed by the French National Research Agency under the 4th PIA, integrated into France2030 (ANR-23-RHUS-0002). C.P. and T.D.N. acknowledge the support of the P+ARTS project funded by the European Union Next-GenerationEU (NRRP – M4C1, Investment 3.4, INTAFAM00037, CUP: G43C24000640006). The authors ac-knowledge Inria, Mesocentre, and the CINECA (ISCRA ini-tiative) for high-performance computing resources. REFERENCES [1] R. He and J. J. McAuley, “VBPR: visual bayesian personalized ranking from implicit feedback,” in AAAI , 2016. [2] D. Malitesta, G. Cornacchia, C. Pomo, F. A. Merra, T. D. Noia, and E. D. Sciascio, “Formalizing multimedia recommendation through multimodal deep learning,” Trans. Recomm. Syst. , vol. 3, no. 3, pp. 37:1–37:33, 2025. [3] Q. Liu, J. Hu, Y. Xiao, X. Zhao, J. Gao, W. Wang, Q. Li, and J. Tang, “Multimodal recommender systems: A survey,” ACM Comput. Surv. ,vol. 57, no. 2, pp. 26:1–26:17, 2025. [4] H. Zhou, X. Zhou, Z. Zeng, L. Zhang, and Z. Shen, “A comprehensive survey on multimodal recommender systems: Taxonomy, evaluation, and future directions,” CoRR , vol. abs/2302.04473, 2023. [5] J. Xu, Z. Chen, S. Yang, J. Li, W. Wang, X. Hu, S. Hoi, and E. C. H. Ngai, “A survey on multimodal recommender systems: Recent advances and future directions,” CoRR , vol. abs/2502.15711, 2025. [6] Q. Liu, J. Zhu, Y. Yang, Q. Dai, Z. Du, X. Wu, Z. Zhao, R. Zhang, and Z. Dong, “Multimodal pretraining, adaptation, and generation for recommendation: A survey,” in KDD , 2024. [7] L. Pan, Z. Pan, F. Cai, and H. Chen, “Multimodal recommender systems: A survey of representation, modeling, and optimization,” Inf. Fusion ,vol. 128, p. 103991, 2026. [8] X. Chen, H. Chen, H. Xu, Y. Zhang, Y. Cao, Z. Qin, and H. Zha, “Personalized fashion recommendation with visual explanations based on multimodal attention network: Towards visually explainable recom-mendation,” in SIGIR , 2019. [9] S. Oramas, O. Nieto, M. Sordo, and X. Serra, “A deep multimodal approach for cold-start music recommendation,” in DLRS@RecSys ,2017. [10] W. Min, S. Jiang, and R. C. Jain, “Food recommendation: Framework, existing solutions, and challenges,” IEEE Trans. Multim. , 2020. [11] D. Cai, S. Qian, Q. Fang, and C. Xu, “Heterogeneous hierarchical feature aggregation network for personalized micro-video recommendation,” 
+
+IEEE Trans. Multim. , vol. 24, pp. 805–818, 2022. [12] D. Malitesta, E. Rossi, C. Pomo, T. D. Noia, and F. D. Malliaros, “Do we really need to drop items with missing modalities in multimodal recommendation?” in CIKM , 2024. [13] X. Wang, X. He, M. Wang, F. Feng, and T. Chua, “Neural graph collaborative filtering,” in SIGIR , 2019. [14] Y. Wei, X. Wang, L. Nie, X. He, R. Hong, and T. Chua, “MMGCN: multi-modal graph convolution network for personalized recommenda-tion of micro-video,” in ACM Multimedia , 2019. [15] Y. Wei, X. Wang, L. Nie, X. He, and T. Chua, “Graph-refined convolu-tional network for multimedia recommendation with implicit feedback,” in ACM Multimedia , 2020. [16] J. Zhang, Y. Zhu, Q. Liu, S. Wu, S. Wang, and L. Wang, “Mining latent structures for multimedia recommendation,” in ACM Multimedia , 2021. [17] X. Zhou and Z. Shen, “A tale of two graphs: Freezing and denoising graph structures for multimodal recommendation,” in ACM Multimedia ,2023. [18] X. Zhou, H. Zhou, Y. Liu, Z. Zeng, C. Miao, P. Wang, Y. You, and F. Jiang, “Bootstrap latent representations for multi-modal recommen-dation,” in WWW , 2023. [19] W. Wei, C. Huang, L. Xia, and C. Zhang, “Multi-modal self-supervised learning for recommendation,” in WWW , 2023. [20] Z. Guo, J. Li, G. Li, C. Wang, S. Shi, and B. Ruan, “Lgmrec: Local and global graph learning for multimodal recommendation,” in AAAI , 2024. [21] J. Xu, Z. Chen, S. Yang, J. Li, H. Wang, and E. C. H. Ngai, “MENTOR: multi-level self-supervised learning for multimodal recommendation,” in 
+
+AAAI , 2025. [22] T. Emmanuel, T. M. Maupong, D. Mpoeleng, T. Semong, B. Mphago, and O. Tabona, “A survey on missing data in machine learning,” J. Big Data , vol. 8, no. 1, p. 140, 2021. [23] H. Steck, “Training and testing of recommender systems on data missing not at random,” in KDD , 2010. [24] M. Wang, M. Gong, X. Zheng, and K. Zhang, “Modeling dynamic missingness of implicit feedback for recommendation,” in NeurIPS ,2018. [25] X. Zheng, M. Wang, R. Xu, J. Li, and Y. Wang, “Modeling dynamic missingness of implicit feedback for sequential recommendation,” IEEE Trans. Knowl. Data Eng. , vol. 34, no. 1, pp. 405–418, 2022. [26] S. Shi, M. Zhang, X. Yu, Y. Zhang, B. Hao, Y. Liu, and S. Ma, “Adaptive feature sampling for recommendation with missing content feature values,” in CIKM , 2019. [27] F. Liu, Z. Cheng, L. Zhu, C. Liu, and L. Nie, “An attribute-aware attentive GCN model for attribute missing in recommendation,” IEEE Trans. Knowl. Data Eng. , vol. 34, no. 9, pp. 4077–4088, 2022. [28] M. Ma, J. Ren, L. Zhao, S. Tulyakov, C. Wu, and X. Peng, “SMIL: multimodal learning with severely missing modality,” in AAAI , 2021. [29] Y. Lee, Y. Tsai, W. Chiu, and C. Lee, “Multimodal prompting with missing modalities for visual recognition,” in CVPR . IEEE, 2023. [30] C. Zhang, X. Chu, L. Ma, Y. Zhu, Y. Wang, J. Wang, and J. Zhao, “M3care: Learning with missing modalities in multimodal healthcare data,” in KDD , 2022. [31] C. Wang, M. Niepert, and H. Li, “LRMM: learning to recommend with missing modalities,” in EMNLP , 2018. [32] J. Yi and Z. Chen, “Multi-modal variational graph auto-encoder for recommendation systems,” IEEE Trans. Multim. , 2022. [33] Z. Lin, Y. Tan, Y. Zhan, W. Liu, F. Wang, C. Chen, S. Wang, and C. Yang, “Contrastive intra- and inter-modality generation for enhancing incomplete multimedia recommendation,” in ACM Multimedia , 2023. [34] C. Ganh¨ or, M. Moscati, A. Hausberger, S. Nawaz, and M. Schedl, “A multimodal single-branch embedding network for recommendation in cold-start and missing modality scenarios,” in RecSys , 2024. [35] H. Bai, L. Wu, M. Hou, M. Cai, Z. He, Y. Zhou, R. Hong, and M. Wang, “Multimodality invariant learning for multimedia-based new item recommendation,” in SIGIR , 2024. [36] E. Rossi, H. Kenlay, M. I. Gorinova, B. P. Chamberlain, X. Dong, and M. M. Bronstein, “On the unreasonable effectiveness of feature propagation in learning on graphs with missing node features,” in LoG ,2022. [37] X. Zhou, “Mmrec: Simplifying multimodal recommendation,” in MMA-sia (Workshops) , 2023. [38] J. Zhu, X. Song, V. N. Ioannidis, D. Koutra, and C. Faloutsos, “Touchup-g: Improving feature representation through graph-centric finetuning,” in 
+
+SIGIR , 2024. [39] G. Xv, C. Lin, W. Guan, J. Gou, X. Li, H. Deng, J. Xu, and B. Zheng, “E-commerce search via content collaborative graph neural network,” in 
+
+KDD , 2023. [40] T. Baltrusaitis, C. Ahuja, and L. Morency, “Challenges and applications in multimodal machine learning,” in The Handbook of Multimodal-Multisensor Interfaces, Volume 2 (2) , 2018. [41] X. He, K. Deng, X. Wang, Y. Li, Y. Zhang, and M. Wang, “Lightgcn: Simplifying and powering graph convolution network for recommenda-tion,” in SIGIR , 2020. [42] Q. Wang, Y. Wei, J. Yin, J. Wu, X. Song, and L. Nie, “Dualgnn: Dual graph neural network for multimedia recommendation,” IEEE Trans. Multim. , vol. 25, pp. 1074–1084, 2023. [43] T. Kim, Y. Lee, K. Shin, and S. Kim, “MARIO: modality-aware attention and modality-preserving decoders for multimedia recommendation,” in 
+
+CIKM , 2022. ACCEPTED IN IEEE TRANSACTIONS ON KNOWLEDGE AND DATA ENGINEERING, 2026 14 
+
+[44] Y. Liu, S. Yang, C. Lei, G. Wang, H. Tang, J. Zhang, A. Sun, and C. Miao, “Pre-training graph transformer with multimodal side information for recommendation,” in ACM Multimedia , 2021. [45] H. Zhou, X. Zhou, L. Zhang, and Z. Shen, “Enhancing dyadic relations with homogeneous graphs for multimodal recommendation,” in ECAI ,2023. [46] P. Yu, Z. Tan, G. Lu, and B. Bao, “Multi-view graph convolutional network for multimedia recommendation,” in ACM Multimedia , 2023. [47] Z. Tao, X. Liu, Y. Xia, X. Wang, L. Yang, X. Huang, and T. Chua, “Self-supervised learning for multimedia recommendation,” IEEE Trans. Multim. , vol. 25, pp. 5107–5116, 2023. [48] Z. Yi, X. Wang, I. Ounis, and C. MacDonald, “Multi-modal graph contrastive learning for micro-video recommendation,” in SIGIR , 2022. [49] H. Su, J. Li, F. Li, K. Lu, and L. Zhu, “SOIL: contrastive second-order interest learning for multimodal recommendation,” in ACM Multimedia ,2024. [50] X. Zhou and C. Miao, “Disentangled graph variational auto-encoder for multimodal recommendation with interpretability,” IEEE Trans. Multim. ,vol. 26, pp. 7543–7554, 2024. [51] J. Yi and Z. Chen, “Variational mixture of stochastic experts auto-encoder for multi-modal recommendation,” IEEE Trans. Multim. ,vol. 26, pp. 8941–8954, 2024. [52] Y. Jiang, L. Xia, W. Wei, D. Luo, K. Lin, and C. Huang, “Diffmm: Multi-modal diffusion model for recommendation,” in ACM Multimedia ,2024. [53] W. Wei, X. Ren, J. Tang, Q. Wang, L. Su, S. Cheng, J. Wang, D. Yin, and C. Huang, “Llmrec: Large language models with graph augmentation for recommendation,” in WSDM , 2024. [54] R. K. Ong and A. W. H. Khong, “Spectrum-based modality represen-tation fusion graph convolutional network for multimodal recommenda-tion,” in WSDM , 2025. [55] P. Yu, Z. Tan, G. Lu, and B. Bao, “Mind individual information! principal graph learning for multimedia recommendation,” in AAAI , 2025. [56] J. Wang, F. Yuan, M. Cheng, J. M. Jose, C. Yu, B. Kong, Z. Wang, B. Hu, and Z. Li, “Transrec: Learning transferable recommendation from mixture-of-modality feedback,” in APWeb/WAIM (2) , 2024. [57] W. Wei, J. Tang, L. Xia, Y. Jiang, and C. Huang, “Promptmm: Multi-modal knowledge distillation for recommendation with prompt-tuning,” in WWW , 2024. [58] G. Lin, Z. Meng, D. Wang, Q. Long, Y. Zhou, and M. Xiao, “GUME: graphs and user modalities enhancement for long-tail multimodal rec-ommendation,” in CIKM , 2024. [59] W. E. Strawderman, “Statistical analysis with missing data (roderick j. a. little and donald b. rubin),” SIAM Rev. , vol. 31, no. 2, pp. 348–349, 1989. [60] A. Takasu, “A multicriteria recommendation method for data with missing rating scores,” in ICDKE , 2011. [61] J. Chen, C. Wang, M. Ester, Q. Shi, Y. Feng, and C. Chen, “Social recommendation with missing not at random data,” in ICDM , 2018. [62] C. Vernade and O. Capp´ e, “Learning from missing data using selection bias in movie recommendation,” in DSAA , 2015. [63] K. He, X. Zhang, S. Ren, and J. Sun, “Deep residual learning for image recognition,” in CVPR , 2016. [64] J. Klicpera, S. Weißenberger, and S. G¨ unnemann, “Diffusion improves graph learning,” in NeurIPS , 2019. [65] L. Page, S. Brin, R. Motwani, and T. Winograd, “The pagerank citation ranking: Bringing order to the web.” Stanford InfoLab, Technical Report 1999-66, November 1999. [66] R. Kondor and J. D. Lafferty, “Diffusion kernels on graphs and other discrete input spaces,” in ICML , 2002. [67] N. Reimers and I. Gurevych, “Sentence-bert: Sentence embeddings using siamese bert-networks,” in EMNLP/IJCNLP (1) , 2019. [68] S. Rendle, C. Freudenthaler, Z. Gantner, and L. Schmidt-Thieme, “BPR: bayesian personalized ranking from implicit feedback,” in UAI , 2009. [69] J. Wu, X. Wang, F. Feng, X. He, L. Chen, J. Lian, and X. Xie, “Self-supervised graph learning for recommendation,” in SIGIR , 2021. [70] T. N. Kipf and M. Welling, “Semi-supervised classification with graph convolutional networks,” in ICLR (Poster) . OpenReview.net, 2017. [71] J. Zhu, Y. Yan, L. Zhao, M. Heimann, L. Akoglu, and D. Koutra, “Beyond homophily in graph neural networks: Current limitations and effective designs,” in NeurIPS , 2020. [72] Y. Ni, Y. Cheng, X. Liu, J. Fu, Y. Li, X. He, Y. Zhang, and F. Yuan, “A content-driven micro-video recommendation dataset at scale,” in CIKM ,2025. [73] H. Zhou, X. Zhou, and Z. Shen, “Enhancing dyadic relations with homogeneous graphs for multimodal recommendation,” ECAI , 2023. 
+
+VIII. B IOGRAPHY SECTION 
+
+Daniele Malitesta is a Postdoctoral researcher at Universit´ e Paris-Saclay. Previously, he pursued a PhD at Politecnico di Bari (Italy), where he focused on graph-based multimodal recommendation. His works appear in venues such as ECML-PKDD, The Web Conference, SIGIR, and RecSys. Recently, he has given lectures and tutorials on his past and cur-rent research topics, which mainly focus on fairness in graph generative models and missing multimodal information in graph machine learning. 
+
+Emanuele Rossi is a Machine Learning Researcher at Vant AI, where he develops generative models at the intersection of machine learning and biology. He holds a Ph.D. from Imperial College London, where he was supervised by Prof. Michael Bron-stein and focused on Graph Neural Networks. His research appears at NeurIPS, ICML, ICLR, AAAI, and RecSys. Additionally, he has co-organized the Temporal Graph Learning Workshop at NeurIPS in both 2023 and 2024. 
+
+Claudio Pomo is an assistant professor at Politec-nico di Bari focused on responsible AI for person-alization, reproducibility, and multi-objective evalu-ation. His work appears at SIGIR, RecSys, ECIR, UMAP, and in Information Science and IP&M; he co-led tutorials (RecSys 2021; LoG 2023), organized the EvalRS workshop at KDD 2023, chaired the RecSys Challenge 2024–2025, and lectured at the RecSys Summer School 2024. 
+
+Tommaso Di Noia a Professor of Computer Science at the Polytechnic University of Bari, Italy. His work spans AI and data management, evolving from knowledge representation and automated reasoning to automated negotiation and recommender systems with knowledge graphs and Linked Open Data. He now focuses on trustworthy AI—adversarial ML, explainability, fairness, and privacy in recommender systems—and served as program co-chair of RecSys 2023 and general co-chair of RecSys 2024. 
+
+Fragkiskos D. Malliaros is a Professor at Universit´ eParis-Saclay, CentraleSup´ elec, Inria. Previously, he was a postdoctoral researcher at UC San Diego (2016-17) and ´ Ecole Polytechnique (2015-16). He is the recipient of the 2012 Google European Doctoral Fellowship in Graph Mining, the 2015 Thesis Prize by ´ Ecole Polytechnique, and best paper awards at TextGraphs-NAACL 2018 and AAAI ICWSM 2020 (honorable mention). His current research interests focus on graph machine learning and applications.

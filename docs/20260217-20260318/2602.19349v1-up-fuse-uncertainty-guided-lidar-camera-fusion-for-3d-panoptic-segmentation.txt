@@ -1,0 +1,778 @@
+Title: UP-Fuse: Uncertainty-guided LiDAR-Camera Fusion for 3D Panoptic Segmentation
+
+URL Source: https://arxiv.org/pdf/2602.19349v1
+
+Published Time: Tue, 24 Feb 2026 02:52:37 GMT
+
+Number of Pages: 17
+
+Markdown Content:
+# UP-Fuse: Uncertainty-guided LiDAR-Camera Fusion for 3D Panoptic Segmentation 
+
+Rohit Mohan 1, Florian Drews 2, Yakov Miron 2, Daniele Cattaneo 1, Abhinav Valada 11University of Freiburg 2Robert Bosch GmbH 
+
+Abstract —LiDAR-camera fusion enhances 3D panoptic seg-mentation by leveraging camera images to complement sparse LiDAR scans, but it also introduces a critical failure mode. Under adverse conditions, degradation or failure of the camera sensor can significantly compromise the reliability of the perception system. To address this problem, we introduce UP-Fuse, a novel uncertainty-aware fusion framework in the 2D range-view that remains robust under camera sensor degradation, calibration drift, and sensor failure. Raw LiDAR data is first projected into the range-view and encoded by a LiDAR encoder, while camera features are simultaneously extracted and projected into the same shared space. At its core, UP-Fuse employs an uncertainty-guided fusion module that dynamically modulates cross-modal interaction using predicted uncertainty maps. These maps are learned by quantifying representational divergence under diverse visual degradations, ensuring that only reliable visual cues influence the fused representation. The fused range-view features are decoded by a novel hybrid 2D-3D transformer that mitigates spatial ambiguities inherent to the 2D projection and directly predicts 3D panoptic segmentation masks. Extensive experiments on Panoptic nuScenes, SemanticKITTI, and our introduced Panoptic Waymo benchmark demonstrate the efficacy and robustness of UP-Fuse, which maintains strong performance even under severe visual corruption or misalignment, making it well suited for robotic perception in safety-critical settings. We make the code and models publicly available at http://upfuse.cs.uni-freiburg.de. 
+
+I. I NTRODUCTION 
+
+3D panoptic segmentation [ 10 , 24 ] unifies semantic and instance understanding of complex scenes, making it central for robotic perception, including autonomous driving [ 31 ]. LiDAR offers precise geometric measurements, but its sparsity and lack of appearance cues hinder reliable segmentation of small, distant, or geometrically similar objects. Incorporating dense, high-resolution camera data can mitigate these limitations by providing complementary texture and color information [ 41 , 35 ,42]. However, achieving effective fusion remains challenging, as the model has to learn not only where and what information to fuse, but also when to trust each modality. This reliability awareness is crucial under adverse conditions such as sensor failure, calibration errors, or visual domain shift, where camera inputs may become unreliable, as illustrated in Fig. 1. Existing fusion approaches for 3D panoptic segmentation are ill-equipped to handle such scenarios and thus degrade sharply when a modality fails. A crucial gap lies in developing a fusion paradigm that can discern not only which features are relevant but also whether they are valid, enabling adaptive and context-dependent integration across modalities. To address these challenges, we propose UP-Fuse ( Uncertainty-aware Multi-Modal    
+
+> Encoder Decoder
+> LiDAR-Only
+> Encoder Decoder
+> Multi-Modal
+> Encoder Decoder
+
+Fig. 1: Visualization of 3D panoptic segmentation: green indicates correct and red denotes errors. LiDAR-camera fusion significantly enhances segmentation over LiDAR-only methods, accurately detecting previously missed vehicles. However, camera sensor failure scenarios reveal a critical vulnerability, with fusion-based performance falling below LiDAR-only baselines and failing to detect previously identified objects. This highlights the crucial need for both relevance and reliability in multi-modal perception. 
+
+Panoptic Fus ion), an uncertainty-aware multi-modal fusion framework that leverages the range-view projection space. Our core contribution is an Uncertainty-Aware Fusion Module that jointly learns to evaluate cross-modal relevance and visual reliability. The module integrates deformable attention to identify informative visual features with an uncertainty head that estimates feature-level confidence. The fusion module is trained to associate feature patterns induced by camera sensor degradations (e.g., dropouts, occlusions, or out-of-domain distortions) with their impact on representational fidelity. The predicted uncertainty dynamically modulates the contribution of image features, enabling the network to attenuate unreliable cues while retaining informative ones. The fused representation is then processed by a Hybrid 2D-3D Panoptic Decoder that directly predicts 3D panoptic masks while alleviating projection ambiguities and boundary discontinuities inherent to the 360° range-view representation. We extensively evaluate UP-Fuse on the Panoptic nuScenes, SemanticKITTI, and Waymo Open Dataset [ 39 ] benchmarks. Since Waymo does not provide panoptic annotations, we gener-ate them using the publicly available semantic segmentation and 3D bounding box labels, and establish Panoptic Waymo, a new multi-modal 3D panoptic benchmark with several baselines. The main contributions of this work are summarized as follows: (1) the UP-Fuse framework for uncertainty-aware multi-modal 3D panoptic segmentation, (2) an uncertainty-guided fusion module that enables reliability-aware integration of LiDAR 
+
+> arXiv:2602.19349v1 [cs.CV] 22 Feb 2026
+
+and camera features, (3) a hybrid 2D-3D panoptic decoder that alleviates projection ambiguities in the 360° range-view representation, (4) a new multi-modal 3D panoptic benchmark for the Waymo Open Dataset with derived annotations and strong baselines, and (5) publicly released code and models upon acceptance. II. R ELATED WORK 
+
+LiDAR Panoptic Segmentation : LiDAR Panoptic segmenta-tion methods can be broadly categorized as top-down, bottom-up, or transformer-based approaches. Top-down methods [ 36 ,45 , 47 ] typically decompose the task into separate sub-tasks, using dedicated heads for instance and semantic segmentation. The instance head predicts object-level representations such as 2D instance masks from range-view (RV) projections [ 36 ]or 3D bounding boxes and instance masks in voxelized space [ 45 , 47 ], while the semantic head produces dense per-point or per-pixel class predictions. The outputs from both heads are then fused through heuristic-based modules [ 10 ]to generate the final panoptic output. In contrast, bottom-up methods [ 49 , 8, 33 , 44 , 15 ] jointly predict semantic labels and instance-related cues for all points within a single network. They typically regress offsets from each thing point toward its object center [ 49 , 8, 15 , 30 ] or learn affinities between points [ 33 ], followed by clustering or grouping to form complete instances [26]. Transformer-based approaches [ 6, 21 , 43 , 38 ] unify semantic and instance segmentation through a shared mask-classification framework, using learned queries to predict panoptic masks in an end-to-end manner. These methods differ in input represen-tation, including point-based [ 38 ], sparse voxel [ 21 ], and RV projections [ 6]. The latter offers computational efficiency by transforming sparse 3D points into dense 2D grids, enabling the use of mature 2D segmentation architectures. However, lifting 2D predictions back into 3D heuristically, often introduces artifacts and struggles with occlusion [ 36 , 6 ]. Our approach follows the RV transformer paradigm but incorporates a novel 2D-3D hybrid panoptic decoder, allowing more accurate and context-aware 3D panoptic segmentation. 
+
+Multi-Modal LiDAR Panoptic Segmentation : Panoptic-FusionNet [ 37 ] integrates camera features into a 3D backbone through multi-scale point-voxel-pixel correspondence tables, demonstrating the benefit of incorporating visual cues into LiDAR-based panoptic segmentation. Building on this idea, LCPS [ 48 ] introduces a voxel-space fusion pipeline that com-bines asynchronous temporal compensation, semantic-aware region alignment, and point-to-voxel propagation to enable content-aware cross-modal fusion. More recently, IAL [ 32 ]proposes a geometry-aware fusion architecture that performs cross-modal interaction through token-level attention between LiDAR and image representations. By incorporating modality-synchronized data augmentation during training, IAL encour-ages stronger geometric alignment between modalities. While these methods demonstrate the value of multi-modal fusion, Panoptic-FusionNet relies on static geometric associations [ 37 ]that fuse features without considering their contextual relevance. Both LCPS [ 48 ] and IAL [ 32 ] emphasize relevance-based fusion through content-aware feature selection or geometry-aware token interaction but lack an explicit mechanism to assess the reliability of visual features under adverse conditions. The reliability of camera features is closely related to aleatoric uncertainty, which captures irreducible noise arising from factors such as sensor imperfections, adverse lighting, or environmental conditions [ 9]. Existing fusion methods do not explicitly model this uncertainty, and traditional uncertainty estimation techniques such as Bayesian neural networks [ 2]or deep ensembles [ 13 ] are computationally expensive and primarily target epistemic uncertainty. In our work, we instead model aleatoric uncertainty at the feature level, enabling the network to quantify the reliability of camera-encoded features. UP-Fuse introduces an uncertainty-guided fusion module that integrates both relevance- and reliability-based fusion. By coupling cross-modal interaction with uncertainty awareness, our method adaptively balances the contributions of each modality. This design aligns with recent efforts to evaluate robustness under sensor degradation and failure [46, 28]. III. UP-F USE ARCHITECTURE 
+
+Our proposed UP-Fuse architecture is illustrated in Fig. 2. The network first projects both LiDAR and camera data into a unified 2D range-view (RV) representation, enabling dense, pixel-aligned feature extraction (Sec. III-A 1 and Sec. III-A 2). These multi-scale, aligned features are then processed by our Uncertainty-Aware Fusion Module, which adaptively combines the modalities based on both cross-modal relevance and visual reliability (Sec. III-B ). Finally, the resulting fused features are fed into our novel Hybrid 2D-3D Panoptic Decoder. This decoder generates direct 3D panoptic predictions for the original point cloud, while addressing projection ambiguities and 360° wrap-around discontinuities (Sec. III-C ). We detail these components in the following sections. 
+
+A. Range-View Feature Representation 1) LiDAR Range-View Projection and Encoding: Range-View Projection : The raw LiDAR point cloud P ∈ RN ×4
+
+consists of N points, where each point pj = ( xj , y j , z j , i j )
+
+contains the Cartesian coordinates (xj , y j , z j ) and the intensity value ij of the reflected laser beam. The 3D point cloud is projected into a dense 2D spherical representation, referred to as the range-view image LRV , with spatial resolution H × W .Each 3D point pj is mapped to pixel coordinates (uj , v j ) by computing its horizontal azimuth angle θj and vertical elevation angle ϕj . The range is defined as rj =
+
+q
+
+x2 
+
+> j
+
++ y2 
+
+> j
+
++ z2 
+
+> j
+
+, and the angular components are given by: 
+
+θj = − arctan( yj , x j ), ϕj = arcsin 
+
+ zj
+
+rj
+
+
+
+. (1) The angles are normalized according to the LiDAR sensor’s field of view. Here, fup and fdown denote the vertical angular limits above and below the horizontal plane, while fleft and 
+
+fright represent the horizontal limits to the left and right of the forward axis. The total spans are fh = |fleft | + |fright | and Fig. 2: Illustration of the proposed UP-Fuse architecture. LiDAR and multi-view camera images are fused onto a shared space of range-view feature representations. The Uncertainty-Aware Fusion Module adaptively integrates modalities via uncertainty-weighted deformable cross-modal interaction to attenuate unreliable visual cues. Finally, a Hybrid 2D-3D Panoptic Decoder generates 3D predictions. Paths and blocks shown in brown are used only during training. 
+
+fv = |fup | + |fdown |, which are used to scale the angles to the image dimensions: 
+
+uj
+
+vj
+
+
+
+=
+
+ θj +|fleft |
+
+> fh
+
+
+
+W
+
+
+
+1 − ϕj +|fdown |
+
+> fv
+
+
+
+H
+
+ . (2) The resulting range-view image LRV is constructed by assigning to each pixel (uj , v j ) the corresponding point features [7]: 
+
+LRV (uj , v j ) = [ rj , z j , i j ]. (3) To handle occlusions where multiple points map to the same pixel, all points are sorted by decreasing range and projected sequentially, ensuring that only the nearest point (with minimum rj ) is retained to maintain visibility consistency. This projection defines a mapping P3D →RV : pj → (uj , v j ),and we store its inverse PRV →3D , which is later used in the 2D-3D hybrid decoder (see Sec. III-C ) to lift 2D features back into 3D space. 
+
+LiDAR Feature Encoding : The projected range-view image 
+
+LRV is processed by a 2D LiDAR encoder to extract hierarchical feature representations. We employ a Swin Transformer [ 18 ]backbone that effectively captures both local geometric struc-tures and global spatial dependencies. The encoder produces feature maps at four resolution levels, denoted as FL, 4, FL, 8,
+
+FL, 16 , and FL, 32 , corresponding to output strides of 4, 8, 16, and 32 relative to the input resolution. These multi-scale features are subsequently fed to the Uncertainty-Aware Fusion Module (see Sec. III-B). 
+
+2) Image Encoding and View Transformation: Image En-coding : Each of the M calibrated camera views with spatial dimensions CH × CW is independently processed by an image encoder to capture rich visual cues. We adopt a Swin Transformer [ 18 ] backbone that outputs multi-scale feature maps at four hierarchical stages, denoted as FI, 4, FI, 8, FI, 16 ,and FI, 32 , corresponding to feature strides of 4, 8, 16, and 32 relative to the original image resolution. The backbone is pre-trained and kept frozen during training. The extracted features from all camera views are then passed to the view transformation module for geometric alignment with the LiDAR range-view representation. 
+
+View Transformation : To enable spatial alignment between image and LiDAR representations, we establish a dense correspondence between the multi-view image planes and the LiDAR range-view image. This is accomplished by constructing a pseudo point cloud from the camera views and then projecting it into the LiDAR range-view space using the same mapping described in Sec. III-A 1. Specifically, the LiDAR point cloud P
+
+is first projected into each of the M camera views to generate 
+
+M sparse depth maps Dsparse . These are densified using the depth completion method of [ 12 ], resulting in dense depth maps 
+
+Ddense . Each pixel (i, j ) in view m is then back-projected into a 3D point expressed in the LiDAR coordinate frame: 
+
+p = T−1
+
+> m
+
+Ddense (i, j ) · I−1 
+
+> m
+
+· [i, j, 1] T
+
+1
+
+
+
+, (4) where Im is the 3 × 3 intrinsic matrix of camera m, and Tm
+
+is the 4 × 4 extrinsic matrix transforming from the camera to LiDAR frame. This produces a dense, camera-derived point cloud Pcam that aggregates information from all M views. We then project Pcam into the H × W range-view using the same projection formulation as in eq. (1) and eq. (2), yielding a dense mapping M : ( m, i, j ) → (u, v ) from each camera pixel to a corresponding range-view pixel. This mapping enables warping of the multi-scale image features FI,s into the range-view domain to obtain RV-aligned image features FC,s at each scale s ∈ { 4, 8, 16 , 32 }. If multiple pixels project to the same RV location, their features are averaged. The aligned features serve as multi-modal counterparts to the LiDAR features FL,s 
+
+and are forwarded to the Uncertainty-Aware Fusion Module (see Sec. III-B). 
+
+B. Uncertainty-Aware Fusion Module 
+
+At each scale s ∈ { 4, 8, 16 , 32 }, the fusion module combines range-view (RV) aligned camera features FC,s and LiDAR fea-tures FL,s through uncertainty-guided cross-modal interaction to produce fused features FF,s .
+
+Uncertainty Quantification of Camera Features : We model aleatoric uncertainty in camera features as instability under input degradations. Reliable features remain consistent across mild corruptions, whereas features from degraded inputs (e.g., underexposed or overexposed images) exhibit higher variability. To learn this relationship, we train a lightweight 3-layer MLP, 
+
+Uθ,s , to regress feature instability. During training, for each image Iorig , we sample a corrupted counterpart Iaug using a diverse set of non-spatial augmentations such as brightness and Input Camera Views Predicted Uncertainty Heatmap    
+
+> (a) Original
+> (b) Brightness Shift
+> (c) Out-of-Domain (Dark Zurich [34])
+> (d) Sensor Dropout
+> Fig. 3: Illustration of our uncertainty module on a Panoptic nuScenes sample. The right column shows predicted uncertainty under increasing synthetic degradations. The jet colormap marks low uncertainty in blue and high uncertainty in red . Mild distortions (b) keep uncertainty low, while strong distortions (c) and sensor dropout (d) produce high uncertainty. Black regions indicate areas without a camera to range-view (RV) mapping.
+
+contrast shifts, sensor dropout, and cross-domain histogram matching. The latter adjusts image color statistics to match those from Cityscapes [ 4], COCO [ 17 ], and Dark Zurich [ 34 ], thereby introducing out-of-domain photometric variations. With probability of 0.5, we set Iaug = Iorig to provide stable zero-uncertainty samples. Both Iorig and Iaug are processed by the frozen encoder and view transformation (Sec. III-A 2) to obtain multi-scale, RV-aligned camera features Forig  
+
+> C,s
+
+and Faug 
+
+> C,s
+
+.We define the ground-truth instability dgt ,s as the L2 norm between original and augmented features at each spatial location 
+
+(u, v ):
+
+dgt ,s (u, v ) = Forig 
+
+> C,s
+
+(u, v ) − Faug 
+
+> C,s
+
+(u, v ) 2
+
+. (5) The MLP Uθ,s is trained to predict this instability from the augmented features: 
+
+dpred ,s = Uθ,s (Faug 
+
+> C,s
+
+). (6) It learns to associate corrupted feature patterns with their cor-responding magnitude of instability. The network is optimized using a Huber loss, which provides robustness to outliers: 
+
+Lunc = 1
+
+N
+
+X
+
+> (u,v ),s
+
+Lδ (dpred ,s (u, v ) − dgt ,s (u, v )) , (7) where N is the number of spatial locations and Lδ is the Huber loss function with threshold δ, set to 1.0:
+
+Lδ (a) = 
+
+(
+
+0.5a2 if |a| ≤ δ, δ(|a| − 0.5δ) otherwise . (8) Finally, the predicted instability dpred ,s is transformed into a probabilistic aleatoric uncertainty score UC,s ∈ [0 , 1] :
+
+UC,s = 1 − exp( −dpred ,s ). (9) This uncertainty score modulates the cross-modal interaction within the fusion module. Examples of augmentations and corresponding uncertainty maps for s=4 are shown in Fig. 3 and further discussed in the supplementary material. 
+
+Uncertainty-Guided Fusion : We propose an uncertainty-guided fusion mechanism that adaptively integrates LiDAR and camera features through cross-modal interaction. At each scale 
+
+s, given LiDAR features FL,s and camera features FC,s , fusion is achieved via a deformable attention [ 50 ] that aggregates spatially aligned visual information conditioned on LiDAR queries: 
+
+FA,s =
+
+> L
+
+X
+
+> l=1
+> P
+
+X
+
+> p=1
+
+Al,p ˜F(l,p ) 
+
+> C,s
+
+, (10) where Al,p are query-dependent attention weights measuring the relevance of each sampled camera feature F(l,p ) 
+
+> C,s
+
+from the 
+
+l-th level and p-th sampling point. We set L=1 attention level and P =4 sampling points per query. The uncertainty-modulated camera features are defined as 
+
+˜F(l,p ) 
+
+> C,s
+
+= (1 − UC,s ) ⊙ F(l,p ) 
+
+> C,s
+
+, (11) where UC,s denotes the predicted uncertainty map and ⊙
+
+represents element-wise multiplication. This formulation integrates deformable attention with uncertainty-driven weighting, allowing each LiDAR query to attend selectively to spatially relevant and reliable visual evidence. Regions with high uncertainty (e.g., overexposed or occluded areas) are attenuated, preventing them from dominating the fusion. The attended features are fused with the LiDAR representation as 
+
+FF,s = FL,s + FA,s . (12) This fusion preserves the geometric accuracy of LiDAR while enriching it with semantically reliable visual context. The resulting fused features FF,s are subsequently passed to the 2D-3D hybrid decoder. 
+
+C. Hybrid 2D-3D Panoptic Decoder 
+
+The final component of our network is the hybrid 2D-3D panoptic decoder, which bridges 2D range-view features and 3D point-cloud outputs. It tackles two main challenges. First, directly predicting a 2D segmentation map and lifting it to 3D via PRV →3D is unreliable, since multiple 3D points project to the same 2D pixel (u, v ). Consequently, 2D predictions may propagate to occluded points, introducing label ambiguity. Second, the 360° LiDAR projection causes objects near the horizontal boundary (e.g., 0°/360°) to split across the 2D grid. A 2D-only decoder, unaware of this geometric continuity, would interpret them as separate instances, leading to fragmented predictions. To address these challenges, we propose a hybrid decoder that interleaves 2D feature processing with a 3D-aware unprojection mechanism, enabling explicit learning of 360° object continuity and resolving spatial ambiguity in 3D. Our approach follows the Mask2Former [ 3] paradigm, consisting of a pixel decoder and a transformer decoder. 
+
+2D Pixel and Transformer Decoder : The fused features 
+
+FF,s at scales s ∈ { 4, 8, 16 , 32 } are first processed by the pixel decoder, a multi-scale deformable attention-based feature pyramid [ 50 ]. It outputs (1) multi-scale feature maps Ms at 
+
+{8, 16 , 32 } resolutions and (2) a high-resolution mask feature map Fmask at scale 4 used for mask prediction. A Transformer decoder with a 3-layer block structure, repeated L times, then processes Nq learnable object queries, attending to Ms with each layer focusing on a different scale in alternation. Within each 3-layer block, the intermediate layers use the standard 2D mask head [ 3] for auxiliary supervision, while the block’s final layer employs our 3D-aware mask head to generate predictions, capturing spatial continuity in the point cloud domain. 
+
+3D-Aware Mask Head : This head generates a per-point feature vector fpoint ,j for each point pj in the original point cloud P.This is achieved through a learnable, geometry-aware feature aggregation process. The module takes three inputs: (1) the high-resolution feature map Fmask , (2) the range channel of the 2D range image LRV (from Sec. III-A 1), which stores the minimum range r(u,v ) at each pixel, and (3) the N 3D points, each with its true 3D range rj, true and its PRV →3D 
+
+mapping from pixel (uj , v j ). For each point pj , a K ×K search window is defined in the range channel centered at (uj , v j ). We then compute the absolute range difference |rj, true − r(u′,v ′)|
+
+between the point’s true 3D range and the range value of every pixel (u′, v ′) in the K × K window. The K pixels in this window with the smallest range difference are selected as 3D-consistent neighbors. The corresponding K features from Fmask 
+
+are gathered, concatenated, and fused through a lightweight 2-layer MLP to yield a context-aware feature fpoint ,j ∈ RD , where 
+
+D is the feature channel dimension. The resulting per-point feature map Fpoint ∈ RD×N is thus a spatially consistent, 3D-aware representation, constructed from aggregation over all N
+
+points, that mitigates label bleeding and instance fragmentation. 
+
+Panoptic Prediction and Loss : The final transformer decoder layer produces the refined query embeddings Qembed and the per-point feature map Fpoint . Two lightweight heads generate the final outputs. The class head applies a linear projection on Qembed to predict class logits C ∈ RNq ×(Cth +Cst +1) . The 
+
+mask head transforms Qembed into mask embeddings Emask ∈
+
+RNq ×D through an MLP, and computes the 3D mask logits via a dot product with the per-point features: 
+
+M3D (q, j ) = Emask (q, :) · Fpoint (: , j ). (13) The decoder thus outputs the class logits C and per-point mask logits M3D ∈ RNq ×N . Following [ 3], we employ a set-based loss computed on a subset of sampled points for efficiency. For each query, Np points are selected using a mixture of importance sampling (points with highest uncertainty) and random sampling. Bipartite matching assigns ground-truth instances to queries, and the final loss is defined as 
+
+Lpanoptic = λcls Lcls + λmask Lmask + λdice Ldice . (14) 
+
+Lcls , Lmask , and Ldice are the classification, mask, and Dice losses, respectively. This formulation enables supervision over dense 3D point predictions within the hybrid 2D-3D framework. IV. E XPERIMENTAL EVALUATION 
+
+In this section, we present a comprehensive evaluation of UP-Fuse. We first introduce the new Panoptic Waymo benchmark and the evaluation metrics in Sec. IV-A . We then detail our implementation in Sec. IV-B . Finally, we present comprehensive evaluation results, including benchmarking (Sec. IV-C ), robustness analysis (Sec. IV-D ), and ablation studies (Sec. IV-E). 
+
+A. Datasets and Evaluation Metrics 
+
+We evaluate UP-Fuse on Panoptic nuScenes [ 5 ], Se-manticKITTI [ 1 ], and our newly introduced Panoptic Waymo benchmark derived from the Waymo Open Dataset [39]. 
+
+Panoptic Waymo : While Panoptic nuScenes offers a 360° benchmark, its 32-beam LiDAR is comparatively sparse. To provide a more challenging, high-resolution benchmark for fine-grained fusion, we introduce panoptic annotations for the Waymo Open Dataset (WOD) [ 39 ]. WOD includes a dense 64-beam LiDAR and five high-resolution cameras, covering more than 180° of the scene, which makes it well-suited for multi-modal evaluation. The dataset officially provides 3D semantic segmentation and 3D bounding box labels. We generate our Panoptic Waymo ground truth by following the protocol of Panoptic nuScenes [ 5] to merge these annotations. We retain the original 798 training scenes and 202 validation scenes, resulting in a benchmark with 15 stuff classes and 6 
+
+thing classes. A detailed statistical overview is presented in the supplementary material. Since WOD is approximately 3 ×
+
+denser than nuScenes, we exclude thing instances with fewer than 50 points (15 in Panoptic nuScenes) to match the higher point cloud fidelity. 
+
+Evaluation Metrics : We evaluate our model using standard panoptic segmentation metrics [ 10 ]: Panoptic Quality (PQ), Segmentation Quality (SQ), and Recognition Quality (RQ). All metrics are reported as averages over all classes, with additional breakdowns for thing (PQ th ) and stuff (PQ st ) categories. 
+
+B. Implementation Details 
+
+Architecture and Pre-training : We use Swin-B [ 18 ] back-bones for both LiDAR and camera. The camera encoder is pre-trained using a camera-only variant of our model, where LiDAR is used solely for view transformation. Its weights remain frozen during all multi-modal experiments. Our hybrid 2D-3D panoptic decoder operates with Nq = 300 queries and 
+
+L = 2 blocks. The 3D-aware mask head aggregates features from K = 5 neighbors (see Sec. III-C ). Further details are presented in the supplementary material. 
+
+Training Details : All models are optimized using AdamW [ 19 ]with a base learning rate of 10 −4. We apply standard spatial aug-mentations, including rotation, scaling, and horizontal flipping, to both modalities. For uncertainty training, we use diverse non-spatial camera corruptions such as photometric changes, sensor dropout, and out-of-domain histogram matching. The full list is detailed in the supplementary material. On Panoptic nuScenes, we use a range-view input of 32 ×1024 (resized to 256 ×2048 ), TABLE I: Comparison of 3D panoptic segmentation performance on the Panoptic nuScenes validation set. Method Modality PQ PQ † SQ RQ PQ th PQ st FPS CPSeg HR [14] L 71.1 75.6 82.5 85.5 71.5 70.6 —Panoptic-FusionNet [37] L 72.7 75.4 86.4 84.8 71.2 75.1 —LCPS [48] L 72.9 77.6 88.4 82.0 72.8 73.0 —Panoptic-PHNet [15] L 74.7 77.7 88.2 84.2 74.0 75.9 —PUPS [38] L 74.7 77.3 89.4 83.3 75.4 73.6 —                                                  
+
+> UP-Fuse (Ours) L74.9 78.2 87.8 85.1 75.1 74.5 —CFNet [16] L75.1 78.0 88.8 84.6 74.8 76.6 —P3Former [43] L75.9 78.9 89.7 84.7 76.9 75.4 —CenterLPS [22] L76.4 79.2 86.2 88.0 77.5 74.6 —IAL [32] L77.0 79.6 90.2 85.1 77.8 75.7 —Panoptic-FusionNet [37] LC 77.2 79.3 87.8 87.2 77.5 76.2 2.5 LCPS [48] LC 79.8 84.0 89.8 88.5 82.3 75.6 1.7 IAL [32] LC 80.3 82.8 91.0 87.9 ——0.9
+> UP-Fuse (Ours) LC 80.7 84.3 90.3 89.0 83.0 77.0 5.7
+> IAL-PieAug [32] LC 82.3 84.7 91.5 89.7 85.3 77.3 0.9
+
+a batch size of 16 , and train for 80 epochs with a 10 × learning rate decay applied at epochs 72 and 76 . On Panoptic Waymo, we use a range-view input of 64 ×2560 (resized to 256 ×4096 ), a batch size of 8, and train for 48 epochs with learning rate decays at epochs 40 and 44 . For SemanticKITTI, we use a range-view input of 64 × 2048 (resized to 256 × 4096 ), a batch size of 4, and train for 24 epochs with 10 × learning rate decays at epochs 16 and 20 . The loss weights (λcls , λ dice , λ mask , λ unc )
+
+are set to (5 , 5, 100 , 1) for Panoptic nuScenes and (2 , 5, 50 , 1) 
+
+for both Panoptic Waymo and SemanticKITTI. During training, we sample Np = 12544 points for Panoptic nuScenes and 
+
+Np = 25088 points for Panoptic Waymo and SemanticKITTI. Camera images are resized to 256 × 704 pixels for Panoptic nuScenes similar to [ 25 ] and Panoptic Waymo, and to 360 ×640 
+
+pixels for SemanticKITTI. Lastly, FPS is measured on a single NVIDIA A40 GPU with batch size 1 following the evaluation protocol used by IAL [32]. 
+
+C. Benchmarking Results 
+
+We evaluate our UP-Fuse approach against published state-of-the-art methods. We first report results on the primary Panoptic nuScenes benchmark, followed by SemanticKITTI, and finally on our new Panoptic Waymo benchmark. 
+
+Results on Panoptic nuScenes : As shown in Tab. I, UP-Fuse (LC) reaches 80.7% PQ on the validation split, outperforming multi-modal baselines such as LCPS [ 48 ] by 0.9% in PQ and Panoptic-FusionNet [ 37 ] by 3.5% in PQ. It further yields a gain of 5.8% in PQ over our strong LiDAR-only (L) variant (74.9%), which removes the image encoder and uncertainty-driven fusion module. IAL [ 32 ], when trained with its proposed modality-synchronized augmentation (IAL-PieAug), achieves the highest absolute performance at 82.3% PQ. Without PieAug, the base IAL fusion architecture attains 80.3% PQ, 0.4% lower in PQ than UP-Fuse under the same augmentation protocol. Crucially, the competitive performance of UP-Fuse is achieved with substantially higher efficiency: it operates at 5.7 FPS, approximately 6× faster than IAL (0.9 FPS), 3× faster than LCPS, and over 2× faster than Panoptic-FusionNet. This demonstrates that the previously unexplored unified 2D range-view space for multi-modal 3D panoptic segmentation enables                                                                                                                                        
+
+> TABLE II: Comparison of 3D panoptic segmentation results on the Panoptic nuScenes test set. Method Modality PQ PQ †SQ RQ PQ th PQ st
+> MaskPLS [21] L61.1 64.3 86.8 68.5 54.3 72.4 EfficientLPS [36] L62.4 66.0 83.7 74.1 57.2 71.1 Panopitc-PolarNet [49] L63.6 67.1 84.3 75.1 59.0 71.3 LCPS [48] L72.8 76.3 88.6 81.7 72.4 73.5 CPSeg [14] L73.2 76.3 88.1 82.7 72.9 74.0 Panoptic-PHNet [49] L80.1 82.8 91.1 87.6 82.1 76.6 LCPS [48] LC 79.5 82.3 90.3 87.7 81.7 75.9
+> UP-Fuse (Ours) LC 81.1 83.4 91.3 88.5 83.6 76.9 IAL-PieAug [32] LC 82.0 84.3 91.6 89.3 84.8 77.5
+> TABLE III: Comparison of 3D panoptic segmentation results on the Se-manticKITTI validation set. Method Modality PQ PQ †SQ RQ LCPS [48] L55.7 65.2 65.8 74.0 EfficientLPS [36] L59.2 65.1 69.8 75.0
+> UP-Fuse (Ours) L60.4 67.8 74.9 71.7 Panoptic-PHNet [15] L61.7 ———IAL [32] L62.0 65.1 76.0 71.9 CenterLPS [22] L62.1 67.0 72.0 80.7
+> P3Former [43] L62.6 66.2 72.4 76.2 GP-S3Net [33] L63.3 71.5 81.4 75.9 PUPS [38] L64.4 68.6 81.5 74.1 LCPS [48] LC 59.0 68.8 68.9 79.8
+> UP-Fuse (Ours) LC 61.8 69.1 75.2 73.1 IAL-PieAug [32] LC 63.1 66.3 81.4 72.9
+
+an effective trade-off between accuracy and runtime efficiency. Beyond standard benchmarks, we further show in Sec. IV-D that our fusion framework exhibits improved robustness under sensor dropout, calibration drift, and visual domain shift. The metric breakdown shows that the major contribution comes from thing classes, with UP-Fuse achieving a 7.9% boost in PQ th compared to the LiDAR-only variant, with an additional 2.5% gain in PQ st for stuff classes. This suggests that our uncertainty-guided fusion reliably exploits visual texture cues to disambiguate sparse and confusing thing instances in LiDAR data, while also better delineating stuff regions with similar geometry. A similar trend is observed on the test set (Tab. II), where our model achieves 81.1% in the PQ score. 
+
+Results on SemanticKITTI : We further validate our approach on the SemanticKITTI validation set (Tab. III), where the frontal camera setup limits visual overlap with LiDAR data. Under this constrained sensing setup, IAL-PieAug [ 32 ] achieves the highest PQ at 63.1%, while UP-Fuse (LC) attains 61.8% PQ, outperforming LCPS [48] by 2.8% in PQ. This indicates that UP-Fuse can effectively exploit complementary visual cues when available, even under limited camera coverage. 
+
+Results on Panoptic Waymo bridges the gap between Panoptic nuScenes, with full surround cameras and sparse LiDAR, and SemanticKITTI, with frontal cameras and denser LiDAR. As shown in Tab. IV, UP-Fuse (LC) achieves 60.9% PQ, a gain of 3.5% in PQ over its LiDAR-only baseline. This performance also surpasses other multi-modal methods, outperforming IAL [ 32 ] by 0.5% in PQ. The training protocols for all baselines are provided in the supplementary material. TABLE IV: Comparison of 3D panoptic segmentation results on the Panoptic Waymo validation set. Method Modality PQ PQ † SQ RQ PQ th PQ st                                                                       
+
+> Panoptic-FusionNet [37] L53.9 63.2 77.4 68.2 55.1 53.4 LCPS [48] L54.9 63.1 77.8 69.2 58.2 53.6 EfficientLPS [36] L56.3 64.5 78.3 70.6 59.7 54.9
+> UP-Fuse (Ours) L57.4 65.1 78.8 71.5 61.3 55.8 IAL [32] L58.2 66.1 79.2 72.1 62.5 56.4 P3Former [43] L59.3 67.4 79.3 73.5 63.8 57.5 Panoptic-FusionNet [37] LC 56.2 64.8 78.5 70.9 58.7 55.2 LCPS [48] LC 58.9 66.7 79.3 72.8 63.1 57.2 IAL [32] LC 60.4 68.2 79.4 74.8 65.3 58.4
+> UP-Fuse (Ours) LC 60.9 69.0 79.6 75.4 66.7 58.6
+
+D. Robustness Analysis 
+
+Real-world robotic deployment requires resilience to three failure modes [ 11 ]: complete sensor loss (dropout), mechanical misalignment (calibration drift), and environmental degradation (visual domain shift). We evaluate UP-Fuse under these conditions to assess its reliability for safety-critical robotic perception. Additionally, Fig. 6 qualitatively compares IAL and UP-Fuse under these failure modes. 
+
+Robustness to Sensor Dropout : We evaluate robustness under complete camera failure, with results reported in Tab. V. To ensure a fair comparison, all multi-modal baselines are retrained from scratch using the same camera dropout augmentations applied in UP-Fuse. In the full modality setting (LC), all fusion-based methods achieve a substantial PQ improvement over their LiDAR-only counterpart (L), with LCPS [ 48 ] obtaining the largest gain of 6.4% in PQ, followed by 5.8% from our UP-Fuse. The critical evaluation setting for robustness is when the camera input is removed at inference (L*). In this regime, the limitations of fusion strategies that focus solely on relevance rather than reliability become evident. Panoptic-FusionNet [ 37 ], LCPS [ 48 ], and IAL [ 32 ] exhibit substantial degradation, with reductions of 5.0%, 4.2%, and 4.6% in PQ, respectively, all falling below their own L-only baselines. UP-Fuse demonstrates a markedly different response. Guided by its uncertainty-driven fusion module, the model suppresses corrupted image features and relies more heavily on the LiDAR representation. Its performance decreases by only 1.2% in PQ, remaining close to its strong L-only baseline. These findings indicate that robustness cannot be obtained through data augmentation alone and instead requires an architecture capable of adaptively modulating unreliable inputs. 
+
+Robustness to Calibration Drift : We evaluate geometric robustness by simulating mechanical calibration drift through random rotational perturbations θ ∈ [0 ◦, 5◦] applied to the LiDAR-camera extrinsics at inference. As shown in Fig. 4, all multi-modal baselines exhibit increasing performance degra-dation as misalignment increases. While IAL [ 32 ] improves over Panoptic-FusionNet [ 37 ] and LCPS [ 48 ], it still incurs an 8.3% drop in PQ at 5◦. In contrast, UP-Fuse limits the degradation to just 4.4%. These results confirm the adaptive behavior of UP-Fuse: as cross-modal alignment deteriorates, the uncertainty-driven fusion module progressively reduces the influence of unreliable image features.                                                                                
+
+> TABLE V: Robust performance comparison on the Panoptic nuScenes validation set under missing camera modality conditions. ∆PQ denotes the change compared to the corresponding LiDAR-only variant. Method Modality PQ PQ th PQ st ∆PQ Panoptic-FusionNet [37] L72.7 71.2 75.1 —LCPS [48] L72.9 72.8 73.0 —
+> UP-Fuse (Ours) L74.9 75.1 74.5 —IAL [32] L77.0 77.8 75.7 —Panoptic-FusionNet [37] LC 76.6 77.1 76.0 +3.9 LCPS [48] LC 79.3 81.7 75.3 +6.4
+> IAL [32] LC 80.1 82.2 76.5 +3.7
+> UP-Fuse (Ours) LC 80.7 83.0 77.0 +5.8 Panoptic-FusionNet [37] L∗67.7 65.3 71.7 -5.0 LCPS [48] L∗68.7 67.9 70.1 -4.2 IAL [32] L∗72.4 71.6 73.8 -4.6
+> UP-Fuse (Ours) L∗73.7 73.6 74.1 -1.2 012345
+> Calibration Noise (in degrees)
+> 60
+> 65
+> 70
+> 75
+> 80
+> Evaluation Metric (PQ)
+> 60.5
+> 63.7
+> 71.8
+> 76.3
+> Panoptic-FusionNet
+> LCPS
+> IAL
+> UP-Fuse (Ours)
+> Fig. 4: Robust performance comparison on the Panoptic nuScenes validation set under increasing calibration drift between LiDAR and camera over rotation magnitudes from 0◦to 5◦. UP-Fuse (red) outperforms all baselines, dropping only 4.4% in PQ compared to >8% for state-of-the-art methods. Refer to the supplementary material for visualization of the projection shifts.
+
+Robustness to Visual Domain Shift : We further assess robustness under a visual domain shift from daytime to nighttime conditions. To this end, all models are retrained using the 630 daytime scenes from Panoptic nuScenes and evaluated on 15 held-out nighttime scenes. This setting represents a naturally occurring domain shift, where camera observations are substantially degraded while LiDAR data remain reliable. As shown in Tab. VI, all baseline fusion methods are highly sensitive to this shift. Having learned to rely on visual cues un-der daytime illumination, Panoptic-FusionNet [ 37 ], LCPS [ 48 ], and IAL [ 32 ] incorrectly fuse dark and uninformative image features, resulting in drops of 3.1%, 2.7% and 2.1% in PQ relative to their LiDAR-only baselines (L), respectively. In contrast, UP-Fuse demonstrates strong architectural robustness. Its uncertainty-driven fusion module identifies regions where visual features are unreliable and selectively incorporates only the complementary cues that remain informative. As a result, UP-Fuse maintains its performance and achieves a 0.1% improvement in PQ, effectively reverting to its robust L-only baseline and avoiding any significant degradation. We note that the night scene evaluation lacks four thing classes (bus, construction vehicle, trailer, and traffic cone). 
+
+E. Ablation Study 
+
+Architectural Ablation : As shown in Tab. VII, we perform a bottom-up analysis of our architecture. Our first baseline (M1) adapts a 2D decoder [ 3] to the range-view and uses a TABLE VI: Comparison of robustness to visual domain shift on the Panoptic nuScenes validation set. Models trained on day scenes are evaluated on the night split to assess performance under corrupted visual features. Method Modality PQ PQ th PQ st ∆PQ Panoptic-FusionNet [37] L 63.1 61.3 64.8 —LCPS [48] L 63.3 63.1 63.4 —
+
+UP-Fuse (Ours) L 64.2 63.9 64.4 —IAL [32] L 65.6 65.5 65.7 —Panoptic-FusionNet [37] LC 60.0 56.2 63.7 -3.1 LCPS [48] LC 60.6 58.3 62.9 -2.7 IAL [32] LC 63.5 63.1 64.2 -2.1 
+
+UP-Fuse (Ours) LC 64.3 64.9 63.7 +0.1 
+
+TABLE VII: Ablation study of our UP-Fuse architecture on the Panoptic nuScenes validation set. VT denotes View-Transformation. D-CMI denotes Deformable Cross-Modal Interaction. Augs. denotes Augmentations. Model Variant Modality PQ PQ th PQ st 
+
+M1 (2D-3D Post Processing [23]) L 72.8 72.2 73.8 M2 (Hybrid 2D-3D Decoder) L 74.9 75.1 74.5 M2 + Concat Fusion (VT-Dsparse ) LC 76.4 77.2 75.1 M2 + Concat Fusion (VT-Ddense ) LC 77.2 78.4 75.2 M2 + D-CMI (VT-Ddense ) LC 79.6 81.6 76.3 + Sensor Degradation Augs. LC 78.9 80.7 75.9 + Uncertainty-Aware D-CMI LC 80.7 83.0 77.0 
+
+KNN-based post-processing [23] to lift 2D predictions to 3D. Replacing this with our Hybrid 2D-3D Panoptic Decoder (M2) provides a significant 2.1% gain in PQ (74.9% vs. 72.8% PQ), confirming it successfully alleviates projection ambiguities in the 360° range-view. We then introduce the camera modality with concatenation fusion. We find that using dense depth (VT-Ddense ) provides a 0.8% gain in PQ over sparse depth (VT-Dsparse ) in view transformer. Next, we replace simple con-catenation with Deformable Cross-Modal Interaction (D-CMI), which provides a substantial 2.4% boost in PQ, demonstrating the clear superiority of attention-based fusion. Adding our sensor degradation augmentations (Augs.) results in a slight drop to 78.9% PQ, as the model learns a robust but overly-cautious representation. The drop is mitigated by enabling our Uncertainty-Aware D-CMI, which elevates performance to 80.7% PQ. This highlights that uncertainty-awareness is essential for effectively leveraging the augmentations. 
+
+Hybrid Decoder Design : In Fig. 5, we ablate the two key hyperparameters of our Hybrid 2D-3D Panoptic Decoder. First, in Fig. 5a, we analyze the placement of the 3D-aware mask head within the decoder layers. We find that performing the 3D-lifting operation in the final layer of each decoder block provides the best performance (80.7% PQ), as it allows the queries to first refine themselves in the 2D range-view before being lifted to 3D. Second, in Fig. 5b, we ablate the neighborhood size K for the 3D-aware feature aggregation, showing that K = 5 is the optimal choice for balancing context aggregation and feature specificity. V. C ONCLUSION 
+
+In this work, we presented UP-Fuse, a robust LiDAR-Camera fusion framework for 3D panoptic segmentation built on a unified range-view representation. UP-Fuse achieves strong performance on Panoptic nuScenes, SemanticKITTI, and our All Layers     
+
+> Final Layer of Each Block
+> Final Layer of Last Block
+> 70
+> 75
+> 80
+> 85
+> Evaluation metric
+> 80.3
+> 83.0 81.9 75.8
+> 77.0 76.6
+> 78.6 80.7 79.9
+> PQ
+> PQ th
+> PQ st
+
+(a) Analysis of Head Configuration K = 1 K = 3 K = 5 K = 7      
+
+> 70.0
+> 72.5
+> 75.0
+> 77.5
+> 80.0
+> 82.5
+> 85.0
+> Evaluation metric
+> 77.5
+> 78.6
+> 80.7 80.6
+> 78.3
+> 80.3
+> 83.0 82.8
+> 76.3 75.8
+> 77.0 76.9
+> PQ
+> PQ th
+> PQ st
+
+(b) Impact of Neighborhood Size K Fig. 5: Ablation studies on the key hyperparameters of our Hybrid 2D-3D Panoptic Decoder.    
+
+> Visual Context Ground Truth IAL (Baseline) UP-Fuse (Ours) (a) Sensor Dropout (b) Calibration Drift ( 5◦)(c) Visual Domain Shift
+
+Fig. 6: Qualitative robustness comparison of 3D panoptic segmentation between UP-Fuse and the strongest baseline IAL on the Panoptic nuScenes validation set. (a) IAL fails to resolve geometric ambiguity, misclassifying concrete barriers as man-made structures. (b) Under calibration drift, IAL incorrectly merges two trucks into a single instance and mislabels vehicle tops as background. (c) Nighttime domain shift leads to similar errors. In contrast, UP-Fuse (right) suppresses unreliable visual cues and maintains correct semantic and instance predictions across all scenarios. red : incorrect prediction, blue : correct prediction (Best viewed at 4× zoom). 
+
+newly introduced Panoptic Waymo benchmark, while demon-strating consistent robustness across camera sensor degradation and failure. The proposed uncertainty-guided fusion mechanism jointly models cross-modal relevance and feature reliability, allowing the network to adaptively attenuate unreliable visual cues under degradation. The hybrid 2D-3D transformer decoder effectively resolves spatial ambiguities inherent to range-view projections. Together, these architectural components enable a practical balance between accuracy, efficiency, and robustness for multi-modal robotic perception. Limitations and Future Work : A limitation of our framework is its reliance on fixed camera parameters for view transformation. While our uncertainty module mitigates calibration drift by suppressing the visual stream, it does not explicitly correct the extrinsics. Consequently, in scenarios with severe misalignment, performance is bounded by the LiDAR-only baseline. Future work will explore joint extrinsic refinement to recover the benefits of fusion even under significant sensor displacement. ACKNOWLEDGMENTS 
+
+This research was funded by Bosch Research as part of a collaboration between Bosch Research and the University of Freiburg on AI-based automated driving. REFERENCES 
+
+[1] Jens Behley, Martin Garbade, Andres Milioto, Jan Quen-zel, Sven Behnke, Cyrill Stachniss, and Jurgen Gall. Semantickitti: A dataset for semantic scene understanding of lidar sequences. In Proceedings of the IEEE/CVF international conference on computer vision , pages 9297– 9307, 2019. [2] Charles Blundell, Julien Cornebise, Koray Kavukcuoglu, and Daan Wierstra. Weight uncertainty in neural network. In International conference on machine learning , pages 1613–1622, 2015. [3] Bowen Cheng, Ishan Misra, Alexander G Schwing, Alexander Kirillov, and Rohit Girdhar. Masked-attention mask transformer for universal image segmentation. In 
+
+Proceedings of the IEEE/CVF conference on computer vision and pattern recognition , pages 1290–1299, 2022. [4] Marius Cordts, Mohamed Omran, Sebastian Ramos, Timo Rehfeld, Markus Enzweiler, Rodrigo Benenson, Uwe Franke, Stefan Roth, and Bernt Schiele. The cityscapes dataset for semantic urban scene understanding. In 
+
+Proceedings of the IEEE conference on computer vision and pattern recognition , pages 3213–3223, 2016. [5] Whye Kit Fong, Rohit Mohan, Juana Valeria Hurtado, Lubing Zhou, Holger Caesar, Oscar Beijbom, and Abhinav Valada. Panoptic nuscenes: A large-scale benchmark for lidar panoptic segmentation and tracking. IEEE Robotics and Automation Letters , 7(2):3795–3802, 2022. [6] Yi Gu, Yuming Huang, Chengzhong Xu, and Hui Kong. Maskrange: A mask-classification model for range-view based lidar segmentation. arXiv preprint arXiv:2206.12073 , 2022. [7] Julia Hindel, Rohit Mohan, Jelena Bratulic, Daniele Cattaneo, Thomas Brox, and Abhinav Valada. Label-efficient lidar semantic segmentation with 2d-3d vision transformer adapters. arXiv preprint arXiv:2503.03299 ,2025. [8] Fangzhou Hong, Hui Zhou, Xinge Zhu, Hongsheng Li, and Ziwei Liu. Lidar-based panoptic segmentation via dynamic shifting network. In Proceedings of the IEEE/CVF conference on computer vision and pattern recognition , pages 13090–13099, 2021. [9] Alex Kendall and Yarin Gal. What uncertainties do we need in bayesian deep learning for computer vision? 
+
+Advances in neural information processing systems , 30, 2017. [10] Alexander Kirillov, Kaiming He, Ross Girshick, Carsten Rother, and Piotr Doll ´ar. Panoptic segmentation. In 
+
+Proceedings of the IEEE/CVF conference on computer vision and pattern recognition , pages 9404–9413, 2019. [11] Philip Koopman and Michael Wagner. Challenges in autonomous vehicle testing and validation. SAE Inter-national Journal of Transportation Safety , 4(1):15–24, 2016. [12] Jason Ku, Ali Harakeh, and Steven L Waslander. In defense of classical image processing: Fast depth com-pletion on the cpu. In 15th conference on computer and robot vision (CRV) , pages 16–22, 2018. [13] Balaji Lakshminarayanan, Alexander Pritzel, and Charles Blundell. Simple and scalable predictive uncertainty estimation using deep ensembles. Advances in neural information processing systems , 30, 2017. [14] Enxu Li, Ryan Razani, Yixuan Xu, and Bingbing Liu. Cpseg: Cluster-free panoptic segmentation of 3d lidar point clouds. arXiv preprint arXiv:2111.01723 , 2021. [15] Jinke Li, Xiao He, Yang Wen, Yuan Gao, Xiaoqiang Cheng, and Dan Zhang. Panoptic-phnet: Towards real-time and high-precision lidar panoptic segmentation via clustering pseudo heatmap. In Proceedings of the IEEE/CVF conference on computer vision and pattern recognition , pages 11809–11818, 2022. [16] Xiaoyan Li, Gang Zhang, Boyue Wang, Yongli Hu, and Baocai Yin. Center focusing network for real-time lidar panoptic segmentation. In Proceedings of the IEEE/CVF Conference on Computer Vision and Pattern Recognition ,pages 13425–13434, 2023. [17] Tsung-Yi Lin, Michael Maire, Serge Belongie, James Hays, Pietro Perona, Deva Ramanan, Piotr Doll ´ar, and C Lawrence Zitnick. Microsoft coco: Common objects in context. In European conference on computer vision ,pages 740–755, 2014. [18] Ze Liu, Yutong Lin, Yue Cao, Han Hu, Yixuan Wei, Zheng Zhang, Stephen Lin, and Baining Guo. Swin transformer: Hierarchical vision transformer using shifted windows. In 
+
+Proceedings of the IEEE/CVF international conference on computer vision , pages 10012–10022, 2021. [19] Ilya Loshchilov and Frank Hutter. Decoupled weight decay regularization. arXiv preprint arXiv:1711.05101 ,2017. [20] Maximilian Luz, Rohit Mohan, Ahmed Rida Sekkat, Oliver Sawade, Elmar Matthes, Thomas Brox, and Abhi-nav Valada. Amodal optical flow. In IEEE International Conference on Robotics and Automation (ICRA) , pages 14677–14684, 2024. [21] Rodrigo Marcuzzi, Lucas Nunes, Louis Wiesmann, Jens Behley, and Cyrill Stachniss. Mask-based panoptic lidar segmentation for autonomous driving. IEEE Robotics and Automation Letters , 8(2):1141–1148, 2023. [22] Jianbiao Mei, Yu Yang, Mengmeng Wang, Zizhang Li, Xiaojun Hou, Jongwon Ra, Laijian Li, and Yong Liu. Centerlps: Segment instances by centers for lidar panoptic segmentation. In Proceedings of the 31st ACM International Conference on Multimedia , pages 1884– 1894, 2023. [23] Andres Milioto, Ignacio Vizzo, Jens Behley, and Cyrill Stachniss. Rangenet++: Fast and accurate lidar semantic segmentation. In IEEE/RSJ international conference on intelligent robots and systems , pages 4213–4220, 2019. [24] Andres Milioto, Jens Behley, Chris McCool, and Cyrill Stachniss. Lidar panoptic segmentation for autonomous driving. In IEEE/RSJ International Conference on Intelligent Robots and Systems (IROS) , pages 8505–8512, 2020. [25] Riya Mohan, Juana Valeria Hurtado, Rohit Mohan, and Abhinav Valada. Forecastocc: Vision-based semantic occupancy forecasting. arXiv preprint arXiv:2602.08006 ,2026. [26] Rohit Mohan and Abhinav Valada. Perceiving the invisible: Proposal-free amodal panoptic segmentation. 
+
+IEEE Robotics and Automation Letters , 7(4), 2022. [27] Rohit Mohan, Jos ´e Arce, Sassan Mokhtar, Daniele Catta-neo, and Abhinav Valada. Syn-mediverse: A multimodal synthetic dataset for intelligent scene understanding of healthcare facilities. IEEE Robotics and Automation Letters , 9(8):7094–7101, 2024. [28] Rohit Mohan, Daniele Cattaneo, Florian Drews, and Abhinav Valada. Progressive multi-modal fusion for robust 3d object detection. In 8th Annual Conference on Robot Learning , 2024. [29] Rohit Mohan, Kiran Kumaraswamy, Juana Valeria Hur-tado, K ¨ursat Petek, and Abhinav Valada. Panoptic out-of-distribution segmentation. IEEE Robotics and Automation Letters , 9(5):4075–4082, 2024. [30] Rohit Mohan, Julia Hindel, Florian Drews, Claudius Gl ¨aser, Daniele Cattaneo, and Abhinav Valada. Open-set lidar panoptic segmentation guided by uncertainty-aware learning. In IEEE/RSJ International Conference on Intelligent Robots and Systems (IROS) , pages 2224–2231, 2025. [31] Slavcho Neshev, Krasimir Tonchev, Agata Manolova, and Vladimir Poulkov. 3d scene segmentation. a comprehen-sive survey and open problems. IEEE Access , 2025. [32] Yining Pan, Qiongjie Cui, Xulei Yang, and Na Zhao. How do images align and complement lidar? towards a harmonized multi-modal 3d panoptic segmentation. arXiv preprint arXiv:2505.18956 , 2025. [33] Ryan Razani, Ran Cheng, Enxu Li, Ehsan Taghavi, Yuan Ren, and Liu Bingbing. Gp-s3net: Graph-based panoptic sparse semantic segmentation network. In Proceedings of the IEEE/CVF international conference on computer vision , pages 16076–16085, 2021. [34] Christos Sakaridis, Dengxin Dai, and Luc Van Gool. Guided curriculum model adaptation and uncertainty-aware evaluation for semantic nighttime image segmen-tation. In Proceedings of the IEEE/CVF international conference on computer vision , pages 7374–7383, 2019. [35] Jonas Schramm, Niclas V ¨odisch, K ¨ursat Petek, B Ravi Kiran, Senthil Yogamani, Wolfram Burgard, and Abhinav Valada. Bevcar: Camera-radar fusion for bev map and object segmentation. In IEEE/RSJ International Conference on Intelligent Robots and Systems (IROS) ,pages 1435–1442, 2024. [36] Kshitij Sirohi, Rohit Mohan, Daniel B ¨uscher, Wolfram Burgard, and Abhinav Valada. Efficientlps: Efficient lidar panoptic segmentation. IEEE Transactions on Robotics ,38(3):1894–1914, 2021. [37] Hamin Song, Jieun Cho, Jinsu Ha, Jaehyun Park, and Kichun Jo. Panoptic-fusionnet: Camera-lidar fusion-based point cloud panoptic segmentation for autonomous driving. 
+
+Expert Systems with Applications , 251:123950, 2024. [38] Shihao Su, Jianyun Xu, Huanyu Wang, Zhenwei Miao, Xin Zhan, Dayang Hao, and Xi Li. Pups: Point cloud unified panoptic segmentation. In Proceedings of the AAAI Conference on Artificial Intelligence , volume 37, pages 2339–2347, 2023. [39] Pei Sun, Henrik Kretzschmar, Xerxes Dotiwalla, Aurelien Chouard, Vijaysai Patnaik, Paul Tsui, James Guo, Yin Zhou, Yuning Chai, Benjamin Caine, et al. Scalability in perception for autonomous driving: Waymo open dataset. In Proceedings of the IEEE/CVF conference on computer vision and pattern recognition , pages 2446–2454, 2020. [40] Hugues Thomas, Charles R Qi, Jean-Emmanuel Deschaud, Beatriz Marcotegui, Fran c¸ ois Goulette, and Leonidas J Guibas. Kpconv: Flexible and deformable convolution for point clouds. In Proceedings of the IEEE/CVF international conference on computer vision , pages 6411– 6420, 2019. [41] Abhinav Valada, Ankit Dhall, and Wolfram Burgard. Convoluted mixture of deep experts for robust semantic segmentation. In IEEE/RSJ International conference on intelligent robots and systems (IROS) workshop, state estimation and terrain perception for all terrain mobile robots , volume 2, page 1, 2016. [42] Abhinav Valada, Gabriel Oliveira, Thomas Brox, and Wolfram Burgard. Towards robust semantic segmentation using deep fusion. In Robotics: Science and systems (RSS 2016) workshop, are the sceptics right? Limits and potentials of deep learning in robotics , volume 114, 2016. [43] Zeqi Xiao, Wenwei Zhang, Tai Wang, Chen Change Loy, Dahua Lin, and Jiangmiao Pang. Position-guided point cloud panoptic segmentation transformer. International Journal of Computer Vision , 133(1):275–290, 2025. [44] Shuangjie Xu, Rui Wan, Maosheng Ye, Xiaoyi Zou, and Tongyi Cao. Sparse cross-scale attention network for efficient lidar panoptic segmentation. In Proceedings of the AAAI Conference on Artificial Intelligence , volume 36, pages 2920–2928, 2022. [45] Yixuan Xu, Hamidreza Fazlali, Yuan Ren, and Bingbing Liu. Aop-net: All-in-one perception network for lidar-based joint 3d object detection and panoptic segmentation. In IEEE Intelligent Vehicles Symposium (IV) , pages 1–7, 2023. [46] Junjie Yan, Yingfei Liu, Jianjian Sun, Fan Jia, Shuailin Li, Tiancai Wang, and Xiangyu Zhang. Cross modal transformer: Towards fast and robust 3d object detection. In Proceedings of the IEEE/CVF international conference on computer vision , pages 18268–18278, 2023. [47] Dongqiangzi Ye, Zixiang Zhou, Weijia Chen, Yufei Xie, Yu Wang, Panqu Wang, and Hassan Foroosh. Lidar-multinet: Towards a unified multi-task network for lidar perception. In Proceedings of the AAAI Conference on Artificial Intelligence , volume 37, pages 3231–3240, 2023. [48] Zhiwei Zhang, Zhizhong Zhang, Qian Yu, Ran Yi, Yuan Xie, and Lizhuang Ma. Lidar-camera panoptic segmentation via geometry-consistent and semantic-aware alignment. In Proceedings of the IEEE/CVF international conference on computer vision , pages 3662–3671, 2023. [49] Zixiang Zhou, Yang Zhang, and Hassan Foroosh. Panoptic-polarnet: Proposal-free lidar point cloud panoptic segmentation. In Proceedings of the IEEE/CVF conference on computer vision and pattern recognition , pages 13194– 13203, 2021. [50] Xizhou Zhu, Weijie Su, Lewei Lu, Bin Li, Xiaogang Wang, and Jifeng Dai. Deformable detr: Deformable transformers for end-to-end object detection. arXiv preprint arXiv:2010.04159 , 2020. UP-Fuse: Uncertainty-guided LiDAR-Camera Fusion for 3D Panoptic Segmentation 
+
+## Rohit Mohan 1, Florian Drews 2, Yakov Miron 2, Daniele Cattaneo 1, Abhinav Valada 1
+
+> 1
+
+University of Freiburg 2Robert Bosch GmbH 
+
+## Supplementary Material 
+
+In this supplementary material, we present additional details on various aspects of our work. In Sec. VI, we detail the full set of non-spatial image augmentations used to model aleatoric uncertainty within our UP-Fuse architecture. Sec. VII presents dataset statistics of the introduced Panoptic Waymo benchmark. In Sec. VIII, we provide extended implementation details, including additional architectural specifications, the inference pipeline, range-view projection parameters for each dataset, and training setups for SemanticKITTI and Panoptic Waymo baselines. Sec. IX presents qualitative comparisons on the Panoptic Waymo dataset. Finally, Sec. X demonstrates real-world zero-shot generalization using our in-house autonomous vehicle. VI. UP-F USE ARCHITECTURE : A UGMENTATIONS FOR 
+
+UNCERTAINTY -A WARE FUSION 
+
+To model aleatoric uncertainty as feature instability under input degradations, we apply a broad set of non-spatial augmentations to the input images. This section enumerates all augmentations used, grouped by category, along with their sampling ranges and parameters. At training time, one augmentation is sampled uniformly from the augmentation pool and applied to the input image. With a probability of 0.5,no augmentation is applied to produce stable reference samples used for zero-uncertainty supervision. 
+
+A. Photometric Augmentations  
+
+> •
+
+Brightness Adjustment: Multiplies pixel intensities by a factor sampled from [0 .7, 1.3] . 
+
+> •
+
+Contrast Adjustment: Scales the contrast around the image mean using a factor in [0 .7, 1.3] . 
+
+> •
+
+Saturation Adjustment: Modifies the saturation channel in HSV space with a factor in [0 .7, 1.3] . 
+
+> •
+
+Hue Shift: Shifts hue values by a random offset in 
+
+[−18 , 18] degrees.  
+
+> •
+
+Gamma Correction: Applies gamma correction with γ ∈
+
+[0 .7, 1.3] . 
+
+> •
+
+Color Jitter: Sequential combination of brightness, con-trast, saturation (each with probability 0.8), and hue (probability 0.5), using ranges: brightness , contrast , saturation ∼ [0 .6, 1.4] ,
+
+hue ∼ [−18 , 18] .
+
+B. Sensor and Noise Simulations  
+
+> •
+
+Gaussian Noise: Adds noise with standard deviation σ ∼
+
+[5 , 25] . 
+
+> •
+
+Poisson Noise: Photon noise based on image intensity distribution.  
+
+> •
+
+Speckle Noise: Adds multiplicative noise with scale factor 
+
+∼ [0 .1, 0.3] . 
+
+> •
+
+JPEG Compression: Re-encodes the image with JPEG quality in [40 , 95] . 
+
+> •
+
+Blur (Gaussian / Motion): 
+
+– Gaussian blur with kernel size {3, 5, 7}.
+
+– Motion blur generated using a spatially uniform linear motion field [ 20 ] corresponding to a blur kernel of size [5 , 15] and random angle [0 ◦, 180 ◦]. 
+
+> •
+
+Exposure Adjustment: Exposure scaling factor sampled from [0 .5, 1.8] . 
+
+> •
+
+ISO Noise Simulation: ISO gain factor ∼ [1 .0, 2.5] , with additive noise std. in [10 , 30] × ISO factor. 
+
+C. Environmental and Domain Variations  
+
+> •
+
+Fog/Haze: Blends the image with a bright fog color using intensity α ∼ [0 .3, 0.7] . 
+
+> •
+
+Rain Streaks: Draws 100 –300 streaks with random length (5–20 px) and angle ( [−15 ◦, 15 ◦]).  
+
+> •
+
+Shadows: Inserts 1–4 random polygonal shadow regions with intensity scaling ∼ [0 .3, 0.7] . 
+
+> •
+
+Color Temperature Shift: Warm/cool shift with ∆ ∼
+
+[−50 , 50] applied to R/B channels.  
+
+> •
+
+Vignette: Darkening applied radially with intensity ∼
+
+[0 .3, 0.7] . 
+
+> •
+
+White Balance Shift: Channel-wise scaling with factors in 
+
+[0 .8, 1.2] for R, G, B.  
+
+> •
+
+Histogram Matching Across Domains : To induce domain shift, we perform color histogram matching against randomly sampled reference images from: 
+
+– COCO [17] 
+
+– Cityscapes [4] 
+
+– Dark Zurich [34] Histogram matching [ 27 , 29 ] is performed independently per channel using cumulative distribution remapping. 
+
+D. Sensor Failure Augmentations  
+
+> •
+
+Random Dropout: Replaces the full image with zeros (worst-case sensor dropout).  
+
+> •
+
+Sensor Bloom / Glare: Expands bright regions using Gaussian kernels of size [15 , 40] with bloom intensity 
+
+[30 , 80] .(a) 0◦ (b) 1◦ (c) 2◦
+
+(d) 3◦ (e) 4◦ (f) 5◦
+
+Fig. 7: Visualization of LiDAR-to-camera projection shifts under increasing calibration drift (rotation magnitude) from 0◦ to 5◦, referenced in Fig. 4 of the main paper. car 
+
+> truck
+> bus
+> other vehicle
+> bicyclist
+> pedestrian
+> bicycle
+> motorcycle
+> sign
+> traffic light
+> pole
+> construction cone
+> building
+> vegetation
+> tree trunk
+> curb
+> road
+> lane marker
+> other ground
+> walkable
+> sidewalk
+
+Semantic Class 
+
+10 6
+
+10 7
+
+10 8
+
+10 9 
+
+> No. of lidar points
+> Thing Classes Stuff Classes
+
+(a) Number of LiDAR points for each class in Panoptic Waymo training set car 
+
+> truck
+> bus
+> other vehicle
+> bicyclist
+> pedestrian
+> Semantic Class
+> 10 4
+> 10 5
+> No. of instances
+
+(b) Number of scan-wise instances for each thing class in Panoptic Waymo training set car 
+
+> truck
+> bus
+> other vehicle
+> bicyclist
+> pedestrian
+> bicycle
+> motorcycle
+> sign
+> traffic light
+> pole
+> construction cone
+> building
+> vegetation
+> tree trunk
+> curb
+> road
+> lane marker
+> other ground
+> walkable
+> sidewalk
+
+Semantic Class 
+
+10 6
+
+10 7
+
+10 8 
+
+> No. of lidar points
+> Thing Classes Stuff Classes
+
+(c) Number of LiDAR points for each class in the Panoptic Waymo validation set. car 
+
+> truck
+> bus
+> other vehicle
+> bicyclist
+> pedestrian
+> Semantic Class
+> 10 4
+> 10 5
+> No. of instances
+
+(d) Number of scan-wise instances for each thing class in Panoptic Waymo validation set. Fig. 8: Dataset statistics of Panoptic Waymo. 
+
+VII. S TATISTICS OF THE PANOPTIC WAYMO DATASET 
+
+The Waymo Open Dataset [ 39 ] contains 5.2B annotated LiDAR points across 22 semantic classes, offering more than five times the annotated LiDAR points of Panoptic nuScenes [ 5]. In addition, the dataset provides temporally consistent 3D bounding boxes for vehicles, pedestrians, and two-wheeler categories. For our Panoptic Waymo setup, we merge the point-level semantic labels with the 3D bounding boxes to derive instance IDs. Each instance is defined as the set of points that (i) lie inside a given 3D bounding box and (ii) share the same semantic class as the box. In particular, points within boxes labeled as vehicle are assigned instance labels corresponding to car , truck , bus , or other vehicle . Pedestrian boxes map to the pedestrian class, and two-wheeler boxes map to the 
+
+bicyclist and motorcyclist classes. Since the dataset contains only 28 motorcycle instances in the training set and none in the validation set, we remove this class from our Panoptic Waymo benchmark. Fig. 8a and Fig. 8c show the number of LiDAR points per semantic class for the training and validation splits, respectively. Fig. 9: Examples from the Panoptic Waymo dataset showing the multi-view camera images, corresponding LiDAR scan, and their panoptic ground truth. For clarity, the semantic and instance components of the panoptic labels are visualized separately. 
+
+Fig. 8b and Fig. 8d further illustrate the number of instances for each of the thing classes. Among the stuff classes, the most frequent categories are road , building , and tree trunk , whereas among the thing classes, dynamic objects such as car and 
+
+pedestrian dominate in frequency. The training split contains a maximum of 219 instances per scan, with an average of 39 instances. In comparison, the validation split has a maximum of 178 instances per scan, also averaging 39 instances per scan. Fig. 9 presents examples of camera views, the corresponding LiDAR scans, and their panoptic labels visualized separately for semantic and instance components for clarity. VIII. I MPLEMENTATION DETAILS 
+
+This section provides additional implementation details. We first describe extended architectural details of our fusion module and hybrid decoder, as well as our inference scheme. We then outline the range-view projection parameters that we use for each dataset to ensure consistent LiDAR encoding. Finally, we provide the training protocols used for baseline comparisons on Panoptic Waymo. 
+
+A. Additional Architecture Details and Inference 
+
+In Sec. IV-B , we describe our use of Swin-B [ 18 ] backbones for both LiDAR and camera, as well as the pre-training strategy for the camera encoder. The LiDAR and camera encoders output multi-scale features FL,s and FC,s at resolutions s ∈{4, 8, 16 , 32 }, with corresponding channel dimensions Ds ∈{128 , 256 , 512 , 1024 }. For each scale, the predicted instability 
+
+dpred ,s in our uncertainty-aware fusion module is produced by a lightweight 3-layer MLP ( Uθ,s ). This MLP first expands the feature dimension from Ds to 2Ds using a linear layer with ReLU, processes it with a second linear layer that preserves the 2Ds dimension and applies another ReLU, and finally projects the result to a single channel using a third linear layer. The deformable attention layers in our fusion module (Sec. III-B ) use an embedding dimension of Ds at each scale. The 3D-aware mask head in our 2D-3D hybrid panoptic decoder aggregates features from K = 5 neighbors using a 2-layer 
+
+1 × 1 convolutional MLP. The first convolution expands the concatenated neighbor features from KD o to 2Do channels, followed by a ReLU activation, and the second convolution reduces the dimension back to Do = 256 , producing the final per-query aggregated feature. The remaining pixel decoder and transformer decoder settings follow [3]. 
+
+Inference: At inference time, each panoptic query predicts both a class probability and a point-level mask. We compute confidence-modulated mask scores by multiplying the class confidence with the predicted mask, and each point is assigned to the query with the highest such score to obtain the panoptic segmentation. Stuff classes are merged into one region per class, whereas thing classes produce distinct instance IDs. 
+
+B. Range-View Projection Parameters 
+
+For all experiments, we apply dataset-specific field-of-view settings when projecting LiDAR points into the range view. These parameters follow the definitions provided in Sec. III-A 1, where fup and fdown denote the vertical angular limits above and below the horizontal plane, and fleft and fright specify the horizontal angular limits to the left and right of the forward axis. We adopt the following values for each dataset:  
+
+> •
+
+Panoptic nuScenes: fup = 10 ◦, fdown = −30 ◦,
+
+fleft = −180 ◦, fright = 180 ◦. 
+
+> •
+
+SemanticKITTI: fup = 10 ◦, fdown = −30 ◦,
+
+fleft = −180 ◦, fright = 180 ◦. 
+
+> •
+
+Panoptic Waymo: fup = 2 .4◦, fdown = −17 .6◦,
+
+fleft = −180 ◦, fright = 180 ◦.These settings ensure that the spherical range-view projection reflects the native sensor characteristics of each dataset. 
+
+C. Baseline Training Details for Panoptic Waymo 
+
+For the Panoptic Waymo dataset, we benchmark four baselines: two LiDAR-only models (EfficientLPS [ 36 ] and P3Former [ 43 ]) and three multi-modal models (Panoptic-FusionNet [ 37 ], LCPS [ 48 ]) and IAL [ 32 ]. The LiDAR data is augmented using random yaw rotations in [−1, 1] 
+
+radians, random scaling in [0 .9, 1.1] , and horizontal flipping with probability 0.5. For camera images, we resize inputs to 
+
+256 × 704 and apply random scaling in [0 .5, 2.0] , rotations Fig. 10: Qualitative 3D Panoptic Segmentation results of our proposed UP-Fuse network versus the baseline LCPS architecture, on the Panoptic Waymo val set. 
+
+red : incorrect prediction, blue : correct prediction. LiDAR Point Cloud Front View Camera UP-Fuse Semantic Prediction UP-Fuse Instance Prediction (a) 
+
+> (b)
+> (c)
+> (d)
+> (e)
+> Fig. 11: Visualization of 3D panoptic segmentation predictions of UP-Fuse on real-world scenes. A model trained on the Panoptic Waymo dataset is deployed on sensor inputs from our in-house autonomous vehicle, highlighting its behavior under domain shift, differences in sensor configuration, and missing camera views compared to the original Panoptic Waymo setup.
+
+in [−5.4◦, 5.4◦], and horizontal flipping with probability 0.5.Below, we detail the training configurations for each baseline. 
+
+EfficientLPS [ 36 ]: We adopt a range-view projection of size 
+
+64 × 2560 pixels, which is resized to 256 × 4096 pixels, and train using a batch size of 8. Following [ 36 ], we use stochastic gradient descent (SGD) with momentum 0.9. The initial learning rate is 0.01 and is decayed by a factor of 10 
+
+at epochs 40 and 44 . The model is trained for a total of 48 
+
+epochs. 
+
+P3Former [ 43 ]: The 3D space is discretized into a voxel grid of 480 × 360 × 32 . As in [ 43 ], we use AdamW with weight decay 0.01 , an initial learning rate of 0.005 , decaying to 0.001 at epoch 60 . We use a batch size of 8 and train for 80 
+
+epochs. The loss weights follow the original implementation: classification loss ( 1), feature-segmentation losses ( 1 and 2), and position-segmentation loss ( 0.2). 
+
+Panoptic-FusionNet [ 37 ]: We adopt the training hyperparam-eters of [ 40 ], as used in the SemanticKITTI benchmark. We use a batch size of 4 and an initial learning rate of 0.001 ,optimized with SGD and a cosine annealing schedule for 80 
+
+epochs. Loss weights are: cross-entropy ( 1), Lov ´asz loss ( 1), center heatmap loss ( 100 ), and offset regression loss ( 10 ). 
+
+LCPS [ 48 ]: Following [ 48 ], we voxelize the point cloud into a grid of 480 × 360 × 32 . The model is trained for 80 epochs Fig. 12: Our in-house autonomous driving vehicle used to demonstrate the robustness of the UP-Fuse architecture on real-world scenes. 
+
+with a batch size of 4 using the Adam optimizer. The initial learning rate of 0.004 is reduced to 0.0004 after 70 epochs. Semantic supervision uses cross-entropy and Lov ´asz losses (each weighted by 1). BEV center heatmap regression uses an MSE loss weighted by 100 , BEV offset regression uses an L1 loss with a weight of 10 , and binary cross-entropy losses for the FOG head and region-fusion are weighted by 1.
+
+IAL [ 32 ]: The input point cloud is voxelized into a grid of size 480 × 360 × 32 . The model is trained for 80 epochs with a batch size of 4 using the Adam optimizer. The learning rate is initialized to 4 × 10 −4, decayed to 2 × 10 −4 after 60 epochs, and further reduced to 1 × 10 −4 after 75 epochs. We use 128 
+
+prior-based instance queries and 128 no-prior instance queries. IX. Q UALITATIVE RESULTS 
+
+Fig. 10 present qualitative comparisons between our UP-Fuse network and the second-best baseline, LCPS, on the Panoptic Waymo dataset. The regions of interest are highlighted with blue and red circles, where blue indicates correct predictions, and red indicates errors made by the corresponding method. In Fig. 10 (a), we observe that LCPS misclassifies sidewalk as walkable. In this example, the grassy region geometrically re-sembles sidewalk, making cross-modal cues essential. UP-Fuse correctly segments the region by effectively leveraging these cross-modal cues, illustrating the benefit of our uncertainty-aware fusion. Walkable class in Panoptic Waymo corresponds to the terrain class in Panoptic nuScenes. Further, in Fig. 10 (b), UP-Fuse correctly identifies a tree trunk while LCPS confuses it with a pole. This aligns with our quantitative results, where UP-Fuse achieves higher PQ st than LCPS, confirming that our fusion strategy is particularly effective in amorphous and fine-grained stuff regions. In Fig. 10 (c), three distant trucks are correctly detected by both methods, but LCPS misclassifies them as cars while UP-Fuse predicts the correct class. Finally, Fig. 10 (d) illustrates a night scene where LCPS fails to detect two cars due to degraded cross-modal cues, but UP-Fuse remains robust and successfully detects both instances, demonstrating improved resilience in low-light conditions. X. G ENERALIZATION IN REAL -W ORLD SCENARIOS 
+
+In this experiment, we evaluate the real-world transfer capa-bility of our UP-Fuse approach using our in-house autonomous vehicle as depicted in Fig. 12. The vehicle is equipped with an Ouster 128-beam LiDAR and a front-view camera. Since the Panoptic Waymo dataset uses a 64-beam LiDAR, the higher point density of our sensor provides comparable geometric coverage. Accordingly, we use a model trained on the Panoptic Waymo dataset for this evaluation. Compared to the original Panoptic Waymo configuration, which includes five camera views, only a single front-view camera is available during inference. This setting introduces additional challenges for 3D panoptic segmentation, including domain shift, differences in sensor configurations, and reduced camera coverage. Fig. 11 presents qualitative results from this experiment. Despite these challenges, our proposed UP-Fuse framework demonstrates promising results.

@@ -1,0 +1,661 @@
+Title: A Contrastive Variational AutoEncoder for NSCLC Survival Prediction with Missing Modalities
+
+URL Source: https://arxiv.org/pdf/2602.17402v1
+
+Published Time: Fri, 20 Feb 2026 01:50:02 GMT
+
+Number of Pages: 10
+
+Markdown Content:
+# A Contrastive Variational AutoEncoder for NSCLC Survival Prediction with Missing Modalities 
+
+Michele Zanitti ∗, Vanja Miskovic †, Francesco Trov` o†, Alessandra Laura Giulia Pedrocchi †,Ming Shen ∗, Yan Kyaw Tun ∗, Arsela Prelaj ‡, and Sokol Kosta ∗∗Department of Electronic Systems, Aalborg University, Copenhagen, Denmark 
+
+†Department of Electronics, Information and Bioengineering, Politecnico di Milano, Milan, Italy 
+
+‡Department of Medical Oncology, Istituto Nazionale dei Tumori, Milan, Italy 
+
+Abstract —Predicting survival outcomes for non-small cell lung cancer (NSCLC) patients is challenging due to the different individual prognostic features. This task can benefit from the integration of whole-slide images, bulk transcriptomics, and DNA methylation, which offer complementary views of the patient’s condition at diagnosis. However, real-world clinical datasets are often incomplete, with entire modalities missing for a significant fraction of patients. State-of-the-art models rely on available data to create patient-level representations or use generative models to infer missing modalities, but they lack robustness in cases of severe missingness. We propose a Multimodal Contrastive Variational AutoEncoder (MCVAE) to address this issue: modality-specific variational encoders capture the uncertainty in each data source, and a fusion bottleneck with learned gating mechanisms is introduced to normalize the contributions from present modalities. We propose a multi-task objective that combines survival loss and reconstruction loss to regularize patient representations, along with a cross-modal contrastive loss that enforces cross-modal alignment in the latent space. During training, we apply stochastic modality masking to improve the robustness to arbitrary missingness patterns. Extensive evaluations on the TCGA-LUAD ( n = 475 )and TCGA-LUSC ( n = 446 ) datasets demonstrate the efficacy of our approach in predicting disease-specific survival (DSS) and its robustness to severe missingness scenarios compared to two state-of-the-art models. Finally, we bring some clarifications on multimodal integration by testing our model on all subsets of modalities, finding that integration is not always beneficial to the task. 
+
+Index Terms —Multimodal learning, deep learning, oncology, missing modalities. 
+
+I. I NTRODUCTION 
+
+Applications of artificial intelligence in oncology have mas-sively accelerated in recent years. This progress is largely driven by an increased research interest in multimodal learn-ing, which aims to simultaneously integrate diverse data inputs, representing a transition from conventional unimodal models that analyze single data types in isolation [1]. In oncol-ogy, such systems leverage complementary information span-ning histopathology, radiology, and molecular profiles, often surpassing single-modality baselines in diagnostic, prognostic, and treatment selection tasks [1]–[7]. Whole-slide images provide the histological features necessary to assess tumor morphology, cellular structure, and visible gene mutations. Instead, omics data provide molecular markers to discover more fine-grained cancer processes. DNA methylation in-stead encodes critical epigenetic mechanisms driving cancer initiation and progression [8]. Each modality offers partial understanding of the tumor status, making their integration essential for accurate prognosis and biomarker discovery [4]. However, real-world patient records are frequently incom-plete, posing a fundamental challenge to the applicability of multimodal systems. Patient records may lack entire modali-ties due to numerous factors, including patient-specific treat-ment paths, data acquisition methods, cost, or privacy con-straints [9]–[11]. A recent pan-cancer study found that only 
+
+35 .9% of patients had complete multimodal data for time-to-next-treatment analysis [12], highlighting the pervasiveness of this issue. In this light, restricting the analysis to patients with all modalities may reduce sample sizes dramatically and introduce selection bias by excluding patients whose missingness patterns correlate with survival outcomes. Current approaches to handling missing modalities can be categorized into two main strategies, each with significant lim-itations [11]. Representation methods train models to use only available modalities, but may learn biased representations that favor frequently present data sources, potentially overlooking other modalities due to the modality collapse phenomenon [5], [13], [14]. Imputation-based approaches attempt to reconstruct missing modalities from available data but risk introducing systematic biases when cross-modal relationships are non-linear or differ across patient subgroups [10], [15]. To address these limitations, we propose Multimodal Con-trastive Variational AutoEncoder (MCVAE), a representation learning framework designed for incomplete multimodal data. MCVAE learns modality-agnostic latent representations that adapt to arbitrary patterns of modality availability through two key components: a variational framework to model the uncertainty in each modality’s contribution, and an adaptive fusion mechanism to weight available modalities based on the learned importance and availability. Our multi-task objective combines survival prediction with reconstruction regulariza-tion and a contrastive learning objective to ensure cross-modal alignment in the learned representations. We train the MCVAE with a masked modality regime, where the model learns to reconstruct the missing modalities when they are available. Our model can be seen as a hybrid approach between modality dropout and imputation methods, which neither simply relies on available modalities nor attempts to impute missing ones. We validate MCVAE on two non-small cell lung cancer 
+
+> arXiv:2602.17402v1 [cs.AI] 19 Feb 2026
+
+(NSCLC) cohorts from The Cancer Genome Atlas (TCGA): lung adenocarcinoma (LUAD) and lung squamous cell car-cinoma (LUSC). 1 Our experiments demonstrate that MCVAE achieves state-of-the-art performance in disease-specific sur-vival prediction, but also maintains stability as missingness severity increases, with minimal performance degradation when more than 80% of modalities are missing. Our contributions are summarized as follows:  
+
+> •
+
+We introduce MCVAE, a variational framework that learns robust modality-agnostic representations to account for scenarios with arbitrary patterns of missing data.  
+
+> •
+
+We propose an adaptive fusion mechanism with availability-aware gating that normalizes contributions from present modalities.  
+
+> •
+
+Our multi-task learning objective combines survival pre-diction with regularization via reconstruction and cross-modal alignment.  
+
+> •
+
+Through extensive experiments on TCGA-LUAD and TCGA-LUSC cohorts, we demonstrate that MCVAE achieves equal or higher performance against two state-of-the-art methods [13], [15] for survival prediction, remaining stable as missingness rates increase.  
+
+> •
+
+We provide comprehensive modality ablation studies re-vealing that multimodal integration does not universally improve performance, with implications for future work. II. R ELATED WORK 
+
+A. Unimodal learning 
+
+Training models on unimodal data has been the standard approach in cancer research. In histopathology, foundation models such as GigaPath [16] and UNI [17] demonstrate state-of-the-art performance in tumor subtyping and survival prediction from WSIs. Similarly, in radiology, RadImageNet [18] and CT-FM [19] are two foundation models pre-trained on over one million annotated CT, MRI, and ultrasound scans to support large-scale transfer learning across downstream classification and segmentation tasks. For molecular profiles, graph-based models such as XGRAD [20] leverage gene co-expression networks for cancer subtype prediction from RNA sequencing data. In structured clinical data, SCOR-PIO [21], an ensemble of machine learning models, is trained to predict patient response to immune checkpoint inhibitors without requiring extensive diagnostic information, achieving reasonable performance despite the task difficulty. While the achievements of unimodal models are impressive, they are fundamentally limited by the information content of their single data type. This recognition has driven the field towards multimodal integration: in oncology, multimodal learning aims to integrate diverse data types—histopathology, omics, and clinical features to produce comprehensive patient represen-tations. 
+
+> 1https://portal.gdc.cancer.gov/.
+
+B. Multimodal Integration Strategies 
+
+Early fusion approaches concatenate features from differ-ent modalities before processing, as demonstrated in Multi-Surv [5], which combines transcriptomics and clinical data for survival prediction. Chen et al. developed MCAT [22], an attention-based approach that combines WSI features and genomics to predict survival outcomes in five TCGA co-horts. Graph-based methods have also gained recognition; MUSE [13] models patient-modality relationships as a bipar-tite graph, using graph neural networks to aggregate informa-tion from available modalities. Despite these advances, most multimodal methods assume complete data availability during training or testing. However, obtaining complete cases is unrealistic since data acquisition methods differ for individual patients [2], [15], resulting in sparse modality representations. This gap has motivated the development of methods specifi-cally designed for incomplete multimodal data. 
+
+C. Handling Missing Modalities 
+
+The challenge of missing modalities has inspired several so-lutions, which can be broadly categorized into representation-based and imputation-based approaches [11]. Representation-based methods train models to function with arbitrary subsets of modalities. MultiSurv [5] uses modal-ity masking during training to handle missingness, but its concatenation-based fusion weights all available modalities equally, regardless of their informativeness. Similarly, Em-braceNet [14] introduces a stochastic sampling from available modality embeddings to mitigate reliance on single sources. MUSE [13] extends this concept by incorporating a self-supervised objective that reconstructs modality embeddings using local similarity patterns. Despite their flexibility, these methods can be biased toward frequently available modalities and cannot explicitly model the uncertainty introduced by missing data. Imputation-based approaches explicitly reconstruct missing modalities from available ones. SMIL [23] is a probabilistic model that learns to reconstruct missing modalities via class-specific priors learned during pretraining on complete samples, which can misrepresent the latent distribution when applied to patients with different missingness patterns. M3Care [15] constructs patient similarity graphs for each modality and im-putes missing representations in latent space based on similar patients with complete data, but the quality of imputation degrades significantly when available modalities have few sim-ilar complete cases. While these methods attempt to recover information from missing modalities, reconstructed modalities may not faithfully capture the true data distribution, leading to representational bias that favors common phenotypes. To address the limitations of both types of methods, we propose a new model based on variational inference [24] for the available modalities. Histopathology   
+
+> DNA Methylation Transcriptomics Clinical
+> Encoders Decoders Survival Network Fusion Module
+> Sigmoid Hadamard Product Modality Gates Prediction Modality Availabilities
+
+Fig. 1. Overview of the proposed MCVAE architecture. From the left: each modality is encoded through a modality-specific variational encoder, producing latent variables zk . The fusion module combines available modality embeddings using availability-aware gating and a fusion network to obtain a shared latent representation zfused . This representation is used for modality reconstruction via decoders and for survival prediction via the survival head. Training optimizes a composite objective that includes task loss (Cox partial likelihood), reconstruction loss, KL divergence, and InfoNCE contrastive loss. The latter pulls together embeddings from different modalities of the same patient (green arrows) while pushing apart embeddings from different patients (red arrows). Loss components are highlighted in purple. 
+
+III. M ETHODS 
+
+A. Problem Formulation 
+
+In this paper, we aim to predict survival outcomes in the presence of incomplete multimodal data for NSCLC patients. For the i-th patient, we model the hazard function hi(t) which represents the instantaneous risk of death at time t, given their available clinical information. Let D = {(Xi, a i, t i, δ i)}Ni=1 denote our dataset of N pa-tients, where: Xi = {x(1)  
+
+> i
+
+, x (2)  
+
+> i
+
+, x (3)  
+
+> i
+
+, x (4)  
+
+> i
+
+} represents the mul-timodal data with x(1)  
+
+> i
+
+∈ Rdc (clinical features), x(2)  
+
+> i
+
+∈ Rdt
+
+(transcriptomics), x(3)  
+
+> i
+
+∈ Rdw (WSI features), and x(4)  
+
+> i
+
+∈ Rdm
+
+(methylation). ai ∈ { 0, 1}4 is the availability mask where 
+
+a(k) 
+
+> i
+
+= 1 indicates modality k is available. ti ∈ R+ is the observed time (either time to death or last follow-up) and 
+
+δi ∈ { 0, 1} is the event indicator ( δi = 1 for death observed, 
+
+δi = 0 for censored). Our objective is to learn a function fθ : ( Xi, a i) → R
+
+that predicts the log-hazard ratio accounting for arbitrary patterns of missing data. Under the Cox proportional hazards framework [25], we model: 
+
+hi(ti|Xi, a i) = h0(ti) exp( fθ (Xi, a i)) , (1) where h0(ti) is the baseline hazard and fθ (·, ·) is our learned function. The survival probability is then: 
+
+Si(ti|Xi, a i) = exp   − Hi(ti|Xi, a i), (2) where Hi(ti|Xi, a i) := − R ti 
+
+> 0
+
+hi(u|Xi, a i) d u is the cumula-tive hazard function. 
+
+B. Multimodal Contrastive Variational Autoencoder (MCVAE) 
+
+We propose a multimodal fusion framework designed to handle incomplete data. Figure 1 illustrates the overall archi-tecture. Unlike existing models that either discard information through dropout (e.g., Embracenet) or introduce bias through imputation, MCVAE learns robust shared representations by explicitly modeling uncertainty and adapting its fusion strategy based on arbitrary patterns of modality availability. 
+
+1) Variational Encoding with Uncertainty Quantification: 
+
+For each available modality k, we learn a latent representation 
+
+z(k) ∈ Rdout using a variational encoder [24]: 
+
+qϕk (z(k)|x(k)) = N (μ(k), diag (σ2( k))) , (3) where μ(k) = f (k) 
+
+> μ
+
+(x(k)) ∈ Rdout and log( σ(k))2 =
+
+f (k) 
+
+> σ
+
+(x(k)) ∈ Rdout are outputs of neural networks parameter-ized by ϕk. Under this formulation, larger posterior variances ((σ(k))2 ≫ 0) indicate lower confidence in the modality-k
+
+representation. We sample from these distributions using the standard reparameterization trick: z(k) = μ(k) + σ(k) ⊙ ϵ, with Gaussian noise ϵ ∼ N (0 , I ).2 For missing modalities, we set 
+
+z(k) = 0 and handle them through our fusion mechanism. 
+
+2) Adaptive Fusion with Availability-Aware Gating: 
+
+Modalities for patient i are aggregated to produce a latent embedding z(i, fused ) as follows: 
+
+z(i, fused ) = h 1
+
+PKk=1 a(k)
+
+> K
+
+X
+
+> k=1
+
+a(k)σ(γk)z(k)
+
+!
+
+, (4) 
+
+> 2
+
+We use the notation from [24], where the symbols ⊙ and ∼ signify element-wise product and sampling from a distribution, respectively. where γk are learnable modality-specific gate parameters that capture the relative importance of each modality, scaled into the range (0 , 1) via σ(·), h(·) is a fusion network that transforms modality representations once aggregated, and the normalization term C := 1PKk=1 a(k) ensures consistent scaling regardless of how many modalities are present. This design addresses key limitations of existing methods, e.g., unlike binary presence indicators as in MUSE [13], our gating mecha-nism provides graduated importance scores and avoids explicit reconstruction of missing modalities as in M3Care [15] or SMIL [23]. 
+
+3) Multi-Task Learning Objective: MCVAE is trained as a multi-task learning objective with four loss components. 
+
+Survival Prediction Loss : For the primary task of survival prediction, we minimize the negative log partial likelihood of the Cox model, formally defined as follows: 
+
+Ltask = − X
+
+> i:δi=1
+
+fθ (z(i, fused )) − log X
+
+> j∈R i
+
+exp( fθ (z(j, fused ))
+
+ ,
+
+(5) where the function fθ operates on the fused representation 
+
+z(·,fused ), and Ri = {j : tj ≥ ti} is the set of patients still at risk at the event time ti.
+
+Reconstruction Regularization : To preserve modality-specific information in the shared representation, we attach a decoder gψk : Rdz → Rdk to produce the reconstruction ˜xk
+
+for each observed modality k and penalize the reconstruction error, formally defined as follows: 
+
+Lrecon =
+
+> K
+
+X
+
+> k=1
+
+a(k)∥x(k) − gψk (z(i, fused ))∥22. (6) Let us remark that, in this architecture, we do not reconstruct missing modalities ( a(k) = 0 ), so gradients are not propagated through their decoders. This term acts as a consistency regu-larizer under modality dropout, encouraging the fused latent to retain information predictive of each available modality. 
+
+KL Divergence with Modality-Specific Weighting : We regularize the latent distributions with learnable modality-specific weights as follows: 
+
+LKL =
+
+> K
+
+X
+
+> k=1
+
+a(k) · wk · KL (qϕk (z(k)|x(k))∥p(z)) , (7) where wk := softmax (wKL )k allows the model to adjust regularization strength based on each modality’s reliability. Here, we selected p(z) = N (0 , I ) as the prior distribution over latent variables. 
+
+Contrastive Cross-Modal Alignment : To ensure consis-tency across modalities from the same patient, we employ the InfoNCE loss [26], formally defined as follows: 
+
+Lcontrast = − X
+
+> i
+
+X
+
+> k∈A i
+
+X 
+
+> l∈A i
+> l̸=k
+
+log exp  s(i,k ),(i,l )/τ P j=1 ,...,N m∈A j
+
+> (j,m )̸=( i,k )
+
+exp  s(i,k ),(j,m )/τ  ,
+
+(8) where Ai = {k : a(k) 
+
+> i
+
+= 1 } denotes the set of available modal-ities for patient i. We define s(i,k ),(j,m ) = sim( z(i,k ), z (j,m ))
+
+as the cosine similarity between latent representations of modality k from patient i and modality m from patient j,and τ is a temperature parameter. The numerator compares pairs of modalities (k, l ) from the same patient i (positives), while the denominator includes all other patient-modality pairs 
+
+(j, m ) in the batch. This loss encourages representations from different modalities of the same patient to be similar while pushing apart representations from different patients. The multi-task training objective combines these loss terms: 
+
+L = Ltask + λ1Lrecon + λ2β(t)LKL + λ3Lcontrast , (9) where Ltask ensures accurate survival prediction, Lrecon pre-serves modality-specific information, LKL regularizes the la-tent space to prevent posterior collapse, and Lcontrast aligns pa-tient representations across modalities. The KL term includes an annealing factor β(t) that gradually increases from 0 to 1 during training to prevent posterior collapse. We adopt the approach from [27], where each loss term in Eq. 9 is weighted using dynamic coefficients instead of linear 
+
+λi weights to account for task-related uncertainties: 
+
+Ltotal = X
+
+> i
+
+ 12σ2
+
+> i
+
+Li + log σi
+
+
+
+, (10) where σi are learnable parameters that balance different ob-jectives based on their uncertainty. 
+
+C. Training Procedure 
+
+During training, we apply stochastic modality dropout to improve robustness. More specifically, for each patient i and for modality k, we sample from a Bernoulli random variable 
+
+D ∼ Bernoulli (1 − pdrop ) with dropout probability pdrop :
+
+˜a(k) =
+
+(
+
+1 if k = 1 (clinical) 
+
+a(k) · D otherwise . (11) This ensures that each non-clinical modality has a probability 
+
+pdrop of being masked during training, even when it is origi-nally available. We always retain clinical features ( k = 1 ), as they are most reliably available in clinical practice and serve as a stable anchor for learning. The pseudocode for MCVAE’s training and inference steps is provided in Algorithm 1. IV. E XPERIMENTAL SETUP 
+
+A. Datasets and Preprocessing 
+
+We evaluated our method on two public datasets from The Cancer Genome Atlas (TCGA): lung adenocarcinoma (LUAD n = 475 ) and lung squamous cell carcinoma (LUSC, 
+
+n = 446 ). Following recent work [28], we selected disease-specific survival (DSS) as our primary clinical endpoint, as broader measures like overall survival (OS) capture death events from all causes and lack cancer-specificity. We remark that for LUAD and LUSC, DSS is computed through approx-imation, as mentioned in [29], since the cause of death was not documented for individual patients. However, it remains a Algorithm 1 Training and Inference for MCVAE  
+
+> 1:
+
+// Training Require: Training data D, dropout rate pdrop  
+
+> 2:
+
+for each epoch t do  
+
+> 3:
+
+for each batch do  
+
+> 4:
+
+Sample batch (X, a, t, δ ) from D 
+
+> 5:
+
+Apply modality dropout by Eq. 11, keep clinical  
+
+> 6:
+
+Encode modalities to {μ(k), σ (k)} by Eq. 3  
+
+> 7:
+
+Sample latents z(k) via reparameterization  
+
+> 8:
+
+Fuse representations to zfused by Eq. 4  
+
+> 9:
+
+Compute losses by Eq. 5, 6, 7, 8  
+
+> 10:
+
+Weight losses by Eq. 9, 10  
+
+> 11:
+
+Update model parameters  
+
+> 12:
+
+end for  
+
+> 13:
+
+end for  
+
+> 14:
+
+// Inference Require: Test data Dtest  
+
+> 15:
+
+for each batch do  
+
+> 16:
+
+Sample batch (X, a ) from Dtest  
+
+> 17:
+
+Encode available modalities by Eq. 3  
+
+> 18:
+
+Fuse representations by Eq. 4  
+
+> 19:
+
+Predict survival via trained model  
+
+> 20:
+
+end for 
+
+clinically relevant endpoint, whereas it may be unreliable for other TCGA cancer types with insufficient events or shorter follow-up periods. 
+
+Clinical metadata collection : Clinical covariates and sur-vival labels were obtained from the UCSC Xena database [30], including patient demographics (e.g., age, sex, ethnicity), tu-mor staging, smoking habits, and basic treatment information. 
+
+Histopathology collection : Primary diagnostic WSIs were downloaded from the Imaging Data Commons (IDC) por-tal [31]. We processed all images using the Trident pack-age [32] at 20 × magnification, extracting 256 × 256 patches without overlap. To extract patch features, we selected the UNI foundation model [17]. Unlike other foundation models, UNI is not pre-trained on TCGA, making it a suitable choice in light of concerns about data contamination [33]. Finally, we aggregated patch-level features into slide-level representations via mean pooling. 
+
+Genomic data collection : We obtained the gene expression counts from the Xena database and reproduced the gene set enrichment analysis from [28] to extract relevant pathways. We used gene set collections from the Molecular Signature Database (MSigDB) Hallmarks and Reactome. Of the ex-tracted pathways, we retained those with at least 90% of gene coverage, resulting in 50 (Hallmark) and 1783 (Reactome) pathways. 
+
+DNA Methylation collection : We acquired Illumina Hu-manMethylation450 BeadChip data via the UCSC Xena database, containing beta values for approximately 450 , 000 
+
+CpG sites per sample. To the raw beta values, we applied the following pipeline and extracted complementary features: we aggregated probes into gene-level methylation scores for promoter regions with ≥ 90% probe coverage (adapted from MethylMix [34]), computed CpG density-based metrics on the bimodal distribution [35], and derived cancer-specific methylation signatures [36]. Feature extraction for clinical, genomic, and methylation data was performed after train-test splitting to prevent data leakage. Clinical features were normalized using robust scal-ing. Transcriptomic pathway scores were computed as the mean expression of pathway genes. Methylation features were extracted using the combined approach described above. The resulting multimodal feature sets D, including aggregated histopathology features, were then used for downstream sur-vival analysis. Natural missingness in the datasets reflects real-world sce-narios: approximately 15% of patients lack methylation data, 
+
+8% lack transcriptomics, and 3% lack WSI features. Clinical data is available for all patients. 
+
+B. Training Protocol and Implementation 
+
+We implemented 5-fold cross-validation following recent recommendations [37], with stratification by survival outcome (death within median survival time) to ensure balanced repre-sentation. For each fold, we allocated 64% of the patients for training, 16% for validation, and 20% for testing. We repeat the entire process with 3 different random seeds, reporting the mean and standard deviation across all 15 runs. For training our models, we used the AdamW optimizer with weight decay regularization.We employ Harrell’s concor-dance index (C-index) as the primary metric for evaluating survival prediction. A C-index of 0.5 indicates random per-formance, while 1.0 indicates perfect ranking. We used the validation sets to early stop the model on the best C-index achieved, with a patience of 20 epochs. The model checkpoint with the largest validation C-index is used for final evaluation. All experiments were conducted on a single A10 GPU with 24GB of video memory, as we found this was sufficient for extracting WSI features with the UNI model and training all models. 
+
+C. State-of-the-art Methods 
+
+We compared MCVAE against two state-of-the-art meth-ods for each strategy of handling missing modalities: MUSE (representation-based) [13] and M3Care (imputation-based) [15]. For fair comparison, all models were trained with identical modality-specific encoder architectures and underwent systematic hyperparameter optimization using the Optuna framework [38], with 50 iterations of Bayesian search on the validation set. All reported results use the optimal hyperparameters identified for each model. Further details on the implementations and final hyperparameters are listed in Appendices A and B. 
+
+D. Experiment Design 
+
+We designed four complementary experiments to evaluate our approach. 1) Survival Prediction: We compare MCVAE to the state-of-the-art models on the primary task. Statistical significance between models is assessed using a Friedman test on the fold-level C-index values. When the Friedman test indicates significant differences ( p < 0.05 ), we apply the Nemenyi post-hoc test to identify which specific model pairs differ significantly while controlling for multiple comparisons. 
+
+2) Modality Combination Analysis: To understand the con-tribution of individual modalities and their interactions to survival prediction performance, we conduct an ablation study evaluating all possible combinations that include clinical data, ensuring the same number of patients across all combinations. Let us define the following modalities: C = clinical, T = tran-scriptomics, W = whole-slide images, and M = methylation. We use the same hyperparameters identified during the survival prediction analysis and evaluate the following configurations: C (unimodal clinical), C+T, C+W, C+M, C+T+W, C+T+M, C+W+M, and C+T+W+M, where the + sign indicates that the model used multiple modalities as input. 
+
+3) Modality Dropout Analysis: To test the hypothesis that stochastic masking of entire modalities regularizes the shared encoder and yields a modality-agnostic latent suitable for survival prediction, we train models with dropout probabilities 
+
+pdrop ∈ { 0.0, 0.1, 0.3, 0.5, 0.7, 0.9}. At each step, a random subset of modalities is dropped, except for clinical data. We evaluate the robustness under natural missingness, setting the performance on complete-case data as the baseline (i.e., no dropout is applied), and testing the robustness–accuracy trade-off as pdrop increases. This design isolates the effect of synthetic missingness during training on representation quality and downstream survival prediction, allowing identification of the dropout regime that best balances generalization to missing data with performance when all modalities are present. 
+
+4) Progressive Modality Missingness Analysis: While the dropout analysis serves the purpose of finding an optimal masking probability for training a model, this analysis al-lows us to systematically evaluate model degradation under increasingly severe modality missingness. In this case, we set the dropout probability during training to 0.3. We controlled random missingness rates using the same dropout probability as in Equation (11), masking {10% , 30% , 50% , 70% , 90% } of the available modalities, while always retaining the clinical features. This protocol enables assessment of the absolute performance at each missingness level, as well as the stability of each studied model as m increases. At m = 90% , the evaluation approximates a worst-case regime in which, for most samples, clinical data are the only modality available. V. S IMULATION RESULTS 
+
+A. Survival Prediction Performance 
+
+Figure 2 presents the cross-validation results for DSS pre-diction across both NSCLC cohorts. We set the modality dropout probability to 0.3 for all models. The Friedman test indicates significant differences among models for both cohorts (LUAD: p < 0.001 , LUSC: p < 0.001 ), with post-hoc Nemenyi tests revealing specific pairwise differences. On M3CARE MCVAE MUSE          
+
+> 0.40
+> 0.45
+> 0.50
+> 0.55
+> 0.60
+> 0.65
+> 0.70
+> 0.75
+> 0.80
+> C-Index
+> 0.583 ± 0.047 0.651 ± 0.026 0.580 ± 0.054
+> *
+> *
+> LUAD
+> M3CARE MCVAE MUSE
+> 0.40
+> 0.45
+> 0.50
+> 0.55
+> 0.60
+> 0.65
+> 0.70
+> 0.75
+> 0.80
+> C-Index
+> 0.544 ± 0.067 0.575 ± 0.033 0.540 ± 0.045
+> LUSC
+> M3CARE MCVAE MUSE
+> Fig. 2. Results on survival analysis. C-index and individual results on each fold are reported. The asterisks (*) indicate a significant increase in performance between the two models.
+
+the LUAD cohort, MCVAE achieves the highest mean C-index of 0.651 ±0.026 , representing a substantial improvement over MUSE and M3Care. On the LUSC cohort, performance differences are less pronounced but still meaningful. MCVAE achieves 0.575 ± 0.033 , with M3Care showing higher mean performance than MUSE, which exhibits a substantially higher variance. We observe that MCVAE demonstrates more stable performance across folds, as indicated by the lower standard deviation, suggesting that our fusion approach yields more consistent predictions. Second, MUSE and M3Care exhibit significant performance variability across the two cohorts, suggesting that modeling patient similarities with graph con-volutions (as in M3Care and MUSE) yields conflicting results, possibly due to unique patient-level features (e.g., genotype). Finally, we observe a performance gap between the two cohorts, as all models have a lower achieved C-index on LUSC, which is in line with previous studies [28], [37]. 
+
+B. Modality Combination Analysis 
+
+Tables I and II report the average and standard deviation of C-index obtained with repeated cross-validation on LUAD and LUSC, respectively. The best model for each combination is highlighted in bold. Since the goal of this analysis is to compare the performance obtained with all modalities, we first compare the results of the main analysis with the unimodal baseline.                                                                                                                                                         
+
+> TABLE I RESULTS BY MODALITY COMBINATIONS ON TCGA LUAD. Modalities M3Care MCVAE (ours) MUSE C0.607 ±0.034 0.669 ±0.013 0.634 ±0.066 C + T 0.611 ±0.051 0.663 ±0.022 0.552 ±0.092 C + W 0.586 ±0.043 0.652 ±0.028 0.597 ±0.071 C + M 0.595 ±0.072 0.671 ±0.037 0.578 ±0.087 C + T + W 0.566 ±0.052 0.647 ±0.021 0.608 ±0.046 C + T + M 0.626 ±0.050 0.668 ±0.027 0.534 ±0.100 C + W + M 0.577 ±0.062 0.655 ±0.027 0.603 ±0.054 All 0.587 ±0.047 0.651 ±0.026 0.580 ±0.054 TABLE II RESULTS BY MODALITY COMBINATIONS ON TCGA LUSC. Modalities M3Care MCVAE (ours) MUSE C0.564 ±0.033 0.557 ±0.031 0.549 ±0.092 C + T 0.583 ±0.064 0.566 ±0.033 0.553 ±0.058 C + W 0.548 ±0.058 0.541 ±0.056 0.536 ±0.053 C + M 0.562 ±0.050 0.570 ±0.041 0.551 ±0.071 C + T + W 0.542 ±0.062 0.555 ±0.043 0.520 ±0.057 C + T + M 0.532 ±0.065 0.594 ±0.046 0.607 ±0.060
+> C + W + M 0.556 ±0.064 0.558 ±0.040 0.552 ±0.060 All 0.544 ±0.067 0.575 ±0.033 0.540 ±0.045
+
+With only clinical covariates, all models already achieve a strong predictive performance that often surpasses multimFor LUAD, all models have unimodal C-indices ranging from 
+
+0.607 (M3Care) 0.607 (M3Care) up to 0.669 (MCVAE). On LUSC, clinical features yield C-indices around 0.55 -0.56 
+
+across all models. With the addition of more modalities, we observe a slight performance degradation: all models struggle to achieve better results than the unimodal baseline on LUAD, with average C-index differences of −1.8% (MCVAE), −2% 
+
+(M3Care), and −5.4% (MUSE). On LUSC, this pattern is less pronounced but still present for MUSE. We performed a one-sided Wilcoxon signed-rank test to verify this assumption, revealing significant degradation ( p < 0.05 , Holm-corrected) for MUSE with C+T (−12 .97% ), M3Care with C+T+W (−6.81% ), and MCVAE with C+T+W ( −3.34% ) on LUAD. MCVAE demonstrates the most robust multi-modal integration when all four modalities are considered and maintains a com-petitive performance with M3Care in both cohorts. M3Care performs well with bimodal combinations on LUSC, particu-larly C+T and C+W, but its performance degrades with three or more modalities on LUAD. MUSE is particularly sensitive to multi-modal integration on LUAD ( −15 .81% for C+T+M), but interestingly achieves the best performance on LUSC with C+T+M. The two cohorts exhibit different responses to multi-modal integration: while on LUAD, all models perform worse with more modalities integrated, only MCVAE shows improved results on LUSC. We noticed that when WSI is included, models tend to perform worse, indicating a weaker signal from that modality. On the other hand, the C+T+M combination shows mixed results, causing the worst drop for MUSE on LUAD but the best improvement on LUSC. 
+
+C. Impact of Modality Dropout 
+
+Figure 3 shows how varying dropout rates affect model per-formance. On LUAD, MCVAE improves from 0.658 ± 0.036 
+
+(no dropout) to 0.673 ± 0.029 (pdrop = 0 .9), while M3Care and MUSE remain relatively stable (M3Care: 0.624 ± 0.036 
+
+to 0.585 ± 0.048 ; MUSE: 0.558 ± 0.078 to 0.585 ± 0.073 ). On LUSC, models diverge slightly at high dropout rates, although MCVAE maintains more stable trajectories than MUSE and M3Care. While there is no significant performance drop at higher dropout rates, MCVAE seems to achieve better results on both cohorts, indicating that consistent masking enforces 0 10 20 30 40 50 60 70 80 90             
+
+> Modality Dropout (%)
+> 0.45
+> 0.50
+> 0.55
+> 0.60
+> 0.65
+> 0.70
+> 0.75
+> C-Index
+> LUAD
+> 010 20 30 40 50 60 70 80 90
+> Modality Dropout (%)
+> 0.45
+> 0.50
+> 0.55
+> 0.60
+> 0.65
+> 0.70
+> 0.75
+> C-Index
+> LUSC
+> M3CARE MCVAE MUSE
+> Fig. 3. Results on survival analysis for LUAD and LUSC cohorts for different modality dropout rates pdrop . Average C-index (bold markers) and standard deviations (shaded area) are reported.
+
+MCVAE to learn modality-agnostic features that are predictive of the patient’s survival. 
+
+D. Robustness to Simulated Missingness 
+
+Figure 4 reports model stability under progressively se-vere missingness during training and testing. Contrary to our expectations, we do not observe a monotonic degrad-ing performance. Overall, MCVAE demonstrates again stable performances even under extreme missingness. In the LUAD cohort, MCVAE consistently achieves a better average C-index across all levels ( 0.637 ± 0.031 to 0.660 ± 0.031 )than MUSE and M3Care, with a maximum at 50% and 
+
+70% missingness ( 0.667 ), exceeding the performance in the complete-data condition. M3Care exhibits higher variability in LUAD, indicating that its imputation strategy is less effec-tive at leveraging complementary information under moderate missingness. The performance improvement at the highest missingness rate ( 90% ) may indicate that the fusion mech-anism in all models compensates for missing modalities by learning from the most available source, i.e., clinical data. On LUSC, all models exhibit less variability and tend to converge to similar performance at high missingness ( ≈ 0.56 ), reflecting task-specific difficulty. Considering that all models achieve acceptable results with clinical data alone, it may suggest that the impact of missing modalities can thus be mitigated. 10 20 30 40 50 60 70 80 90                   
+
+> Missing Modality Rate (%)
+> 0.45
+> 0.50
+> 0.55
+> 0.60
+> 0.65
+> 0.70
+> 0.75
+> C-Index
+> LUAD
+> 10 20 30 40 50 60 70 80 90
+> Missing Modality Rate (%)
+> 0.45
+> 0.50
+> 0.55
+> 0.60
+> 0.65
+> 0.70
+> 0.75
+> C-Index
+> LUSC
+> M3CARE MCVAE MUSE Fig. 4. Results on survival analysis for LUAD and LUSC cohorts for different missingness rates pmiss .Average C-index (bold markers) and standard deviations (shaded area) are reported.
+
+VI. D ISCUSSION AND LIMITATIONS 
+
+A. Discussion 
+
+In this work, we addressed the critical challenge of missing modalities in clinical settings. This pervasive issue is a result of several factors, including different data acquisition protocols (e.g., sequencing panels for genomic data), privacy concerns, censoring, or limited access to the healthcare system [15]. To systematically evaluate model robustness, we simulate progressively severe missingness patterns that reflect these real-world constraints. Furthermore, we study how different combinations of modalities affect the model’s performance, as it is often assumed that integrating more modalities yields better results. We propose a Multimodal Contrastive Variational AutoEn-coder (MCVAE), which leverages a probabilistic framework to explicitly model uncertainty arising from incomplete mul-timodal observations. The components of our architecture are not new per se, but to our knowledge, they have received limited attention, despite the overall framework being relevant in clinical settings, as it allows for interpretable confidence estimates worth exploring in future studies. We evaluate MCVAE against state-of-the-art multimodal learning methods on two non-small cell lung cancer (NSCLC) cohorts. Our results demonstrate consistent improvements across both subtypes, with MCVAE achieving 7.1% and 3.5% 
+
+higher C-index than MUSE, and 6.8% and 3.1% higher than M3Care, for LUAD and LUSC, respectively. The differential performance between cohorts aligns with recent findings [37] that LUAD exhibits more predictable survival patterns than LUSC. These improvements validate that explicit uncertainty modeling and adaptive fusion (rather than static dropout or imputation strategies) yield more robust survival predictions under conditions of missing modality. When integrating all modalities, MCVAE outperforms both baseline models (Tables I and II), though it underperforms the clinical-only baseline on the LUAD cohort. Specifically, the histopathology modality exhibits weak predictive signals and degrades overall performance when integrated into the model. This pattern suggests modality collapse [39], where conflicting gradient objectives between modalities lead to un-balanced representations that overweight dominant modalities while suppressing weaker but potentially informative signals. Addressing this optimization challenge through improved gra-dient harmonization or modality-specific learning dynamics is a necessary direction for future work. We found that increasing modality dropout has a beneficial effect on our model’s performance for LUAD, but a marginal effect on LUSC, reflecting the challenges in modeling survival for this histological type. Nonetheless, we notice that under severe missingness conditions, our model has a relatively stable performance, with overall lower variability than the two baselines as shown in Figure 4. We can credit this robustness to several factors: the uncertainty captured by the variational encoders, the fusion bottleneck, which weights each modality based on the learned importance, and, thanks to the contrastive learning objective, to learn modality-invariant features while preserving modality-specific information (e.g., Equation 8). Moreover, since we control the missingness rates of all modal-ities except clinical data, we observe that the performance of our model is close to the unimodal baseline at 90% 
+
+missingness, which suggests that all models implicitly align with the anchor modality when other sources are unavailable. 
+
+B. Limitations and Future Directions 
+
+Our analyses are limited by several factors that warrant consideration. First, our evaluation compared MCVAE with two methods (MUSE and M3Care) and excluded unimodal baselines for histopathology, transcriptomics, and methyla-tion, as these may exhibit different standalone predictive sig-nals. A broader comparison against additional state-of-the-art multimodal methods and systematic unimodal benchmarking would provide a more comprehensive evaluation. Second, our analysis was restricted to NSCLC cohorts from TCGA, a retrospective research database with specific patterns of miss-ingness. Validation across diverse cancer types, and, critically, prospective clinical datasets, is essential for studying clinical applicability. The benefit of extreme dropout rates deserves deeper inves-tigation. Analyzing learned representations, gate weights, and cross-modal patterns can clarify how extensive masking and reconstruction promote robust feature learning, and in parallel, investigate which modality combinations are most informative for different patient subgroups. The reconstruction component of MCVAE, while serving as an effective regularizer, does not actually impute missing modalities. This design choice avoids potential biases from imputation but also means the model cannot provide estimates of what missing data might look like, which could be valuable for understanding disease patterns. Future work could explore controlled imputation strategies that quantify uncertainty in generated modalities, an approach already established in [23]. An essential evaluation step is represented by the explain-ability beyond the mechanistic interpretability of our model. Since we aim to discover cross-modal relationships across the studied modalities, we consider applying probing strategies via cross-attention transformers, generalized to multiple modal-ities. Furthermore, prospective validation of the predictions is necessary to validate the applicability of our model. This includes assessing whether uncertainty estimates align with clinical intuition. VII. C ONCLUSION 
+
+We presented MCVAE, a framework for multimodal sur-vival prediction that maintains robust performance under sim-ulated incompleteness in multimodal data. On TCGA LUAD and LUSC cohorts, our experiments reveal that multimodal integration does not universally improve performance: in some cases, unimodal or bimodal combinations outperform models trained on all modalities. This opens several avenues for research that focus on the interpretability of multimodal learn-ing strategies dealing with missing modalities and investigate the reasons for such differential performances. In conclusion, MCVAE represents a significant step toward practical multi-modal learning for clinical applications, demonstrating robust performance with incomplete data. REFERENCES [1] D. Truhn, J. N. Eckardt, D. Ferber, and J. N. Kather, “Large language models and multimodal foundation models for precision oncology,” npj Precision Oncology 2024 8:1 , vol. 8, pp. 1–4, 2024. [2] J. Lipkova, R. J. Chen, B. Chen, M. Y. Lu, M. Barbieri, D. Shao et al. ,“Artificial intelligence for multimodal data integration in oncology,” 
+
+Cancer Cell , vol. 40, pp. 1095–1110, 2022. [3] K. M. Boehm, P. Khosravi, R. Vanguri, J. Gao, and S. P. Shah, “Harnessing multimodal data integration to advance precision oncology,” 
+
+Nature Reviews Cancer 2021 22:2 , vol. 22, pp. 114–126, 2021. [4] S. Steyaert, M. Pizurica, D. Nagaraj, P. Khandelwal, T. Hernandez-Boussard, A. J. Gentles, and O. Gevaert, “Multimodal data fusion for cancer biomarker discovery with deep learning,” Nature Machine Intelligence 2023 5:4 , vol. 5, pp. 351–362, 2023. [5] L. A. Vale-Silva and K. Rohr, “Long-term cancer survival prediction using multimodal deep learning,” Scientific Reports 2021 11:1 , vol. 11, pp. 1–12, 2021. [6] R. S. Vanguri, J. Luo, A. T. Aukerman, J. V. Egger, C. J. Fong, N. Horvat 
+
+et al. , “Multimodal integration of radiology, pathology and genomics for prediction of response to pd-(l)1 blockade in patients with non-small cell lung cancer,” Nature Cancer 2022 3:10 , vol. 3, pp. 1151–1164, 2022. [7] C. E. L. M’Sabah, A. Bouziane, and Y. Ferdi, “A survey on deep learning methods for cancer diagnosis using multimodal data fusion,” 2021 9th E-Health and Bioengineering Conference, EHB 2021 , 2021. [8] R. Lakshminarasimhan and G. Liang, “The role of dna methylation in cancer,” Advances in experimental medicine and biology , vol. 945, p. 151, 2016. [9] S. C. Huang, A. Pareek, S. Seyyedi, I. Banerjee, and M. P. Lungren, “Fusion of medical imaging and electronic health records using deep learning: a systematic review and implementation guidelines,” npj Dig-ital Medicine 2020 3:1 , vol. 3, pp. 1–9, 2020. [10] J. E. Flores, D. M. Claborne, Z. D. Weller, B. J. M. Webb-Robertson, K. M. Waters, and L. M. Bramer, “Missing data in multi-omics in-tegration: Recent advances through artificial intelligence,” Frontiers in Artificial Intelligence , vol. 6, p. 1098308, 2023. [11] R. Wu, H. Wang, H.-T. Chen, and G. Carneiro, “Deep multimodal learning with missing modality: A survey,” vol. 1, 2024. [12] J. Keyl, P. Keyl, G. Montavon, R. Hosch, A. Brehmer, L. Mochmann 
+
+et al. , “Decoding pan-cancer treatment outcomes using multimodal real-world data and explainable artificial intelligence,” Nature Cancer 2025 6:2 , vol. 6, pp. 307–322, 2025. [13] Z. Wu, A. Dadu, N. Tustison, B. Avants, M. Nalls, J. Sun, and F. Faghri, “Multimodal patient representation learning with missing modalities and labels.” International Conference on Learning Representations, ICLR, 2024. [14] J. H. Choi and J. S. Lee, “Embracenet: A robust deep learning archi-tecture for multimodal classification,” Information Fusion , vol. 51, pp. 259–270, 2019. [15] C. Zhang, X. Chu, L. Ma, Y. Zhu, Y. Wang, J. Wang, and J. Zhao, “M3care: Learning with missing modalities in multimodal healthcare data,” Proceedings of the ACM SIGKDD International Conference on Knowledge Discovery and Data Mining , pp. 2418–2428, 2022. [16] H. Xu, N. Usuyama, J. Bagga, S. Zhang, R. Rao, T. Naumann, C. Wong 
+
+et al. , “A whole-slide foundation model for digital pathology from real-world data,” Nature 2024 630:8015 , vol. 630, pp. 181–188, 2024. [17] R. J. Chen, T. Ding, M. Y. Lu, D. F. Williamson, G. Jaume, A. H. Song 
+
+et al. , “Towards a general-purpose foundation model for computational pathology,” Nature Medicine 2024 30:3 , vol. 30, pp. 850–862, 2024. [18] X. Mei, Z. Liu, P. M. Robson, B. Marinelli, M. Huang, A. Doshi et al. ,“Radimagenet: An open radiologic deep learning research dataset for effective transfer learning,” Radiology: Artificial Intelligence , vol. 4, 2022. [19] S. Pai, I. Hadzic, D. Bontempi, K. Bressem, B. H. Kann, A. Fedorov 
+
+et al. , “Vision foundation models for computed tomography,” 2025. [20] L. Guan, D. Li, Y. Shi, and J. Meng, “Xgrad: Boosting gradient-based optimizers with weight prediction,” IEEE Transactions on Pattern Analysis and Machine Intelligence , 2024. [21] S. K. Yoo, C. W. Fitzgerald, B. A. Cho, B. G. Fitzgerald, C. Han, E. S. Koh et al. , “Prediction of checkpoint inhibitor immunotherapy efficacy for cancer using routine blood tests and clinical data,” Nature Medicine 2025 31:3 , vol. 31, pp. 869–880, 2025. [22] R. J. Chen, M. Y. Lu, W. H. Weng, T. Y. Chen, D. F. Williamson, T. Manz, M. Shady, and F. Mahmood, “Multimodal co-attention trans-former for survival prediction in gigapixel whole slide images,” Pro-ceedings of the IEEE International Conference on Computer Vision , pp. 3995–4005, 2021. [23] M. Ma, J. Ren, L. Zhao, S. Tulyakov, C. Wu, and X. Peng, “Smil: Multimodal learning with severely missing modality,” Proceedings of the AAAI Conference on Artificial Intelligence , vol. 35, pp. 2302–2310, 2021. [24] D. P. Kingma and M. Welling, “Auto-encoding variational bayes,” 2nd International Conference on Learning Representations, ICLR 2014 -Conference Track Proceedings , 2013. [25] D. R. Cox, “Regression models and life-tables,” Journal of the Royal Statistical Society: Series B (Methodological) , vol. 34, pp. 187–202, 1972. [26] A. van den Oord DeepMind, Y. L. DeepMind, and O. V. DeepMind, “Representation learning with contrastive predictive coding,” 2018. [27] A. Kendall, Y. Gal, and R. Cipolla, “Multi-task learning using uncer-tainty to weigh losses for scene geometry and semantics,” pp. 7482– 7491, 2018. [28] G. Jaume, A. Vaidya, R. J. Chen, D. F. Williamson, P. P. Liang, and F. Mahmood, “Modeling dense multimodal interactions between biological pathways and histology for survival prediction,” Proceedings of the IEEE Computer Society Conference on Computer Vision and Pattern Recognition , pp. 11 579–11 590, 2023. [29] J. Liu, T. Lichtenberg, K. A. Hoadley, L. M. Poisson, A. J. Lazar, A. D. Cherniack, A. J. Kovatich, C. C. Benz, D. A. Levine, A. V. Lee et al. ,“An integrated tcga pan-cancer clinical data resource to drive high-quality survival outcome analytics,” Cell , vol. 173, pp. 400–416.e11, 2018. [30] M. J. Goldman, B. Craft, M. Hastie, K. Repeˇ cka, F. McDade, A. Kamath, A. Banerjee, Y. Luo, D. Rogers, A. N. Brooks, J. Zhu, and D. Haussler, “Visualizing and interpreting cancer genomics data via the xena plat-form,” Nature Biotechnology 2020 38:6 , vol. 38, pp. 675–678, 2020. [31] A. Fedorov, W. J. Longabaugh, D. Pot, D. A. Clunie, S. Pieper, H. J. Aerts et al. , “Nci imaging data commons,” Cancer Research , vol. 81, p. 4188, 2021. [32] A. Zhang, G. Jaume, A. Vaidya, T. Ding, and F. Mahmood, “Accelerating data processing and benchmarking of ai models for pathology,” 2025. [33] G. Campanella, S. Chen, M. Singh, R. Verma, S. Muehlstedt, J. Zeng 
+
+et al. , “A clinical benchmark of public self-supervised pathology foun-dation models,” Nature Communications , vol. 16, pp. 1–12, 2025. [34] P. L. Cedoz, M. Prunello, K. Brennan, and O. Gevaert, “Methylmix 2.0: an r package for identifying dna methylation genes,” Bioinformatics (Oxford, England) , vol. 34, pp. 3044–3046, 2018. [35] M. Bibikova, B. Barnes, C. Tsan, V. Ho, B. Klotzle, J. M. Le et al. ,“High density dna methylation array with single cpg site resolution,” 
+
+Genomics , vol. 98, pp. 288–295, 2011. [36] D. J. Weisenberger, K. D. Siegmund, M. Campan, J. Young, T. I. Long, M. A. Faasse et al. , “Cpg island methylator phenotype underlies sporadic microsatellite instability and is tightly associated with braf mutation in colorectal cancer,” Nature Genetics 2006 38:7 , vol. 38, pp. 787–793, 2006. [37] B. Gross, A. Dauvin, V. Cabeli, V. Kmetzsch, J. E. Khoury, G. Dissez 
+
+et al. , “Robust evaluation of deep learning-based representation methods for survival and gene essentiality prediction on bulk rna-seq data,” 
+
+Scientific Reports 2024 14:1 , vol. 14, pp. 1–15, 2024. [38] T. Akiba, S. Sano, T. Yanase, T. Ohta, and M. Koyama, “Optuna: A next-generation hyperparameter optimization framework,” Proceedings of the ACM SIGKDD International Conference on Knowledge Discovery and Data Mining , pp. 2623–2631, 2019. [39] A. Chaudhuri, A. Dutta, T. Bui, and S. Georgescu, “A closer look at multimodal representation collapse,” arXiv preprint arXiv:2505.22483 ,2025. 
+
+APPENDIX AADDITIONAL DETAILS ON THE IMPLEMENTATIONS 
+
+A. Encoder Architecture 
+
+For modality k with input dimension dk, the encoding process follows: 
+
+h(0)  
+
+> m
+
+= Dropout p(xk), xk ∈ Rdk ,
+
+h(l) 
+
+> k
+
+= Dropout p(ReLU (BN (h(l−1)  
+
+> k
+
+))) ,
+
+zk = h(Lk −1)  
+
+> k
+
+∈ Rdout ,
+
+(12) where BN (·) denotes batch normalization. Dropout rate p and output dimension dout (fixed for all modalities) are determined through hyperparameter search. Encoders use Lm = 2 layers for clinical and WSI features, and Lm = 3 layers for transcriptomics and methylation data. Missing modalities are represented as zero embeddings: zm = 0 ∈ Rdout .
+
+B. Fusion Network of MCVAE 
+
+The fusion network h(·) in Equation 4 transforms modality-specific representations before aggregation. We implement 
+
+h(·) as a two-layer feed-forward network with residual con-nections, formally: 
+
+h(z(k)) = z(k) + FFN (z(k)),
+
+FFN (z) = Dropout (GELU (LN (z))) , (13) where LN (·) denotes layer normalization and dz is the latent dimension. 
+
+C. Decoder Architecture of MCVAE 
+
+Each decoder gψk : Rdz → Rdk reconstruct a masked modality k and consists of L fully-connected layers: 
+
+h(0)  
+
+> k
+
+= zfused ,
+
+h(l) 
+
+> k
+
+= Dropout p(ReLU (BN (h(l−1)  
+
+> k
+
+))) ,
+
+˜x(k) 
+
+> k
+
+= h(L−1)  
+
+> k
+
+,
+
+(14) where we set L = 2 for all modalities, except for clinical features that are not reconstructed. APPENDIX BADDITIONAL DETAILS ON THE HYPERPARAMETERS 
+
+The tables in this appendix present the values of the hy-perparameters selected after a Bayesian search for each model and cohort. All models were trained for a maximum of 150 
+
+epochs with early stopping based on validation C-index and a fixed modality-dropout rate ( pdrop = 0 .3). 
+
+Table A.1: Optimized hyperparameters for MUSE. Hyperparameter LUAD LUSC Embedding dimension ( dout ) 128 64 Dropout rate ( p) 0.148 0.427 GNN layers 4 3Learning rate 2.86 × 10 −4 1.47 × 10 −3
+
+Weight decay 3.97 × 10 −4 1.88 × 10 −4
+
+Batch size 16 16 
+
+Table A.2: Optimized hyperparameters for MCVAE. Hyperparameter LUAD LUSC Embedding dimension ( dout ) 128 128 Hidden dimension 256 256 Dropout rate ( p) 0.521 0.158 
+
+βmax (KL weight) 1.0 0.106 Learning rate 5.28 × 10 −5 1.95 × 10 −4
+
+Weight decay 1.24 × 10 −4 5.88 × 10 −4
+
+Batch size 16 64 
+
+Table A.3: Optimized hyperparameters for M3Care. Hyperparameter LUAD LUSC Embedding dimension ( dout ) 128 64 Hidden dimension 64 256 Dropout rate ( p) 0.445 0.438 GCN layers 3 3Similarity threshold 2.056 2.380 Learning rate 2.18 × 10 −3 5.35 × 10 −4
+
+Weight decay 4.79 × 10 −6 4.75 × 10 −5
+
+Batch size 64 16

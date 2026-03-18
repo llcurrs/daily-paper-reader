@@ -1,0 +1,272 @@
+Title: A Single Image and Multimodality Is All You Need for Novel View Synthesis
+
+URL Source: https://arxiv.org/pdf/2602.17909v1
+
+Published Time: Mon, 23 Feb 2026 01:17:09 GMT
+
+Number of Pages: 9
+
+Markdown Content:
+# A S INGLE IMAGE AND MULTIMODALITY IS ALL YOU 
+
+# NEED FOR NOVEL VIEW SYNTHESIS 
+
+Amirhosein Javadi, Chi-Shiang Gau, Konstantinos D. Polyzos, Tara Javidi 
+
+Department of Electrical and Computer Engineering University of California San Diego 
+
+{amjavadi,cgau,kpolyzos,tjavidi }@ucsd.edu 
+
+## ABSTRACT 
+
+Diffusion-based approaches have recently demonstrated strong performance for single-image novel view synthesis by conditioning generative models on geometry inferred from monocular depth estimation. However, in practice, the quality and consistency of the synthesized views are fundamentally limited by the reliability of the underlying depth estimates, which are often fragile under low texture, ad-verse weather, and occlusion-heavy real-world conditions. In this work, we show that incorporating sparse multimodal range measurements provides a simple yet effective way to overcome these limitations. We introduce a multimodal depth re-construction framework that leverages extremely sparse range sensing data, such as automotive radar or LiDAR, to produce dense depth maps that serve as ro-bust geometric conditioning for diffusion-based novel view synthesis. Our ap-proach models depth in an angular domain using a localized Gaussian Process formulation, enabling computationally efficient inference while explicitly quanti-fying uncertainty in regions with limited observations. The reconstructed depth and uncertainty are used as a drop-in replacement for monocular depth estimators in existing diffusion-based rendering pipelines, without modifying the generative model itself. Experiments on real-world multimodal driving scenes demonstrate that replacing vision-only depth with our sparse range–based reconstruction sub-stantially improves both geometric consistency and visual quality in single-image novel-view video generation. These results highlight the importance of reliable geometric priors for diffusion-based view synthesis and demonstrate the practical benefits of multimodal sensing even at extreme levels of sparsity. 
+
+## 1 INTRODUCTION 
+
+Synthesizing accurate images from novel viewpoints, commonly referred to as novel-view synthe-sis, is a fundamental problem with broad applications in virtual reality, robotics, and autonomous systems. Accurate geometric representations are critical for producing visually consistent novel views, particularly when only limited visual observations are available. While novel-view synthesis and 3D scene rendering have been studied for decades, reconstruction-based approaches such as Neural Radiance Fields (NeRFs) (Mildenhall et al., 2021; Barron et al., 2021) and Gaussian Splat-ting (GS) (Kerbl et al., 2023; Polyzos et al., 2025; Bao et al., 2025) have recently demonstrated impressive rendering fidelity by explicitly modeling scene geometry from multi-view observations. However, these methods typically require dense image sets with high viewpoint coverage to achieve high-quality reconstructions, making them impractical in settings where only sparse or single-view observations are available. To address sparse-view scenarios, generative approaches have emerged as an alternative to reconstruction-based models, aiming to synthesize plausible novel views without explicitly recov-ering full 3D scene representations. In the particularly challenging single-image setting, recent diffusion-based rendering pipelines (Liu et al., 2024; Yu et al., 2024; M¨ uller et al., 2024; Ren et al., 2025) typically operate by first estimating depth from the input image and constructing an interme-diate 3D representation, such as a point cloud, which is rendered along a target camera trajectory. A diffusion model is then conditioned on these rendered views to hallucinate missing content in disoccluded or unobserved regions, producing visually coherent novel views. While this paradigm 1
+
+> arXiv:2602.17909v1 [cs.CV] 20 Feb 2026
+
+has shown strong empirical performance compared to reconstruction-based methods in single-view settings, its effectiveness critically depends on the accuracy and consistency of the underlying depth estimates. Monocular depth estimation from a single RGB image is inherently ill-posed, and existing ap-proaches (Yang et al., 2024; Wang et al., 2025) rely heavily on learned visual priors. In real-world environments, factors such as weak texture, challenging illumination, adverse weather, and occlu-sions frequently lead to depth predictions that are inaccurate or spatially inconsistent. In diffusion-based novel-view synthesis pipelines, these errors are not isolated: they are amplified through geo-metric back-projection and rendering, propagating across viewpoints and resulting in misalignment artifacts, inconsistent geometry, and degraded temporal coherence in the generated views. This observation highlights the need for improving the robustness of geometric initialization to enable reliable single-image novel-view synthesis. In contrast to existing vision-only approaches, in the present work we introduce a multimodal diffusion-based approach for efficient novel view synthesis, whose contributions can be contex-tualized in the following aspects: • We introduce a range-sensor–based depth reconstruction module that leverages sparse radar or LiDAR measurements and serves as a drop-in replacement for vision-only monocular depth estimators in diffusion-based novel-view synthesis pipelines, while remaining ag-nostic to the diffusion model itself. • Using only sparse range measurements, we propose an efficient depth reconstruction ap-proach based on localized Gaussian Process modeling. By partitioning the image into spatially localized regions and fitting independent local Gaussian Processes, our method achieves improved computational efficiency while producing dense depth estimates with well-calibrated uncertainty. • Experiments on real-world multimodal autonomous driving data demonstrate consistent improvements over image-only baselines. Replacing monocular depth with our multimodal reconstruction reduces LPIPS by 23.5% and FID by 46.0% in single-image novel-view video generation, while also improving depth accuracy, reducing mean absolute error by 4.5% when evaluated against LiDAR ground truth. 
+
+## 2 METHOD 
+
+2.1 GEOMETRY -C ONDITIONED DIFFUSION FOR NOVEL -V IEW SYNTHESIS 
+
+Diffusion models generate samples by learning to reverse a fixed noising process. Given a clean sample x0 ∼ pdata (x), the forward diffusion process produces 
+
+xτ = ατ x0 + στ ϵ, ϵ ∼ N (0 , I ), (1) where τ ∈ [0 , 1] denotes the diffusion time and {ατ , σ τ } follow a predefined noise schedule. A denoising network fθ is trained to predict the injected noise, conditioned on auxiliary information 
+
+c, by minimizing 
+
+Ldiff (θ) = Ex0,ϵ,τ 
+
+h
+
+∥fθ (xτ , τ ; c) − ϵ∥22
+
+i
+
+. (2) After training, novel samples are generated by iteratively applying the learned reverse process, start-ing from Gaussian noise and guided by the conditioning signal. In this work, we use a standard diffusion formulation and do not modify the generative model. In sparse-view novel-view synthesis, the conditioning signal c is derived from an explicit geometric initialization in the form of rendered novel-view frames. Given an input image I ∈ RH×W ×3 and camera intrinsics K ∈ R3×3, a depth estimator D(·) produces a depth map Z = D(I) for pixel coordinates (u, v ). Let ˜p = [ u, v, 1] ⊤ denote homogeneous image coordinates. The corresponding 3D point in the camera frame is obtained via standard back-projection: 
+
+pcam (u, v ) = 
+
+
+
+Z(u, v ) u−cx
+
+> fx
+
+Z(u, v ) v−cy
+
+> fy
+
+Z(u, v )
+
+ . (3) 2GP -Based Depth 
+
+> Reconstruction
+> Target Camera
+> Trajectory
+> Rendering
+> Generated Video at Target Views
+> Input Noise
+> Rendered Novel -View Frames
+> Input Image
+> Reconstructed
+> Depth Map
+> Sparse Range Sensing
+> Point Cloud
+
+Figure 1: Overview of the proposed multimodal single-image novel-view synthesis pipeline. Sparse range sensing measurements are first processed by the proposed GP-based depth reconstruction module to produce a dense depth map. The reconstructed depth and the input RGB image are used to form a colored 3D point cloud, which is rendered along a target camera trajectory to generate sparse novel-view conditioning frames. These rendered frames are provided as geometric conditioning to a diffusion model, which synthesizes a temporally consistent video at the target viewpoints. Associating each pcam (u, v ) with its pixel color I(u, v ) yields a colored point cloud 
+
+P =   pcam (u, v ), I (u, v ) : ( u, v ) ∈ Ω , (4) where Ω denotes the set of valid pixels. Given a target camera pose Tt = [ Rt | tt] ∈ SE (3) , each 3D point is transformed to the target camera frame: 
+
+p(t)
+
+> cam
+
+(u, v ) = Rt pcam (u, v ) + tt. (5) The transformed points are projected to the target image plane using the pinhole camera model: 
+
+p(t) =
+
+u(t)
+
+v(t)
+
+
+
+=
+
+fx x(t)/z (t) + cx
+
+fy y(t)/z (t) + cy
+
+
+
+. (6) Finally, the conditioning frame ct ∈ RH×W ×3 is obtained by splatting each colored point 
+
+(p(t), I (u, v )) onto the target image plane: 
+
+ct = Splat 
+
+n p(t)(u, v ), I (u, v )o
+
+> (u,v )∈Ω
+
+
+
+. (7) For a target camera trajectory consisting of T viewpoints, the diffusion model is conditioned on the sequence of rendered frames c = {ct}Tt=1 . These conditioning frames depend entirely on the estimated depth Z. Errors in Z induce geometric misalignment across viewpoints, which propagate through the diffusion process and result in view-dependent artifacts and degraded temporal consis-tency in the synthesized views. In this work, we replace the image-only depth estimator D(·) with a range-sensor–driven depth reconstruction module, while keeping the unprojection, rendering, and diffusion components unchanged. The depth reconstruction is performed independently of the dif-fusion model and serves as a drop-in geometric prior. An overview of the full geometry-conditioned diffusion pipeline is shown in Fig. 3. 2.2 SPARSE RANGE -S ENSOR DEPTH ESTIMATION VIA GAUSSIAN PROCESSES 
+
+We consider a single acquisition from a sparse range sensing modality, such as radar or Li-DAR, which provides an unordered set of 3D range points without color information. These points are mapped to azimuth and elevation angles, yielding a set of sparse depth measurements 
+
+zT = [ z1, . . . , z T ] at corresponding sensing directions. Our objective is to reconstruct a dense depth map aligned with the image plane of a single RGB input, while explicitly modeling uncertainty in regions with limited or no range observations. 3Only use the measurements 
+
+> inside to perform the depth
+> estimation
+> Zoom in
+> target viewing direction
+> target viewing direction
+
+Figure 2: Illustration of the proposed localized Gaussian Process depth reconstruction in the angu-lar domain. Left: Sparse radar range measurements represented in azimuth–elevation space, with the current target viewing direction indicated. Right: Zoomed-in view around the target location, highlighting the local neighborhood used for Gaussian Process inference. Only range measurements within this localized region contribute to the depth estimation at the target direction, enabling effi-cient and spatially adaptive depth reconstruction from sparse observations. To establish a geometrically consistent representation, we operate in an angular domain shared by both sparse range measurements and image pixels. Each range measurement is represented by its azimuth and elevation angles at = ( ϕt, θ t) and its measured depth zt. For each image pixel (u, v ),we compute the corresponding camera ray using known intrinsics and convert it to the same angular parameterization. The normalized camera ray is given by 
+
+r(u, v ) = 
+
+"(u − cx)/f x
+
+(v − cy )/f y
+
+1
+
+#
+
+. (8) The azimuth and elevation angles are then computed as 
+
+ϕ(u, v ) = arctan 
+
+ rx
+
+rz
+
+
+
+, θ(u, v ) = arctan ry
+
+pr2 
+
+> x
+
++ r2
+
+> z
+
+!
+
+, (9) where r(u, v ) = [ rx, r y , r z ]⊤. This representation naturally aligns sparse range observations with dense image pixels and avoids projection ambiguities. We model depth as a latent function Z(a) defined over the angular domain and adopt Gaussian Process (GP) regression (Rasmussen & Williams, 2006) to infer dense depth values from sparse observations. We place a GP prior on Z(a) with a radial basis function (RBF) kernel and assume independent Gaussian measurement noise: 
+
+Z ∼ GP (0 , κ ), zt = Z(at) + nt, nt ∼ N (0 , σ 2
+
+> n
+
+). (10) Given sparse observations {(at, z t)}Tt=1 , the posterior predictive distribution at a query angular lo-cation a⋆ is Gaussian, 
+
+p(Z(a⋆) | AT , zT ) = N  μT (a⋆), σ 2 
+
+> T
+
+(a⋆) , (11) where AT = [ a1, . . . , aT ] and zT = [ z1, . . . , z T ]⊤. The posterior mean and variance are 
+
+μT (a⋆) = kT (a⋆)⊤  KT + σ2
+
+> n
+
+I−1 zT , (12) 
+
+σ2 
+
+> T
+
+(a⋆) = κ(a⋆, a⋆) − kT (a⋆)⊤  KT + σ2
+
+> n
+
+I−1 kT (a⋆), (13) where [KT ]m,m ′ = κ(am, am′ ) and kT (a⋆) = κ(a1, a⋆), . . . , κ (aT , a⋆)⊤.The posterior mean serves as the reconstructed depth, while the predictive variance quantifies un-certainty. Computing the full GP posterior scales as O(T 3) in general. However, depth is locally 4smooth in the angular domain, and depth at a given viewing direction is primarily influenced by nearby range measurements, motivating a localized formulation. We therefore adopt a per-query localized Gaussian Process formulation. For each query angular location a⋆, we define a local neighborhood 
+
+R(a⋆) = {at : ∥at − a⋆∥2 ≤ r} , (14) where r is a fixed angular radius. Only range measurements within this circular neighborhood contribute to GP inference at a⋆. Let AT⋆ and zT⋆ denote the measurements within R(a⋆), with 
+
+T⋆ ≪ T due to sparse sensing. For each query, we use an RBF kernel 
+
+κ(a, a′) = σ2 
+
+> f
+
+exp 
+
+
+
+− 12ℓ2 ∥a − a′∥22
+
+
+
+, (15) where ℓ controls angular smoothness. The signal variance σ2 
+
+> f
+
+is fixed based on prior knowledge of the sensing range, while the length scale ℓ is selected via marginal likelihood maximization. For each image pixel (u, v ), we query the local GP centered at a(u, v ) to obtain a dense depth estimate and its associated uncertainty. This per-query localized formulation reduces computational complexity to 
+
+O(T 3 
+
+> ⋆
+
+) per query and is trivially parallelizable across image locations. Fig. 2 illustrates the localized GP formulation. The predictive variance σ2 
+
+> T⋆
+
+(a⋆) provides a principled measure of depth reliability. During geomet-ric rendering, depth estimates whose variance exceeds a fixed threshold are masked out, preventing unreliable geometry from contributing to the conditioning frames used by the diffusion model. This uncertainty-aware depth reconstruction yields more stable geometric conditioning and improves the robustness and consistency of downstream novel-view synthesis. 
+
+Remark . In this work, we consider the RBF kernel for GP-based modeling. While existing works aim to identify the most appropriate kernel function κ to effectively capture the covariance between function evaluations; see e.g., Lu et al. (2023), they could be readily utilized in our proposed ap-proach but this exceeds the scope of the current work. 
+
+## 3 EXPERIMENTS 
+
+3.1 DATASET 
+
+We evaluate our method using the View-of-Delft (VoD) dataset (Palffy et al., 2022), a multi-modal autonomous driving dataset containing synchronized automotive radar, camera, and LiDAR data collected in urban environments. For evaluation, we curate a subset of 26 diverse video segments spanning a range of urban scene types and capture conditions, which we use to benchmark single-image novel-view synthesis performance. 3.2 SINGLE VIEW TO VIDEO GENERATION 
+
+We use the camera metadata provided with each VoD sequence to define a target camera trajectory for novel-view synthesis. Concretely, we take the first frame of each sequence as the input reference image and use the recorded camera poses from this first frame through the final frame to specify the target trajectory along which novel views are synthesized. For geometry estimation, our method reconstructs depth from synchronized sparse range measurements using the proposed Gaussian pro-cess–based depth reconstruction module. We evaluate two multimodal variants: one using sparse automotive radar measurements, which correspond to approximately 0.02% of image pixels, and one using sparse LiDAR measurements, which correspond to approximately 0.52% of image pixels. In contrast, the image-only baseline follows the default GEN3C pipeline (Ren et al., 2025) and infers depth from the RGB input using the monocular depth estimator MoGe (Wang et al., 2025). In all cases, the estimated depth is back-projected to form a colored 3D point cloud, which is rendered along the target camera trajectory to produce sparse novel views with disoccluded and unobserved regions. A diffusion-based inpainting stage then completes missing content to generate a temporally consistent video along the specified camera path. 5Table 1: Quantitative evaluation on the View-of-Delft dataset for single-image novel-view video generation with GEN3C (Ren et al., 2025) under three depth-conditioning variants: (i) the default pipeline using the vision-only monocular depth estimator MoGe (Wang et al., 2025), (ii) the same pipeline with monocular depth replaced by our multimodal sparse range-sensor depth reconstruction module using synchronized radar measurements (approximately 0.02% pixel coverage), and (iii) the same replacement using synchronized LiDAR measurements (approximately 0.52% pixel coverage). Metrics are computed with respect to ground-truth target views (higher is better for PSNR/SSIM; lower is better for LPIPS/FID/temporal LPIPS), and the results show consistent improvements across all measures when using our reconstructed depth, emphasizing the role of reliable depth priors in diffusion-based novel-view synthesis from a single image. Method Pixel coverage PSNR ↑ SSIM ↑ LPIPS ↓ FID ↓ t − LPIPS ↓                  
+
+> GEN3C (Vision-Only Monocular Depth) —12.36 0.4561 0.5804 152.62 0.1117 GEN3C (Ours, Multi-Modal with Radar) 0.02% 14.26 0.4860 0.4441 82.41 0.0790 GEN3C (Ours, Multi-Modal with LiDAR) 0.52% 14.69 0.4971 0.4230 71.91 0.0563
+
+Table 2: Depth estimation accuracy on the View-of-Delft dataset evaluated on the first frame of each of the 26 selected segments. Our multimodal depth reconstruction uses synchronized radar measurements that cover approximately 0.02% of image pixels. Predicted depth is compared against LiDAR-derived depth at pixels where LiDAR measurements are available. Lower is better for both metrics. Method MAE ↓ RMSE log ↓      
+
+> MoGe (Wang et al., 2025) 14.25 2.23 Depth Anything V2 (Yang et al., 2024) 18.70 0.94 Ours (Sparse Radar Depth) 13.61 0.92
+
+For evaluation, we compare the generated videos against the corresponding ground-truth frames captured along the same trajectory. We report pixel-aligned PSNR and SSIM, perceptual similarity via LPIPS (Zhang et al., 2018), distributional quality via FID (Heusel et al., 2017), and temporal consistency via temporal LPIPS. Quantitative results are summarized in Table 1. Replacing monoc-ular depth with our multimodal depth reconstruction consistently improves performance across all metrics. Using sparse radar measurements, PSNR increases from 12.36 to 14.26 ( ≈15.4%), SSIM increases from 0.4561 to 0.4860 ( ≈6.6%), LPIPS decreases from 0.5804 to 0.4441 ( ≈23.5% reduc-tion), FID decreases from 152.62 to 82.41 ( ≈46.0% reduction), and temporal LPIPS decreases from 0.1117 to 0.0790 ( ≈29.3% reduction). Using sparse LiDAR measurements yields further improve-ments, achieving a PSNR of 14.69, SSIM of 0.4971, LPIPS of 0.4230, FID of 71.91, and temporal LPIPS of 0.0563. These results indicate that improving the reliability of geometric priors, particu-larly through even sparse range sensing—translates directly into higher-fidelity and more temporally consistent diffusion-based novel-view synthesis from a single image. We further provide qualitative comparisons in Fig. 3, which corroborate these trends by showing improved geometric alignment and reduced view-dependent artifacts when using our depth reconstruction. 3.3 DEPTH ESTIMATION ACCURACY 
+
+To directly assess the quality of the reconstructed depth, we evaluate depth estimation accuracy on the View-of-Delft dataset using LiDAR-derived depth as ground truth. We conduct this evaluation on the first image of each of the 26 selected scenarios. Depth predictions are evaluated at image pixels where LiDAR measurements are available, ensuring a fair and consistent comparison across methods. We compare our sparse radar–based depth reconstruction against two representative monocular depth estimators: MoGe (Wang et al., 2025) and Depth Anything V2 (Yang et al., 2024). All meth-ods produce a dense depth map aligned with the reference image, which is then compared to the corresponding LiDAR depth values at valid pixels. We report mean absolute error (MAE) in lin-ear depth and root mean squared error in log depth (RMSE log ), with lower values indicating more accurate depth estimation. 6Input Image Ground Truth Vision Only NVS Multi -Modal NVS (Ours)                  
+
+> LPIPS: 0.6185 LPIPS: 0.4059 Frame: 742 Frame:749
+> Frame: 1743 Frame: 1750 LPIPS: 0.6281 LPIPS: 0.3252
+> Frame: 1715 LPIPS: 0.6276 LPIPS: 0.3789 Frame: 1721
+> Frame: 2451 Frame: 2467 LPIPS: 0.315 LPIPS: 0.5437
+> Frame 7035 LPIPS: 0.5364 LPIPS: 0.4813 Frame 7045
+> Frame 7088 LPIPS: 0.3488 LPIPS: 0.4889 Frame 8096
+> Frame 8350 LPIPS: 0.4084 LPIPS: 0.6963 Frame 8361
+> Frame 8600 Frame 8588 LPIPS: 0.6686 LPIPS: 0.3561
+
+Figure 3: Qualitative comparison on single-image novel-view synthesis on the View-of-Delft dataset. From left to right, we show the input image, the novel view generated by GEN3C (Ren et al., 2025) using its default monocular depth estimator, MoGe (Wang et al., 2025), the novel view generated by GEN3C when replacing monocular depth with our sparse range-sensor depth recon-struction module, and the ground-truth target view. For each generated view, we report LPIPS with respect to the ground truth (lower is better). Across all examples, our depth reconstruction yields consistently lower LPIPS and improved geometric alignment, underscoring the importance of reli-able geometry for diffusion-based rendering from single-view inputs. 7Quantitative results are summarized in Table 2. Our method achieves the lowest error across both metrics, improving MAE from 14.25 to 13.61 ( ≈4.5% relative reduction over the best monocular baseline, MoGe) and improving RMSE log from 0.94 to 0.92 ( ≈2.1% relative reduction over the best monocular baseline, Depth Anything V2). These results indicate that incorporating sparse radar measurements yields more accurate and reliable depth estimates than vision-only monocular approaches. 
+
+## 4 CONCLUSIONS 
+
+In this work, we introduced a multimodal framework for single-image novel-view synthesis as an efficient and reliable alternative to vision-only diffusion-based counterpart. In addition to the visual information from the single view, we proposed a depth map reconstruction approach by modeling sparse radar measurements via a computationally efficient principled localized Gaussian Process framework producing dense depth maps with spatially varying uncertainty. The estimated depth integrates seamlessly with existing diffusion-based rendering pipelines, improving geometric con-sistency and alignment across viewpoints. Experiments on diverse scenes from a real-world multi-modal autonomous-driving database demonstrated that our approach resulted in significant improve-ments in downstream video generation quality compared to image-only baselines; hence justifying the claim that a single image and multimodality is all you need for efficient 3D scene perception. 
+
+In our future research agenda, we aim to explore the benefits of the proposed depth and uncertainty representation for broader multimodal 3D perception tasks, including mapping, planning, and sensor fusion. 
+
+## ACKNOWLEDGEMENTS 
+
+This work was supported by the Eric and Wendy Schmidt AI for Science, the NSF TILOS AI Institute, the UCSD Centers for Machine intelligence, computing, and security (MICS) and Wireless Communications (CWC), the ONR Award N00014-22-1-2363 and the NSF grant 2148313, with the latter being supported in part by funds from federal agency and industry partners as specified in the Resilient & Intelligent NextG Systems (RINGS) program. 
+
+## REFERENCES 
+
+Yanqi Bao, Tianyu Ding, Jing Huo, Yaoli Liu, Yuxin Li, Wenbin Li, Yang Gao, and Jiebo Luo. 3d gaussian splatting: Survey, technologies, challenges, and opportunities. IEEE Transactions on Circuits and Systems for Video Technology , 2025. Jonathan T Barron, Ben Mildenhall, Matthew Tancik, Peter Hedman, Ricardo Martin-Brualla, and Pratul P Srinivasan. Mip-nerf: A multiscale representation for anti-aliasing neural radiance fields. In Proceedings of the IEEE/CVF international conference on computer vision , pp. 5855–5864, 2021. Martin Heusel, Hubert Ramsauer, Thomas Unterthiner, Bernhard Nessler, and Sepp Hochreiter. Gans trained by a two time-scale update rule converge to a local nash equilibrium. Advances in neural information processing systems , 30, 2017. Bernhard Kerbl, Georgios Kopanas, Thomas Leimk¨ uhler, and George Drettakis. 3d gaussian splat-ting for real-time radiance field rendering. ACM Trans. Graph. , 42(4):139–1, 2023. Fangfu Liu, Wenqiang Sun, Hanyang Wang, Yikai Wang, Haowen Sun, Junliang Ye, Jun Zhang, and Yueqi Duan. Reconx: Reconstruct any scene from sparse views with video diffusion model. 
+
+arXiv preprint arXiv:2408.16767 , 2024. Qin Lu, Konstantinos D Polyzos, Bingcong Li, and Georgios B Giannakis. Surrogate modeling for bayesian optimization beyond a single gaussian process. IEEE Transactions on Pattern Analysis and Machine Intelligence , 45(9):11283–11296, 2023. Ben Mildenhall, Pratul P Srinivasan, Matthew Tancik, Jonathan T Barron, Ravi Ramamoorthi, and Ren Ng. Nerf: Representing scenes as neural radiance fields for view synthesis. Communications of the ACM , 65(1):99–106, 2021. 8Norman M¨ uller, Katja Schwarz, Barbara R¨ ossle, Lorenzo Porzi, Samuel Rota Bulo, Matthias Nießner, and Peter Kontschieder. Multidiff: Consistent novel view synthesis from a single image. In Proceedings of the IEEE/CVF Conference on Computer Vision and Pattern Recognition , pp. 10258–10268, 2024. Andras Palffy, Ewoud Pool, Srimannarayana Baratam, Julian FP Kooij, and Dariu M Gavrila. Multi-class road user detection with 3+ 1d radar in the view-of-delft dataset. IEEE Robotics and Au-tomation Letters , 7(2):4961–4968, 2022. Konstantinos D Polyzos, Athanasios Bacharis, Saketh Madhuvarasu, Nikos Papanikolopoulos, and Tara Javidi. Activeinitsplat: How active image selection helps gaussian splatting. arXiv preprint arXiv:2503.06859 , 2025. Carl Edward Rasmussen and Christopher KI Williams. Gaussian processes for machine learning .MIT press Cambridge, MA, 2006. Xuanchi Ren, Tianchang Shen, Jiahui Huang, Huan Ling, Yifan Lu, Merlin Nimier-David, Thomas M¨ uller, Alexander Keller, Sanja Fidler, and Jun Gao. Gen3c: 3d-informed world-consistent video generation with precise camera control. In Proceedings of the Computer Vision and Pattern Recognition Conference , pp. 6121–6132, 2025. Ruicheng Wang, Sicheng Xu, Cassie Dai, Jianfeng Xiang, Yu Deng, Xin Tong, and Jiaolong Yang. Moge: Unlocking accurate monocular geometry estimation for open-domain images with optimal training supervision. In Proceedings of the Computer Vision and Pattern Recognition Conference ,pp. 5261–5271, 2025. Lihe Yang, Bingyi Kang, Zilong Huang, Zhen Zhao, Xiaogang Xu, Jiashi Feng, and Hengshuang Zhao. Depth anything v2. Advances in Neural Information Processing Systems , 37:21875–21911, 2024. Wangbo Yu, Jinbo Xing, Li Yuan, Wenbo Hu, Xiaoyu Li, Zhipeng Huang, Xiangjun Gao, Tien-Tsin Wong, Ying Shan, and Yonghong Tian. Viewcrafter: Taming video diffusion models for high-fidelity novel view synthesis. arXiv preprint arXiv:2409.02048 , 2024. Richard Zhang, Phillip Isola, Alexei A Efros, Eli Shechtman, and Oliver Wang. The unreasonable effectiveness of deep features as a perceptual metric. In Proceedings of the IEEE conference on computer vision and pattern recognition , pp. 586–595, 2018. 9

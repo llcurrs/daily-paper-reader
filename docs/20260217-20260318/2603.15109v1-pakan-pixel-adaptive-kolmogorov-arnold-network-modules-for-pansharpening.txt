@@ -1,0 +1,419 @@
+Title: PAKAN: Pixel Adaptive Kolmogorov-Arnold Network Modules for Pansharpening
+
+URL Source: https://arxiv.org/pdf/2603.15109v1
+
+Published Time: Tue, 17 Mar 2026 06:21:11 GMT
+
+Number of Pages: 16
+
+Markdown Content:
+# PAKAN: Pixel Adaptive Kolmogorov-Arnold Network Modules for Pansharpening 
+
+Haoyu Zhang ∗, Haojing Chen ⋆, Zhen Zhong, and Liangjian Deng †
+
+University of Electronic Science and Technology of China 
+
+{2024090908014,2023090913005,2024090915018}@std.uestc.edu.cn 
+
+liangjian.deng@uestc.edu.cn 
+
+Abstract. Pansharpening aims to fuse high-resolution spatial details from panchromatic images with the rich spectral information of multi-spectral images. Existing deep neural networks for this task typically rely on static activation functions, which limit their ability to dynamically model the complex, non-linear mappings required for optimal spatial-spectral fusion. While the recently introduced Kolmogorov-Arnold Net-work (KAN) utilizes learnable activation functions, traditional KANs lack dynamic adaptability during inference. To address this limitation, we propose a Pixel Adaptive Kolmogorov-Arnold Network framework. Starting from KAN, we design two adaptive variants: a 2D Adaptive KAN that generates spline summation weights across spatial dimensions and a 1D Adaptive KAN that generates them across spectral channels. These two components are then assembled into PAKAN 2to1 for feature fusion and PAKAN 1to1 for feature refinement. Extensive experiments demonstrate that our proposed modules significantly enhance network performance, proving the effectiveness and superiority of pixel-adaptive activation in pansharpening tasks. 
+
+Keywords: Pansharpening · Kolmogorov-Arnold Network · Adaptive 
+
+## 1 Introduction 
+
+Pansharpening is a fundamental image fusion task in remote sensing that aims to fuse high-resolution spatial details from panchromatic images with the rich spectral information of multispectral images [13,14]. The primary objective is to generate a high-quality fused image that possesses both high spatial and spectral resolutions. This fusion process is intrinsically challenging as it requires modeling highly complex and non-linear mappings between distinct spatial and spectral modalities. In recent years, deep learning methods, such as Convolutional Neural Net-works (CNNs) and Multi-Layer Perceptrons (MLPs), have dominated the field of pansharpening [4, 5, 11, 16]. However, existing deep neural networks for this task typically rely on static activation functions. These static functions apply a fixed  
+
+> ⋆
+
+Equal contribution.  
+
+> †
+
+Corresponding author. 
+
+> arXiv:2603.15109v1 [cs.CV] 16 Mar 2026
+
+2 Haoyu Zhang ∗, Haojing Chen ∗, Zhen Zhong, Liangjian Deng †
+
+non-linear mapping across all features, which fundamentally limits their ability to dynamically model the complex, non-linear mappings required for optimal spatial-spectral fusion. Because remote sensing imagery exhibits significant spa-tial variations and rich spectral diversity, static activation functions struggle to adapt flexibly to the varying characteristics of different pixels and channels. Activation Function KAN  
+
+> Activation Function PAKAN
+> Lacks
+> Adaptivity
+> MS image
+> Buildings
+> Vegetation
+> Highly
+> Adaptable
+> MS image
+> Buildings
+> Vegetation
+> Traditional KAN 2D/1D Adaptive KAN
+> Generated
+> Weights
+> U2Net
+> PAKAN -U2Net
+> GT
+
+Fig. 1: Overview of PAKAN. Left: static KAN uses a single activation and lacks adap-tivity across heterogeneous land covers, while our approach learns content-dependent activations. Middle: traditional KAN versus 2D/1D Adaptive KAN with dynamically generated weights. Right: qualitative comparison showing improved detail and spectral fidelity when PAKAN modules are embedded into U2Net. 
+
+Recently, the Kolmogorov-Arnold Network (KAN) has emerged as a promis-ing alternative, replacing traditional fixed node activations with learnable activa-tion functions parameterized by spline functions on the network edges [8]. While standard KANs offer enhanced representational capacity and parameterization, traditional KANs lack dynamic adaptability during inference. Once trained, the spline weights in a standard KAN remain fixed. Although some preliminary adaptive KAN variants exist, fully unlocking fine-grained, instance-specific dy-namic adaptation remains an open challenge for pansharpening tasks. To address this limitation, we propose a Pixel Adaptive Kolmogorov-Arnold Network (PAKAN) framework. Building upon the traditional KAN, we design two adaptive variants in which the summation weights of the trainable spline functions are dynamically generated during inference: a 2D Adaptive KAN op-erating across spatial dimensions (Height and Width), and a 1D Adaptive KAN operating across spectral channels. By generating weights dynamically based on input features, these components enable fine-grained adaptability tailored to spatial locations and spectral channels. To meet the specific demands of pansharpening and fully leverage the pro-posed adaptive mechanisms, we assemble the two components into PAKAN 2to1 Module and PAKAN 1to1 Module. PAKAN 2to1 Module performs feature fusion by jointly applying spatial and spectral adaptations, while PAKAN 1to1 Module serves as a feature refinement module. The main contributions of our work are summarized as follows: Pixel Adaptive Kolmogorov-Arnold Network Modules for Pansharpening 3
+
+– We propose a Pixel Adaptive Kolmogorov-Arnold Network framework based on KAN, including a 2D Adaptive KAN for spatial adaptation and a 1D Adaptive KAN for spectral adaptation, both with dynamically generated spline summation weights at inference time. 
+
+– We assemble these components into two specialized modules, PAKAN 2to1 Module and PAKAN 1to1 Module, which address feature fusion and feature refinement for pansharpening. 
+
+– Extensive experiments demonstrate that our proposed modules significantly enhance network performance, proving the effectiveness and superiority of pixel-adaptive activation in pansharpening tasks. 
+
+## 2 Method 
+
+2.1 Overview 
+
+Our method builds a Pixel Adaptive Kolmogorov-Arnold Network (PAKAN) system for pansharpening by extending KAN with adaptive spline weighting and by factorizing adaptation along spatial and spectral dimensions. Concretely, we construct two adaptive KAN variants: a 2D Adaptive KAN that adapts over spatial coordinates and a 1D Adaptive KAN that adapts over spectral channels. Pixel-adaptive behavior emerges only when these two components are used to-gether. They are assembled into PAKAN 2to1 for feature fusion and PAKAN 1to1 for feature refinement. We focus the discussion on the KAN formulation, our adaptive re-parameterization, and the resulting module designs. The key intuition is that remote sensing imagery is intrinsically non-stationary: local textures, structures, and materials vary sharply across space, while spectral re-sponses vary across bands and scenes. Static activations enforce a single global nonlinearity, which is ill-suited for this heterogeneity. By turning spline weights into input-conditioned, pixel-wise parameters, our dynamic activation functions can specialize to local spatial patterns and spectral signatures, providing a nat-ural inductive bias for pansharpening. 
+
+2.2 Notation and Problem Formulation 
+
+Let X ∈ RC×H×W be the multispectral (MS) image and P ∈ R1×H×W the panchromatic (PAN) image. The goal of pansharpening is to recover a high-resolution MS image Y ∈ RC×H×W that preserves PAN spatial details while maintaining MS spectral fidelity. Our network predicts ˆY from the inputs and intermediate features. We denote by F ∈ RB×C×H×W a generic feature tensor and by ui the i-th channel element used in a KAN edge function. 
+
+2.3 KAN Preliminaries 
+
+We start from the Kolmogorov–Arnold representation, which expresses a mul-tivariate function as a sum of univariate functions. A KAN layer follows this 4 Haoyu Zhang ∗, Haojing Chen ∗, Zhen Zhong, Liangjian Deng †
+
+principle by replacing node activations with learnable univariate functions on edges [8]. For an input u ∈ Rd, a KAN layer produces 
+
+z =
+
+> d
+
+X
+
+> i=1
+
+ϕij (ui), (1) where ϕij (·) is a learnable spline function on edge (i, j ). Each ϕij is implemented with a B-spline basis: 
+
+ϕij (u) = 
+
+> K
+
+X
+
+> k=1
+
+wij,k Bk(u), (2) where {Bk}Kk=1 are spline bases and {wij,k } are trainable weights. In a standard KAN, the weights wij,k are fixed after training, which yields a globally shared nonlinearity across all spatial locations and spectral channels. This representa-tion is particularly attractive for pansharpening because it decomposes a com-plex multivariate mapping into a sum of adaptive univariate transformations. However, the fixed spline weights implicitly assume that the same nonlinearity is optimal everywhere, which conflicts with the strong spatial and spectral het-erogeneity of remote sensing imagery. This gap motivates our input-conditioned spline re-parameterization. 
+
+2.4 Adaptive KAN with Spatial and Spectral Coupling 
+
+We introduce adaptive KAN by making the spline weights input-conditioned during inference. Let F ∈ RB×C×H×W be a feature map. For each edge (i, j )
+
+and basis index k, we generate a weight tensor conditioned on F:
+
+wij,k → wij,k (F), (3) so that the edge function becomes 
+
+ϕij (u; F) = 
+
+> K
+
+X
+
+> k=1
+
+wij,k (F) Bk(u). (4) This turns Eq. (1) into a dynamic mapping: 
+
+zj =
+
+> d
+
+X
+
+> i=1
+
+ϕij (ui; F), (5) allowing the nonlinearity to vary across space and spectrum. Compared with static KAN, our formulation enables instance- and location-specific adaptation, critical for pansharpening where spatial edges and spectral content vary across pixels. Importantly, pixel-adaptive behavior arises from coupling the 2D and 1D adaptive components rather than from a standalone module. From a function-approximation perspective, this turns a single shared function into a family of Pixel Adaptive Kolmogorov-Arnold Network Modules for Pansharpening 5
+
+functions indexed by the scene content. It can be viewed as a conditional basis expansion: the spline bases Bk(·) remain universal, while the coefficients become content-adaptive. This keeps spline-based KAN interpretable while expanding representational capacity. In practice, this dynamic activation behaves like a content-aware gating of spline components: different regions can activate differ-ent spline regimes without altering the overall network topology. This is espe-cially advantageous for remote sensing, where sharp man-made edges, smooth natural regions, and mixed pixels can coexist within the same scene. Our use of 2D and 1D adaptive KANs makes adaptivity jointly spatial and spectral, yielding pixel-adaptive effects in PAKAN. 
+
+2.5 Weight Generation as Conditional Parameterization 
+
+We formalize the weight generator as a mapping G that predicts spline coefficients from context: 
+
+wij (F) = Gij (F), (6) where wij ∈ RK are the spline coefficients for edge (i, j ). This formulation de-couples basis functions from coefficients, so the spline basis remains fixed while coefficients become content-adaptive. The generator is intentionally lightweight (e.g., shallow convolutions for spatial adaptation and global pooling for spec-tral adaptation), since its role is to modulate the nonlinearity rather than to introduce heavy feature mixing. This design yields a clean separation of respon-sibilities: the KAN structure represents the mapping, while G conditions the mapping on local or global context. We emphasize that G does not need to be expressive to be effective. Even low-capacity generators can produce spatially and spectrally varying coefficients, which is sufficient to adapt spline shapes across heterogeneous scenes. This is consistent with the principle of conditional computation: small conditioning net-works can induce large functional changes in the main network through coeffi-cient modulation. 
+
+2.6 Factorized Adaptation: 2D and 1D Adaptive KAN 
+
+Directly adapting weights for all (H, W, C ) at once would be computationally heavy. We therefore factorize the adaptation along spatial and spectral axes, yielding two complementary modules. To avoid ambiguity, we explicitly define two operator modes. For a generic adaptive KAN operator Ψ (·; Cin → Cout ) with input F ∈ RB×Cin ×H×W , the output is Ψ (F) ∈ RB×Cout ×H×W . In PAKAN 1to1, 
+
+Cin = Cout = C (channel-preserving). In PAKAN 2to1, Cin = 2 C and Cout = C
+
+(channel reduction after fusion input concatenation). 
+
+2D Adaptive KAN (spatial adaptation). We adapt along spatial coor-dinates while sharing across channels. Denote spatial position by p = ( h, w ). The adaptive weight is generated per p:
+
+w(2D)  
+
+> ij,k
+
+(p) = g(2D)  
+
+> ij,k
+
+(F:,:,p ) , (7) 6 Haoyu Zhang ∗, Haojing Chen ∗, Zhen Zhong, Liangjian Deng †Conv  
+
+> Input
+> Conv
+
+σ  
+
+> Global
+> Avg Pool Conv
+
+σ Reshape   
+
+> Weights
+> 1D Weights Generation 1D Adaptive
+> KAN(partial)
+> 2D Adaptive
+> KAN(partial)
+> ReLU
+
+σ Sigmoid  Hadamard Product  Element -wise Plus 
+
+> 2D Weights Generation
+
+Fig. 2: Main architecture of the adaptive KAN components. Left: weight generation pipelines for 2D and 1D adaptive KANs, where the spatial branch produces pixel-wise weights from local features and the spectral branch produces channel-wise weights from global pooled context. Right: partial views of 1D and 2D Adaptive KANs that use the generated weights to modulate spline activations. 
+
+where g(2D) is a lightweight generator. The corresponding edge function becomes 
+
+ϕ(2D)  
+
+> ij
+
+(u; p) = 
+
+> K
+
+X
+
+> k=1
+
+w(2D)  
+
+> ij,k
+
+(p) Bk(u). (8) This provides pixel-level specialization in the spatial domain. Concretely, for each p, the generator takes a channel vector Fb, :,h,w ∈ RC and outputs spline coefficients shared across channels at that location; therefore, spatial resolution 
+
+(H, W ) is preserved and channel count remains C.
+
+1D Adaptive KAN (spectral adaptation). We adapt along channels while sharing across spatial coordinates. For channel c,
+
+w(1D)  
+
+> ij,k
+
+(c) = g(1D)  
+
+> ij,k
+
+(F:,c, :,:) , (9) leading to 
+
+ϕ(1D)  
+
+> ij
+
+(u; c) = 
+
+> K
+
+X
+
+> k=1
+
+w(1D)  
+
+> ij,k
+
+(c) Bk(u). (10) This captures spectral variability and preserves channel-specific characteristics. The factorization yields efficient adaptation while still covering both spatial and spectral variations. For each channel c, the generator reads Fb,c, :,: ∈ RH×W and produces channel-specific spline coefficients broadcast to all spatial positions; thus, channel-adaptive modulation is introduced without changing tensor size 
+
+B ×C ×H ×W . This spatial–spectral factorization is not merely a computational trick. It aligns with the physical structure of pansharpening: spatial details are largely determined by PAN, while spectral consistency is governed by MS bands. By decoupling the two axes of variation, the model imposes a principled inductive Pixel Adaptive Kolmogorov-Arnold Network Modules for Pansharpening 7
+
+bias that reduces overfitting and encourages physically consistent fusion. We generate spatial weights through a lightweight local pathway and spectral weights through a global channel descriptor. Specifically, the 2D branch produces pixel-wise weights from local features, while the 1D branch aggregates global context (e.g., channel pooling) to produce channel-wise weights. These choices emphasize dynamic spatial activation and stabilize spectral modulation, while keeping the generator compact. 
+
+2.7 Coupling Mechanism and Pixel-Adaptivity 
+
+Let Ψ2D (·) and Ψ1D (·) denote the 2D and 1D adaptive KAN operators. Our pixel-adaptive behavior emerges from their coupling. A single 2D Adaptive KAN provides spatial adaptivity but ignores per-channel spectral modulation, while a single 1D Adaptive KAN provides spectral adaptivity but ignores spatial het-erogeneity. By combining them in a multiplicative form, 
+
+Fpa = Ψ2D (F) ⊙ Ψ1D (F), (11) we enforce agreement between spatial and spectral cues. This coupling is anal-ogous to an AND-gate in continuous space: a response is amplified only when both spatial and spectral evidence support it. The result is pixel-wise adaptivity that respects spectral consistency, which is crucial for avoiding color shifts and spectral artifacts. For Eq. (11) (Eq. 11), we use the 1to1 setting: input channel 
+
+C → output channel C for each branch, so each term has shape B × C × H × W ,and the product keeps the same shape. From a theoretical standpoint, the product in Eq. (11) corresponds to a low-rank interaction between spatial and spectral adaptations. It is more expressive than additive fusion while still regularizing the joint adaptation, which prevents overfitting to spurious spatial textures or band-specific noise. 
+
+2.8 Complexity and Stability Considerations 
+
+Although the adaptive weights are dynamic, the computational overhead is mod-est. Let K be the number of spline bases and d the input width. A standard KAN layer has O(dK ) parameters per output. Our adaptive variant keeps the same spline evaluation cost, while the generator adds a small overhead proportional to the generator depth. The factorized design avoids O(HW C )-scale weight gener-ation by producing spatial and channel-wise weights separately, which yields a favorable trade-off between adaptivity and efficiency. We also note that the dynamic coefficients remain bounded due to the gener-ator normalization (e.g., sigmoid), which stabilizes training and prevents patho-logical spline activations. This stability is important in pansharpening because spectral fidelity is sensitive to small deviations; bounded coefficients ensure that adaptive activations remain within a controlled regime. 8 Haoyu Zhang ∗, Haojing Chen ∗, Zhen Zhong, Liangjian Deng †2D Adaptive KAN       
+
+> 1D Adaptive KAN
+> input output output
+> input 1
+> input 2
+> C
+> 2D Adaptive KAN
+> 1D Adaptive KAN
+> PAKAN 1to1 PAKAN 2to1
+> Hadamard Product Element -wise Plus CConcat
+
+Fig. 3: The overall design of our PAKAN 1to1 and 2to1 module. Channel mapping is explicitly set as 1to1: C → C and 2to1: 2C → C.
+
+2.9 PAKAN 2to1: Feature Fusion Module 
+
+PAKAN 2to1 fuses two inputs (e.g., PAN- and MS-guided features) using com-plementary spatial and spectral adaptation. Let x, y denote the two inputs and let Ψ2D (·) and Ψ1D (·) denote the 2D and 1D adaptive KAN operators. We first align the two inputs into a shared feature space (details omitted for brevity) and concatenate them: 
+
+u = [ x, y]. (12) After alignment, assume x, y ∈ RB×C×H×W , then u ∈ RB×2C×H×W . In other words, concatenation doubles channels while preserving spatial size. We then compute spatially and spectrally adaptive responses: 
+
+fspa = Ψ2D (u), fspe = Ψ1D (u). (13) For Eq. (13) (Eq. 13), we use the 2to1 setting: u ∈ RB×2C×H×W is mapped to fspa , fspe ∈ RB×C×H×W , i.e., input channel 2C → C. To combine the two adaptations, we use a multiplicative interaction and a residual fusion path: 
+
+o = fspa ⊙ fspe + x + y. (14) Hence the output keeps the aligned feature size o ∈ RB×C×H×W . This corre-sponds to the intuitive change “ [x, y ] → 2C → C” in channels. This structure yields two advantages: (1) spatial adaptivity focuses on local details and edges, and (2) spectral adaptivity preserves band-wise consistency, both of which are essential for pansharpening. Moreover, the multiplicative interaction can be in-terpreted as a soft agreement mechanism: only features that are simultaneously supported by spatial and spectral adaptations are amplified. This reduces the Pixel Adaptive Kolmogorov-Arnold Network Modules for Pansharpening 9
+
+risk of hallucinating spatial details that are spectrally inconsistent, a common failure mode in pansharpening. The gating path provides a stable information highway, ensuring that the adaptive transformations refine rather than overwrite the original content. This is important for preserving radiometric fidelity while still injecting high-frequency spatial detail. 
+
+2.10 PAKAN 1to1: Feature Refinement Module 
+
+PAKAN 1to1 refines a single feature stream and is used as a plug-in enhancement block. Given input x, we compute 
+
+fspa = Ψ2D (x), fspe = Ψ1D (x), (15) For Eq. (15) (Eq. 15), we use the 1to1 setting: input channel C → C, with 
+
+x, fspa , fspe ∈ RB×C×H×W . and then combine them multiplicatively: 
+
+o = fspa ⊙ fspe . (16) Therefore, PAKAN 1to1 is shape-preserving: o ∈ RB×C×H×W . Compared to standard attention or MLP refiners, this formulation explicitly enforces spatial– spectral factorization while maintaining the expressivity of adaptive splines. The multiplicative interaction encourages co-activation only when both spatial and spectral cues agree, suppressing artifacts and improving spectral fidelity. In prac-tice, this module acts as a content-adaptive nonlinearity that sharpens edges while respecting spectral correlations, which is crucial for preserving subtle ma-terial signatures in multispectral imagery. 
+
+2.11 Connections to Pansharpening Physics 
+
+The PAN image carries high-frequency spatial details but limited spectral diver-sity, whereas MS bands preserve spectral signatures at lower spatial resolution. Our factorized adaptivity directly mirrors this sensing structure: the 2D Adap-tive KAN models location-dependent spatial variability, akin to PAN-driven de-tail injection, and the 1D Adaptive KAN models channel-dependent spectral consistency across bands. Their multiplicative coupling therefore implements the physical fusion objective in functional form. The design also follows from Eq. (1)–(2): standard KAN uses globally shared edge functions, while our input-conditioned spline weights (Eq. (3)–(5)) define a family of local functions indexed by position or channel, strictly generalizing static KAN. At the same time, fac-torization (Eq. (7)–(10)) preserves efficiency by capturing the two dominant variability modes without full per-pixel per-channel adaptation. This yields a targeted inductive bias: textured regions can emphasize higher-frequency spline components, smooth regions favor lower-order responses, and spectral modula-tion stabilizes cross-band relationships, explaining the consistent empirical gains. 10 Haoyu Zhang ∗, Haojing Chen ∗, Zhen Zhong, Liangjian Deng †PAKAN 
+
+> 2to1
+> PAKAN
+> 2to1
+> PAKAN
+> 2to1
+> PAKAN
+> 2to1
+> PAKAN
+> 2to1
+
+Fig. 4: A brief illustration of PAKAN-U2Net. 
+
+2.12 Using PAKAN in Existing and New Networks 
+
+PAKAN modules are designed as drop-in components and are compatible with a wide range of pansharpening backbones. In our experiments we integrate PAKAN into representative architectures such as U2Net, PanNet, and Fusion-Net by replacing or augmenting their internal fusion/refinement blocks. This demonstrates that the modules can systematically improve existing networks without changing their overall topology, while preserving training protocols and computational budgets. Beyond retrofitting, the modular design supports new architectures. PAKAN 2to1 serves as the primary fusion operator for PAN-MS feature merging, while PAKAN 1to1 acts as a lightweight refinement stage in encoder-decoder and multi-branch designs. By modeling spatial and spectral adaptations, these mod-ules provide a principled building block for networks that respect pansharpening physics. Thus, PAKAN is not only a performance add-on but also a reusable paradigm for adaptive, physically consistent pansharpening models. 
+
+2.13 Loss Function 
+
+We train the network with an ℓ1 reconstruction loss between the predicted pan-sharpened image ˆI and the ground-truth high-resolution multispectral image I∗:
+
+Lℓ1 = 1
+
+N
+
+> N
+
+X
+
+> n=1
+
+ˆIn − I∗ 
+
+> n1
+
+, (17) where N denotes the number of training samples. The ℓ1 loss is robust to outliers and encourages sharp spatial detail while preserving spectral fidelity, which is well aligned with the pansharpening objective. 
+
+## 3 Experiment 
+
+3.1 Experimental Setup Datasets: We conducted comprehensive evaluations of the proposed method on three classical yet challenging datasets derived from satellite imagery captured Pixel Adaptive Kolmogorov-Arnold Network Modules for Pansharpening 11 
+
+by WorldView-3 (WV3), QuickBird (QB), and GaoFen-2 (GF2). The datasets and associated data processing techniques are obtained from the PanCollection repository [3]. 
+
+Metrics: Different evaluation metrics were employed according to the spatial resolution of the test sets. Specifically, for the reduced-resolution dataset with ground truth reference data, we employed SAM, ERGAS, Q4/Q8, and PSNR to assess reconstruction quality against the ground truth. These ground truth-based metrics provide more stable and direct performance measurements. For the full-resolution dataset lacking ground truth data, we utilized metrics including 
+
+Ds, Dλ, and HQNR, which assess the similarity between the fused image and the original input images. Among them, HQNR is derived from Ds and Dλ,providing a comprehensive assessment of image quality [2]. 
+
+Implementation Details: All models are implemented in PyTorch and trained on a single NVIDIA GeForce RTX 4090 GPU. Following PanCollection, we use a scale factor of 4 with reduced-resolution paired patches, where LR-MS patches are 16 × 16 and PAN or HR-MS patches are 64 × 64 , and all inputs are normalized to [0 , 1] by dividing by 2047. Unless otherwise stated, no extra augmentation is applied, including random flipping, rotation, and online crop-ping, because the training data are already pre-cropped. We train for 500 epochs with Adam [7], using β1 = 0 .9 and β2 = 0 .999 , batch size 32, initial learning rate 4 × 10 −4, no weight decay, and a StepLR schedule with step size 100 and decay factor 0.7. For full-resolution inference, we use sliding-window tiling with HR tiles of 64 × 64 and corresponding LR tiles of 16 × 16 , reflection padding of 4 pixels, and center-region stitching to reduce boundary artifacts. For adaptive spline activations, we use cubic B-splines with degree 3 and grid size G = 5 ,giving K = 8 coefficients per edge on a uniform knot grid. For the lightweight variants in PanNet and FusionNet, we use a normalized triangular basis with 
+
+K = G uniformly spaced centers in [−1, 1] . PAKAN is inserted as the fusion or refinement operator, with five blocks in U2Net at the five resolution stages, one block in PanNet, and four blocks in FusionNet. 
+
+3.2 Comparison with SOTA methods 
+
+We selected eleven representative baseline methods to validate the performance of our approach. These include three traditional methods (MTF-GLP-FS, BDSD-PC, and TV) and eight deep learning-based methods, which can be categorized by their architectural paradigms: CNN-based methods including PNN, PanNet, DiCNN, FusionNet, LAGNet, LGPNet, and U2Net; and Mamba-based meth-ods including PanMamba [1, 4–6, 9–12, 15, 17]. We incorporate PAKAN into the classic U2Net as our proposed method. As summarized in Table 1, integrat-ing PAKAN yields consistent improvements across datasets, for example im-proving WV3 PSNR from 39.117 to 39.238 while reducing SAM and ERGAS from 2.888/2.150 to 2.856/2.119. We note that PSNR in modern pansharpening benchmarks is already close to saturation for strong baselines, so absolute PSNR gains are typically small. In this regime, larger relative reductions in spectral and fusion-quality indicators such as SAM and ERGAS are more informative, and 12 Haoyu Zhang ∗, Haojing Chen ∗, Zhen Zhong, Liangjian Deng †                                                                                                                                                         
+
+> Methods WV3 QB GF2 PSNR ↑SAM ↓ERGAS ↓Q8 ↑PSNR ↑SAM ↓ERGAS ↓Q4 ↑PSNR ↑SAM ↓ERGAS ↓Q4 ↑
+> MTF-GLP-FS 32.963 5.316 4.700 0.833 32.709 7.792 7.373 0.835 41.565 1.655 1.589 0.897 BDSD-PC 32.970 5.428 4.697 0.829 32.550 8.085 7.513 0.831 41.205 1.681 1.667 0.892 TV 32.381 5.692 4.855 0.795 32.136 7.510 7.690 0.821 41.262 1.911 1.737 0.907 PNN 37.313 3.677 2.681 0.893 36.942 5.181 4.468 0.918 45.096 1.048 1.057 0.960 PanNet 37.346 3.613 2.664 0.891 34.678 5.767 5.859 0.885 46.268 0.997 0.919 0.967 DiCNN 37.390 3.592 2.672 0.900 35.781 5.367 5.133 0.904 44.931 1.053 1.081 0.959 FusionNet 38.047 3.324 2.465 0.904 37.540 4.904 4.156 0.925 45.663 0.974 0.988 0.964 LAGNet 38.592 3.103 2.291 0.910 38.209 4.870 3.812 0.934 48.760 0.786 0.687 0.980 LGPNet 38.147 3.270 2.422 0.902 36.443 4.954 4.777 0.915 47.868 0.845 0.765 0.976 PanMamba 39.012 2.913 2.184 0.920 37.356 4.625 4.277 0.929 48.931 0.743 0.684 0.982 U2Net 39.117 2.888 2.150 0.920 38.065 4.642 3.987 0.931 49.404 0.714 0.632 0.982
+> Proposed 39.238 2.856 2.119 0.921 38.520 4.439 3.698 0.939 49.913 0.668 0.595 0.987
+
+Table 1: Comparisons on WV3, QB, and GF2 reduced-resolution datasets, each with 20 samples, respectively. Best: bold , and second-best: underline. 
+
+our results show clear improvements on both metrics. Similar gains are observed on QB and GF2, indicating stronger spectral fidelity and spatial reconstruction. These results highlight the advantage of pixel-adaptive KAN modules when em-bedded into a strong baseline, and the improvements remain stable across dif-ferent scenes and sensors. To ensure a fair comparison, all deep learning models were trained and evaluated on the same datasets using their default experimen-tal configurations as recommended in the corresponding publications. For details on the training procedures, please refer to the supplementary material. 
+
+3.3 Generality Experiment 
+
+Our PAKAN module is highly general and can be conveniently plugged into other pansharpening frameworks. To further demonstrate the generality of our method, we replace the original modules in three classic baselines with PAKAN, including PanNet, FusionNet, and U2Net [4,11,15]. As shown in Table 2, PAKAN consistently improves the performance of each method on all three datasets under reduced-resolution scenes. The gains are reflected by higher PSNR/Q and lower SAM/ERGAS on WV3, GF2, and QB, indicating better spectral fidelity and spatial reconstruction. We also evaluate the full-resolution scenes using HQNR and its components, where lower Dλ and Ds together with higher HQNR confirm that PAKAN preserves spectral consistency and spatial detail at the original scale. 
+
+3.4 Visualization Results and Analysis 
+
+As shown in Fig. 5, integrating PAKAN consistently produces more favorable HQNR distributions across U2Net, PanNet, and FusionNet. Compared with the corresponding original backbones, the PAKAN variants exhibit broader high-quality regions and fewer low-HQNR areas, indicating better preservation of spatial details and spectral consistency in full-resolution fusion. Pixel Adaptive Kolmogorov-Arnold Network Modules for Pansharpening 13 
+
+Methods WV3 (Reduced-resolution) WV3 (Full-resolution) PSNR ↑ SAM ↓ ERGAS ↓ Q8 ↑ Dλ ↓ Ds ↓ HQNR ↑
+
+PanNet 37.346 3.613 2.664 0.891 0.017 0.047 0.937 PanNet* 37.962 3.590 2.642 0.894 0.016 0.046 0.939 
+
+FusionNet 38.047 3.324 2.465 0.904 0.024 0.036 0.941 FusionNet* 38.528 3.210 2.382 0.911 0.021 0.032 0.947 
+
+U2Net 39.117 2.888 2.150 0.920 0.020 0.028 0.952 U2Net* 39.238 2.852 2.116 0.922 0.018 0.025 0.956 Methods GF2 (Reduced-resolution) GF2 (Full-resolution) PSNR ↑ SAM ↓ ERGAS ↓ Q4 ↑ Dλ ↓ Ds ↓ HQNR ↑
+
+PanNet 46.268 0.997 0.919 0.967 0.018 0.080 0.904 PanNet* 47.356 0.922 0.857 0.969 0.017 0.079 0.907 
+
+FusionNet 45.663 0.974 0.988 0.964 0.035 0.101 0.867 FusionNet* 46.342 0.933 0.912 0.966 0.033 0.093 0.876 
+
+U2Net 49.404 0.714 0.632 0.982 0.024 0.051 0.927 U2Net* 49.913 0.668 0.595 0.987 0.021 0.048 0.932 Methods QB (Reduced-resolution) QB (Full-resolution) PSNR ↑ SAM ↓ ERGAS ↓ Q4 ↑ Dλ ↓ Ds ↓ HQNR ↑
+
+PanNet 34.678 5.767 5.859 0.885 0.043 0.114 0.849 PanNet* 36.118 5.438 5.231 0.892 0.039 0.112 0.853 
+
+FusionNet 37.540 4.904 4.156 0.925 0.057 0.052 0.894 FusionNet* 37.912 4.760 3.890 0.928 0.051 0.037 0.899 
+
+U2Net 38.065 4.642 3.987 0.931 0.059 0.026 0.916 U2Net* 38.520 4.439 3.698 0.939 0.058 0.025 0.919 Table 2: Quantitative results on the WV3, GF2 and QB datasets at both reduced and full resolutions, * denotes the backbone equipped with PAKAN modules. (Best: bold )
+
+The residual maps further provide qualitative residual evidence. The PAKAN variants yield cleaner and more structured residual patterns, with fewer scattered artifacts in challenging textured regions. This behavior is consistent across the three backbones and supports the quantitative improvements reported in our full-resolution and reduced-resolution evaluations. 
+
+3.5 Ablation Study 
+
+We report two ablations on WV3, QB, and GF2 reduced-resolution datasets. Table 3 presents module ablation with pixel-adaptive weighting (PA) and KAN activation. For the no-KAN setting, we apply only activation-weight generation to the original module. Enabling either component alone improves performance over the baseline, while enabling both gives the best overall results across all three datasets. For example, on WV3, PSNR improves from 39.117 to 39.238 and SAM/ERGAS decrease from 2.888/2.150 to 2.856/2.119; similar trends are observed on QB and GF2. These results indicate that pixel adaptiveness and KAN are necessary for our PAKAN modules. 14 Haoyu Zhang ∗, Haojing Chen ∗, Zhen Zhong, Liangjian Deng †U2Net  PanNet  FusionNet     
+
+> GT Original PAKAN PAKAN PAKAN Original Original
+> HQNR Map
+> Res Map
+
+Fig. 5: HQNR map comparison on representative full-resolution samples and qualita-tive residual comparison on representative reduced-resolution samples.                                                        
+
+> PA KAN WV3 QB GF2 PSNR ↑SAM ↓ERGAS ↓Q8 ↑PSNR ↑SAM ↓ERGAS ↓Q4 ↑PSNR ↑SAM ↓ERGAS ↓Q4 ↑××39.117 2.888 2.150 0.920 38.065 4.642 3.987 0.931 49.404 0.714 0.632 0.982
+> ✓×39.174 2.867 2.135 0.921 38.246 4.505 3.773 0.935 49.571 0.693 0.615 0.984
+> ×✓39.191 2.877 2.144 0.921 38.342 4.592 3.889 0.937 49.799 0.696 0.625 0.985
+> ✓✓39.238 2.856 2.119 0.921 38.520 4.439 3.698 0.939 49.913 0.668 0.595 0.987
+
+Table 3: Module ablation study on WV3, QB, and GF2 reduced-resolution datasets, each with 20 samples. Best: bold , and second-best: underline. (PA: pixel adaptive) 
+
+Table 4 studies the contribution of the two adaptive KAN branches. Using either the 1D or the 2D branch alone improves over the baseline, and using both branches together achieves the strongest performance on all datasets. During ablation, we keep model settings and training configurations as consistent as possible to ensure a fair comparison. We also keep the parameter counts as close as possible across variants. This confirms that spatial and spectral adaptivity provide consistent and complementary gains. Pixel Adaptive Kolmogorov-Arnold Network Modules for Pansharpening 15                                           
+
+> 1D 2D WV3 QB GF2 PSNR ↑SAM ↓ERGAS ↓Q8 ↑PSNR ↑SAM ↓ERGAS ↓Q4 ↑PSNR ↑SAM ↓ERGAS ↓Q4 ↑
+> ✓×39.162 2.876 2.141 0.920 38.217 4.556 3.812 0.934 49.603 0.699 0.620 0.984
+> ×✓39.198 2.865 2.129 0.921 38.371 4.487 3.744 0.937 49.781 0.684 0.607 0.985
+> ✓✓39.238 2.856 2.119 0.921 38.520 4.439 3.698 0.939 49.913 0.668 0.595 0.987
+
+Table 4: KAN ablation study on WV3, QB, and GF2 reduced-resolution datasets, each with 20 samples. Best: bold , and second-best: underline. 
+
+## 4 Conclusion 
+
+We proposed PAKAN, a pixel-adaptive activation framework for pansharpen-ing built on coupled 2D and 1D Adaptive KANs. By dynamically generating spline weights along spatial and spectral dimensions, PAKAN provides content-aware nonlinearities aligned with PAN/MS fusion physics. The resulting PAKAN 2to1 and 1to1 modules are lightweight, compatible with existing backbones (e.g., U2Net, PanNet, FusionNet), and reusable for new architectures. Extensive ex-periments show consistent gains in spatial detail and spectral fidelity across datasets. We believe this work offers a principled direction for adaptive pan-sharpening design and opens new possibilities for remote sensing fusion. 16 Haoyu Zhang ∗, Haojing Chen ∗, Zhen Zhong, Liangjian Deng †
+
+## References 
+
+1. Aiazzi, B., Alparone, L., Baronti, S., Garzelli, A., Selva, M.: Mtf-tailored multiscale fusion of high-resolution ms and pan imagery. Photogrammetric Engineering & Remote Sensing 72 (5), 591–596 (2006) 2. Alparone, L., Aiazzi, B., Baronti, S., Garzelli, A., Nencini, F., Selva, M.: A new no-reference quality index for pansharpened images. IEEE Geoscience and Remote Sensing Letters 5(2), 203–207 (2008) 3. Deng, L.J., Ran, R., Wu, X., Zhang, T.J.: Research progress on convolutional neural network methods for pan-sharpening of remote sensing images. Chinese Journal of Image and Graphics 27 (9), 2623–2651 (2022) 4. Deng, L.J., Vivone, G., Guo, C., Dalla Mura, M., Chanussot, J.: Fusionnet: A resnet-based deep network for image fusion. IEEE Transactions on Geoscience and Remote Sensing 59 (5), 3844–3858 (2021) 5. He, L., Rao, Y., Li, J., Plaza, A., Zhu, J.: Pansharpening via detail injection based convolutional neural networks. IEEE Journal of Selected Topics in Applied Earth Observations and Remote Sensing 12 (4), 1188–1204 (2019) 6. Jin, Q., et al.: Lagconv: Local-adaptive and global-detail network for pansharpen-ing. IEEE Transactions on Geoscience and Remote Sensing 60 , 1–14 (2022) 7. Kingma, D.P., Ba, J.: Adam: A method for stochastic optimization. In: Interna-tional Conference on Learning Representations (ICLR) (2015) 8. Liu, Z., Wang, Y., Vaidya, S., Ruehle, F., Halverson, J., Soljačić, M., Hou, T., Tegmark, M.: Kan: Kolmogorov-arnold networks. arXiv preprint arXiv:2404.19756 (2024) 9. Masi, G., Cozzolino, D., Verdoliva, L., Scarpa, G.: Pansharpening by convolu-tional neural networks. Remote Sensing 8(7) (2016). https://doi.org/10.3390/ rs8070594 , https://www.mdpi.com/2072-4292/8/7/594 
+
+10. Palsson, F., Sveinsson, J.R., Ulfarsson, M.O., Benediktsson, J.A.: A new pansharp-ening method using an explicit image formation model regularized via total varia-tion. IEEE Transactions on Geoscience and Remote Sensing 52 (1), 28–41 (2014) 11. Peng, S., Guo, C., Wu, X., Deng, L.J.: U2net: A general framework with spatial-spectral-integrated double u-net for image fusion. In: Proceedings of the 31st ACM International Conference on Multimedia (ACM MM). pp. 5882–5891 (2023) 12. Vivone, G., Addesso, P., Restaino, R., Mura, M.D., Chanussot, J.: Pansharpening based on band-dependent spatial detail with physical constraints. IEEE Transac-tions on Geoscience and Remote Sensing 57 (9), 6453–6468 (2019) 13. Vivone, G., Alparone, L., Chanussot, J., Mura, M.D., Garzelli, A., Licciardi, G., Restaino, R., Wald, L.: A critical comparison of pansharpening algorithms. IEEE Transactions on Geoscience and Remote Sensing 53 (5), 2565–2586 (2015) 14. Wald, L., Ranchin, T., Mangolini, M.: Fusion of satellite images of different spatial resolutions: Assessing the quality of resulting images. Photogrammetric Engineer-ing and Remote Sensing 63 (6), 691–699 (1997) 15. Yang, J., Fu, X., Hu, Y., Huang, Y., Ding, X., Paisley, J.: Pannet: A deep net-work architecture for pan-sharpening. In: Proceedings of the IEEE International Conference on Computer Vision (ICCV). pp. 5449–5457 (2017) 16. Yuan, Q., Wei, Y., Meng, X., Burns, P., Zhang, L.: Multiscale and multidepth convolutional neural network for remote sensing imagery pansharpening. IEEE Journal of Selected Topics in Applied Earth Observations and Remote Sensing 
+
+11 (3), 978–989 (2018) 17. Zhou, H., et al.: Pan-mamba: Effective pan-sharpening with state space model. Information Fusion 115 , 102779 (2025)

@@ -1,0 +1,1046 @@
+Title: BriMA: Bridged Modality Adaptation for Multi-Modal Continual Action Quality Assessment
+
+URL Source: https://arxiv.org/pdf/2602.19170v1
+
+Published Time: Tue, 24 Feb 2026 02:26:36 GMT
+
+Number of Pages: 16
+
+Markdown Content:
+# BriMA: Bridged Modality Adaptation for Multi-Modal Continual Action Quality Assessment 
+
+Kanglei Zhou 1, Chang Li 1, Qingyi Pan 2, Liyuan Wang 1, † 
+
+> 1
+
+Department of Psychological and Cognitive Sciences, 2 Department of Statistics and Data Science, Tsinghua University 
+
+Abstract 
+
+Action Quality Assessment (AQA) aims to score how well an action is performed and is widely used in sports analy-sis, rehabilitation assessment, and human skill evaluation. Multi-modal AQA has recently achieved strong progress by leveraging complementary visual and kinematic cues, yet real-world deployments often suffer from non-stationary modality imbalance, where certain modalities become miss-ing or intermittently available due to sensor failures or an-notation gaps. Existing continual AQA methods overlook this issue and assume that all modalities remain complete and stable throughout training, which restricts their prac-ticality. To address this challenge, we introduce Bri dged 
+
+Modality Adaptation (BriMA), an innovative approach to multi-modal continual AQA under modality-missing con-ditions. BriMA consists of a memory-guided bridging im-putation module that reconstructs missing modalities using both task-agnostic and task-specific representations, and a modality-aware replay mechanism that prioritizes informa-tive samples based on modality distortion and distribution drift. Experiments on three representative multi-modal AQA datasets (RG, Fis-V, and FS1000) show that BriMA con-sistently improves performance under different modality-missing conditions, achieving 6–8% higher correlation and 12–15% lower error on average. These results demonstrate a step toward robust multi-modal AQA systems under real-world deployment constraints. Our code is available at 
+
+https://github.com/ZhouKanglei/BriMA .
+
+1. Introduction 
+
+Action Quality Assessment (AQA) [11, 12, 31, 36, 40, 64] aims to measure how well an action is performed, support-ing applications in sports analysis [50, 51], rehabilitation as-sessment [3, 63], and skill evaluation [14, 27]. With the rise of multi-modal sensing, recent AQA models [43, 45, 46, 49] increasingly combine visual and other cues such as audio and motion flow, achieving notable progress in accuracy.  
+
+> †
+
+Corresponding author: liyuanwang@tsinghua.edu.cn AQA Model 𝐀                    
+
+> 20 Score
+> Video Audio
+> AQA Model 𝐀
+> 25 Score
+> Video Audio Text
+> AQA Model 𝐀
+> 19 Score
+> Video Text
+> Session 1 Session 2 Session 3
+> 𝐀 1𝐀 2𝐀 3
+> . . .
+> . . .
+> Sample 1 Modality Sample 2 Modality Sample 3 Modality
+> (a) (b) MB
+> MI
+> NMI
+> Settings
+> (MLAVL)
+> Ball
+> Clubs
+> Hoop
+> Ribbon
+> Actions (RG)
+> 0.0
+> 0.2
+> 0.4
+> 0.6
+> 0.8
+> SRCC
+> Non-stationary Modality Imbalance
+> Modality Imbalance
+> Modality Balance
+> →(NMI)
+> →(MI)
+> →(MB)
+
+Figure 1. Our motivation: non-stationary modality imbalance (a) 
+
+significantly challenges continual AQA performance (b) .
+
+However, real-world AQA rarely operates under fully reli-able sensing conditions [20, 42, 58]. Cameras drop frames, sensors degrade over time, annotations are often missing, etc., leading to non-stationary modality imbalance , where modality availability varies over time (see Fig. 1(a)). This phenomenon naturally arises in practical AQA workflows and poses a significant obstacle to stable scoring. Despite its practical prevalence, our empirical study re-veals that current AQA efforts fail under such changing modality availability. Multi-modal AQA methods [45, 46] assume fully observed inputs and therefore suffer noticeable failures once modalities become missing (supported by the performance decline in Fig. 1(b) and Appendix Fig. S1). Meanwhile, continual AQA approaches [6, 22, 66] miti-gate task-level forgetting but also rely on complete and sta-ble modalities during training, resulting in notable degra-dation under evolving modality imbalance (see the subopti-mal performance of Fs-Aug [22] and MAGR [66] in Tabs. 1 to 3). These failures show that non-stationary modality im-balance is not a single missing-data issue. In AQA, modal-ity changes reshape both the feature space and its tempo-ral dynamics, forcing the model to cope with simultaneous input sparsity and shifting task distributions. This interac-tion destabilizes representation learning and amplifies for-getting, ultimately degrading scoring reliability. The inherent complexity of AQA makes this problem fundamentally different from related challenges in recog-nition or general multi-modal learning [39, 41, 70]. AQA requires fine-grained score reasoning, where subtle tempo-ral cues directly determine the score [45, 46]. This tight coupling between modalities and score semantics breaks the assumptions underlying standard completion techniques. 1
+
+> arXiv:2602.19170v1 [cs.CV] 22 Feb 2026
+
+Simple imputation [42] introduces bias, retrieval-based re-construction [19, 41] pulls mismatched contexts, and gen-erative synthesis [9, 26] fails to preserve score-critical ge-ometry under limited supervision. While these methods can restore missing modalities at the representation level, they distort the scoring manifold and undermine the ranking con-sistency essential for AQA. Consequently, directly applying these techniques to multi-modal continual AQA yields only suboptimal performance (see Tab. 5 and Fig. 5), highlight-ing the need for a tailored solution that explicitly respects the score-sensitive nature of this task. To address these challenges, we propose Bri dged 
+
+Modality Adaptation (BriMA), an innovative approach to handling evolving modality imbalance and distribution shifts in multi-modal continual AQA. Our core idea is to construct a stable bridging space that aligns missing modal-ities with shared task structure and memory, enabling re-liable modality completion and drift-aware adaptation that existing imputation, retrieval, and generative strategies can-not provide. BriMA is instantiated with two components. The first is a memory-guided bridging module that retrieves structurally aligned exemplars from past tasks and predicts only a minimal residual correction instead of full-feature synthesis, ensuring stable and score-faithful modality com-pletion. The second is a modality-aware replay module that maintains a curated buffer of representative samples with re-liable modalities and balanced score coverage, and dynam-ically prioritizes replay by modality distortion and score drift, effectively counteracting distribution shifts over time. Experiments on three representative multi-modal AQA datasets (RG [57], Fis-V [30], and FS1000 [43]) show that BriMA consistently improves scoring accuracy and mitigates forgetting under heterogeneous and incomplete modality conditions. On average, it boosts rank correlation by 6.1%, 8.3%, and 1.4%; reduces error by 12.7%, 15.3%, and 6.4%; and lowers relative error by 13.9%, 14.1%, and 5.2% on the three datasets, establishing a strong baseline for multi-modal continual AQA under realistic scenarios. Our contributions can be summarized as follows: • We identify non-stationary modality imbalance in multi-modal continual AQA and show its practical significance. • We propose BriMA, consisting of memory-guided bridg-ing imputation and modality-aware replay to stabilize modality completion and mitigate distribution shifts. • Extensive experiments on RG, Fis-V, and FS1000 show consistent gains in correlation and error, establishing a strong baseline for this realistic setting. 
+
+2. Related Work 
+
+Action Quality Assessment (AQA) [28–30, 47, 52, 65, 69] aims to automatically evaluate how well an action is per-formed and has been widely applied in sports scoring [1, 25], skill assessment [7, 27], and rehabilitation [3, 21, 63]. Existing efforts evolve from hand-crafted representations to deep video models based on CNNs [44], RNNs [16], 3D ConvNets [44, 62], and Transformers [2], as well as ranking and contrastive supervision [17]. Despite these advances, AQA remains challenging due to its fine-grained, score-sensitive nature, and large variations across action types [50, 51, 64]. Recent studies demonstrate that multi-modal cues such as pose [8, 13, 32], flow [56], audio [43, 46], or gaze [14] can significantly enhance AQA. Fusion and alignment strategies, including cross-attention, graph mod-eling [45, 48], and correlation-based alignment, have been proposed to leverage complementary information. How-ever, real-world AQA data often exhibit modality imbal-ance, missing-modality cases, and inconsistent modality quality, whereas existing multi-modal AQA methods gen-erally assume complete and synchronized inputs [64]. Al-though some studies [6, 22, 66] adopt continual learning techniques to mitigate task-wise non-stationarity, they are limited to single-modality settings and do not address the additional challenges introduced by modality heterogeneity with missing modalities in real-world scenarios. 
+
+Continual Learning (CL) [37–39] seeks to incremen-tally learn new tasks without forgetting previously learned knowledge. Prior work spans regularization-based [18, 59], replay-based [4, 34, 54], and architecture-based [35, 37] methods. Although effective on classification benchmarks, these methods struggle with the fine-grained regression, heterogeneous distributions, and modality inconsistencies inherent to AQA. Existing multi-modal CL methods [15, 24, 61] do not address modality imbalance issues, leaving multi-modal continual AQA largely unexplored. 
+
+Incomplete Multi-Modal Learning [42, 70] deals with scenarios where one or more modalities are missing dur-ing training or inference. Existing efforts typically rely on simple imputation strategies such as zero-filling, feature masking, or hallucination networks that reconstruct missing modalities from available ones. More advanced methods [19, 20, 53, 58] employ cross-modal alignment or shared latent spaces to mitigate modality gaps, yet these methods assume stationary data distributions and consistent cross-modal relationships. In contrast, our approach addresses in-complete multi-modal learning in a continual setting, where modality availability evolves across tasks and distribution shifts amplify modality imbalance. 
+
+3. Problem Definition and Notations 
+
+We define the multi-modal continual AQA setting with non-stationary modality imbalance and introduce the notations. 
+
+Multi-Modal AQA. Traditional multi-modal AQA meth-ods [43, 45, 46] operate under a fully observed multi-modality setting. An action instance is represented by M
+
+heterogeneous modalities {x1, . . . , xM } with an associated score y ∈ R. Each modality xm is encoded as a feature vec-2A video of bad action                              
+
+> performance with fitting
+> music...
+> Input Video
+> Input Text
+> Input Audio
+> ...
+> Session 𝐀 −1Session 𝐀 +1Session 𝐀 +2⋯Session 𝐀 (Current Session)
+> Video
+> Encoder
+> Audio
+> Encoder
+> Text
+> Encoder
+> 𝐀 1
+> 𝐀 2
+> 𝐀 3
+> 𝐀 𝐀 ,𝐀
+> 1
+> 𝐀 𝐀 ,𝐀
+> 2
+> Memory Buffer ℬ
+> Prioritization Selection
+> (a) Memory-Guided Bridging
+> Imputation (Sec. 4.2 )
+> (b) Modality-Aware Replay
+> Optimization (Sec. 4.3 )
+> Imputation Bridge
+> Task-Specific
+> Embeddings
+> Not
+> Avalible
+> Task Indicator
+> Candidate Selection
+> 𝐀 𝐀 ,𝐀
+> 1
+> 𝐀 𝐀 ,𝐀
+> 2
+> 𝐀 𝐀 ,𝐀
+> 3
+> 𝐀 𝐀 ,𝐀
+> 1
+> 𝐀 𝐀 ,𝐀
+> 2
+> 𝐀 𝐀 ,𝐀
+> 3
+> AQA
+> Model
+> Expert
+> Aligment
+> Loss
+> 𝐀 𝐀 ,𝐀
+> 𝐀 (∙)
+> Score Order
+> Low High
+> Modality-Completeness
+> Constraint (See Eq. ( 8))
+> Imputed Feature Observed Feature
+> Routing
+> 𝐀 1𝐀 2𝐀 3𝐀 4
+> TopK (∙), See Eq. ( 3)
+> ⋯
+> ⋯
+> 𝐀 𝐀 ,𝐀
+> 3
+> Modality Specific
+> Encod ing
+> M1
+> M2
+> M3
+> Eq. ( 9)
+> Eq. ( 4)
+> Eq. (6)& ( 8)
+> Modality Missing Mask 𝐀 𝐀 ,𝐀
+> 𝐀 𝐀 ,𝐀
+> 3
+> Top 𝐀 Candidates
+> Not
+> Avalible
+> Selected Frozen
+
+Figure 2. Overview of BriMA. At each session, incomplete multi-modal inputs are encoded and completed via memory-guided bridging imputation (see Sec. 4.2), then scored by the AQA model. The modality-aware replay optimization (see Sec. 4.3) selects and updates representative prototypes in the memory bank to maintain consistency in continual adaptation across tasks. 
+
+tor zm = Em(xm), and the AQA model f jointly performs feature fusion and score prediction as ˆy = f (z1, . . . , zM ).
+
+Continual AQA. Existing continual AQA methods [6, 22, 66] consider a sequence of tasks {T 1, . . . , TT }, where each task Tt provides samples for score prediction. The model updates its parameters θf using only data from the current task, while being required to retain performance on all pre-viously learned tasks. A standard formulation is 
+
+min 
+
+> θf
+
+Lscore + λmem Lmem , (1) where Lscore is typically a mean-squared error loss on the current task, and Lmem (see Eq. (10)) leverages a memory buffer Bt−1 to regularize updates and mitigate forgetting. 
+
+Non-Stationary Modality Imbalance. The above formu-lations assume that all modalities remain fully observed across tasks, which rarely holds in real-world AQA. For a sample (i, t ) at task t, only a subset of modalities Oi,t ⊆{1, . . . , M } may be available, while the remaining Mi,t =
+
+{1, . . . , M } \ O i,t are missing due to sensor failures or an-notation gaps. When m ∈ M i,t , the modality input xmi,t and its feature zmi,t are absent, altering both the input structure and the underlying data distribution. As the missing pattern 
+
+Mi,t evolves over tasks, the model must cope with simulta-neous input sparsity and temporal distribution drift, posing a modality-driven CL challenge that existing multi-modal and continual AQA methods cannot handle. 
+
+Multi-Modal Continual AQA. We consider multi-modal continual AQA under non-stationary modality imbal-ance, where each task Tt provides samples Dt =
+
+{({xmi,t }m∈O i,t , y i,t )}Nt 
+
+> i=1
+
+with only a subset of modali-ties Oi,t observed and the rest Mi,t missing. Observable modalities are encoded as zmi,t = Em(xmi,t ), while missing ones require reconstructed features ˜zmi,t . Compared with continual AQA, multi-modal continual AQA additionally learns both the scoring parameters θf and the reconstruc-tion parameters θg , which are jointly optimized to produce accurate score predictions while maintaining cross-task sta-bility. This leads to the optimization objective 
+
+min  
+
+> θf,θ g
+
+Lscore + λmem Lmem + λrec Lrec , (2) where Lscore and Lmem follow Eq. (1), and Lrec (see Eq. (7)) enforces feature-level reconstruction for missing modali-ties. Unlike raw-data imputation, we store and reconstruct lightweight feature embeddings for efficiency and privacy. 
+
+4. BriMA: Bridged Modality Adaptation 
+
+We propose Bri dged Modality Adaptation (BriMA) for multi-modal continual AQA under practical modality im-balance, outlining its core idea and two main components. 
+
+4.1. Core Idea and Framework Overview 
+
+Challenges. Multi-modal continual AQA is challenging be-cause evolving modality availability reshapes the feature space, while score prediction is highly sensitive to these shifts, leading to representation drift that interacts with con-tinual forgetting. Existing strategies fall short: simple im-putation [42] amplifies noise in score estimation, retrieval-based completion [19, 41] often pulls mismatched scoring contexts that disrupt representation alignment, and gener-ative synthesis [9, 26] cannot maintain score fidelity under limited supervision common in AQA. These errors accumu-late across tasks and interact with CL dynamics, making it difficult to jointly achieve accurate scoring in Eq. (2). 
+
+Core Idea. BriMA introduces a stable bridging space that anchors incomplete modalities to shared task structure and cross-task memory. By reconstructing missing features through exemplar-aligned residuals and reinforcing tempo-ral consistency via modality-aware replay, BriMA produces 3robust, drift-resistant scoring. Grounding completion in this structured space avoids the noise of imputation and the in-stability of generative synthesis, preventing error accumu-lation and maintaining reliable performance across tasks. 
+
+Framework Overview. The framework of BriMA is il-lustrated in Fig. 2. At session t, observed modalities pro-duce features zmi,t = Em(xmi,t ), while missing modalities 
+
+Mi,t require reconstructed features ˜zmi,t . The Memory-guided Bridging Imputation (MBI) module (see Sec. 4.2) generates these reconstructed features by retrieving struc-turally aligned exemplars from the memory Bt−1 and pre-dicting a residual correction that anchors each modality to a stable, task-consistent bridging space. The scoring model 
+
+f then performs multi-modal fusion and prediction jointly as ˆyi,t = f ({zmi,t }m∈O i,t , { ˜zmi,t }m∈M i,t ). To maintain temporal stability, the Modality-aware Replay Optimization (MRO) module (see Sec. 4.3) selects informative samples from Bt−1 based on modality distortion and score drift, re-playing them to counteract distribution shift and forgetting. After learning on task t, representative and reliable samples are updated into the memory. A complete description of the training pipeline is given in Appendix Algorithm 1. 
+
+4.2. MBI: Memory-Guided Bridging Imputation 
+
+Design Idea. MBI targets the core difficulty of modal-ity absence in multi-modal continual AQA, where direct imputation [42, 58] amplifies noise, retrieval-based filling [19, 41] retrieves mismatched scoring contexts, and gener-ative synthesis [9, 26] is unreliable under limited supervi-sion. To overcome these limitations, MBI constructs a task-consistent bridging space that anchors incomplete inputs to stable cross-task structure. It operates in three steps: (1) re-trieve structurally aligned exemplars from memory, (2) esti-mate a residual correction rather than full-feature synthesis, and (3) combine task-specific cues to regularize reconstruc-tion. This design yields noise-resistant and score-preserving modality completion suitable for continual adaptation. 
+
+Candidate Selection. For each missing modality m ∈Mi,t , MBI retrieves a set of K exemplar features {zmj,t ′ }Kj=1 
+
+from the memory buffer Bt−1, where t′ < t indexes pre-vious continual sessions. Retrieval is performed by com-puting the cosine similarity between the current observed representation zO 
+
+> i,t
+
+and stored cross-modal embeddings: 
+
+sj,t ′ = ⟨zO
+
+> i,t
+
+, zO 
+
+> j,t ′
+
+⟩∥zO
+
+> i,t
+
+∥ ∥ zO 
+
+> j,t ′
+
+∥ , {zmj,t ′ }Kj=1 = TopK j (sj,t ′ ). (3) This selects semantically aligned exemplars from earlier tasks, ensuring that modality reconstruction is anchored to contextually consistent cross-modal structure. 
+
+Task Indicator. We introduce a task indicator to specify which modalities are missing and to provide lightweight task-specific conditioning for the bridging network. In this study, we follow the standard assumption that the missing-modality set Mi,t is known during training, so no detector needs to be learned. Accordingly, we define a binary mask 
+
+ri,t ∈ { 0, 1}M , rmi,t = 1[m ∈ M i,t ], (4) and use it to select a task-specific embedding pmt from a learnable pool P = {p1 
+
+> t
+
+, . . . , pMt }. The conditioning vector 
+
+cmt = MLP([ pmt ]) (5) modulates the bridging network for modality m, ensuring that reconstruction remains consistent with the task domain under evolving modality imbalance. 
+
+Imputation Bridge. Given the retrieved exemplar set 
+
+{zmj,t ′ }Kj=1 with similarity scores {sj,t ′ }, we compute nor-malized exemplar weights wj = softmax( sj,t ′ ) and form an initial estimate ¯zmi,t = PKj=1 wj zmj,t ′ . Conditioned on 
+
+zO 
+
+> i,t
+
+and the task-specific vector cmt , the bridging network learns a residual refinement: 
+
+∆zmi,t = BΘ
+
+ zO
+
+> i,t
+
+, ¯zmi,t , cmt
+
+ , ˜zmi,t = ¯ zmi,t + ∆ zmi,t . (6) The reconstruction loss enforces alignment between recon-structed and ground-truth features: 
+
+Lrec = ˜zmi,t − zmi,t  
+
+> 22
+
+, (7) where the weighted exemplar prior offers a well-justified starting point and the residual correction adapts to task-dependent modality shifts, yielding semantically consistent imputation under non-stationary modality imbalance. 
+
+4.3. MRO: Modality-Aware Replay Optimization 
+
+Design Idea. MRO is designed to address the combined challenges of catastrophic forgetting and evolving modal-ity imbalance in continual AQA. Unlike uniform replay [22, 66], which indiscriminately reuses all stored sam-ples and propagates noisy or distorted modalities, MRO performs reliability-aware replay by (1) maintaining aclean, modality-balanced memory, (2) selecting past sam-ples based on modality distortion and score drift, and (3) prioritizing those most critical for stabilizing prediction un-der shifting modality availability. This strategy ensures that only informative exemplars contribute to updating the model, resulting in more stable cross-task scoring. 
+
+Sample Selection. After completing task Tt, we construct a compact and reliable memory buffer Bt for future re-play. All training samples are first ranked by their predicted scores ˆyi,t and partitioned into Q quantile bins. From each bin, we aim to uniformly select instances that satisfy the modality-completeness constraint: 
+
+Bt = (xi,t , y i,t ) i ∈ S t,
+
+> M
+
+X
+
+> m=1
+
+1[m ∈ M i,t ] = 0 , (8) 4Table 1. Performance comparison on the RG dataset. Bold values indicate the best results. Joint Training (JT) and Sequential Training (ST) denote the upper and lower bounds, while rehearsal-free and rehearsal-based methods represent different CL strategies. ↑: higher is better; ↓: lower is better. Average SRCC is computed using Fisher-z transformation. 
+
+Method Publisher SRCC ( ↑) MSE ( ↓) RL2 ( ↓)
+
+Ball Clubs Hoop Ribbon Avg. Ball Clubs Hoop Ribbon Avg. Ball Clubs Hoop Ribbon Avg. JT-MLAVL[46] CVPR’25 0.826 0.829 0.871 0.866 0.849 5.57 4.20 4.11 3.99 4.47 N/A N/A N/A N/A N/A 
+
+Modality Missing Rate β = 10% 
+
+ST-MLAVL [46] CVPR’25 0.480 0.575 0.659 0.664 0.599 14.34 9.19 7.26 8.98 9.94 3.829 4.311 2.734 3.358 3.558 SI [59] ICML’17 0.481 0.597 0.605 0.685 0.597 14.61 8.70 8.63 8.74 10.17 3.903 4.083 3.249 3.271 3.626 EWC [18] PNAS’17 0.524 0.594 0.597 0.692 0.605 13.35 9.41 9.16 9.11 10.26 3.565 4.415 3.448 3.409 3.709 LwF [23] TPAMI’17 0.484 0.468 0.542 0.664 0.545 16.43 10.36 16.49 8.17 12.86 4.387 4.861 6.206 3.056 4.628 MER [34] ICLR’19 0.594 0.773 0.704 0.786 0.722 8.33 6.06 8.22 5.00 6.77 2.223 2.843 3.093 1.870 2.473 DER++ [4] NeurIPS’20 0.543 0.605 0.727 0.753 0.665 12.92 8.29 9.86 7.31 9.60 3.451 3.890 3.712 2.736 3.447 NC-FSCIL [54] ICLR’23 0.457 0.620 0.664 0.731 0.628 14.10 9.06 7.70 9.40 10.06 3.766 4.248 2.899 3.515 3.607 SLCA [60] ICCV’23 0.467 0.569 0.695 0.744 0.631 18.52 8.31 23.85 8.52 14.80 4.946 3.898 8.976 3.186 5.251 Fs-Aug [22] TCSVT’24 0.463 0.585 0.703 0.703 0.623 14.89 8.46 12.56 8.51 11.10 3.976 3.970 4.728 3.182 3.964 MAGR [66] ECCV’24 0.460 0.606 0.672 0.720 0.623 13.85 8.52 9.23 8.32 9.98 3.700 3.996 3.475 3.113 3.571 ASAL [67] TVCG’25 0.552 0.629 0.693 0.678 0.641 13.37 10.02 9.30 8.35 10.26 3.571 4.699 3.501 3.123 3.724 
+
+BriMA (Ours) – 0.648 0.788 0.710 0.836 0.746 8.65 4.88 7.12 4.39 6.26 2.310 2.291 2.681 1.641 2.231 
+
+Modality Missing Rate β = 25% 
+
+ST-MLAVL [46] CVPR’25 0.406 0.576 0.549 0.674 0.558 16.89 8.42 9.39 9.15 10.96 4.512 3.949 3.536 3.423 3.855 SI [59] ICML’17 0.409 0.589 0.584 0.649 0.564 17.18 8.65 7.81 9.33 10.74 4.587 4.057 2.940 3.489 3.769 EWC [18] PNAS’17 0.379 0.580 0.638 0.652 0.571 16.85 9.13 8.91 9.60 11.12 4.499 4.284 3.354 3.592 3.932 LwF [23] TPAMI’17 0.448 0.586 0.487 0.642 0.545 13.55 7.55 9.98 9.05 10.03 3.618 3.541 3.757 3.384 3.575 MER [34] ICLR’19 0.527 0.766 0.519 0.761 0.660 9.39 7.10 13.36 5.29 8.79 2.509 3.329 5.028 1.980 3.212 DER++ [4] NeurIPS’20 0.528 0.574 0.683 0.739 0.639 14.97 8.33 10.94 7.91 10.54 3.999 3.910 4.119 2.958 3.746 NC-FSCIL [54] ICLR’23 0.422 0.608 0.615 0.721 0.601 15.04 8.85 9.87 9.07 10.71 4.016 4.150 3.717 3.394 3.819 SLCA [60] ICCV’23 0.397 0.551 0.720 0.715 0.612 18.92 8.44 24.82 9.30 15.37 5.054 3.962 9.343 3.480 5.460 Fs-Aug [22] TCSVT’24 0.472 0.565 0.607 0.699 0.592 17.04 8.56 16.65 9.23 12.87 4.551 4.016 6.268 3.453 4.572 MAGR [66] ECCV’24 0.364 0.542 0.589 0.695 0.558 15.11 8.63 11.93 8.39 11.02 4.035 4.051 4.490 3.140 3.929 ASAL [67] TVCG’25 0.505 0.609 0.676 0.682 0.623 14.36 10.15 10.31 8.24 10.77 3.835 4.762 3.880 3.084 3.890 
+
+BriMA (Ours) – 0.592 0.771 0.522 0.794 0.686 9.43 6.10 10.11 4.92 7.64 2.519 2.860 3.806 1.841 2.757 
+
+Modality Missing Rate β = 50% 
+
+ST-MLAVL [46] CVPR’25 0.142 0.436 0.444 0.613 0.422 23.42 8.67 12.21 10.08 13.59 6.255 4.067 4.595 3.770 4.672 SI [59] ICML’17 0.163 0.441 0.463 0.622 0.436 23.39 8.69 9.31 10.30 12.92 6.248 4.078 3.503 3.854 4.421 EWC [18] PNAS’17 0.046 0.410 0.370 0.528 0.349 25.13 8.95 12.72 12.47 14.82 6.712 4.201 4.786 4.664 5.091 LwF [23] TPAMI’17 0.136 0.227 0.310 0.628 0.342 24.18 14.04 12.91 9.02 15.04 6.458 6.584 4.858 3.373 5.318 MER [34] ICLR’19 0.499 0.752 0.389 0.662 0.594 10.55 5.31 15.15 8.69 9.92 2.818 2.493 5.701 3.249 3.565 DER++ [4] NeurIPS’20 0.225 0.510 0.467 0.571 0.452 19.68 8.74 11.32 9.73 12.37 5.257 4.100 4.262 3.639 4.315 NC-FSCIL [54] ICLR’23 0.226 0.561 0.499 0.625 0.490 19.37 9.44 12.41 11.24 13.11 5.172 4.428 4.669 4.205 4.619 SLCA [60] ICCV’23 0.198 0.508 0.406 0.658 0.458 21.03 8.52 24.52 9.72 15.95 5.618 3.997 9.230 3.637 5.620 Fs-Aug [22] TCSVT’24 0.216 0.508 0.535 0.651 0.492 20.09 8.95 17.78 9.84 14.17 5.366 4.199 6.692 3.680 4.984 MAGR [66] ECCV’24 0.210 0.520 0.423 0.668 0.471 16.45 8.64 12.99 9.92 12.00 4.393 4.054 4.888 3.712 4.262 ASAL [67] TVCG’25 0.305 0.543 0.544 0.531 0.486 17.30 10.23 10.90 10.34 12.19 4.620 4.801 4.104 3.868 4.348 
+
+BriMA (Ours) – 0.569 0.739 0.583 0.716 0.659 9.77 5.13 10.85 6.99 8.18 2.609 2.407 4.085 2.614 2.928 
+
+where St denotes selected indices across bins. Suppose a bin contains no samples satisfying the constraint, we itera-tively re-rank the unselected samples, re-partition them, and repeat the selection until the buffer is filled. 
+
+Replay Prioritization. When learning the next task Tt+1 ,replay samples are prioritized according to their vulnera-bility to continual drift. We compute (i) the modality dis-tortion di = ∥ ˜zmi,t − zmi,t ∥22 and (ii) the score drift ∆yi =
+
+fθt+1 
+
+> f
+
+({zmi,t })−fθtf ({zmi,t }) , where θtf and θt+1 
+
+f denote the scoring-network parameters before and after learning Tt+1 .Each sample’s priority is defined as 
+
+qi = α d i + (1 − α) ∆ yi, (9) where α controls the trade-off between modality discrep-ancy and scoring stability. Samples with larger qi are re-played more frequently, enabling targeted correction for in-stances most susceptible to drift. 
+
+Score Consistency. To further stabilize continual adapta-tion, we regularize the scoring network against its previous snapshot on stored memory features. Given a replay exem-plar with multi-modality embeddings {zmi,t }, the loss is 
+
+Lmem = Ei∈B t
+
+h
+
+fθ t+1 
+
+> f
+
+({zmi,t }) − fθ tf ({zmi,t }) 22
+
+i
+
+. (10) This term penalizes temporal prediction drift and comple-ments prioritized replay, yielding a more stable continual AQA process under evolving modality imbalance. 
+
+5. Experiments 
+
+In this section, we present the main results and analyses. Additional results and analyses are provided in Appendix .5Table 2. Performance comparison on the Fis-V dataset. 
+
+Method Publisher SRCC ( ↑) MSE ( ↓) RL2 ( ↓)
+
+PCS TES Avg. PCS TES Avg. PCS TES Avg. JT-MLAVL[46] CVPR’25 0.863 0.766 0.823 7.17 19.44 13.31 N/A N/A N/A 
+
+Modality Missing Rate β = 10% 
+
+ST-MLAVL [46] CVPR’25 0.648 0.566 0.609 17.03 33.31 25.17 2.721 2.795 2.758 SI [59] ICML’17 0.630 0.556 0.594 16.81 28.77 22.79 2.685 2.414 2.550 EWC [18] PNAS’17 0.584 0.551 0.568 18.36 33.43 25.89 2.933 2.805 2.869 LwF [23] TPAMI’17 0.369 0.165 0.270 25.43 52.97 39.20 4.062 4.446 4.254 MER [34] ICLR’19 0.624 0.416 0.528 19.86 43.13 31.50 3.173 3.620 3.396 DER++ [4] NeurIPS’20 0.682 0.539 0.616 14.05 33.56 23.81 2.244 2.816 2.530 NC-FSCIL [54] ICLR’23 0.702 0.540 0.628 15.34 30.08 22.71 2.451 2.524 2.487 SLCA [60] ICCV’23 0.671 0.501 0.592 24.25 36.53 30.39 3.874 3.066 3.470 Fs-Aug [22] TCSVT’24 0.664 0.514 0.594 14.65 36.34 25.50 2.341 3.049 2.695 MAGR [66] ECCV’24 0.717 0.488 0.615 17.39 38.18 27.79 2.778 3.204 2.991 ASAL [67] TVCG’25 0.695 0.457 0.589 14.53 39.12 26.83 2.322 3.283 2.802 
+
+BriMA (Ours) – 0.705 0.594 0.653 13.60 25.78 19.69 2.173 2.164 2.168 
+
+Modality Missing Rate β = 25% 
+
+ST-MLAVL [46] CVPR’25 0.622 0.572 0.598 17.98 30.11 24.05 2.873 2.527 2.700 SI [59] ICML’17 0.594 0.544 0.569 18.30 31.37 24.83 2.924 2.632 2.778 EWC [18] PNAS’17 0.625 0.573 0.599 17.69 30.90 24.29 2.826 2.593 2.709 LwF [23] TPAMI’17 0.216 0.136 0.177 33.66 53.09 43.37 5.377 4.455 4.916 MER [34] ICLR’19 0.545 0.459 0.503 21.57 38.43 30.00 3.446 3.225 3.336 DER++ [4] NeurIPS’20 0.649 0.537 0.596 16.85 36.47 26.66 2.691 3.060 2.876 NC-FSCIL [54] ICLR’23 0.617 0.576 0.597 18.58 31.96 25.27 2.968 2.682 2.825 SLCA [60] ICCV’23 0.597 0.569 0.583 20.93 41.93 31.43 3.344 3.519 3.431 Fs-Aug [22] TCSVT’24 0.649 0.551 0.602 21.61 35.30 28.45 3.451 2.962 3.207 MAGR [66] ECCV’24 0.667 0.513 0.596 16.04 33.30 24.67 2.563 2.795 2.679 ASAL [67] TVCG’25 0.664 0.519 0.596 20.24 36.20 28.22 3.233 3.037 3.135 
+
+BriMA (Ours) – 0.688 0.632 0.661 15.37 26.94 21.15 2.455 2.261 2.358 
+
+Modality Missing Rate β = 50% 
+
+ST-MLAVL [46] CVPR’25 0.386 0.569 0.483 23.41 29.33 26.37 3.740 2.461 3.100 SI [59] ICML’17 0.493 0.551 0.523 21.82 31.65 26.73 3.486 2.656 3.071 EWC [18] PNAS’17 0.442 0.479 0.461 31.39 48.39 39.89 5.014 4.061 4.537 LwF [23] TPAMI’17 0.435 0.257 0.349 25.72 46.07 35.90 4.109 3.866 3.988 MER [34] ICLR’19 0.494 0.351 0.425 26.59 43.90 35.25 4.248 3.684 3.966 DER++ [4] NeurIPS’20 0.592 0.530 0.562 18.88 31.12 25.00 3.016 2.611 2.814 NC-FSCIL [54] ICLR’23 0.630 0.544 0.588 17.58 37.10 27.34 2.808 3.114 2.961 SLCA [60] ICCV’23 0.441 0.564 0.505 35.12 46.28 40.70 5.610 3.884 4.747 Fs-Aug [22] TCSVT’24 0.602 0.488 0.547 24.22 41.61 32.92 3.869 3.492 3.681 MAGR [66] ECCV’24 0.634 0.446 0.547 18.31 35.12 26.72 2.925 2.947 2.936 ASAL [67] TVCG’25 0.407 0.494 0.451 37.05 38.71 37.88 5.918 3.249 4.583 
+
+BriMA (Ours) – 0.648 0.620 0.634 15.70 28.03 21.86 2.508 2.352 2.430 
+
+5.1. Experimental Setting 
+
+Datasets. We evaluate BriMA on three representative multi-modal AQA benchmarks, considering three com-monly available modalities: video, audio, and textual com-mentary. The Rhythmic Gymnastics (RG) dataset [57] contains 1,000 videos with a relatively small sample size but diverse action types (Ball, Clubs, Hoop, Ribbon), with 200 training and 50 evaluation samples per type. In con-trast, the Figure Skating Video (Fis-V) dataset [30] of-fers a moderate-scale collection of 500 videos but includes only two score types: Total Element Score (TES) and Pro-gram Component Score (PCS). The FS1000 dataset [43] is a large-scale benchmark with 1,000 training and 247 valida-tion videos, providing seven component scores (TES, PCS, SS, TR, PE, CO, IN). Following prior works [45, 46], we train separate models for each action or score type and split each action or subscore into T = 5 sequential tasks. 
+
+Evaluation Metrics. Existing works adopt different evalu-ation metrics, making direct comparison difficult. To ensure fairness and comprehensiveness, we report all three existing metrics: Spearman’s Rank Correlation Coefficient (SRCC), MSE, and RL2. SRCC measures the monotonic relation-
+
+Table 3. Performance comparison on the FS1000 dataset. Sub-score results are shown in Appendix Tab. S2. 
+
+Method Publisher SRCC ( ↑) MSE ( ↓) RL2 ( ↓)
+
+10% 25% 50% 10% 25% 50% 10% 25% 50% JT-MLAVL[46] CVPR’25 0.90 N/A N/A 10.39 N/A N/A N/A N/A N/A ST-MLAVL [46] CVPR’25 0.728 0.724 0.665 32.56 35.47 54.24 1.592 1.645 2.012 SI [59] ICML’17 0.719 0.725 0.656 36.77 39.83 46.74 1.650 1.631 1.932 EWC [18] PNAS’17 0.716 0.710 0.635 54.97 56.58 58.06 2.150 2.041 2.354 LwF [23] TPAMI’17 0.699 0.626 0.583 35.19 34.67 45.76 1.726 2.271 2.625 MER [34] ICLR’19 0.739 0.710 0.627 29.95 32.58 39.40 1.758 1.818 2.596 DER++ [4] NeurIPS’20 0.755 0.733 0.668 31.23 41.45 46.17 1.513 1.623 2.003 NC-FSCIL [54] ICLR’23 0.746 0.728 0.659 32.62 38.59 49.92 1.493 1.643 2.011 SLCA [60] ICCV’23 0.740 0.719 0.675 53.75 58.41 59.01 2.109 2.133 2.036 Fs-Aug [22] TCSVT’24 0.741 0.725 0.677 34.81 38.38 47.98 1.637 1.711 1.999 MAGR [66] ECCV’24 0.730 0.711 0.658 32.75 39.53 42.62 1.609 1.681 2.067 ASAL [67] TVCG’25 0.739 0.724 0.666 29.90 35.61 38.75 1.623 1.667 1.923 
+
+BriMA (Ours) – 0.756 0.740 0.698 33.35 31.35 35.29 1.441 1.572 1.823 
+
+ship between predicted scores ˆyi and ground-truth scores yi
+
+based on their rank correlation, defined as SRCC =
+
+PNi=1 (ri − ¯r)(ˆ ri − ¯ˆr)
+
+qPNi=1 (ri − ¯r)2
+
+qPNi=1 (ˆ ri − ¯ˆr)2
+
+, (11) where ri and ˆri denote the rank values of the ground-truth and predicted scores, respectively. MSE quantifies the aver-age squared prediction error between ˆyi and yi, while RL2 represents the normalized mean squared error, defined as RL2 = 1
+
+N
+
+NX
+
+i=1 
+
+(yi − ˆyi)2
+
+(max( y) − min( y)) 2 × 100 . (12) 
+
+Implementation Details. All experiments are implemented in PyTorch and run on a single NVIDIA RTX 5090 GPU. All models are trained for 50 epochs using Adam optimizer with an initial learning rate of 3 × 10 −4, weight decay of 
+
+10 −4, and a cosine learning rate scheduler with decay rate 0.01. The batch size is set to 4 for RG and 8 for Fis-V and FS1000. The mini-batch size for replay sampling is 2 and 4 for the respective datasets. Following [66], we set 
+
+λmem , λ rec to 1 and the memory buffer size to 50 for all re-hearsal methods ( Q = 10 ). The replay coefficient is fixed to 
+
+α = 0 .5. To simulate non-stationary modality imbalance, we vary the missing-modality rate β ∈ { 10% , 25% , 50% }.For fair comparison, all methods use the same random seed to generate missing-modality patterns. Other implementa-tion details are supplemented in the Appendix. 
+
+5.2. Comparisons with State-of-the-Arts 
+
+Assessment Performance. Across Tabs. 1 to 3, Sequential Training (ST) [46] suffers the largest drop from the Joint Training (JT) upper bound as β increases, confirming severe forgetting under evolving modality imbalance. Rehearsal-free methods (SI [59], EWC [18], LwF [23]) moderately alleviate forgetting but remain unstable when modalities are corrupted or missing, while rehearsal-based methods (MER [34], DER++ [4], NC-FSCIL [54], SLCA [60], Fs-Aug [22], MAGR [66], ASAL [68]) improve stability yet 6Table 4. Efficiency and relative performance comparison on RG (average across all items). Results are reported relative to [46].                                            
+
+> Method SRCC Gain MSE Drop RL2 Drop Params (M) Training Time (h) Inference (Sample/s) Storage (MB)
+> ST-MLAVL [46] 0% 0% 0% 8.30 0.416 0.078 0.00 EWC [18] +3.1% +7.5% +5.8% 8.30 0.597 0.078 0.00 NC-FSCIL [54] +5.2% +13.6% +9.3% 8.30 1.025 0.078 32.25 MAGR [66] +9.5% +22.8% +15.2% 8.40 1.154 0.080 32.25 ASAL [67] +11.2% +26.7% +19.0% 8.30 0.876 0.084 32.25
+> BriMA (Ours) +14.6% +33.4% +23.1% 8.80 1.417 0.118 32.25
+
+Table 5. Ablation study on the RG dataset ( β = 10% ). 
+
+ID Setting SRCC ( ↑)
+
+Ball Clubs Hoop Ribbon Avg. 1 Ours 0.648 0.788 0.710 0.836 0.746 2 Ours w/o MBI 0.471 0.660 0.693 0.742 0.640 3 Ours w/o Bridge 0.640 0.727 0.656 0.796 0.730 4 Ours w/o Candidate 0.639 0.755 0.628 0.773 0.699 5 Ours w/o MRO 0.640 0.727 0.656 0.775 0.702 
+
+MSE ( ↓)
+
+1 Ours 8.65 4.88 7.12 4.39 6.26 2 Ours w/o MBI 10.70 6.80 8.03 9.34 8.72 3 Ours w/o Bridge 7.39 6.82 8.34 5.19 6.94 4 Ours w/o Candidate 7.76 6.57 9.20 5.08 7.15 5 Ours w/o MRO 7.39 6.82 8.34 5.51 7.02 
+
+RL2 ( ↓)
+
+1 Ours 2.310 2.291 2.681 1.641 2.231 2 Ours w/o MBI 2.857 3.190 3.024 3.495 3.142 3 Ours w/o Bridge 1.974 3.197 3.140 1.941 2.563 4 Ours w/o Candidate 2.072 3.083 3.461 1.900 2.629 5 Ours w/o MRO 1.974 3.197 3.140 2.060 2.593 
+
+fail to balance modality completion and cross-task reten-tion. BriMA consistently achieves the best performance across all datasets and missing rates, surpassing the second-best baseline by 3.8%, 4.5%, and 5.2% in average SRCC on RG, Fis-V, and FS1000, respectively. As β rises from 10% to 50%, our relative improvement further expands by up to 7.1%, demonstrating that the proposed MBI and MRO jointly provide robust generalization and stable scoring un-der increasingly severe modality degradation. 
+
+Computational Efficiency. Due to its lightweight resid-ual reconstruction design, BriMA maintains a favorable ef-ficiency–performance trade-off. As shown in Tab. 4, BriMA achieves the largest SRCC improvement (+14.6%) and error reductions (MSE −33 .4%, RL2 −23 .1%) with only a mod-est increase in parameters (+0.10M), training time (+1.001 hours), and inference latency (+0.100 sample/s). These re-sults show that the proposed mechanisms achieve substan-tial accuracy gains with limited computational overhead. 
+
+5.3. Ablation Study 
+
+Core Modules. As shown in Tab. 5, removing either MBI or MRO notably degrades performance, verifying that both modules are critical to handle evolving modality imbal-ance. Without MBI (Row 2), SRCC drops by 10 .6% and 1 2 3 4 5                                                           
+
+> 0.60
+> 0.80
+> 1.00
+> SRCC
+> 0.63 0.65 0.64 0.65 0.64
+> 0.76 0.78 0.78 0.80 0.79
+> 0.59 0.61 0.61
+> 0.67 0.71
+> 0.84 0.81 0.81 0.81 0.82
+> 12345
+> 0.0
+> 5.0
+> 10.0
+> 15.0
+> MSE  9.96 9.38 10.22 10.95 11.52
+> 5.07 5.20 5.00 5.27 4.88
+> 9.18 8.06 7.85 6.99 7.12
+> 4.38 4.80 4.91 4.76 4.44
+> 12345
+> Top KCandidates
+> 1.00
+> 2.00
+> 3.00
+> 4.00
+> RL2  2.66 2.50 2.73 2.92 3.08
+> 2.38 2.44 2.34 2.47 2.29
+> 3.46
+> 3.03 2.95 2.63 2.68
+> 1.64 1.79 1.84 1.78 1.66
+> Ball Clubs Hoop Ribbon
+
+Figure 3. Results of different candidates. 10 20                   
+
+> Ground Truth yi
+> 5
+> 10
+> 15
+> 20
+> 25
+> Predicted Score  ˆyi
+> (a)
+> k= 0 .36
+> b= 9 .55
+> Zero Imputation
+> 10 20
+> Ground Truth yi(b)
+> k= 0 .41
+> b= 9 .48
+> Retrieval
+> 10 20
+> Ground Truth yi(c)
+> k= 0 .54
+> b= 6 .70
+> Ours
+> Testing Sample iIdeal Line ( yi= ˆ yi)Regression Line ( yi= ˆ yi+b)
+
+Figure 4. Results of different imputation strategies. 
+
+MSE rises by 39 .3% , indicating the importance of sta-ble bridging-based imputation. Excluding MRO (Row 5) yields weaker score consistency across tasks, reflected by a 
+
+16 .2% increase in RL2. Further ablations within MBI re-veal complementary roles of the bridge and candidate se-lection mechanisms. Removing the bridge (Row 3) leads to higher reconstruction bias and temporal instability, while omitting candidate selection (Row 4) causes uneven mem-ory sampling and degraded score correlation. Both compo-nents contribute jointly to modality-consistent reconstruc-tion, validating the necessity of the full MBI design. 
+
+Effect of Different Candidates. Fig. 3 analyzes the impact of the retrieval size K in the bridging imputation. When retrieval is disabled ( K = 0 , Row 4 in Tab. 5), SRCC no-tably drops and both MSE and RL2 increase, demonstrat-ing that retrieved exemplars are crucial for stabilizing im-putation. Introducing retrieval ( K > 0) consistently im-proves all metrics, confirming that exemplar-guided resid-ual correction mitigates reconstruction bias. Across actions, the optimal K varies slightly (e.g., K=2 for Ball, K=4 
+
+for Hoop, K=5 for Ribbon), but the differences remain marginal ( < 2% SRCC), indicating that once retrieval is en-abled, the generative bridge dominates reconstruction qual-ity rather than the exact number of exemplars. 
+
+Effect of Different Imputation Strategies. Fig. 4 com-pares different imputation strategies on the RG dataset. The zero imputation baseline (see Fig. 4(a)) shows a weak cor-relation ( ˆyi = 0 .36 yi + 0 .55 ) and large variance, implying severe underfitting and bias accumulation. Retrieval-based 71 2 3 4 5          
+
+> Task Index
+> 0.5
+> 0.6
+> 0.7
+> SRCC
+> Catastrophic
+> Forgetting
+> ST-MLAVL
+> (a) 12345
+> Task Index
+> Mild
+> Forgetting
+> MAGR
+> (b) 12345
+> Task Index
+> Little
+> Forgetting
+> Ours
+> (c)
+
+Figure 5. Task-wise SRCC performance comparison. -0.2 0.0 0.2                       
+
+> Distrurbance
+> 0
+> 2
+> 5
+> 8
+> 10
+> 12
+> Loss
+> Loss Landscape
+> (a)
+> Loss Landscape
+> (a)
+> Loss Landscape
+> (a)
+> Loss Landscape
+> (a)
+> Loss Landscape
+> (a)
+> ST-MLAVL (1) NC-FSCIL (2) MAGR (3) ASAL (4) Ours (5)
+> 12345
+> Methods
+> -10
+> -5
+> 0
+> 5
+> 10
+> Absolute Error
+> μ=
+> 0.98
+> σ=
+> 2.87
+> μ=
+> 1.13
+> σ=
+> 2.19
+> μ=
+> 1.05
+> σ=
+> 2.36
+> μ=
+> 0.36
+> σ=
+> 3.14
+> μ=
+> -0.31
+> σ=
+> 2.63
+> (b) 0246
+> Error Threshold
+> 0.0
+> 0.2
+> 0.4
+> 0.6
+> 0.8
+> 1.0
+> Accuracy
+> (c)
+> AUC
+> ST-MLAVL (0.75)
+> NC-FSCIL (0.77)
+> MAGR (0.78)
+> ASAL (0.78)
+> Ours (0.88)
+
+Figure 6. Performance comparisons: (a) loss landscape, (b) error box, (c) accuracy Area Under the Curve (AUC). 
+
+imputation (see Fig. 4(b)) achieves moderate improvement (ˆyi = 0 .41 yi + 9 .48 ) by incorporating exemplar informa-tion but still suffers from inconsistent scaling and offset er-rors. In contrast, our method (see Fig. 4(c)) produces the strongest linearity ( ˆyi = 0 .54 yi + 0 .70 ) with minimal de-viation, demonstrating that the proposed bridge-guided im-putation effectively aligns reconstructed scores with ground truth while maintaining stable distribution across tasks. 
+
+5.4. Visualizations 
+
+Forgetting Mitigation. To examine whether forgetting is effectively mitigated, we visualize task-wise SRCC perfor-mance in Fig. 5 on RG. In Fig. 5(a), ST-MLAVL [46] suffers from severe forgetting, where after training on the fifth task, the performance on the fourth task drops noticeably com-pared to that after the fourth task training. With MAGR [66] (see Fig. 5(b)), forgetting is partially alleviated; the fourth-task performance remains stable between the fourth and fifth training stages, although mild degradation still appears on the third task. In contrast, our method (see Fig. 5(c)) shows slight forgetting, exhibiting a stable SRCC increase across tasks 3 and 4. This indicates that our method not only preserves prior task knowledge but also leverages new data to enhance earlier task performance. 
+
+Flat Minima. To analyze generalization stability, we per-turb model weights ten times and average the resulting loss surfaces across tasks. Fig. 6(a) compares the loss land-scapes of ST-MLAVL [46], NC-FSCIL [54], MAGR [66], ASAL [67], and our method. Our model exhibits a flatter and lower loss basin than the others, indicating better con-vergence stability and stronger generalization under CL. 
+
+Error Analysis. As shown in Fig. 6(b), our method achieves the lowest mean absolute error ( −0.31) among all compared approaches, substantially outperforming ST-       
+
+> First Frame Middle Frame Last Frame Outputs Ball #022 ST-MLAVL NC-FSCIL MAGR ASAL Ours
+> 0
+> 5
+> 10
+> 15
+> 20
+> Score
+> 16.48
+> err=
+> 0.22
+> 14.29
+> err=
+> 2.41
+> 14.19
+> err=
+> 2.51
+> 16.31
+> err=
+> 0.39
+> 13.81
+> err=
+> 2.89
+> Ground Truth Score = 16.70
+
+Figure 7. Case study. See Appendix Fig. S2 for more cases. 
+
+MLAVL [46] (0.98), NC-FSCIL [54] (1.13), MAGR [66] (0.84), and ASAL [67] (0.62). It also yields the most sta-ble predictions with a standard deviation of 2.63, indicating strong robustness to task transitions. Fig. 6(c) further shows AUC improvements, where ours (0.88) clearly surpasses ST-MLAVL (0.75), NC-FSCIL (0.77), MAGR (0.78), and ASAL (0.78), confirming superior accuracy and generaliza-tion across continual AQA tasks. 
+
+Case Study. Fig. 7 presents a rhythmic gymnastics ball rou-tine (Ball #022) used to evaluate the scoring accuracy of dif-ferent methods. The left part shows key frames, while the right part compares predicted scores from ST-MLAVL [46], NC-FSCIL [54], MAGR [66], ASAL [67], and ours against the ground truth (16.70). ST-MLAVL and ASAL achieve close predictions (16.48 and 16.31), while NC-FSCIL and MAGR underestimate (14.29 and 14.19). Our method pro-duces the most consistent visual–score alignment, demon-strating robust perception of fine-grained motions and supe-rior temporal reasoning in complex routines. 
+
+6. Conclusion and Discussion 
+
+In this work, we present BriMA, a novel approach to multi-modal continual action quality assessment under non-stationary modality imbalance. BriMA integrates memory-guided bridging imputation and modality-aware replay opti-mization to jointly address missing-modality reconstruction and cross-task stability. Extensive experiments across mul-tiple datasets demonstrate that BriMA consistently outper-forms state-of-the-art methods, achieving superior correla-tion, lower errors, and stronger resistance to forgetting. We believe BriMA offers a general paradigm for building more reliable multi-modal systems, advancing robust perception and evaluation in real-world scenarios. 
+
+Limitations and Future Work. BriMA introduces mod-erate training overhead due to exemplar retrieval, resid-ual bridging, and priority-based replay, achieving an ef-ficiency–stability trade-off. Its pattern-level conditioning may face scalability challenges with larger modality sets. The framework does not explicitly model fine-grained tem-poral dynamics and assumes observable modality avail-ability. Moreover, while the residual bridging design is conservative, handling weak modalities and unseen miss-ing patterns at scale requires further investigation. Future work will explore more efficient retrieval, adaptive memory compression, lighter reconstruction modules, and temporal modeling to enhance scalability and robustness. 8Acknowledgment. This work was supported by the National Natural Science Foundation of China (NSFC, No. 62406160), the Beijing Natural Science Foundation (L247011), the Beijing Major Science and Technology Project (No. Z251100008425003), and the China Postdoc-toral Science Foundation (No. 2025M781489). 
+
+References 
+
+[1] Kumar Ashutosh and Kristen Grauman. Learning skill-attributes for transferable assessment in video. In The Thirty-ninth Annual Conference on Neural Information Processing Systems , 2025. 2 [2] Yang Bai, Desen Zhou, Songyang Zhang, Jian Wang, Errui Ding, Yu Guan, Yang Long, and Jingdong Wang. Action quality assessment with temporal parsing transformer. In 
+
+European Conference on Computer Vision , pages 422–438. Springer, 2022. 2 [3] XB Bruce, Yan Liu, Keith CC Chan, and Chang Wen Chen. Egcn++: A new fusion strategy for ensemble learning in skeleton-based rehabilitation exercise assessment. IEEE Transactions on Pattern Analysis and Machine Intelligence ,46(9):6471–6485, 2024. 1, 2 [4] Pietro Buzzega, Matteo Boschini, Angelo Porrello, Davide Abati, and Simone Calderara. Dark experience for general continual learning: A strong, simple baseline. Advances in Neural Information Processing Systems , 33:15920–15930, 2020. 2, 5, 6, 13, 14, 16 [5] Xinyan Chen and Jianfei Yang. X-fi: A modality-invariant foundation model for multimodal human sensing. arXiv preprint arXiv:2410.10167 , 2024. 16 [6] Amirhossein Dadashzadeh, Shuchao Duan, Alan Whone, and Majid Mirmehdi. Pecop: Parameter efficient continual pretraining for action quality assessment. In WACV , pages 42–52, 2024. 1, 2, 3 [7] Xinpeng Ding, Xiaowei Xu, and Xiaomeng Li. Sedskill: Surgical events driven method for skill assessment from tho-racoscopic surgical videos. In International Conference on Medical Image Computing and Computer-Assisted Interven-tion , pages 35–45. Springer Nature Switzerland Cham, 2023. 2[8] Linfeng Dong, Wei Wang, Yu Qiao, and Xiao Sun. Lucidac-tion: A hierarchical and multi-model dataset for comprehen-sive action quality assessment. Advances in Neural Informa-tion Processing Systems , 2025. 2 [9] Changde Du, Changying Du, Hao Wang, Jinpeng Li, Wei-Long Zheng, Bao-Liang Lu, and Huiguang He. Semi-supervised deep generative modelling of incomplete multi-modality emotional data. In Proceedings of the 26th ACM in-ternational conference on Multimedia , pages 108–116, 2018. 2, 3, 4 [10] Yiyang Fang, Wenke Huang, Guancheng Wan, Kehua Su, and Mang Ye. Emoe: Modality-specific enhanced dynamic emotion experts. In IEEE/CVF Conference on Computer Vi-sion and Pattern Recognition , pages 14314–14324, 2025. 16 [11] Ruisheng Han, Kanglei Zhou, Amir Atapour-Abarghouei, Xiaohui Liang, and Hubert PH Shum. Finecausal: A causal-based framework for interpretable fine-grained action quality assessment. In Proceedings of the Computer Vision and Pat-tern Recognition Conference , pages 6018–6027, 2025. 1 [12] Ruisheng Han, Kanglei Zhou, Shuang Chen, Amir Atapour-Abarghouei, and Hubert PH Shum. Caflow: Enhancing long-term action quality assessment with causal counterfactual flow. arXiv preprint arXiv:2511.21653 , 2025. 1 [13] Seiji Hirosawa, Takaaki Kato, Takayoshi Yamashita, and Yoshimitsu Aoki. Action quality assessment model using specialists’ gaze location and kinematics data—focusing on evaluating figure skating jumps. Sensors , 23(22):9282, 2023. 2[14] Yifei Huang, Guo Chen, Jilan Xu, Mingfang Zhang, Li-jin Yang, Baoqi Pei, Hongjie Zhang, Lu Dong, Yali Wang, Limin Wang, et al. Egoexolearn: A dataset for bridging asyn-chronous ego-and exo-centric view of procedural activities in real world. In IEEE/CVF Conference on Computer Vision and Pattern Recognition , pages 22072–22086, 2024. 1, 2 [15] Yukang Huo and Hao Tang. When continue learning meets multimodal large language model: A survey. arXiv preprint arXiv:2503.01887 , 2025. 2 [16] Hiteshi Jain, Gaurav Harit, and Avinash Sharma. Action quality assessment using siamese network-based deep met-ric learning. IEEE Transactions on Circuits and Systems for Video Technology , 31(6):2260–2273, 2020. 2 [17] Chung-In Joung, Seunghwan Byun, and Seungjun Baek. Contrastive learning for action assessment using graph con-volutional networks with augmented virtual joints. IEEE Ac-cess , 2023. 2 [18] James Kirkpatrick, Razvan Pascanu, Neil Rabinowitz, Joel Veness, Guillaume Desjardins, Andrei A. Rusu, Kieran Milan, John Quan, Tiago Ramalho, Agnieszka Grabska-Barwinska, Demis Hassabis, Claudia Clopath, Dharshan Ku-maran, and Raia Hadsell. Overcoming catastrophic for-getting in neural networks. Proceedings of the National Academy of Sciences , 114(13):3521–3526, 2017. 2, 5, 6, 7, 14, 16 [19] Jian Lang, Zhangtao Cheng, Ting Zhong, and Fan Zhou. Retrieval-augmented dynamic prompt tuning for incomplete multimodal learning. In Proceedings of the AAAI Conference on Artificial Intelligence , pages 18035–18043, 2025. 2, 3, 4 [20] Mingcheng Li, Dingkang Yang, Yang Liu, Shunli Wang, Ji-awei Chen, Shuaibing Wang, Jinjie Wei, Yue Jiang, Qingyao Xu, Xiaolu Hou, et al. Toward robust incomplete multimodal sentiment analysis via hierarchical representation learning. 
+
+Advances in Neural Information Processing Systems , 37: 28515–28536, 2024. 1, 2 [21] Yuan-Ming Li, Wei-Jin Huang, An-Lan Wang, Ling-An Zeng, Jing-Ke Meng, and Wei-Shi Zheng. Egoexo-fitness: Towards egocentric and exocentric full-body action under-standing. arXiv preprint arXiv:2406.08877 , 2024. 2 [22] Yuan-Ming Li, Ling-An Zeng, Jing-Ke Meng, and Wei-Shi Zheng. Continual action assessment via task-consistent score-discriminative feature distribution modeling. IEEE Transactions on Circuits and Systems for Video Technology ,2024. 1, 2, 3, 4, 5, 6, 14, 16 [23] Zhizhong Li and Derek Hoiem. Learning without forgetting. 
+
+IEEE Transactions on Pattern Analysis and Machine Intelli-gence , 40(12):2935–2947, 2017. 5, 6, 14, 16 
+
+9[24] Guoqiang Liang, Chuan Qin, De Cheng, Shizhou Zhang, and Yanning Zhang. Boosting multi-modal alignment: Geomet-ric feature separation for class incremental learning. In Pro-ceedings of the 33rd ACM International Conference on Mul-timedia , pages 1880–1889, 2025. 2 [25] Yanchao Liu, Xina Cheng, and Takeshi Ikenaga. A figure skating jumping dataset for replay-guided action quality as-sessment. In ACM International Conference on Multimedia ,pages 2437–2445, 2023. 2 [26] Mengmeng Ma, Jian Ren, Long Zhao, Sergey Tulyakov, Cathy Wu, and Xi Peng. Smil: Multimodal learning with severely missing modality. In Proceedings of the AAAI con-ference on artificial intelligence , pages 2302–2310, 2021. 2, 3, 4 [27] Yulu Pan, Ce Zhang, and Gedas Bertasius. Basket: A large-scale video dataset for fine-grained skill estimation. In Pro-ceedings of the Computer Vision and Pattern Recognition Conference , pages 28952–28962, 2025. 1, 2 [28] Paritosh Parmar and Brendan Tran Morris. Measuring the quality of exercises. In 2016 38th Annual International Con-ference of the IEEE Engineering in Medicine and Biology Society (EMBC) , pages 2241–2244. IEEE, 2016. 2 [29] Paritosh Parmar and Brendan Tran Morris. What and how well you performed? a multitask learning approach to action quality assessment. In IEEE/CVF Conference on Computer Vision and Pattern Recognition , pages 304–313, 2019. [30] Paritosh Parmar and Brendan Tran Morris. Learning to score olympic events. In IEEE Conference on Computer Vision and Pattern Recognition Workshops , pages 20–28, 2017. 2, 6, 12, 13 [31] Paritosh Parmar, Amol Gharat, and Helge Rhodin. Do-main knowledge-informed self-supervised representations for workout form assessment. In European Conference on Computer Vision , pages 105–123. Springer, 2022. 1 [32] Mengshi Qi, Hao Ye, Jiaxuan Peng, and Huadong Ma. Action quality assessment via hierarchical pose-guided multi-stage contrastive regression. arXiv preprint arXiv:2501.03674 , 2025. 2 [33] Jiangwei Ren, Xingyu Jiang, Zizhuo Li, Dingkang Liang, Xin Zhou, and Xiang Bai. Minima: Modality invariant image matching. In IEEE/CVF Conference on Computer Vision and Pattern Recognition , pages 23059–23068, 2025. 16 [34] Matthew Riemer, Ignacio Cases, Robert Ajemian, Miao Liu, Irina Rish, Yuhai Tu, and Gerald Tesauro. Learning to learn without forgetting by maximizing transfer and minimizing interference. In International Conference on Learning Rep-resentations , 2019. 2, 5, 6, 14, 16 [35] Joan Serra, Didac Suris, Marius Miron, and Alexandros Karatzoglou. Overcoming catastrophic forgetting with hard attention to the task. In International Conference on Machine Learning , pages 4548–4557. PMLR, 2018. 2 [36] Jiahao Wang, Zhengyin Du, Annan Li, and Yunhong Wang. Assessing action quality via attentive spatio-temporal convo-lutional networks. In Chinese Conference on Pattern Recog-nition and Computer Vision , pages 3–16. Springer, 2020. 1 [37] Liyuan Wang, Xingxing Zhang, Qian Li, Mingtian Zhang, Hang Su, Jun Zhu, and Yi Zhong. Incorporating neuro-inspired adaptability for continual learning in artificial in-telligence. Nature Machine Intelligence , 5(12):1356–1368, 2023. 2 [38] Liyuan Wang, Xingxing Zhang, Hang Su, and Jun Zhu. Acomprehensive survey of continual learning: Theory, method and application. IEEE Transactions on Pattern Analysis and Machine Intelligence , 2024. [39] Liyuan Wang, Jingyi Xie, Xingxing Zhang, Hang Su, and Jun Zhu. Hide-pet: continual learning via hierarchical de-composition of parameter-efficient tuning. IEEE Transac-tions on Pattern Analysis and Machine Intelligence , 2025. 1, 2[40] Shunli Wang, Dingkang Yang, Peng Zhai, Chixiao Chen, and Lihua Zhang. Tsa-net: Tube self-attention network for ac-tion quality assessment. In ACM International Conference on Multimedia , pages 4902–4910, 2021. 1 [41] Xun Wang, Bingqing Ke, Xuanping Li, Fangyu Liu, Mingyu Zhang, Xiao Liang, and Qiushi Xiao. Modality-balanced embedding for video retrieval. In Proceedings of the 45th international ACM SIGIR conference on research and devel-opment in information retrieval , pages 2578–2582, 2022. 1, 2, 3, 4 [42] Renjie Wu, Hu Wang, Hsiang-Ting Chen, and Gustavo Carneiro. Deep multimodal learning with missing modal-ity: A survey. arXiv preprint arXiv:2409.07825 , 2024. 1, 2, 3, 4 [43] Jingfei Xia, Mingchen Zhuge, Tiantian Geng, Shun Fan, Yuantai Wei, Zhenyu He, and Feng Zheng. Skating-mixer: Long-term sport audio-visual modeling with mlps. In Asso-ciation for the Advancement of Artificial Intelligence , pages 2901–2909, 2023. 1, 2, 6, 12, 13 [44] Xiang Xiang, Ye Tian, Austin Reiter, Gregory D Hager, and Trac D Tran. S3d: Stacking segmental p3d for action qual-ity assessment. In IEEE International Conference on Image Processing , pages 928–932. IEEE, 2018. 2 [45] Huangbiao Xu, Xiao Ke, Yuezhou Li, Rui Xu, Huanqi Wu, Xiaofeng Lin, and Wenzhong Guo. Vision-language ac-tion knowledge learning for semantic-aware action quality assessment. In European Conference on Computer Vision ,2024. 1, 2, 6, 12, 13 [46] Huangbiao Xu, Xiao Ke, Huanqi Wu, Rui Xu, Yuezhou Li, and Wenzhong Guo. Language-guided audio-visual learn-ing for long-term sports assessment. In Proceedings of the Computer Vision and Pattern Recognition Conference , pages 23967–23977, 2025. 1, 2, 5, 6, 7, 8, 12, 13, 14 [47] Huangbiao Xu, Xiao Ke, Huanqi Wu, Rui Xu, Yuezhou Li, Peirong Xu, and Wenzhong Guo. Dancefix: An exploration in group dance neatness assessment through fixing abnormal challenges of human pose. In Proceedings of the AAAI Con-ference on Artificial Intelligence , pages 8869–8877, 2025. 2 [48] Huangbiao Xu, Huanqi Wu, Xiao Ke, Yuezhou Li, Rui Xu, and Wenzhong Guo. Quality-guided vision-language learn-ing for long-term action quality assessment. IEEE Transac-tions on Multimedia , 2025. 2 [49] Huangbiao Xu, Huanqi Wu, Xiao Ke, Junyi Wu, Rui Xu, and Jinglin Xu. Mcmoe: Completing missing modalities with mixture of experts for incomplete multimodal action quality assessment. arXiv preprint arXiv:2511.17397 , 2025. 1 
+
+10 [50] Jinglin Xu, Yongming Rao, Xumin Yu, Guangyi Chen, Jie Zhou, and Jiwen Lu. Finediving: A fine-grained dataset for procedure-aware action quality assessment. In IEEE/CVF Conference on Computer Vision and Pattern Recognition ,pages 2949–2958, 2022. 1, 2 [51] Jinglin Xu, Sibo Yin, Guohao Zhao, Zishuo Wang, and Yuxin Peng. Fineparser: A fine-grained spatio-temporal action parser for human-centric action quality assessment. In IEEE/CVF Conference on Computer Vision and Pattern Recognition , pages 14628–14637, 2024. 1, 2 [52] Jinglin Xu, Sibo Yin, and Yuxin Peng. Human-centric fine-grained action quality assessment. IEEE Transactions on Pattern Analysis and Machine Intelligence , 2025. 2 [53] Wenxin Xu, Hexin Jiang, and Xuefeng Liang. Leveraging knowledge of modality experts for incomplete multimodal learning. In Proceedings of the 32nd ACM International Conference on Multimedia , pages 438–446, 2024. 2 [54] Yibo Yang, Haobo Yuan, Xiangtai Li, Zhouchen Lin, Philip Torr, and Dacheng Tao. Neural collapse inspired feature-classifier alignment for few-shot class incremental learning. 
+
+arXiv preprint arXiv:2302.03004 , 2023. 2, 5, 6, 7, 8, 14, 16 [55] Amir Zadeh, Rowan Zellers, Eli Pincus, and Louis-Philippe Morency. Mosi: multimodal corpus of sentiment intensity and subjectivity analysis in online opinion videos. arXiv preprint arXiv:1606.06259 , 2016. 16 [56] Ling-An Zeng and Wei-Shi Zheng. Multimodal action qual-ity assessment. IEEE Transactions on Image Processing , 33: 1600–1613, 2024. 2 [57] Ling-An Zeng, Fa-Ting Hong, Wei-Shi Zheng, Qi-Zhi Yu, Wei Zeng, Yao-Wei Wang, and Jian-Huang Lai. Hybrid dynamic-static context-aware attention network for action assessment in long videos. In ACM International Confer-ence on Multimedia , pages 2526–2534, 2020. 2, 6, 12, 13 [58] Zhilin Zeng, Zelin Peng, Xiaokang Yang, and Wei Shen. Missing as masking: Arbitrary cross-modal feature recon-struction for incomplete multimodal brain tumor segmenta-tion. In International Conference on Medical Image Com-puting and Computer-Assisted Intervention , pages 424–433. Springer, 2024. 1, 2, 4 [59] Friedemann Zenke, Ben Poole, and Surya Ganguli. Contin-ual learning through synaptic intelligence. In International Conference on Machine Learning , pages 3987–3995. PMLR, 2017. 2, 5, 6, 14 [60] Gengwei Zhang, Liyuan Wang, Guoliang Kang, Ling Chen, and Yunchao Wei. Slca: Slow learner with classifier alignment for continual learning on a pre-trained model. 
+
+IEEE/CVF International Conference on Computer Vision ,pages 19148–19158, 2023. 5, 6, 14, 16 [61] Da-Wei Zhou, Yuanhan Zhang, Yan Wang, Jingyi Ning, Han-Jia Ye, De-Chuan Zhan, and Ziwei Liu. Learning with-out forgetting for vision-language models. IEEE Transac-tions on Pattern Analysis and Machine Intelligence , 2025. 2 [62] Haoyang Zhou, Teng Hou, and Jitao Li. Prior knowledge-guided hierarchical action quality assessment with 3d con-volution and attention mechanism. In Journal of Physics: Conference Series , page 012027. IOP Publishing, 2023. 2 [63] Kanglei Zhou, Ruizhi Cai, Yue Ma, Qingqing Tan, Xinning Wang, Jianguo Li, Hubert PH Shum, Frederick WB Li, Song Jin, and Xiaohui Liang. A video-based augmented reality system for human-in-the-loop muscle strength assessment of juvenile dermatomyositis. IEEE Transactions on Visualiza-tion and Computer Graphics , 29(5):2456–2466, 2023. 1, 2 [64] Kanglei Zhou, Ruizhi Cai, Liyuan Wang, Hubert P. H. Shum, and Xiaohui Liang. A comprehensive survey of action qual-ity assessment: Method and benchmark. arXiv preprint arXiv:2412.11149 , 2024. 1, 2 [65] Kanglei Zhou, Junlin Li, Ruizhi Cai, Liyuan Wang, Xingx-ing Zhang, and Xiaohui Liang. Cofinal: Enhancing action quality assessment with coarse-to-fine instruction alignment. In International Joint Conference on Artificial Intelligence ,pages 1771–1779, 2024. 2 [66] Kanglei Zhou, Liyuan Wang, Xingxing Zhang, Hubert PH Shum, Frederick WB Li, Jianguo Li, and Xiaohui Liang. Magr: Manifold-aligned graph regularization for continual action quality assessment. In European Conference on Com-puter Vision , pages 375–392, 2024. 1, 2, 3, 4, 5, 6, 7, 8, 14, 16 [67] Kanglei Zhou, Zikai Hao, Liyuan Wang, and Xiaohui Liang. Adaptive score alignment learning for continual perceptual quality assessment of 360-degree videos in virtual reality. 
+
+IEEE Transactions on Visualization and Computer Graph-ics , 2025. 5, 6, 7, 8, 13, 14, 16 [68] Kanglei Zhou, Qingyi Pan, Xingxing Zhang, Hubert PH Shum, Frederick WB Li, Xiaohui Liang, and Liyuan Wang. Continual action quality assessment via adap-tive manifold-aligned graph regularization. arXiv preprint arXiv:2510.06842 , 2025. 6 [69] Kanglei Zhou, Hubert PH Shum, Frederick WB Li, Xinxing Zhang, and Xiaohui Liang. Phi: Bridging domain shift in long-term action quality assessment via progressive hierar-chical instruction. IEEE Transactions on Image Processing ,34:3718–3732, 2025. 2 [70] Qian Zhou, Ting Chen, Hua Zou, and Xuan Xiao. Uncertainty-aware incomplete multimodal fusion for few-shot central retinal artery occlusion classification. Informa-tion Fusion , 104:102200, 2024. 1, 2 
+
+11 BriMA: Bridged Modality Adaptation for Multi-Modal Continual Action Quality Assessment 
+
+# Supplementary Material 
+
+S1. Training Procedure 
+
+During multi-modal continual AQA, BriMA sequentially learns from tasks {T 1, . . . , TT } under evolving modality availability. At session t, for each sample (xi,t , y i,t ), the MBI module (see Sec. 4.2) reconstructs missing modality embeddings ˜zmi,t using retrieved exemplars from the mem-ory bank Bt−1 and the imputation bridge in Eq. (6), su-pervised by the reconstruction loss in Eq. (7). The com-pleted multi-modal features {zmi,t }m∈O i,t ∪ { ˜zmi,t }m∈M i,t 
+
+are then fed into the scoring network fθtf , which is jointly optimized with the reconstruction network θg using the ob-jective in Eq. (2). During optimization, the MRO module (see Sec. 4.3) samples replay instances from Bt−1 accord-ing to the priority qi in Eq. (9) and regularizes temporal pre-diction drift via the consistency loss in Eq. (10). After con-vergence on Tt, MRO updates the memory bank to Bt us-ing quantile-based, modality-complete selection in Eq. (8), which then supports the next session. 
+
+S2. Additional Implementation Details 
+
+Additional Dataset Details We conduct experiments on three large-scale multi-modal datasets: RG, Fis-V, and FS1000. The score ranges and evaluation dimensions of these datasets are summarized in Tab. S1. Rhythmic Gymnastics (RG) [57] contains 1,000 videos of rhythmic gymnastics performances involving four apparatuses: ball, clubs, hoop, and ribbon. Each video lasts about 1.6 min-utes and is recorded at 25 fps. The dataset is split into 200 training and 50 evaluation videos per action type. Follow-ing prior works [45, 46], we train separate models for each apparatus. Figure Skating Video (Fis-V) [30] consists of 500 videos of ladies’ singles short program performances in figure skating, each approximately 2.9 minutes long and recorded at 25 fps. Following the official split, 400 videos are used for training and 100 for testing. Each video is annotated with two official competition scores: the Total Element Score (TES) and the Program Component Score (PCS). Consistent with previous studies [45, 46], we train separate models for each score type. Figure Skating 1000 (FS1000) [43] is a large-scale figure skating dataset com-prising 1,000 training and 247 validation videos covering eight competition categories, including men’s, ladies’, and pairs’ short and free programs, as well as rhythm and free dances in ice dance. Each video contains roughly 5,000 frames at 25 fps. FS1000 provides TES, PCS, and five ad-ditional component scores: Skating Skills (SS), Transitions 
+
+Algorithm 1: Training procedure of BriMA 
+
+Input: Task sequence {T 1, . . . , TT }, initial memory 
+
+B0 = ∅
+
+Output: Trained parameters θf , θ g 
+
+> 1
+
+for t = 1 to T do 
+
+// Stage 1: Memory-guided bridging imputation  
+
+> 2
+
+foreach sample (xi,t , y i,t ) ∈ T t do  
+
+> 3
+
+Encode observed modalities to obtain 
+
+{zmi,t }m∈O i,t ; 
+
+> 4
+
+Retrieve top-K exemplar features from Bt−1
+
+using Eq. (3);  
+
+> 5
+
+Build task indicator ri,t and conditioning 
+
+cmt via Eqs. (4) and (5);  
+
+> 6
+
+Compute imputed features ˜zmi,t for 
+
+m ∈ M i,t using the bridge Eq. (6);  
+
+> 7
+
+end 
+
+// Stage 2: Joint optimization with modality-aware replay  
+
+> 8
+
+while not converged do  
+
+> 9
+
+Sample a mini-batch from Tt (with completed features);  
+
+> 10
+
+Sample a replay batch from Bt−1; 
+
+> 11
+
+For each replay sample, compute modality distortion di and score drift ∆yi, then priority qi as in Eq. (9);  
+
+> 12
+
+Select high-priority replay instances based on qi; 
+
+> 13
+
+Compute Lscore (see Eq. (1)), Lrec (see Eq. (7)), and Lmem (see Eq. (10));  
+
+> 14
+
+Update θf , θ g by minimizing Eq. (2);  
+
+> 15
+
+end 
+
+// Stage 3: Memory update  
+
+> 16
+
+Rank all samples in Tt by predicted scores ˆyi,t 
+
+and partition into Q quantile bins;  
+
+> 17
+
+Within bins, iteratively select modality-complete samples using Eq. (8) until Bt is filled;  
+
+> 18
+
+end  
+
+> 19
+
+return θf , θ g
+
+(TR), Performance (PE), Composition (CO), and Interpre-tation of Music (IN). It is the first figure skating dataset de-signed for audiovisual learning, promoting rule-consistent multi-modal modeling. Following prior works [45, 46], we train separate models for each score type. 12 Table S1. Score ranges and evaluation dimensions for all datasets. 
+
+Dataset Subcategory Score Dimension(s) Range Notes 
+
+RG [57] Ball Overall 0 – 25 Four rhythmic events Clubs Overall 0 – 25 Hoop Overall 0 – 25 Ribbon Overall 0 – 25 Fis-V [30] TES Technical Execution Score (TES) 0 – 45 Two judging dimensions PCS Performance Component Score (PCS) 0 – 40 FS1000 [43] TES Technical Execution Score 0 – 130 Seven judging components PCS Performance Component Score 0 – 60 SS Skating Skills 0 – 10 TR Transitions 0 – 10 PE Performance 0 – 10 CO Composition 0 – 10 IN Interpretation 0 – 10 MB        
+
+> MI
+> NMI
+> Settings
+> (MLAVL)
+> Ball
+> Clubs
+> Hoop
+> Ribbon
+> Actions (RG)
+> 0
+> 5
+> 10
+> 15
+> 20
+> MSE
+> Non-stationary Modality Imbalance
+> Modality Imbalance
+> Modality Balance
+> →(NMI)
+> →(MI)
+> →(MB)
+> (a) (b) MB
+> MI
+> NMI
+> Settings
+> (MLAVL)
+> Ball
+> Clubs
+> Hoop
+> Ribbon
+> Actions (RG)
+> 0
+> 2
+> 4
+> 6
+> RL2
+> Non-stationary Modality Imbalance
+> Modality Imbalance
+> Modality Balance
+> →(NMI)
+> →(MI)
+> →(MB)
+
+Figure S1. Non-stationary modality imbalance significantly chal-lenges the model performance: (a) L2 and (b) RL2. 
+
+Backbone Details. Following prior works [43, 45, 46], we employ widely adopted pretrained encoders for the three modalities considered in this study. For RG and Fis-V, visual features are extracted using the Video Swin Trans-former (VST) pretrained on Kinetics-600, and audio fea-tures are obtained using the Audio Spectrogram Trans-former (AST) pretrained on AudioSet. For FS1000, we use the TimeSformer and AST features provided by [43]. Tex-tual commentary is encoded using ViFi-CLIP, a CLIP model fine-tuned on Kinetics-400, applied to our curated prompt sets. All experiments adopt fixed clip sampling following the standard protocol of each dataset. 
+
+S3. Additional Results 
+
+Performance Drops Due to Non-Stationary Modality Imbalance. Fig. S1 quantitatively demonstrates the se-vere impact of evolving modality imbalance across the four rhythmic gymnastics actions. Under the balanced-modality setting, all actions achieve strong correlation (SRCC ≥
+
+0.82) and low error (MSE ≤ 5.6, RL2 ≤ 2.2), indicating stable and consistent scoring. When modality imbalance is introduced, both correlation and error metrics deteriorate sharply: SRCC drops by an average of 28.6%, while MSE and RL2 increase by 78.1% and 38.2%, respectively. The degradation becomes catastrophic under the non-stationary modality imbalance setting, where missing modalities vary across sessions, leading to an average SRCC decline of 62.4% compared with the balanced baseline. In this case, MSE grows nearly threefold and RL2 more than doubles, for example from 2.14 to 6.26 for the “Ball” routine. These results confirm that traditional AQA pipelines are highly vulnerable to modality instability. Even minor shifts in modality quality or availability can propagate through fea-ture fusion, distort the latent representation h, and cause nontrivial score drift. This emphasizes the necessity of explicitly addressing non-stationary modality imbalance in continual AQA, as tackled by our BriMA method. 
+
+Sub-Component Performance Comparison on FS1000. 
+
+Tab. S2 analyzes TES, PCS, SS, TR, PE, CO, and IN under three missing rates β ∈ {10% , 25% , 50% }. At 
+
+β = 10% , our method achieves the best average SRCC (0.756), slightly surpassing the strongest baseline DER++ [4] (0.755) and delivering the lowest RL2 on average (1.441). Component-wise, it leads SRCC on PCS, SS, TR, and IN, and attains the best MSE on PCS, SS, TR, and CO. Although ASAL [67] reports a lower average MSE (29.90 vs. 33.35), our method maintains better correlation and stability, suggesting that bridging favors consistent ranking when modalities are mildly degraded. When β = 25% , our method becomes clearly dominant across metrics. It yields the highest average SRCC (0.740, a 1.0% improvement over the best baseline DER++ [4] at 0.733), the lowest average MSE (31.35, an 11.9% reduc-tion compared with the best baseline ASAL [67] at 35.61), and the lowest average RL2 (1.572, a 3.1% reduction com-pared with ASAL [67] at 1.623). Per component, it consis-tently improves correlation on TES, PCS, TR, CO, and IN, while matching or exceeding baselines on SS and PE. These 13 Table S2. Performance comparison on the FS1000 dataset (supplementary results of Tab. 3). Bold values indicate the best results. Joint Training (JT) and Sequential Training (ST) denote the upper and lower bounds, while rehearsal-free and rehearsal-based methods represent different CL strategies. ↑: higher is better; ↓: lower is better. N/A indicates that the metric was not reported in the paper. Average SRCC is computed using Fisher-z transformation. 
+
+Method Publisher SRCC ( ↑) MSE ( ↓) RL2 ( ↓)
+
+TES PCS SS TR PE CO IN Avg. TES PCS SS TR PE CO IN Avg. TES PCS SS TR PE CO IN Avg. JT-MLAVL[46] CVPR’25 0.92 0.89 0.90 0.90 0.88 0.89 0.88 0.90 64.89 6.39 0.23 0.24 0.50 0.25 0.26 10.39 N/A N/A N/A N/A N/A N/A N/A N/A 
+
+Modality Missing Rate β = 10% 
+
+ST-MLAVL [46] CVPR’25 0.630 0.762 0.740 0.757 0.721 0.744 0.726 0.728 209.44 15.38 0.56 0.54 0.86 0.55 0.61 32.56 1.686 1.084 2.026 1.821 0.892 1.736 1.899 1.592 SI [59] ICML’17 0.583 0.747 0.737 0.749 0.720 0.754 0.717 0.719 238.47 15.74 0.56 0.56 0.88 0.56 0.63 36.77 1.920 1.110 2.043 1.865 0.909 1.748 1.952 1.650 EWC [18] PNAS’17 0.639 0.715 0.743 0.740 0.730 0.743 0.689 0.716 358.87 22.05 0.66 0.76 0.90 0.71 0.81 54.97 2.889 1.554 2.377 2.555 0.934 2.232 2.506 2.150 LwF [23] TPAMI’17 0.610 0.731 0.740 0.706 0.662 0.740 0.688 0.699 228.11 14.72 0.53 0.65 0.99 0.62 0.68 35.19 1.836 1.038 1.932 2.193 1.029 1.940 2.111 1.726 MER [34] ICLR’19 0.708 0.775 0.727 0.762 0.713 0.753 0.733 0.739 190.91 15.21 0.65 0.65 0.90 0.57 0.77 29.95 1.537 1.072 2.375 2.195 0.938 1.783 2.405 1.758 DER++ [4] NeurIPS’20 0.672 0.780 0.767 0.762 0.769 0.777 0.746 0.755 201.08 14.56 0.50 0.56 0.79 0.50 0.60 31.23 1.619 1.027 1.803 1.874 0.823 1.577 1.872 1.513 NC-FSCIL [54] ICLR’23 0.659 0.767 0.759 0.781 0.732 0.761 0.747 0.746 211.11 14.29 0.50 0.48 0.81 0.54 0.56 32.62 1.700 1.008 1.831 1.615 0.843 1.699 1.756 1.493 SLCA [60] ICCV’23 0.633 0.770 0.770 0.744 0.739 0.759 0.746 0.740 352.76 19.63 0.64 0.75 1.01 0.67 0.82 53.75 2.840 1.384 2.316 2.500 1.047 2.118 2.557 2.109 Fs-Aug [22] TCSVT’24 0.646 0.750 0.741 0.749 0.739 0.765 0.778 0.741 222.69 17.88 0.58 0.57 0.81 0.56 0.58 34.81 1.793 1.261 2.112 1.910 0.837 1.751 1.796 1.637 MAGR [66] ECCV’24 0.682 0.765 0.748 0.759 0.700 0.742 0.704 0.730 211.79 14.26 0.53 0.53 0.88 0.62 0.64 32.75 1.705 1.005 1.938 1.769 0.910 1.948 1.987 1.609 ASAL [67] TVCG’25 0.681 0.761 0.745 0.743 0.739 0.762 0.735 0.739 191.01 15.00 0.57 0.61 0.88 0.55 0.66 29.90 1.538 1.058 2.056 2.035 0.908 1.717 2.051 1.623 BriMA (Ours) – 0.676 0.794 0.797 0.790 0.736 0.773 0.784 0.756 206.61 12.18 0.44 0.46 0.82 0.49 0.57 33.35 1.663 0.859 1.596 1.558 0.852 1.540 1.674 1.441 
+
+Modality Missing Rate β = 25% 
+
+ST-MLAVL [46] CVPR’25 0.659 0.748 0.738 0.712 0.731 0.745 0.725 0.724 229.63 15.50 0.57 0.61 0.80 0.55 0.61 35.47 1.849 1.093 2.078 2.042 0.831 1.730 1.895 1.645 SI [59] ICML’17 0.582 0.766 0.738 0.763 0.720 0.743 0.730 0.725 261.25 14.43 0.54 0.52 0.84 0.57 0.62 39.83 2.103 1.018 1.955 1.751 0.871 1.779 1.939 1.631 EWC [18] PNAS’17 0.594 0.757 0.729 0.737 0.734 0.690 0.702 0.710 374.76 17.63 0.65 0.61 0.95 0.69 0.80 56.58 3.017 1.243 2.341 2.062 0.989 2.161 2.476 2.041 LwF [23] TPAMI’17 0.606 0.681 0.615 0.664 0.622 0.551 0.632 0.626 220.81 17.29 1.00 0.73 1.03 1.00 0.84 34.67 1.778 1.219 3.623 2.465 1.064 3.137 2.614 2.271 MER [34] ICLR’19 0.676 0.726 0.685 0.699 0.734 0.710 0.736 0.710 206.59 17.88 0.63 0.79 0.90 0.66 0.60 32.58 1.663 1.261 2.303 2.637 0.937 2.068 1.856 1.818 DER++ [4] NeurIPS’20 0.610 0.744 0.772 0.754 0.728 0.748 0.752 0.733 270.86 16.30 0.50 0.53 0.82 0.56 0.59 41.45 2.181 1.149 1.820 1.763 0.851 1.753 1.840 1.623 NC-FSCIL [54] ICLR’23 0.637 0.751 0.743 0.741 0.727 0.757 0.728 0.728 251.10 15.95 0.57 0.56 0.80 0.53 0.61 38.59 2.022 1.124 2.078 1.887 0.833 1.673 1.883 1.643 SLCA [60] ICCV’23 0.591 0.743 0.729 0.740 0.739 0.727 0.740 0.719 384.94 20.15 0.70 0.69 0.88 0.74 0.74 58.41 3.099 1.421 2.539 2.323 0.913 2.322 2.313 2.133 Fs-Aug [22] TCSVT’24 0.624 0.773 0.712 0.760 0.733 0.732 0.719 0.725 249.25 16.14 0.62 0.53 0.86 0.59 0.66 38.38 2.007 1.138 2.262 1.785 0.889 1.857 2.038 1.711 MAGR [66] ECCV’24 0.604 0.750 0.678 0.746 0.725 0.733 0.719 0.711 258.14 15.40 0.61 0.56 0.84 0.57 0.59 39.53 2.078 1.086 2.223 1.883 0.869 1.787 1.841 1.681 ASAL [67] TVCG’25 0.634 0.745 0.749 0.720 0.743 0.731 0.737 0.724 230.75 15.28 0.56 0.63 0.85 0.58 0.60 35.61 1.858 1.077 2.044 2.103 0.883 1.830 1.875 1.667 BriMA (Ours) – 0.673 0.774 0.751 0.776 0.726 0.767 0.760 0.740 202.14 14.05 0.54 0.57 0.83 0.49 0.56 31.35 1.627 0.991 1.962 1.925 0.858 1.548 1.727 1.572 
+
+Modality Missing Rate β = 50% 
+
+ST-MLAVL [46] CVPR’25 0.524 0.727 0.656 0.689 0.653 0.693 0.686 0.665 359.86 16.10 0.67 0.71 0.98 0.67 0.68 54.24 2.897 1.135 2.424 2.385 1.012 2.106 2.125 2.012 SI [59] ICML’17 0.514 0.678 0.691 0.681 0.660 0.682 0.665 0.656 303.64 19.99 0.63 0.66 0.92 0.68 0.67 46.74 2.445 1.409 2.270 2.217 0.951 2.139 2.092 1.932 EWC [18] PNAS’17 0.520 0.697 0.693 0.667 0.638 0.612 0.598 0.635 381.88 20.17 0.67 0.76 1.09 0.97 0.91 58.06 3.074 1.422 2.413 2.552 1.131 3.052 2.832 2.354 LwF [23] TPAMI’17 0.502 0.614 0.554 0.678 0.559 0.571 0.588 0.583 289.66 25.50 1.18 0.68 1.32 1.03 0.99 45.76 2.332 1.797 4.275 2.268 1.366 3.253 3.082 2.625 MER [34] ICLR’19 0.579 0.681 0.631 0.605 0.614 0.636 0.638 0.627 247.80 22.81 0.96 1.36 1.16 0.89 0.81 39.40 1.995 1.608 3.481 4.566 1.200 2.794 2.528 2.596 DER++ [4] NeurIPS’20 0.577 0.731 0.674 0.683 0.659 0.689 0.644 0.668 300.21 19.12 0.66 0.67 1.07 0.67 0.78 46.17 2.417 1.348 2.387 2.244 1.114 2.092 2.417 2.003 NC-FSCIL [54] ICLR’23 0.511 0.705 0.687 0.691 0.659 0.658 0.673 0.659 328.16 17.55 0.68 0.67 0.95 0.77 0.68 49.92 2.642 1.237 2.456 2.240 0.985 2.418 2.100 2.011 SLCA [60] ICCV’23 0.508 0.731 0.686 0.729 0.684 0.686 0.666 0.675 391.98 17.48 0.67 0.58 0.95 0.68 0.75 59.01 3.156 1.232 2.445 1.940 0.990 2.146 2.340 2.036 Fs-Aug [22] TCSVT’24 0.541 0.751 0.675 0.692 0.681 0.682 0.691 0.677 316.41 15.71 0.72 0.68 0.92 0.71 0.72 47.98 2.547 1.108 2.618 2.270 0.954 2.242 2.255 1.999 MAGR [66] ECCV’24 0.539 0.729 0.670 0.689 0.666 0.623 0.669 0.658 278.10 16.23 0.72 0.73 0.95 0.90 0.71 42.62 2.239 1.144 2.600 2.453 0.982 2.844 2.206 2.067 ASAL [67] TVCG’25 0.595 0.695 0.681 0.688 0.652 0.667 0.676 0.666 248.96 18.54 0.61 0.68 0.99 0.73 0.75 38.75 2.004 1.307 2.228 2.291 1.026 2.280 2.322 1.923 BriMA (Ours) – 0.629 0.702 0.730 0.723 0.707 0.742 0.724 0.698 225.86 17.59 0.60 0.63 0.89 0.58 0.70 35.29 1.818 1.240 2.181 2.107 0.972 1.834 2.250 1.823 
+
+gains indicate that memory-guided bridging and modality-aware replay better constrain drift once missing modalities become frequent. At β = 50% , the gap widens as modalities grow scarce. Our method achieves the best average SRCC (0.698, a 3.4% improvement over the next best SLCA [60] at 0.675), the lowest average MSE (35.29, an 8.9% reduction compared with ASAL [67] at 38.75), and the lowest average RL2 (1.823, a 5.2% reduction compared with ASAL at 1.923). Component-level results follow the same trend, with con-sistent improvements on SS, TR, PE, CO, and competitive TES, PCS, and IN. Overall, the component analysis reveals three main ef-fects: (1) rank stability, where our method sustains higher SRCC across sub-scores even when low-β MSE trade-offs occur; (2) error containment, where improvements in MSE and RL2 accumulate as β increases, reflecting stronger robustness to missing-modality noise; and (3) uniformity across sub-scores, where performance gains are distributed rather than concentrated, showing that the bridging and re-play strategies generalize effectively across TES, PCS, and fine-grained components such as SS, TR, PE, CO, and IN. 
+
+Additional Case Study. As shown in Fig. S2, we analyze five representative examples covering both easy and hard cases to further examine the robustness of our method un-der diverse visual and contextual conditions. Each row dis-plays sampled frames from a video along with the predicted scores of different methods compared with the ground truth. Our method consistently produces the most accurate predic-tions, validating its stability against varying scene complex-ity and modality degradation. For the easy cases (Ball #027 Fig. S2(a), Ball #030 Fig. S2(b), and Clubs #016 Fig. S2(c)), the background and lighting are well-separated from the performer, resulting in clear spatial boundaries and smooth motion cues. Com-peting methods often exhibit mild overestimation (approxi-mately +1–3 points), primarily due to overfitting to salient motion or contrastive cues. In contrast, our approach aligns closely with ground-truth scores (e.g., 11.77, 11.37, and 12.87), benefiting from temporally coherent cross-modal representations and calibrated replay of rhythmic patterns. In the hard cases (Ball #184 (see Fig. S2(d)) and Clubs #115 (Fig. S2(e))), the background exhibits strong color and texture similarity to the gymnast’s costume, leading to blurred motion boundaries and degraded feature discrimi-nation. As a result, all baseline methods suffer large predic-14 First Frame Middle Frame Middle Frame Last Frame Outputs Ball #027 ST-MLAVL NC-FSCIL MAGR ASAL Ours                 
+
+> 0
+> 5
+> 10
+> 15
+> 20
+> Score
+> 15.88
+> err=
+> 4.18
+> 13.91
+> err=
+> 2.21
+> 12.64
+> err=
+> 0.94
+> 14.38
+> err=
+> 2.68
+> 14.21
+> err=
+> 2.51
+> Ground Truth Score = 11.70 Ball #030 ST-MLAVL NC-FSCIL MAGR ASAL Ours
+> 0
+> 5
+> 10
+> 15
+> 20
+> Score
+> 16.29
+> err=
+> 1.41
+> 13.78
+> err=
+> 3.92
+> 13.48
+> err=
+> 4.22
+> 15.64
+> err=
+> 2.06
+> 14.53
+> err=
+> 3.17
+> Ground Truth Score = 17.70 Clubs #016 ST-MLAVL NC-FSCIL MAGR ASAL Ours
+> 0
+> 5
+> 10
+> 15
+> 20
+> Score
+> 13.48
+> err=
+> 2.62
+> 14.50
+> err=
+> 1.60
+> 15.80
+> err=
+> 0.30
+> 13.50
+> err=
+> 2.60
+> 16.39
+> err=
+> 0.29
+> Ground Truth Score = 16.10 Ball #184 ST-MLAVL NC-FSCIL MAGR ASAL Ours
+> 0
+> 5
+> 10
+> 15
+> 20
+> 25
+> Score
+> 18.97
+> err=
+> 4.23
+> 18.56
+> err=
+> 4.64
+> 19.44
+> err=
+> 3.76
+> 19.08
+> err=
+> 4.12
+> 18.96
+> err=
+> 4.24
+> Ground Truth Score = 23.20 Clubs #115 ST-MLAVL NC-FSCIL MAGR ASAL Ours
+> 0
+> 5
+> 10
+> 15
+> 20
+> Score
+> 14.71
+> err=
+> 3.51
+> 16.12
+> err=
+> 4.92
+> 14.22
+> err=
+> 3.02
+> 16.59
+> err=
+> 5.39
+> 16.15
+> err=
+> 4.95
+> Ground Truth Score = 11.20
+
+Figure S2. Case study (supplementary results of Fig. 7): (a), (b), and (c) are easy cases, and (d) and (e) are hard cases. 
+
+tion errors ( −3 to −6 points), failing to accurately localize motion trajectories. Our method effectively mitigates this issue by leveraging the bridging space to restore modality balance and suppress background interference, achieving near-perfect predictions (e.g., 23.30 and 11.20). Overall, these case studies highlight that when vi-sual similarity between the performer and background in-creases, most models struggle to distinguish motion bound-aries, yielding less precise score predictions. In con-trast, our method maintains reliable estimation through memory-guided retrieval and structural bridging, demon-strating strong resilience to complex visual ambiguity and domain imbalance. 
+
+Additional Ablation Study. Due to space limitations, the core components of BriMA have not been fully explored in the main paper. The additional ablation results in Tab. S3 provide a more complete understanding of how each mod-ule contributes to overall performance. Removing the task-specific embedding (see Eq. (6)) leads to a clear drop in SRCC across all four action types, indicating that modality-aware conditioning is essential for stabilizing residual re-construction under shifting observation patterns. Disabling replay prioritization (see Eq. (9)) also reduces performance 
+
+Table S3. Ablation study on the RG dataset ( β = 10% ). 
+
+ID Setting SRCC ( ↑)
+
+Ball Clubs Hoop Ribbon Avg. 1 Ours 0.648 0.788 0.710 0.836 0.746 2 Ours w/o Task-Specific Embedding 0.579 0.702 0.656 0.834 0.693 3 Ours w/o Replay Prioritization 0.639 0.776 0.628 0.791 0.717 
+
+MSE ( ↓)
+
+1 Ours 8.65 4.88 7.12 4.39 6.26 2 Ours w/o Task-Specific Embedding 10.165 6.722 7.510 3.709 7.027 3 Ours w/o Replay Prioritization 7.17 6.29 9.20 5.08 6.93 
+
+RL2 ( ↓)
+
+1 Ours 2.310 2.291 2.681 1.641 2.231 2 Ours w/o Task-Specific Embedding 2.715 3.153 2.826 1.388 2.520 3 Ours w/o Replay Prioritization 1.914 2.950 3.461 1.900 2.556 
+
+because the model can no longer focus on samples that exhibit large modality distortion or score drift, resulting in weaker temporal consistency and higher regression er-ror. These results verify that both the bridging design and the replay mechanism are important for maintaining robust scoring in continual multi-modal settings. The ablations further highlight that BriMA’s improvements do not come from a single component but from the cooperation between memory-guided imputation and informed replay. 15 S4. Generalization Beyond AQA 
+
+BriMA is designed for decision-critical regression under non-stationary modality imbalance, where both task dis-tributions and modality availability may evolve over time. While AQA serves as our primary benchmark, we further examine generalization to a distinct multi-modal regression task: sentiment intensity prediction. 
+
+Task and Setting. The CMU multi-modal Opinion Senti-ment and Emotion Intensity (MOSI) dataset [55] is a foun-dational, opinion-level annotated corpus for multi-modal sentiment analysis, consisting of 2,199 video clips from 93 YouTube movie reviews. It is a multi-modal sentiment re-gression benchmark involving visual, acoustic, and textual modalities, where the goal is to predict continuous senti-ment scores. Unlike AQA, which evaluates performance quality in human actions, MOSI focuses on affective un-derstanding in conversational settings. This provides a se-mantically different regression task while retaining multi-modal structure and score-sensitive evaluation for gener-alization evaluation. To simulate non-stationary modality imbalance, we follow the same protocol as in the above AQA setting and randomly drop modalities at rates β ∈{10% , 25% , 50% } during CL phases. We compare BriMA with joint training (JT-EMOE [10]), standard CL baselines, and recent CAQA methods under identical settings. 
+
+Results. As shown in Tab. S4, BriMA consistently achieves the best performance across SRCC, MSE, and RL2 under all missing rates. Notably, BriMA even outperforms joint training (JT-EMOE) when modalities are partially missing, indicating its ability to maintain score fidelity under in-complete observations. Compared to CL baselines, BriMA yields higher correlation and lower error, demonstrating ro-bustness against both catastrophic forgetting and modality absence. These results suggest that BriMA generalizes be-yond AQA to other decision-critical multi-modal regression tasks with non-stationary modality availability. 
+
+S5. Additional Discussions 
+
+Beyond the quantitative results, we further analyze several structural aspects of BriMA and clarify its design principles under dynamic multi-modal learning. 
+
+Dynamic Multi-modal Learning vs. Static Alignment. 
+
+Prior modality-invariant methods (e.g., MINIMA [33], X-Fi [5]) primarily focus on static cross-modal alignment under fixed data distributions, aiming to learn modality-agnostic representations. In contrast, BriMA targets dynamic and continual multi-modal learning with non-stationary modal-ity availability and evolving task distributions. This set-ting introduces additional challenges, as preserving score-sensitive geometry over time becomes critical under dis-tribution shift and modality imbalance. Accordingly, the bridging space is designed for continual adaptation rather 
+
+Table S4. Results on the MOSI dataset.                                                                                                                                   
+
+> JT-EMOE [10] (β= 0% )SRCC 0.757 MSE 1.108 RL2 3.078
+> Method β= 10% β= 25% β= 50%
+> SRCC MSE RL2 SRCC MSE RL2 SRCC MSE RL2 JT-EMOE [10] 0.699 1.407 3.908 0.685 1.502 4.160 0.674 1.523 4.231 ST-EMOE [10] 0.556 2.423 6.732 0.534 2.626 7.294 0.526 2.784 7.732 EWC [18] 0.536 2.581 7.170 0.529 2.683 7.454 0.522 2.618 7.273 LwF [23] 0.587 1.729 4.803 0.502 1.943 5.347 0.177 3.134 8.706 MER [34] 0.660 1.714 4.760 0.598 1.992 5.535 0.573 2.151 5.975 DER++ [4] 0.670 2.074 5.762 0.616 2.244 6.634 0.622 2.143 5.952 NC-FSCIL [54] 0.723 1.603 4.452 0.692 1.966 5.460 0.674 1.848 5.133 SLCA [60] 0.546 2.551 7.085 0.526 2.566 7.127 0.522 2.795 7.764 FS-Aug [22] 0.570 2.380 6.612 0.536 2.836 7.878 0.530 2.853 7.926 MAGR [66] 0.704 1.570 4.360 0.669 1.769 4.914 0.650 1.899 5.275 ASAL [67] 0.696 1.646 4.574 0.673 1.663 4.619 0.612 1.929 5.358
+> BriMA (Ours) 0.734 1.552 4.314 0.700 1.787 4.964 0.683 1.888 5.245
+
+than enforcing global modality invariance. 
+
+Assumption on Modality Availability. BriMA assumes modality availability is observable (e.g., via sensor status or data integrity checks), without requiring oracle knowledge of modality usefulness. Detecting unreliable modalities is a related but orthogonal problem. The residual reconstruction strategy predicts minimal corrections instead of full feature synthesis, operating within a locally smooth region of the loss landscape (see Fig. 6(a)). Imperfect modality signals therefore lead to bounded perturbations rather than ampli-fied deviations, reducing sensitivity to routing noise. 
+
+Robustness to Weak Informative Modalities. Not all modalities contribute equally to downstream regression tasks. BriMA adopts a conservative reconstruction princi-ple: residual corrections are conditioned on exemplar priors rather than generative synthesis of complete features. When a modality is weakly informative or loosely correlated with the target, the learned residual naturally approaches zero. Combined with modality-aware replay guided by score-drift signals, this mitigates hallucination risks and stabilizes learning under imperfect modality relevance. 
+
+Scalability with Respect to Modality Combinations. 
+
+BriMA employs pattern-level conditioning embeddings to provide stable context under non-stationary modality avail-ability. Although the number of possible missing patterns grows exponentially in theory, practical deployments in-volve limited modality sets and sparse observed configu-rations. Unseen patterns are projected into a shared low-dimensional embedding space, and residual bridging re-stricts corrections to minimal adjustments, avoiding brittle or random routing while maintaining scalability. 
+
+Temporal Context and Task-Level Adaptation. BriMA is designed for task-level continual adaptation rather than ex-plicit sequence-aware routing. While memory replay cap-tures long-term distribution shifts, the framework does not explicitly model fine-grained temporal trajectories or stage-dependent modality availability. Incorporating temporal or stage-aware conditioning represents a complementary di-rection for future exploration. 16

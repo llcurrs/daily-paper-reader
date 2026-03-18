@@ -1,0 +1,891 @@
+Title: SGMA: Semantic-Guided Modality-Aware Segmentation for Remote Sensing with Incomplete Multimodal Data
+
+URL Source: https://arxiv.org/pdf/2603.02505v1
+
+Published Time: Wed, 04 Mar 2026 01:27:43 GMT
+
+Number of Pages: 16
+
+Markdown Content:
+> JOURNAL OF L ATEX CLASS FILES, VOL. 13, NO. 9, SEPTEMBER 2014 1
+
+# SGMA: Semantic-Guided Modality-Aware Segmentation for Remote Sensing with Incomplete Multimodal Data 
+
+Lekang Wen, Liang Liao, Senior Member, IEEE , Jing Xiao, Senior Member, IEEE , and Mi Wang, Senior Member, IEEE 
+
+Abstract —Multimodal semantic segmentation integrates com-plementary information from diverse sensors for remote sensing Earth observation. However, practical systems often encounter missing modalities due to sensor failures or incomplete coverage, termed Incomplete Multimodal Semantic Segmentation (IMSS). IMSS faces three key challenges: (1) multimodal imbalance ,where dominant modalities ( e.g ., RGB) suppress fragile ones (e.g ., DSM, NIR, SAR); (2) intra-class variation in scale, shape, and orientation across modalities; and (3) cross-modal hetero-geneity with conflicting cues producing inconsistent semantic responses. Existing methods rely on contrastive learning or joint optimization, which risk over-alignment, discarding modality-specific cues or imbalanced training, favoring robust modalities, while largely overlooking intra-class variation and cross-modal heterogeneity. To address these limitations, we propose the Semantic-Guided Modality-Aware (SGMA) framework, which ensures balanced multimodal learning while reducing intra-class variation and reconciling cross-modal inconsistencies through semantic guidance. SGMA introduces two complementary plug-and-play modules: (1) Semantic-Guided Fusion (SGF) module extracts multi-scale, class-wise semantic prototypes that capture consistent categorical representations across modalities, estimates per-modality robustness based on prototype-feature alignment, and performs adaptive fusion weighted by robustness scores to mitigate intra-class variation and cross-modal heterogeneity ; (2) Modality-Aware Sampling (MAS) module leverages robustness estimations from SGF to dynamically reweight training samples, prioritizing challenging samples from fragile modalities to ad-dress modality imbalance . Extensive experiments across multiple datasets and backbones demonstrate that SGMA consistently out-performs state-of-the-art methods, with particularly significant improvements in fragile modalities. 
+
+Index Terms —Multimodal semantic segmentation, incomplete multimodality, remote sensing, multimodal learning 
+
+I. Introduction 
+
+# THE visual information captured by various sensors on-board remote sensing satellites is fundamental to a wide range of Earth observation tasks, including land use clas-sification [1]–[3], ecological monitoring [4]–[6], and urban planning [7]–[9]. With the increasing availability of multi-modal remote sensing data, such as optical imagery (RGB), 
+
+L. Wen and M. Wang are with the State Key Laboratory of Information Engineering in Surveying, Mapping and Remote Sensing, Wuhan University, e-mail: wenlk3@whu.edu.cn, wangmi@whu.edu.cn. L. Liao is affiliated with the Hangzhou Institute of Technology, Xidian University, and can be reached at e-mail: liaoliang01@xidian.edu.cn. J. Xiao is with the School of Artificial Intelligence, Wuhan University, e-mail: jing@whu.edu.cn. Corresponding author: Jing Xiao. 
+
+near-infrared imagery (NIR), digital surface models (DSM), and synthetic aperture radar (SAR), Multimodal Semantic Segmentation (MSS) has become a key technique to integrate information from diverse sensors [10]–[12] for enhancing scene understanding under challenging conditions, such as cloud cover, shadows, or nighttime. For instance, in nighttime scenarios, optical imagery often suffers from degraded perfor-mance due to insufficient visual cues, while complementary modalities such as SAR or NIR can compensate for the inherent limitations of optical sensors, thereby improving the accuracy and reliability of remote sensing analysis. Despite notable progress in MSS, most existing approaches rely on fixed modality combinations, typically pairing RGB with another modality [13]–[15], which leads to significant performance degradation when any modality is absent. Such modality-missing situations frequently arise in remote sensing applications due to sensor malfunctions or incomplete regional coverage. To mitigate this problem, Incomplete Multimodal Semantic Segmentation (IMSS) has emerged to enable robust performance under diverse and incomplete modality configu-rations. Early studies in IMSS adopted modality dropout [16], [17], where some input modalities are randomly dropped during training. However, they fail to learn discriminative representations for fragile or less dominant modalities. An-other line of work explored Masked Autoencoders (MAE) [18] and its variants [19], [20] by reconstructing masked inputs to enhance adaptability. However, these methods primarily focus on low-level appearance recovery rather than high-level semantic learning, and typically require finetuning for specific modality subsets, limiting their generalization to arbitrary modality-missing scenarios. More recent methods [21]–[23] leverage contrastive learning to enforce cross-modal feature consistency. However, forcing robust modalities to align with weak ones may suppress modality-specific features and reduce discriminative capacity. In the remote sensing domain, IMSS is further compli-cated by two intrinsic challenges. First, objects within the same category often exhibit substantial intra-class variation in scale, orientation, and shape. As illustrated in Fig. 1(a), 
+
+building instances within a large-scale scene can appear in vastly different sizes and orientations. Notably, smaller build-ings exhibit weak and sparse feature activations compared to their larger counterparts, which reveals the fundamental challenge of establishing category-consistent representations across diverse object scales. To address this issue, existing  
+
+> arXiv:2603.02505v1 [cs.CV] 3 Mar 2026 JOURNAL OF L ATEX CLASS FILES, VOL. 13, NO. 9, SEPTEMBER 2014 2
+
+(a) Substantial Intra-class Variation  (b) Strong Cross-modal Heterogeneity 
+
+Small objects are hard to perceive. 
+
+> Modalities Visualization
+> Roof  Ground  Grass
+> Similar  Color  Distinct Height
+> Distinct Color  Similar Height
+
+RGB  DSM   
+
+> 
+> Features Activations on Ground
+
+RGB  DSM 
+
+> 
+> 
+> 
+> 
+
+Cross-modal responses vary for same semantics. 
+
+Similar Appearances lead to indistinguishable features 
+
+Medium 
+
+Small   
+
+> Features Activations on Building
+
+Large            
+
+> Fig. 1. Illustration of the challenges of (a) substantial intra-class variation and (b) strong cross-modal heterogeneity in incomplete multimodal semantic segmentation for remote sensing. (a) The same semantic category, building , exhibits large differences in scale and orientation, which complicates the extraction of consistent category features. (b) Different modalities produce conflicting cues: in RGB imagery, roof and ground share similar colors but differ in DSM height, while ground and grass have similar heights in DSM but distinct colors in RGB, making semantic correspondence challenging.
+
+approaches empoly dynamic convolutions [24]–[26], long-range attention mechanisms [27]–[30], and multi-scale fea-ture fusion [31], [32] to enlarge receptive fields, but their applicability to multimodal data is limited by fixed channel allocations, high computational costs, and the complexity of cross-scale concatenation, which restrict scalability to arbitrary modality inputs. Second, different modalities exhibit strong heterogeneity in inter-class responses. As shown in Fig. 1(b), regions with similar appearances extend to produce indistin-guishable features within individual modalities. However, this limitation can be compensated for through modality hetero-geneity: visually similar regions, such as roof and ground ,are easily distinguished in DSM by elevation, while grass 
+
+and ground with similar heights are separable in RGB by color. This heterogeneity makes establishing reliable semantic correspondences across modalities highly non-trivial. Early cross-modal fusion methods, such as summation [33], [34] and concatenation [35], [36], provide intuitive strategies but apply fixed-weight fusion, causing dominant modalities to overshadow information from weaker ones. Self-attention-based methods [21], [37] enhance cross-modal feature inter-actions but fail to quantify modality-specific contributions for weighted fusion, and their computational complexity scales quadratically with the number of modalities. Hand-crafted weighting schemes [38]–[41] based on modality-specific met-rics can achieve effective fusion for particular combinations, such as elevation guidance for building recognition [38], [40] or infrared band mapping for vegetation classification [39], [41], yet such biases limit their generalization across diverse modalities. Overall, these limitations motivate the development of a unified IMSS framework that not only mitigates modality imbalance and scales to arbitrary multimodal inputs but also explicitly addresses the dual challenges of intra-class variation and cross-modal heterogeneity in remote sensing imagery. In this work, we propose the Semantic-Guided Modality-
+
+Aware (SGMA) segmentation framework for IMSS, which ensures balanced contributions of both robust and fragile modalities while reducing intra-class variation and reconciling inconsistent cross-modal responses. The proposed framework is built upon three key ideas. First, it dynamically evaluates modality robustness and adaptively prioritizes learning from fragile modalities to prevent robust modalities from domi-nating the learning process, thereby alleviating multimodal imbalance. Second, it compresses multimodal features into global semantic prototypes, which provide comprehensive re-ceptive fields and enhance category consistency, thereby reduc-ing intra-class variation. Third, it introduces semantic-guided attention fusion, where semantic prototypes serve as queries to adaptively aggregate features from arbitrary modalities, ensuring that each modality contributes optimally according to its distinctive characteristics. To achieve this, SGMA designs two plug-and-play mod-ules: (1) Semantic-Guided Fusion (SGF): SGF extracts global semantic prototypes as intermediate anchors, directly linking pixel representations to their semantic centroids. This design reduces intra-class variance by strengthening category consis-tency. These prototypes further act as queries in a semantic-guided attention fusion mechanism, where modality-specific features serve as key–value pairs. Through attention-weighted aggregation, each modality contributes most effectively to the categories it best characterizes, while the learned attention weights provide an explicit measure of modality robustness. (2) Modality-aware Sampling (MAS): MAS leverages robustness scores from SGF to dynamically adjust training sample proba-bilities across modalities. By increasing the learning frequency of fragile modalities, MAS alleviates multimodal imbalance, strengthens feature learning, and enhances adaptability under arbitrary modality-missing scenarios. In summary, our main contributions are threefold:  
+
+> •
+
+We propose the Semantic-Guided Modality-Aware (SGMA) framework to address three critical issues in IMSS for remote sensing: modality imbalance, intra-class variation, and cross-modal heterogeneity, thereby enhancing the robustness and generalization of semantic segmentation under incomplete modality conditions.  
+
+> •
+
+We introduce the Semantic-Guided Fusion (SGF) module, which leverages global semantic prototypes as inter-mediate anchors to establish robust cross-modal corre-spondences, enabling effective feature aggregation across arbitrary modality combinations while providing explicit JOURNAL OF L ATEX CLASS FILES, VOL. 13, NO. 9, SEPTEMBER 2014 3
+
+quantification of robustness.  
+
+> •
+
+We design the Modality-Aware Sampling (MAS) module, which adaptively rebalances multimodal learning based on robustness assessment, significantly improving the rep-resentation quality of fragile modalities without requiring modality-specific architectural modifications. The rest of this paper is organized as follows. Sec. II reviews related work on multimodal learning and incomplete multimodal learning, identifying limitations of existing ap-proaches. Sec. III formally defines the IMSS problem and presents the SGMA framework with its two core modules: SGF for semantic-guided fusion and MAS for modality-aware sampling. Sec. IV validates our method across three datasets through qualitative and quantitative comparisons and ablation studies. Sec. V summarizes our contributions and discusses future directions. 
+
+II. Related Work 
+
+In this section, we briefly review related work in multimodal learning and incomplete multimodal learning, identifying lim-itations of existing approaches in addressing modality imbal-ance, intra-class variation, and cross-modal heterogeneity. 
+
+A. Multimodal Learning 
+
+Multimodal learning aims to enhance the accuracy and robustness of scene understanding by integrating information from different sensors. Early studies focused on fusing RGB with complementary modalities, such as SAR [42], [43], DSM [38], [44], [45], and NIR [39], [41], [46]. For instance, NWPU-MOC [46] employs a dual attention mechanism to fuse RGB and NIR features for fine-grained aerial image anal-ysis, where NIR provides distinctive spectral characteristics for vegetation and water bodies while RGB captures spatial structures. With the advancement of sensor technologies, dual-modal learning has expanded to multimodal learning, where approaches can be broadly categorized into symmetric branch distribution [22], [47], [48] and asymmetric branch distri-bution [15], [49], [50] architectures. The former treats all modalities equally. The latter selects the most robust modality as the primary modality and incorporates others as auxiliary inputs. Beyond sensor-based modalities, language is the pivotal semantic modality, driving the rapid development of vision-language foundation models [51], [52]. Leveraging the Trans-former architecture for multimodal fusion, these models enable complex vision-language understanding [53], [54] and cross-modal reasoning [55], [56], extending their applications to diverse remote sensing tasks such as change detection [57], [58] and visual question answering [59], [60]. These methods demonstrate impressive performance when all modalities are available. However, most of them are gen-erally designed for a fixed modality combination. As a result, they will degenerate or fail in incomplete multimodal scenar-ios, where arbitrary modalities may be missing or corrupted. 
+
+B. Incomplete Multimodal Learning 
+
+Incomplete multimodal learning aims to maintain reliable performance when certain modalities are missing, with ex-tensive research spanning medical imaging [16], [61], re-mote sensing [19]–[21], and autonomous driving [17], [23], [62]. Early research addressed this challenge using modality dropout [16], [17], which randomly removes input sources during training to enhance robustness. M3L [17] extends this idea by leveraging stochastic modality dropping to encourage modality-specific feature learning and mitigate information loss when inputs are missing. Another direction has investi-gated Masked Autoencoders (MAE) [18] and its variants [19], [20], which pretrain models to reconstruct masked inputs for better adaptation to multimodal settings. More recently, contrastive learning has been adopted to explicitly align cross-modal representations [21], [23], [61]. For example, IMLT [21] integrates contrastive learning with masked pretraining to enhance cross-modal consistency and improve generalization, making the first IMSS-oriented method in remote sensing. MAGIC [23] further advances this paradigm by grouping modalities into robust and fragile sets, optimizing them jointly, and aligning their features with a cosine-based loss to yield a representation space robust to arbitrary-modal configurations. Despite the notable progress, existing methods face critical limitations. Dropout-based [16], [17] and grouping strate-gies [23] increase missing-modality exposure but inadequately train fragile modalities. MAE-based approaches [19], [20] em-phasize low-level reconstruction over discriminative features, while alignment methods [21], [23] may weaken modality-specific characteristics by enforcing uniform consistency. In contrast, SGMA formulates cross-modal interaction as class-level semantic attention, enabling interpretable and adaptive modality weighting. Global semantic prototypes anchor pixels to category centroids to reduce intra-class variance, while robustness-guided sampling dynamically prioritizes fragile modalities, ensuring balanced learning without architectural constraints. 
+
+III. Methodology 
+
+In this section, we describe the proposed SGMA framework for IMSS. We first formalize the problem setting and provide an overview of our framework. Next, we present the Semantic-Guided Fusion (SGF) and Modality-Aware Sampling (MAS) modules and their associated objective functions. 
+
+A. Problem Formulation of IMSS 
+
+We define a modality set M with M elements, where the multimodal imagery input is denoted as I = {Im}m∈M ,and the corresponding segmentation labels are denoted as S.During training, all modalities are assumed to be accessible; however, at inference, only a subset Isub ⊆ I may be available due to sensor failure or incomplete coverage. The objective of IMSS is to train a segmentation model that remains robust and effective across arbitrary modality combinations, even in the presence of missing inputs. Models trained solely on complete multimodal supervision typically experience a significant drop in accuracy when inputs are absent. To address this, existing methods commonly adopt two strategies: (1) modality dropout, which stochastically sam-ples a non-empty subset Isub ⊆ I from all possible modality JOURNAL OF L ATEX CLASS FILES, VOL. 13, NO. 9, SEPTEMBER 2014 4Mean 
+
+RGB MP 
+
+DSM MP 
+
+NIR MP 
+
+CSF 
+
+> MHA
+> MHA
+> Feature Extractor
+
+Invert (Eq. 11) 
+
+SP 
+
+RP 
+
+CSF  SP  RP … …
+
+Sample 
+
+𝐼𝐼 𝑚𝑚  𝑓𝑓 𝑚𝑚→𝑠𝑠𝑠𝑠 𝑖𝑖 
+
+## (b) MAS (a) SGF 
+
+.40  .35  .25 
+
+𝑓𝑓 𝑚𝑚 𝑖𝑖 
+
+𝑐𝑐 𝑚𝑚 𝑖𝑖  𝑝𝑝 𝑠𝑠𝑠𝑠 𝑖𝑖 ,𝑘𝑘  𝑓𝑓 𝑠𝑠𝑠𝑠 𝑖𝑖 
+
+𝑟𝑟 𝑚𝑚 𝑖𝑖 
+
+𝑓𝑓 SGF 𝑖𝑖  𝑓𝑓 MAS 𝑖𝑖 
+
+𝑠𝑠 𝑚𝑚 𝑖𝑖 
+
+𝑎𝑎 𝑠𝑠𝑠𝑠 𝑖𝑖 ,𝑘𝑘 
+
+## (c) Training Path 
+
+> Scale  (1)~(n)
+> GT
+> SegHead
+
+…
+
+…
+
+## (d) Inference Path 
+
+> SegHead
+> Scale  (1)~(n)
+
+… 
+
+> Fig. 2. Overall framework of the proposed SGMA, which includes the Semantic-Guided Fusion (SGF) and Modality-Aware Sampling (MAS) modules.
+
+combinations during each training iteration to simulate diverse incomplete-modality scenarios, and (2) contrastive alignment, which employs contrastive learning to encourage feature con-sistency across representations derived from different modality subsets. Formally, the model Φ is optimized with the following objective: 
+
+min  
+
+> Φ
+
+LIMSS = λseg Lseg (Φ( Isub ), S )+λcon 
+
+X
+
+> (m,m ′)∈P
+
+Lcon (fm, f m′ )) , (1) where P = {(m, m ′) | m, m ′ ∈ M , m ̸ = m′} is the set of modality pairs, fm and fm′ are features of modalities m and 
+
+m′, Lseg is the segmentation loss, Lcon enforces cross-modal alignment, λseg and λcon are trade-off weights. 
+
+B. Framework Overview 
+
+The overall framework of the proposed SGMA is illustrated in Fig. 2. We establish IMSS as a dual-branch optimization problem. As shown in Fig. 2(a), the Semantic-Guided Fusion (SGF) module addresses cross-modal semantic inconsistency through class-level context modeling. Specifically, SGF con-structs global semantic prototypes for each class and employs the Spatial Perceptron (SP) to associate each pixel repre-sentation with its corresponding semantic centroid, ensuring semantic consistency across heterogeneous modalities and reducing intra-class variation. The Robustness Perceptron (RP) further addresses cross-modal heterogeneity through adaptive modality weighting based on reliability scores. As shown in Fig. 2(b), the Modality-Aware Sampling (MAS) module leverages robustness scores from SGF to dynamically adjust sampling probabilities. By increasing the training frequency of fragile modalities, MAS alleviates multimodal imbalance and improves their representation quality. Taking three modalities of RGB (R), DSM (D), and NIR (N) modalities as an example, SGMA packs all input images 
+
+Im into a mini-batch for efficient parallel computation. A shared-weight encoder F extracts features for each modality independently across each scale: 
+
+{f im}4 
+
+> i=1
+
+= F (Im). (2) where i denotes the scale index and the encoder F produces features at 4 different scales. During training, as shown in Fig. 2(c), the feature f im
+
+from each modality is processed through both pathways to generate a semantic-guided fused feature f i 
+
+> SGF
+
+and a modality-aware sampled feature f i
+
+> MAS
+
+. These features are then fed into a segmentation head to produce the segmentation prediction 
+
+ˆSSGF from SGF and the prediction ˆSMAS from MAS for joint optimization. In the inference stage, as shown in Fig. 2(d), only the SGF is retained, and the prediction ˆSSGF is the output segmentation map. 
+
+C. Semantic-Guided Fusion Module 
+
+To reduce intra-class variance and mitigate the impact of cross-modal heterogeneity, SGF computes global class-wise semantic representations for each modality, thereby suppress-ing irrelevant information. These representations are then used to query semantic class features at every scale, enabling an assessment of modality robustness and enhancing the repre-sentations of semantic features. As illustrated in Fig. 2(a), SGF consists of four main components: 1) Modality-specific Projector (MP), which trans-forms modality-specific features into a unified semantic space through three depth-wise convolutions with kernel sizes of 
+
+11 ×11 , 7×7, and 3×3, followed by a 1×1 point-wise convolu-tion for semantic projection, as described in Fig. 3; 2) Class-aware Semantic Filter (CSF), which is essentially a shared JOURNAL OF L ATEX CLASS FILES, VOL. 13, NO. 9, SEPTEMBER 2014 5DW-Conv 
+
+> LN
+> Conv
+> LN
+
+× 3  
+
+> Fig. 3. Structure of the Modality-specific Projector (MP).
+
+1 × 1 convolution that compresses modality-specific features from Ci channels to classes K channels, extracting class-level semantic representations; 3) Spatial Perceptron (SP), which leverages global semantic prototypes to query pixel-level fea-tures through multi-head attention (MHA), reducing intra-class variation via semantic-guided attention; and 4) Robustness Perceptron (RP), which evaluates modality reliability and performs adaptive fusion using multi-head attention to address cross-modal heterogeneity, sharing conceptual similarities with uncertainty-driven active learning [63]–[65]. Specifically, each modality feature f im is first transformed by its corresponding MP into the modality semantic feature 
+
+f im→se ∈ RHi×Wi×Ci , where Hi, Wi, and Ci denote the height, width, and channel number of features at scale i. Next, these features are filtered by the CSF that reduces channel dimensionality from Ci to K to compress high-level semantic information into class-specific representations. It produces the modality compact feature cim ∈ RHi×Wi×K , which is then used to obtain global semantic prototypes pi,k se ∈ RC as follows: 
+
+{pi,k se }Kk=1 = {cim}m∈M 
+
+ ⊗ {f im→se }m∈M 
+
+T , (3) where  ·  denotes the concatenation of tensors in the set and 
+
+⊗ represents matrix multiplication. The concatenated tensor on the left, {cim}m∈M 
+
+, has a shape of R(Hi×Wi×M )×K ,while the concatenated tensor on the right, {f im→se }m∈M 
+
+,is of shape R(Hi×Wi×M )×Ci . This transformation converts dense multimodal features into global semantic prototypes, allowing high-level semantics to be aggregated around each category. In this way, semantic information becomes more concentrated, which helps to improve the discriminative power of the resulting representations. The prototypes pise are employed to query each local pixel location in the multimodal features through the SP: 
+
+ai,k se = MHA SP (qi, k i, v i), (4) where the query input is defined as 
+
+qi = repeat( pise ) ∈ R(Hi×Wi)×K×C , (5) representing repeated global class prototypes broadcast to every spatial location. The key and value inputs are given by 
+
+ki = vi =rearrange   {f im→se }m∈M 
+
+ ∈ R(Hi×Wi)×M ×C , (6) which correspond to the rearranged multimodal semantic fea-tures. Through the MHA layer, we obtain spatial semantic activation ai,k se ∈ RHi×Wi×C . (Hi × Wi) represents the flattened spatial dimensions to enable pixel-wise attention computation. The semantic-guided feature f ise is computed by average across all K classes: 
+
+f ise = 1
+
+K
+
+> K
+
+X
+
+> k=1
+
+ai,k se . (7) Subsequently, f ise serves as the foundation for modality ro-bustness assessment through the RP. It evaluates the reliability and contribution of each modality by computing attention weights that reflect their robustness for different semantic classes. Specifically, the RP employs another MHA layer to simultaneously obtain the semantic-guided fused feature f i
+
+> SGF
+
+and attention weight maps to serve as modality robustness maps {rim}m∈M :
+
+f i
+
+> SGF
+
+, {rim}m∈M = MHA RP (q′
+
+> i
+
+, k ′
+
+> i
+
+, v ′
+
+> i
+
+), (8) where the query input is defined as 
+
+q′ 
+
+> i
+
+= repeat( f ise ) ∈ R(Hi×Wi)×1×C . (9) The key and value inputs are given by 
+
+k′ 
+
+> i
+
+= v′ 
+
+> i
+
+= rearrange   {f im→se }m∈M 
+
+ ∈ R(Hi×Wi)×M ×C .
+
+(10) RP uses semantic-guided features f ise as queries. This design enables attention to measure how well each modality aligns with semantic class representations , facilitating category-dependent reliability assessment. This differs from standard attention that only uses raw features as queries to mea-sure feature-level similarity. The robustness scores {rim}m∈M 
+
+quantify modality reliability across class and scale dimen-sions. For the class, by querying with semantic prototypes, 
+
+these scores inherently capture class-wise contributions , where DSM features yield high scores for structural classes while NIR excels for vegetation. For the scale, computing scores in-dependently at each scale i captures hierarchical contributions from fine-grained textures to coarse structures . This differs from standard attention, which measures feature similarity without considering semantic or hierarchical context. Intuitively, higher attention weights reflect richer and more stable semantic content. Consequently, the maps rim ∈
+
+RHi×Wi indicate the spatial reliability of each modality. This adaptive weighting ensures that modalities contribute most effectively based on their robustness, thereby alleviating cross-modal heterogeneity and improving the learned representation. 
+
+D. Modality-aware Sampling Module 
+
+In multimodal fusion, imbalanced modality reliability often causes robust modalities to dominate, thereby suppressing the learning of fragile ones. To address this, MAS decouples the training of fragile modalities by sampling them more frequently. As shown in Fig. 2(b), MAS is designed to selec-tively sample less reliable modalities and exploit their potential through independent training. Intuitively, a higher robustness score rim indicates that the semantic information in modality m is easier to learn and distinguish, and thus requires less sampling emphasis. To JOURNAL OF L ATEX CLASS FILES, VOL. 13, NO. 9, SEPTEMBER 2014 6
+
+formalize this intuition, we first apply pixel-wise conversion to all robustness maps {rim}m∈M to obtain inverted robustness maps {ˆrim}m∈M :
+
+ˆrim = 1/r im
+
+P
+
+> m∈M
+
+(1 /r im) . (11) The inverted robustness maps {ˆrim}m∈M are then spatially converted into scalars through average pooling to obtain modality sampling probabilities {sim}m∈M . Since the robust-ness maps are derived from attention weight matrices that have already undergone SoftMax normalization, the resulting values are relatively close to each other. Directly applying SoftMin to these normalized values would further smooth the differences, causing sampling probabilities to converge toward a uniform distribution and undermining the selective sampling strategy. Instead, Eq. (11) is equivalent to SoftMin operation on the original pre-SoftMax values, offering computational efficiency by eliminating the need for original values, mathematical symmetry between SoftMax and SoftMin transformations, and algorithmic simplicity through direct reciprocal conversion. During each training iteration, one modality feature at the current scale is stochastically selected based on these probabilities, where sim denotes the sampling probability for the semantic feature f im→se . The selected semantic feature follows the same path through the SGF and serves as the MAS output f i
+
+> MAS
+
+. Fragile modalities with lower robustness receive higher sampling probabilities, promoting learning from challenging modalities to enhance their robustness. To provide a comprehensive understanding of our frame-work, we present the complete training and inference pro-cedure in Algorithm 1. It explicitly delineates the distinct roles of SGF and MAS during different phases. Both modules are employed during training to enable robust multimodal fusion and fragile modality augmentation, while only SGF is activated during inference. 
+
+E. Objective Functions 
+
+Since f i 
+
+> SGF
+
+and f i 
+
+> MAS
+
+have the same shape, they can be packed into a batch at the same scale to accelerate parallel training. Output features from the SGF and MAS modules are packaged as input to SegHead. The loss function LSGF for SGF and the loss function LMAS for MAS both use cross-entropy loss for supervised training: 
+
+LSGF = − X
+
+> p∈S
+
+S(p) log ( ˆSSGF (p)) , (12) 
+
+LMAS = − X
+
+> p∈S
+
+S(p) log ( ˆSMAS (p)) , (13) where p is the pixel index for the segmentation map S. The loss function used for training the SGMA is formalized as follows: 
+
+LIMSS = λSGF LSGF + λMAS LMAS , (14) where λSGF and λMAS are balancing coefficients. 
+
+Algorithm 1 SGMA Unified Training and Inference Procedure 
+
+Require: Multimodal images I = {Im}m∈M ,ground truth S
+
+Ensure: Segmentation ˆS (inference) / Updated Θ (training)  
+
+> 1:
+
+{f im}m∈M ,i ∈{ 1,2,3,4} ← { F (Im)|∀ m ∈ M}  
+
+> 2:
+
+for each scale i do  
+
+> 3:
+
+# (M, H i, W i, C i) 
+
+> 4:
+
+{f im→se }m∈M ← { MP (f im)|∀ m} 
+
+> 5:
+
+# Semantic-Guided Fusion (SGF)  
+
+> 6:
+
+# (M, H i, W i, K ) 
+
+> 7:
+
+ci ← CSF ({f im→se }m∈M ) 
+
+> 8:
+
+# (K, C i) 
+
+> 9:
+
+pise ← einsum (ci, {f im→se }m∈M , ‘mhwk,mhwc →kc’ ) 
+
+> 10:
+
+# (K, H i, W i, C i) 
+
+> 11:
+
+aise ← MHA SP (pise , {f im→se }m∈M ) 
+
+> 12:
+
+# (Hi, W i, C i), (M, H i, W i) 
+
+> 13:
+
+f i
+
+> SGF
+
+, r i ← MHA RP (aise , {f im→se }m∈M ) 
+
+> 14:
+
+if training then  
+
+> 15:
+
+# Modality-Aware Sampling (MAS)  
+
+> 16:
+
+ˆri ← inv-softmax (ri, dim=0 ) 
+
+> 17:
+
+# (M, ) 
+
+> 18:
+
+siprob ← reduce (ˆ ri, ‘mhw →m’ , ‘mean’ ) 
+
+> 19:
+
+m∗ ∼ sample (M, s iprob ) 
+
+> 20:
+
+# (Hi, W i, C i) 
+
+> 21:
+
+f i 
+
+> MAS
+
+← SGF (f im∗→se ) 
+
+> 22:
+
+end if  
+
+> 23:
+
+end for  
+
+> 24:
+
+if training then  
+
+> 25:
+
+ˆSSGF , ˆSMAS ← SegHead ({f i
+
+> SGF
+
+, f i
+
+> MAS
+
+}i∈{ 1,2,3,4}) 
+
+> 26:
+
+L ← L SGF ( ˆSSGF , S ) + LMAS ( ˆSMAS , S ) 
+
+> 27:
+
+Update Θ via backpropagation  
+
+> 28:
+
+else  
+
+> 29:
+
+ˆS ← SegHead ({f i
+
+> SGF
+
+}i∈{ 1,2,3,4}) 
+
+> 30:
+
+return ˆS 
+
+> 31:
+
+end if 
+
+IV. Experiments 
+
+In this section, we conduct comprehensive experiments to validate SGMA. We first describe the experimental setup, then present qualitative and quantitative comparisons across multiple datasets and backbones, and finally perform extensive ablation studies to analyze each component. 
+
+A. Experimental Setup 1) Datasets: We evaluate our method on two multimodal remote sensing datasets: ISPRS Potsdam [66], referred to as 
+
+ISPRS , and Data Fusion Contest 2023 [67], referred to as 
+
+DFC2023 , and one autonomous driving dataset [49], referred to as DELIVER . ISPRS provides RGB, DSM, and NIR imagery with annotations for five categories (impervious sur-face, building, low vegetation, tree, and vehicle). The dataset contains 38 images split into 24 training and 14 validation samples. DFC2023 includes RGB, DSM, and SAR data with building annotations. It comprises 1773 images divided into 1419 training and 354 validation samples. DELIVER offers RGB, Depth, Event, and LiDAR data with 25 semantic classes across diverse environmental conditions (sunny, cloudy, foggy, JOURNAL OF L ATEX CLASS FILES, VOL. 13, NO. 9, SEPTEMBER 2014 7
+
+rainy, nighttime) and sensor failure scenarios. The dataset contains 3983 training and 2005 validation samples. 
+
+2) Baseline Methods: We compare our method with four advanced methods, i.e ., (1) MuSS [48], which concatenates all multimodal features and fuses them through linear layers for universal segmentation for MSS; (2) M3L [17], which employs random modality dropping to train learnable parame-ters that retain modality-specific representations for IMSS; (3) IMLT [21], which integrates contrastive learning to strengthen modality alignment and employs masked pretraining to en-hance generalization for IMSS; (4) MAGIC [23], which incor-porates training with the most robust and fragile modalities to improve segmentation framework resilience for IMSS. For equality, the backbones of all methods are set to PVT-v2-b2 [68] and ResNet-50 [69]. All methods were retrained from scratch under identical experimental settings. 
+
+3) Metircs: We evaluate segmentation performance using both mean Intersection over Union (mIoU) and F1-score (F1). 
+
+Average , Top-1 , and Last-1 denote the average, best, and worst performance across all-modal combinations, which as-sess overall effectiveness, optimal complementary effects, and robustness to fragile modalities, respectively. These metrics provide a comprehensive evaluation of the proposed SGMA’s any-modal segmentation performance compared to state-of-the-art methods. 
+
+4) Implementation Details: Experiments on all datasets are conducted on 4 NVIDIA A100 GPUs. The initial learning rate is set to 6 × 10 −5, with polynomial decay (power of 0.9) over 200 epochs. A 10-epoch warm-up at 10% of the initial learning rate is applied to stabilize training. We use AdamW optimizer with epsilon 10 −8, weight decay 10 −2. In the loss function, the weighting coefficients λSGF and λMAS are set to 2 and 1, respectively. 
+
+B. Qualitative Comparisons 
+
+We conduct qualitative evaluations under two representative scenarios: (1) Normal Conditions refer to single-modality con-figurations and full-modality combinations; (2) Complemen-tary Conditions involve modality-pair configurations designed to exploit complementary properties. As illustrated in Fig. 4, Fig. 5, and Fig. 6, these scenarios assess the robustness and adaptability of our method across diverse modality settings. 
+
+1) Normal Conditions: For robust modalities such as RGB, nearly all methods achieve satisfactory segmentation results, as shown in the first rows of Fig. 4 and Fig. 5(a). However, fragile modalities cause baseline methods to fail severely. DSM on ISPRS and DFC2023 , SAR on DFC2023 , and Event and LiDAR on DELIVER all produce fragmented or nearly empty predictions in baseline methods. Our method maintains meaningful segmentation with recognizable structures across all these challenging conditions. Under full-modality settings, our method delivers the most complete segmentation across all datasets, demonstrating superior delineation of vegetation ,
+
+buildings , pedestrians, vehicles, and road markings, as shown in the bottom rows of Fig. 4, Fig. 5, and Fig. 6(a). 
+
+2) Complementary Conditions: In robust+robust configu-rations, our method achieves more complete segmentation with better fine-grained detail preservation. In challenging robust+fragile combinations, our method leverages comple-mentary information most effectively. RGB+DSM on both 
+
+ISPRS and DFC2023 successfully integrates elevation cues to produce precise building boundaries, while RGB+Event on DELIVER exploits motion sensitivity for enhanced dy-namic object segmentation. Most remarkably, our method uniquely succeeds in fragile+fragile combinations where base-line methods fail catastrophically. DSM+SAR on DFC2023 
+
+and Event+LiDAR on DELIVER produce coherent segmen-tation that even surpasses single robust modality performance, as highlighted in Fig. 5 and Fig. 6(b). This demonstrates our superior capability in integrating complementary cues, validating the generalizability of our framework across remote sensing and autonomous driving domains. Across all three datasets, baseline methods frequently yield incomplete or erroneous segmentation under challenging modality combinations. Our method consistently maintains robust performance, particularly excelling in scenarios involv-ing fragile modalities and their combinations. The consistent improvements across domains confirm our framework’s broad applicability to diverse multimodal segmentation tasks. 
+
+C. Quantitative Comparisons 
+
+We conduct quantitative comparisons across ISPRS ,
+
+DFC2023 , and DELIVER to evaluate the effectiveness of our method with arbitrary modality combinations and different backbones. The quantitative results present mIoU and F1-score metrics, where Tab. I, Tab. II, Tab. III, Tab. IV, Tab. V, and Tab. VI report results on all three datasets. 
+
+1) Scalability with Increasing Modalities: Our method demonstrates substantial improvements over SOTA baselines across all three datasets. With PVT-v2-b2, we achieve +9.20%, +7.66%, and +8.31% in Average mIoU on ISPRS , DFC2023 ,and DELIVER , respectively, as shown in Tab. I, Tab. III, and Tab. V. The corresponding F1-score improvements are +7.73%, +8.46%, and +8.16%, demonstrating robust gener-alization from remote sensing to complex urban scenarios. More importantly, our method excels in the most challenging single-modality scenarios, achieving Last-1 performance gains of +18.26%, +15.54%, and +11.70% in mIoU across the three datasets. These consistent improvements validate the effectiveness of our framework in handling fragile modalities, regardless of sensor type. 
+
+2) Average Performance Across Modalities: A distinctive advantage of our method is its consistent performance im-provement as modality count increases, demonstrating ef-fective multi-modal complementarity. In contrast, baseline methods often suffer from performance degradation when additional modalities are introduced. As evidenced in Tab. I and Tab. V, MAGIC drops by 3.40% when moving from RGB to RGB+NIR on ISPRS , while IMLT experiences 0.52% degradation when transitioning to full-modality on 
+
+DELIVER . Our method consistently maintains or improves performance with additional modalities across all datasets, achieving +1.12% gain from RGB+Depth+LiDAR to full-modality on DELIVER . This validates that our framework JOURNAL OF L ATEX CLASS FILES, VOL. 13, NO. 9, SEPTEMBER 2014 8RGB  DSM  NIR  GT 
+
+MuSS  M3L  IMLT  MAGIC  Ours Input 
+
+> R D N R+D+N
+> RGB  DSM  NIR  GT
+
+MuSS  M3L  IMLT  MAGIC  Ours Input 
+
+> R D R+D  R+N
+
+(a) Normal Condition  (b) Complementary Condition 
+
+Impervious Surfaces  Building  Low Vegetation  Tree  Car  Background    
+
+> Fig. 4. Qualitative comparisons on the ISPRS under the (a) normal condition and (b) complementary condition. RGB  DSM  SAR  GT
+
+MuSS  M3L  IMLT  MAGIC  Ours Input 
+
+> R D S R+D+S
+
+(a) Normal Condition  (b) Complementary Condition 
+
+> RGB  DSM  SAR  GT
+
+MuSS  M3L  IMLT  MAGIC  Ours Input 
+
+> R D S D+S
+
+Background  Building    
+
+> Fig. 5. Qualitative comparisons on the DFC2023 under the (a) normal condition and (b) complementary condition.
+
+effectively harmonizes cross-modal heterogeneity, enabling robust fusion regardless of modality combinations or sensor configurations. 
+
+3) Robustness with Fragile Modalities: Our method demonstrates exceptional capability in handling fragile modal-ities and their combinations across different domains. On single fragile modalities, we achieve +18.26%, +15.54%, and +13.35% improvements over SOTA on DSM in ISPRS ,SAR in DFC2023 , and Event in DELIVER , respectively, as shown in Tab. I, Tab. III, and Tab. V. In challenging fragile+fragile combinations, our method delivers remarkable gains: DSM+SAR achieves +6.47% improvement in Average 
+
+on DFC2023 , while Event+LiDAR achieves +15.57% on 
+
+DELIVER . This validates our framework’s unique ability to leverage modality-specific strengths across heterogeneous sensor types, confirming broad applicability across remote sensing and autonomous driving IMSS tasks. 
+
+4) Cross-Backbone Generalization: Our SGMA frame-work exhibits plug-and-play characteristics, enabling seam-less integration across different backbone architectures. With ResNet-50, SGMA delivers consistent improvements across all datasets: +10.21%, +4.99%, and +4.45% in Average mIoU on ISPRS , DFC2023 , and DELIVER , respectively, while maintaining strong Last-1 gains of +18.54%, +6.34%, and +11.64%, as shown in Tab. I, Tab. III, and Tab. V. The performance improvements with ResNet-50 follow consistent trends observed with PVT-v2-b2 across all three datasets. This consistency confirms our framework’s architecture-agnostic nature and practical applicability across diverse multimodal segmentation tasks in both remote sensing and autonomous driving domains. 
+
+D. Ablation Studies 1) Progressive Component Analysis: The progressive in-tegration of components reveals their distinct functional roles and demonstrates the necessity of both SGF and MAS modules for effective IMSS. The quantitative results are presented in JOURNAL OF L ATEX CLASS FILES, VOL. 13, NO. 9, SEPTEMBER 2014 9RGB  Depth  Event  LiDAR 
+
+MuSS  M3L  IMLT  MAGIC  Ours Input 
+
+> R D E L
+> RGB  Depth  Event  LiDAR
+
+MuSS  M3L  IMLT  MAGIC  Ours Input 
+
+> R E R+D  E+L
+
+(a) Normal Condition  (b) Complementary Condition                                                                                                                                               
+
+> GT
+> R+D+E+L
+> GT
+> R+E
+> Fig. 6. Qualitative comparisons on the DELIVER under the (a) normal condition and (b) complementary condition. TABLE I
+> Mean Intersection over Union (%) on the ISPRS across various modality combinations and backbones. Average ,Top-1 , and Last-1 indicate the average, highest, and lowest mIoU among all arbitrary-modal combinations, respectively. Bold and underlined values mark the best and second-best performances in each column. The modalities are denoted as follows: RGB (R), DSM (D), and NIR (N).
+> Backbones Methods RDNR+D R+N D+N R+D+N Average Top-1 Last-1
+> MuSS [48] 40.21 17.13 1.36 83.75 57.71 31.52 86.50 45.45 86.50 1.36 M3L [17] 30.72 10.41 20.99 81.31 78.54 72.76 84.07 54.12 84.07 10.41 IMLT [21] 69.57 38.78 69.82 67.82 80.03 81.29 85.12 70.35 85.12 38.78 MAGIC [23] 81.39 34.34 46.97 83.27 77.99 63.30 84.75 67.43 84.75 34.34 SGMA ( Ours )83.51 57.05 76.06 86.62 84.25 82.56 86.84 79.55 86.84 57.05
+> Pvt-v2-b2
+> w.r.t. SOTA +2.12 +18.26 +6.24 +2.87 +4.22 +1.26 +0.34 +9.20 +0.34 +18.26 MuSS [48] 20.75 6.75 6.83 43.25 51.49 20.61 84.83 33.50 84.83 6.75 M3L [17] 22.80 9.33 18.51 77.81 69.95 68.17 84.04 50.09 84.04 9.33 IMLT [21] 80.47 36.67 26.51 84.06 82.08 45.16 84.33 62.75 84.33 26.51 MAGIC [23] 75.85 32.02 54.98 78.93 77.84 60.21 83.65 66.21 83.65 32.02 SGMA ( Ours )82.74 50.57 71.17 84.63 83.28 77.00 85.55 76.42 85.55 50.57
+> ResNet-50
+> w.r.t. SOTA +2.27 +13.90 +16.19 +0.57 +1.20 +8.83 +0.72 +10.21 +0.72 +18.54
+
+Tab. VII and Tab. VIII, showing mIoU and F1-score metrics for the ISPRS dataset  
+
+> •
+
+Variant (a) serves as the baseline direct additive fusion, suffering from severe modality imbalance as evidenced by extremely poor Last-1 performance. This validates the fundamental challenge where robust modalities dominate training while fragile modalities remain underutilized.  
+
+> •
+
+Variant (b) introduces SGF without MAS, showing improvements across all modality configurations but with minimal gains in average metrics. While SGF enhances semantic consistency through global prototypes and adap-tive fusion, the lack of targeted fragile-modal training limits overall effectiveness, particularly evident in the modest Average improvement despite consistent gains across individual configurations.  
+
+> •
+
+Variant (c) introduces both SGF and MAS, which achieves dramatic improvements in Average mIoU and 
+
+Last-1 mIoU. This superiority stems from MAS’s robustness-guided sampling mechanism, which increases the training frequency of fragile modalities, thereby pre-venting information-rich, robust modalities from over-shadowing information-sparse, fragile modalities, as oc-curs in conventional fusion. Overall, the progression demonstrates that SGF funda-mentally transforms multimodal interaction from fixed-weight fusion to adaptive semantic-guided integration. At the same time, MAS addresses the critical modality imbalance problem through targeted sampling strategies. 
+
+2) Abilities of SGF in Reducing Intra-class Variance: To validate SGF’s capability in reducing intra-class variance, we visualize features by Grad-CAM and compute quantitative variance metrics across Variant (a) without SGF and Variant (b) with SGF. As shown in Fig. 7, SGF enables significantly improved focus on target buildings regardless of their indi-vidual sizes and orientations across all scales. At Scale 1 and Scale 2, scattered activations in irrelevant background regions are substantially reduced. At Scale 3 and Scale 4, the semantic-guided fusion features exhibit markedly con-centrated responses over entire building structures, achieving more precise boundaries and unified semantic representations. JOURNAL OF L ATEX CLASS FILES, VOL. 13, NO. 9, SEPTEMBER 2014 10 
+
+TABLE II 
+
+F1-score (%) on the ISPRS across various modality combinations and backbones. Average , Top-1 , and Last-1 indicate the average, highest, and lowest F1-score among all arbitrary-modal combinations, respectively. 
+
+Backbones Methods R D N R+D R+N D+N R+D+N Average Top-1 Last-1 
+
+MuSS [48] 51.96 19.44 2.63 90.95 67.42 40.88 92.61 52.27 92.61 2.63 M3L [17] 41.27 14.79 29.34 89.51 87.90 84.02 90.36 62.45 90.36 14.79 IMLT [21] 80.55 48.59 81.95 80.07 88.84 89.40 91.38 80.11 91.38 48.59 MAGIC [23] 89.67 45.14 61.25 90.69 87.49 76.16 91.19 77.37 91.19 45.14 SGMA ( Ours ) 90.92 70.36 86.24 92.88 91.34 90.18 92.96 87.84 92.96 70.36 
+
+Pvt-v2-b2 
+
+w.r.t. SOTA +1.25 +21.77 +4.29 +1.93 +2.50 +0.78 +0.35 +7.73 +0.35 +21.77 MuSS [48] 27.28 10.10 10.33 54.51 65.14 28.07 91.65 41.01 91.65 10.10 M3L [17] 31.61 13.43 26.36 87.36 82.23 80.80 90.76 58.94 90.76 13.43 IMLT [21] 89.07 50.02 41.37 90.74 90.04 59.45 91.20 73.13 91.20 41.37 MAGIC [23] 86.22 42.58 68.69 87.87 87.48 73.26 90.94 76.72 90.94 42.58 SGMA ( Ours ) 90.41 64.17 82.88 91.52 90.74 86.48 92.06 85.47 92.06 64.17 
+
+ResNet-50 
+
+w.r.t. SOTA +1.34 +14.16 +14.19 +0.78 +0.70 +5.68 +0.41 +8.75 +0.41 +21.59 TABLE III 
+
+Mean Intersection over Union (%) on the DFC2023 across various modality combinations and backbones. Average , Top-1 , and Last-1 indicate the average, highest, and lowest mIoU among all arbitrary-modal combinations, respectively. The modalities are denoted as follows: RGB (R), DSM (D), and SAR (S). 
+
+Backbones Methods R D S R+D R+S D+S R+D+S Average Top-1 Last-1 
+
+MuSS [48] 88.12 52.68 37.51 91.28 87.09 49.70 92.21 71.23 92.21 37.51 M3L [17] 90.55 50.45 37.59 88.88 90.20 71.01 91.10 74.25 91.10 37.59 IMLT [21] 90.54 53.73 32.53 90.81 90.61 49.98 91.12 71.33 91.12 32.53 MAGIC [23] 88.98 65.96 37.51 89.20 83.29 43.75 81.93 70.09 89.20 37.51 SGMA ( Ours ) 90.84 76.70 53.13 91.95 90.98 77.47 92.29 81.91 92.29 53.13 
+
+Pvt-v2-b2 
+
+w.r.t. SOTA +0.29 +10.74 +15.54 +0.67 +0.37 +6.47 +0.08 +7.66 +0.08 +15.54 MuSS [48] 61.02 51.49 37.52 86.57 78.11 69.68 89.63 67.72 89.63 37.52 M3L [17] 73.12 54.09 37.57 87.65 84.88 71.45 88.73 71.07 88.73 37.57 IMLT [21] 86.84 65.49 43.37 88.46 87.29 63.48 88.62 74.79 88.62 43.37 MAGIC [23] 84.23 73.53 40.78 87.43 83.15 69.93 86.55 75.09 87.43 40.78 SGMA ( Ours ) 87.80 76.91 49.71 89.52 88.05 78.00 90.57 80.08 90.57 49.71 
+
+ResNet-50 
+
+w.r.t. SOTA +0.96 +3.38 +6.34 +1.06 +0.77 +6.55 +0.94 +4.99 +0.94 +6.34 TABLE IV 
+
+F1-score (%) on the DFC2023 across various modality combinations and backbones. Average , Top-1 , and Last-1 indicate the average, highest, and lowest F1-score among all arbitrary-modal combinations, respectively. 
+
+Backbones Methods R D S R+D R+S D+S R+D+S Average Top-1 Last-1 
+
+MuSS [48] 93.58 64.78 42.86 95.39 92.97 61.18 95.40 78.02 95.40 42.86 M3L [17] 94.14 62.07 43.00 94.02 93.78 80.55 94.29 80.27 94.29 43.00 IMLT [21] 94.53 69.01 48.64 94.69 94.61 65.77 94.75 80.29 94.75 48.64 MAGIC [23] 94.09 78.06 42.86 94.21 90.64 53.05 89.76 77.52 94.21 42.86 SGMA ( Ours ) 94.98 86.39 66.28 95.76 95.02 86.93 95.91 88.75 95.91 66.28 
+
+Pvt-v2-b2 
+
+w.r.t. SOTA +0.45 +8.33 +17.64 +0.37 +0.40 +6.38 +0.51 +8.46 +0.51 +17.64 MuSS [48] 73.51 63.46 42.88 92.67 87.29 81.20 94.46 76.50 94.46 42.88 M3L [17] 83.67 66.38 42.97 93.32 91.65 80.21 93.94 78.88 93.94 42.97 IMLT [21] 92.56 79.82 59.66 92.93 92.70 78.16 93.05 84.13 93.05 59.66 MAGIC [23] 91.27 84.18 50.33 91.35 90.58 81.36 91.83 82.99 91.83 50.33 SGMA ( Ours ) 92.83 86.54 62.14 94.40 93.10 87.28 94.99 87.32 94.99 62.14 
+
+ResNet-50 
+
+w.r.t. SOTA +0.28 +2.36 +2.48 +1.08 +0.40 +5.92 +0.53 +3.20 +0.53 +2.48 
+
+Quantitatively, the radar charts in Fig. 8 reveal that Variant (b) consistently achieves lower intra-class variance compared to Variant (a) across all four scales. Classes with diverse appearances show the most significant reduction: building 
+
+variance decreases from 0.84 to 0.74 at Scale 1 and from 1.43 to 1.17 at Scale 4, while car variance reduces from 1.13 to 0.94 at Scale 1 and from 1.26 to 1.01 at Scale 4. More homogeneous classes such as low vegetation exhibit modest yet consistent improvements. This demonstrates that SGF’s semantic-guided perception mechanism leverages global semantic prototypes as class-specific anchors, effectively harmonizing diverse appear-ances into consistent semantic representations while maintain-ing discriminative inter-class boundaries. 
+
+3) Abilities of SGF in Harmonizing Cross-modal Hetero-geneity: To investigate SGF’s ability to mitigate cross-modal heterogeneity through adaptive modality weighting, we visu-alize the robustness maps and corresponding average scalars across all scales in Fig. 9. The robustness maps demonstrate SGF’s scale-adaptive perception of modality reliability. At Scale 1 and Scale 2, RGB maintains moderate dominance at 0.40-0.43 while DSM and NIR contribute balanced weights, indicating that fine-grained spatial details benefit from multi-modal complementarity. At Scale 3, DSM’s contribution of 0.36 nearly matches RGB’s 0.42, suggesting structural height information becomes critically important for mid-level seman-tic understanding. At Scale 4, RGB dramatically dominates at JOURNAL OF L ATEX CLASS FILES, VOL. 13, NO. 9, SEPTEMBER 2014 11 
+
+TABLE V 
+
+Mean Intersection over Union (%) on the DELIVER across various modality combinations and backbones. Average , Top-1 , and Last-1 indicate the average, highest, and lowest mIoU among all arbitrary-modal combinations, respectively. The modalities are denoted as follows: RGB (R), Depth (D), Event (E), and LiDAR (L). 
+
+Backbones Methods R D E L RD RE RL DE DL MuSS [48] 3.90 0.70 1.15 0.54 50.15 13.12 18.22 21.46 4.01 M3L [17] 18.67 37.45 2.12 1.33 59.78 24.23 27.34 41.56 34.12 IMLT [21] 38.45 52.89 17.52 19.67 61.89 40.78 41.45 58.67 58.01 MAGIC [23] 29.96 55.80 3.74 4.62 64.01 30.12 32.83 56.71 56.07 SGMA ( Ours ) 55.12 58.04 30.87 29.22 67.60 55.69 56.16 61.40 59.95 
+
+w.r.t. SOTA +16.67 +2.24 +13.35 +9.55 +3.72 +14.91 +14.71 +2.73 +1.94 Methods EL RDE RDL REL DEL RDEL Average Top-1 Last-1 
+
+MuSS [48] 3.00 66.23 66.61 15.76 46.29 66.41 25.17 66.61 0.54 M3L [17] 4.45 62.89 63.13 29.56 53.67 62.45 34.85 63.13 1.33 IMLT [21] 22.89 63.23 63.56 44.12 60.45 64.04 47.17 64.04 17.52 MAGIC [23] 5.69 63.66 63.50 34.25 55.91 64.04 41.39 64.04 3.74 SGMA ( Ours ) 38.46 66.01 67.69 56.52 61.82 67.73 55.49 67.73 29.22 
+
+Pvt-v2-b2 
+
+w.r.t. SOTA +15.57 -0.22 +1.08 +12.40 +1.37 +1.19 +8.31 +1.12 +11.70 Backbones Methods R D E L RD RE RL DE DL MuSS [48] 0.91 0.34 0.57 0.39 46.93 9.82 13.73 2.58 1.71 M3L [17] 14.56 28.34 1.23 0.86 55.67 18.92 21.45 32.78 26.54 IMLT [21] 53.45 51.34 15.76 18.67 60.45 53.67 54.12 54.89 54.23 MAGIC [23] 45.75 41.91 1.50 6.58 58.43 45.61 45.77 45.07 45.15 SGMA ( Ours ) 51.16 55.59 27.40 27.77 63.93 54.85 56.78 57.95 55.95 
+
+w.r.t. SOTA -2.29 +4.25 +11.64 +9.10 +3.48 +1.18 +2.66 +3.06 +1.72 Methods EL RDE RDL REL DEL RDEL Average Top-1 Last-1 
+
+MuSS [48] 3.02 63.67 63.53 34.05 63.70 63.98 24.60 63.98 0.34 M3L [17] 3.45 60.45 60.78 23.67 48.23 62.11 30.60 62.11 0.86 IMLT [21] 20.45 61.89 62.23 52.05 56.67 62.65 48.83 62.65 15.76 MAGIC [23] 7.03 59.07 58.85 44.65 46.33 58.88 40.71 59.07 1.50 SGMA ( Ours ) 35.61 64.17 64.31 55.34 63.66 64.79 53.28 64.79 27.40 
+
+ResNet-50 
+
+w.r.t. SOTA +15.16 +0.50 +0.78 +3.29 -0.04 +0.81 +4.45 +0.81 +11.64 RGB  GT 
+
+Scale 1 Input  Scale 2  Scale 3  Scale 4 
+
+> w/o SGF  w/ SGF
+
+Fig. 7. Grad-CAM based visualization of semantic activations on building-relevant regions in Variant (a) (w/o SGF) and Variant (b) (w/ SGF). 
+
+0.66 while other modalities contribute minimally at 0.17 each, reflecting the primacy of high-level semantic context for final classification. This dynamic modality weighting mechanism directly addresses cross-modal heterogeneity by intelligently emphasizing the most reliable modality at each scale while preserving complementary information from others, enabling SGF to harmonize cross-modal inconsistencies while main-taining each modality’s unique semantic contributions. 
+
+4) Abilities of MAS in Mitigating Multimodal Imbalance: 
+
+To evaluate MAS’s contribution in mitigating multimodal im-balance, we conduct feature visualization analysis comparing 
+
+Variant (b) with SGF only and Variant (c) with both SGF and MAS. As illustrated in Fig. 10, Variant (b) without MAS exhibits weak and spatially diffuse responses in DSM and NIR modalities, particularly around building boundaries (red boxes), with severely entangled t-SNE embeddings (blue boxes) where different semantic classes are heavily over-(a) Scale 1  (b) Scale 2 
+
+> (d) Scale 4 (c) Scale 3
+> Variant (a)
+> Variant (b)
+
+Fig. 8. Intra-class variance comparison across different scales in Variant (a) 
+
+(w/o SGF) and Variant (b) (w/ SGF). 
+
+lapped. This severe class confusion is quantitatively reflected in silhouette scores, where only the robust RGB modality achieves reasonable cluster separability with a score of 0.32, while the fragile DSM and NIR modalities obtain extremely low scores of 0.03 and 0.05, respectively, indicating near-random cluster assignments and insufficient discriminative learning. In contrast, Variant (c) with MAS demonstrates substantial improvements where multimodal semantic feature maps become spatially coherent with clearer activations, and t-JOURNAL OF L ATEX CLASS FILES, VOL. 13, NO. 9, SEPTEMBER 2014 12 
+
+TABLE VI 
+
+F1-scor (%) on the DELIVER across various modality combinations and backbones. Average , Top-1 , and Last-1 indicate the average, highest, and lowest mIoU among all arbitrary-modal combinations, respectively. 
+
+Backbones Methods R D E L RD RE RL DE DL MuSS [48] 7.51 1.39 2.27 1.07 66.80 23.20 30.82 35.34 7.71 M3L [17] 31.47 54.49 4.15 2.63 74.83 39.01 42.94 58.72 50.88 IMLT [21] 55.54 69.19 29.82 32.87 76.46 57.93 58.61 73.95 73.43 MAGIC [23] 46.11 71.63 7.21 8.83 78.06 46.29 49.43 72.38 71.85 SGMA ( Ours ) 71.07 73.45 47.18 45.22 80.67 71.54 71.93 76.08 74.96 
+
+w.r.t. SOTA +15.53 +1.82 +17.36 +12.35 +2.70 +13.61 +13.32 +2.13 +1.53 Methods EL RDE RDL REL DEL RDEL Average Top-1 Last-1 
+
+MuSS [48] 5.83 79.69 79.96 27.23 63.28 79.82 34.13 79.96 1.07 M3L [17] 8.52 77.22 77.40 45.63 69.85 76.89 47.64 77.40 2.63 IMLT [21] 37.25 77.47 77.72 61.23 75.35 78.08 62.33 78.08 29.82 MAGIC [23] 10.77 77.80 77.68 51.02 71.72 78.08 54.59 78.08 7.21 SGMA ( Ours ) 55.55 79.53 80.73 72.22 76.41 80.76 70.49 80.76 45.22 
+
+Pvt-v2-b2 
+
+w.r.t. SOTA +18.30 -0.16 +0.77 +10.99 +1.06 +0.85 +8.16 +0.80 +15.40 Backbones Methods R D E L RD RE RL DE DL MuSS [48] 1.80 0.68 1.13 0.78 63.88 17.88 24.15 5.03 3.36 M3L [17] 25.42 44.16 2.43 1.71 71.52 31.82 35.32 49.37 41.95 IMLT [21] 69.66 67.85 27.23 31.46 75.35 69.85 70.23 70.88 70.32 MAGIC [23] 62.78 59.06 2.96 12.35 73.76 62.65 62.80 62.14 62.21 SGMA ( Ours ) 67.69 71.46 43.01 43.47 78.00 70.84 72.43 73.38 71.75 
+
+w.r.t. SOTA -1.97 +3.61 +15.78 +12.01 +2.65 +0.99 +2.20 +2.50 +1.43 Methods EL RDE RDL REL DEL RDEL Average Top-1 Last-1 
+
+MuSS [48] 5.86 77.80 77.70 50.80 77.83 78.03 32.45 78.03 0.68 M3L [17] 6.67 75.35 75.61 38.28 65.07 76.63 42.75 76.63 1.71 IMLT [21] 33.96 76.46 76.72 68.46 72.34 77.04 63.85 77.04 27.23 MAGIC [23] 13.14 74.27 74.10 61.74 63.32 74.12 54.76 74.27 2.96 SGMA ( Ours ) 52.52 78.18 78.28 71.25 77.80 78.63 68.58 78.63 43.01 
+
+ResNet-50 
+
+w.r.t. SOTA +18.56 +0.38 +0.58 +2.79 -0.03 +0.60 +4.73 +0.60 +15.78 TABLE VII 
+
+Mean Intersection over Union (%) on the ISPRS for Ablation Studies of SGF and MAS Modules. Each Variant denotes a different component configuration. Average , Top-1 , and Last-1 indicate the average, highest, and lowest mIoU among all arbitrary-modal combinations, respectively. The modalities are denoted as follows: RGB (R), DSM (D), and SAR (S). The red arrows and values indicate the performance drop compared to 
+
+Variant (c) , while the green arrows denote the improvement. 
+
+Variants Components R D N RD RN DN RDN Average Top-1 Last-1 
+
+SGF MAS (a) ✗ ✗ 69.13 ↓14.38 9.06 ↓47.99 2.61 ↓73.45 84.60 ↓2.02 63.18 ↓21.07 12.04 ↓70.52 84.93 ↓1.91 46.51 ↓33.04 84.93 ↓1.91 2.61 ↓54.44 
+
+(b) ✓ ✗ 70.50 ↓13.01 14.24 ↓42.81 7.01 ↓69.05 86.34 ↓0.28 65.03 ↓19.22 14.29 ↓68.27 86.50 ↓0.34 49.13 ↓30.42 86.50 ↓0.34 7.01 ↓50.04 
+
+(c) ✓ ✓ 83.51 57.05 76.06 86.62 84.25 82.56 86.84 79.55 86.84 57.05 
+
+TABLE VIII 
+
+F1-score (%) on the ISPRS for Ablation Studies of SGF and MAS Modules. Each Variant corresponds to a different combination of components. Average , Top-1 , and Last-1 indicate the average, highest, and lowest mIoU among all arbitrary-modal combinations, respectively. The modalities are denoted as follows: RGB (R), DSM (D), and SAR (S). The red arrows and values indicate the performance drop compared to 
+
+Variant (c) , while the green arrows denote the improvement. 
+
+Variants Components R D N RD RN DN RDN Average Top-1 Last-1 
+
+SGF MAS (a) ✗ ✗ 81.11 ↓9.81 14.68 ↓55.68 5.03 ↓81.21 91.51 ↓1.37 76.23 ↓15.11 18.83 ↓71.35 91.70 ↓1.26 54.16 ↓33.68 91.70 ↓1.26 5.03 ↓65.33 
+
+(b) ✓ ✗ 82.24 ↓8.68 22.28 ↓48.08 12.69 ↓73.55 92.51 ↓0.37 77.89 ↓13.45 24.74 ↓65.44 92.61 ↓0.35 57.85 ↓29.99 92.61 ↓0.35 12.69 ↓57.67 
+
+(c) ✓ ✓ 90.92 70.36 86.24 92.88 91.34 90.18 92.96 87.84 92.96 70.36 
+
+TABLE IX 
+
+Computational and parameter complexity of different methods, where backbone is excluded from the statistics. 
+
+Methods #FLOPs (G) #Params (M) MuSS [48] 27.00 58.58 M3L [17] 8.68 3.55 
+
+IMLT [21] 10.44 4.33 MAGIC [23] 98.11 22.29 SGMA ( Ours ) 9.47 4.79 
+
+w.r.t. SOTA +0.79 +1.24 
+
+SNE embeddings exhibit dramatically improved structure with compact intra-class clusters and distinct inter-class separation. Quantitatively, MAS enables all three modalities to achieve consistently high silhouette scores of 0.32, 0.30, and 0.31 respectively, demonstrating that fragile modalities now learn discriminative representations without compromising the ro-bust modality. This results from MAS’s robustness-guided sampling mechanism, which leverages SGF’s reliability esti-mates to increase the sampling frequency of fragile modal-ities, ensuring they receive adequate training attention and develop unique discriminative capabilities rather than being overshadowed by robust modalities, ultimately addressing the core problem of multimodal imbalance. JOURNAL OF L ATEX CLASS FILES, VOL. 13, NO. 9, SEPTEMBER 2014 13 RGB  DSM  NIR 
+
+Scale 1 Input  Scale 2  Scale 3  Scale 4 
+
+RGB Robustness 
+
+DSM Robustness 
+
+NIR Robustness 
+
+.40  .35 .25 
+
+.43  .34 
+
+.23 
+
+.42 
+
+.22 
+
+.36 
+
+.66 
+
+.17 .17 
+
+> Fig. 9. Visualization of robustness maps and average scalars across all scales. RGB  DSM  NIR
+
+.32 
+
+.30 
+
+.31 
+
+(a) w/ MAS 
+
+.32 
+
+.03 
+
+.05 
+
+(b) w/o MAS Input 
+
+Imp. Surfaces  Building  Low Veg. 
+
+Tree  Car  Background  
+
+> Fig. 10. Comparison of feature maps and t-SNE embeddings under the conditions (a) with MAS and (b) without MAS. The t-SNE visualizations project high-dimensional features into a 2D space, where different colors represent distinct semantic categories, and the bottom-left values denote silhouette scores, which measure cluster separability. Compact clusters with higher silhouette scores indicate better feature discriminability, while entan-gled distributions with lower scores suggest class confusion.
+
+5) Complexity Analysis: To evaluate the scalability of SGMA for practical applications, we analyze the compu-tational and parameter complexity. As shown in Tab. IX, SGMA achieves competitive efficiency with only 0.79 FLOPs and 1.24 million parameters, surpassing the most lightweight methods. Compared to the PVT-v2-b2 [68] backbone requiring 72.92 GFLOPs and 24.85 million parameters, this modest overhead accounts for increases of only 1.1% and 1.7%, respectively. Notably, both computational cost and parameters scale linearly with spatial dimensions ( Hi, Wi), number of classes ( K), and number of modalities ( M ), demonstrating excellent scalability of our framework. This confirms that SGMA maintains a favorable balance between performance RGB  DSM  NIR 
+
+(a) mIoU Statistics  (b) Robustness Statistics  
+
+> Fig. 11. Training dynamics analysis on ISPRS dataset with PVT-v2-b2 backbone at scale level 2.
+
+and computational efficiency, making it suitable for practical multimodal segmentation applications. 
+
+6) Training Dynamics and Robustness Score Analysis: To comprehensively validate our framework’s effectiveness, we analyze the training dynamics by tracking both segmentation performance and robustness scores at scale level 2 across 80 epochs. As shown in Fig. 11, three key observations emerge: 1) Robustness-Performance Correlation: The ranking of robustness scores in (b) (RGB > NIR > DSM) is highly consistent with the ranking of mIoU in (a) throughout training, validating that our robustness metric effectively captures modality reliability and informativeness. 2) Balanced Convergence: All modalities converge within 30 epochs with satisfactory performance. Robust modal-ities (RGB, NIR) stabilize earlier around epoch 10-15, while the fragile modality (DSM) shows contin-uous improvement without premature saturation. This demonstrates that MAS and SGF’s complementary de-sign ensures balanced learning: MAS increases training frequency for fragile modalities while SGF adaptively emphasizes robust modalities when reliable, enabling all modalities to be sufficiently exploited without sacrificing convergence speed or accuracy. 3) Stability Evolution: The shaded regions in (b) show decreasing standard deviations across samples as training progresses. By epoch 30, all modalities reach stable robustness values with minimal fluctuation, synchronized with segmentation performance convergence. This con-firms that our robustness metric reliably reflects modality learning dynamics and provides consistent guidance for both SGF and MAS throughout training. 
+
+7) Hyperparameter Sensitivity Analysis: To find the optimal hyperparameters, we conduct extensive ablation studies on configurable hyperparameters. Starting from default settings of 
+
+λSGF =1, λMAS =1, SP Heads=4, RP Heads=4, and MP Kernel Size=(3,7,11), we adopt a sequential search strategy as shown in Fig. 12. We first optimize λSGF and find that setting it to 2 achieves 78.88% mIoU. We then optimize λMAS and find that keeping it at 1 maintains this performance. Next, we sequentially optimize the number of SP heads and RP heads, where 8 SP heads and 4 RP heads both reach 79.55% mIoU. Finally, the MP kernel size of (3, 7, 11) confirms the optimal configuration at 79.55% mIoU. JOURNAL OF L ATEX CLASS FILES, VOL. 13, NO. 9, SEPTEMBER 2014 14 (e) MP Kernel Size 
+
+(b) 𝜆𝜆 MAS (a) 𝜆𝜆 SGF 
+
+(d) RP Heads Number (c) SP Heads Number 
+
+Fig. 12. Component-wise ablation analysis of SGF and MAS. Sequential optimization of (a) λSGF , (b) λMAS , (c) SP heads, (d) RP heads, and (e) MP kernel sizes. Red circles denote optimal values that maximize mIoU (%). 
+
+V. Conclusion 
+
+This paper addresses three fundamental challenges in IMSS for remote sensing: modality imbalance where robust modal-ities dominate training, substantial intra-class variation across diverse spatial scales and orientations, and firm cross-modal heterogeneity leading to conflicting semantic cues. We propose SGMA with two synergistic components that enable robust segmentation under arbitrary modality-missing scenarios. SGF addresses intra-class variation by extracting global semantic prototypes as class-specific anchors, harmonizing diverse ap-pearances while providing reliable modality robustness es-timates and reconciling cross-modal heterogeneity through adaptive attention-weighted fusion. MAS leverages these ro-bustness cues to dynamically increase training frequencies of fragile modalities, enhancing their discriminative capabilities while preventing dominance by robust modalities. Extensive experiments on ISPRS , DFC2023 , and DELIVER confirm that our framework successfully exploits complementary mul-timodal information while maintaining robustness across di-verse sensor configurations, providing a principled solution for IMSS in remote sensing applications with both theoretical insights and practical benefits for real-world deployment where sensor reliability varies. Future work will address the current lack of interpretability by developing mechanisms to explic-itly quantify modality-specific learning dynamics and explore extensions to broader remote sensing scenarios and temporal multimodal sequences. 
+
+References 
+
+[1] Y. Zhang, R. Ji, Y. Hu, Y. Yang, X. Chen, X. Duan, and H. Shan, “Real-time semantic segmentation of remote sensing images for land management,” Photogrammetric Engineering & Remote Sensing , vol. 90, no. 6, pp. 335–343, June 2024. [2] L. Zhou, K. Duan, J. Dai, and Y. Ye, “Advancing perturbation space expansion based on information fusion for semi-supervised remote sensing image semantic segmentation,” Information Fusion , vol. 117, p. 102830, May 2025. [3] Y. Ye, J. Dai, L. Zhou, K. Duan, R. Tao, W. Li, and D. Hong, “Tu-ple perturbation-based contrastive learning framework for multimodal remote sensing image semantic segmentation,” IEEE Transactions on Geoscience and Remote Sensing , vol. 63, pp. 1–15, 2025. [4] J. Chen, J. Xiao, S. Cao, Y. Zhu, L. Liao, J. Pan, and M. Wang, “De-tracker: Motion-decoupled vehicle detection and tracking in unstabilized satellite videos,” arXiv preprint arXiv:2601.09240 , 2026. [5] R. S. A. Palharini, M. S. G. Reyes, F. F. Monteiro, L. M. M. Villavi-cencio, A. D. Adell, M. Toro, A. I. Moreno-Switt, and E. A. Undurraga, “Challenges and potential of remote sensing for assessing salmonella risk in water sources: Evidence from chile,” Microorganisms , vol. 13, no. 7, p. 1539, July 2025. [6] S. Holail, T. Saleh, X. Xiao, J. Xiao, G.-S. Xia, Z. Shao, M. Wang, J. Gong, and D. Li, “Time-series satellite remote sensing reveals gradually increasing war damage in the gaza strip,” National Science Review , vol. 11, no. 9, p. nwae304, 08 2024. [7] M. Cetin, M. Ozenen Kavlak, M. A. Senyel Kurkcuoglu, G. Bilge Oz-turk, S. N. Cabuk, and A. Cabuk, “Determination of land surface tem-perature and urban heat island effects with remote sensing capabilities: The case of kayseri, türkiye,” Natural Hazards , vol. 120, no. 6, pp. 5509–5536, April 2024. [8] S. Jadhav, M. Durairaj, R. Reenadevi, R. Subbulakshmi, V. Gupta, and J. V. N. Ramesh, “Spatiotemporal data fusion and deep learning for remote sensing-based sustainable urban planning,” International Journal of System Assurance Engineering and Management , November 2024. [9] M. Wang, Q. Wu, J. Xiao, D. Li, and F. Yang, “Luojia 3-01 satellite—real-time intelligent service system for remote sensing science experiment satellite,” IEEE Journal of Selected Topics in Applied Earth Observations and Remote Sensing , vol. 17, pp. 8250–8257, 2024. [10] D. Li, M. Wang, J. Xiao, and B. Yang, “Perspectives on spatio-temporal intelligence,” ISPRS Journal of Photogrammetry and Remote Sensing ,vol. 232, pp. 305–318, 2026. [11] H. Albanwan, R. Qin, and Y. Tang, “Image fusion in remote sensing: An overview and meta-analysis,” Photogrammetric Engineering & Remote Sensing , vol. 90, no. 12, pp. 755–775, December 2024. [12] G. Vivone, L.-J. Deng, S. Deng, D. Hong, M. Jiang, C. Li, W. Li, H. Shen, X. Wu, J.-L. Xiao, J. Yao, M. Zhang, J. Chanussot, S. García, and A. Plaza, “Deep learning in remote sensing image fusion: Methods, protocols, data, and future perspectives,” IEEE Geoscience and Remote Sensing Magazine , vol. 13, no. 1, pp. 269–310, March 2025. [13] W. Zhou, E. Yang, J. Lei, J. Wan, and L. Yu, “Pgdenet: Progressive guided fusion and depth enhancement network for rgb-d indoor scene parsing,” IEEE Transactions on Multimedia , vol. 25, pp. 3483–3494, 2023. [14] W. Zhou, H. Zhang, W. Yan, and W. Lin, “Mmsmcnet: Modal memory sharing and morphological complementary networks for rgb-t urban scene semantic segmentation,” IEEE Transactions on Circuits and Systems for Video Technology , vol. 33, no. 12, pp. 7096–7108, 2023. [15] Z. Zhang, W. Wang, L. Zhu, and Z. Tang, “Tag-fusion: Two-stage attention guided multi-modal fusion network for semantic segmentation,” 
+
+Digital Signal Processing , vol. 156, no. PA, January 2025. [16] J. Shi, C. Shang, Z. Sun, L. Yu, X. Yang, and Z. Yan, “Passion: Towards effective incomplete multi-modal medical image segmentation with imbalanced missing rates,” in ACM MM , October 2024, pp. 456– 465. JOURNAL OF L ATEX CLASS FILES, VOL. 13, NO. 9, SEPTEMBER 2014 15 
+
+[17] H. Maheshwari, Y.-C. Liu, and Z. Kira, “Missing modality robustness in semi-supervised multi-modal semantic segmentation,” in WACV , January 2024, pp. 1009–1019. [18] K. He, X. Chen, S. Xie, Y. Li, P. Dollár, and R. Girshick, “Masked autoencoders are scalable vision learners,” in CVPR , June 2022, pp. 15 979–15 988. [19] D. Du, T. Liu, and Y. Gu, “A multimodal unified representation learning framework with masked image modeling for remote sensing images,” 
+
+IEEE Transactions on Geoscience and Remote Sensing , vol. 62, pp. 1– 16, 2024. [20] J. Sosa, D. Rukhovich, A. Kacem, and D. Aouada, “Multimae meets earth observation: Pre-training multi-modal multi-task masked autoen-coders for earth observation tasks,” in ICIP , September 2025, pp. 797– 802. [21] Y. Chen, M. Zhao, and L. Bruzzone, “A novel approach to incomplete multimodal learning for remote sensing data fusion,” IEEE Transactions on Geoscience and Remote Sensing , vol. 62, pp. 1–14, 2024. [22] X. Zheng, Y. Lyu, and L. Wang, “Learning modality-agnostic repre-sentation for semantic segmentation from any modalities,” in ECCV ,A. Leonardis, E. Ricci, S. Roth, O. Russakovsky, T. Sattler, and G. Varol, Eds., 2024, pp. 146–165. [23] X. Zheng, Y. Lyu, J. Zhou, and L. Wang, “Centering the value of every modality: Towards efficient and resilient modality-agnostic semantic seg-mentation,” in ECCV , A. Leonardis, E. Ricci, S. Roth, O. Russakovsky, T. Sattler, and G. Varol, Eds., 2024, pp. 192–212. [24] H. Wang, X. Liu, Z. Qiao, G. Wang, and H. Chen, “Multimodal remote sensing data classification based on gaussian mixture variational dynamic fusion network,” IEEE Transactions on Geoscience and Remote Sensing , vol. 62, pp. 1–14, 2024. [25] Y. He, B. Xi, G. Li, T. Zheng, Y. Li, C. Xue, and M. Shen, “Semibacon: Semi-supervised balanced contrastive learning for multimodal remote sensing image classification,” IEEE Transactions on Geoscience and Remote Sensing , vol. 63, pp. 1–14, 2025. [26] S. Feng, Z. Li, B. Zhang, and B. Wang, “Df2rq: Dynamic feature fusion via region-wise queries for semantic segmentation of multimodal remote sensing data,” IEEE Transactions on Geoscience and Remote Sensing ,vol. 63, pp. 1–15, 2025. [27] Z. Zhang, T. Peng, L. Liao, J. Xiao, and M. Wang, “Sdm-car: A dataset for small and dim moving vehicles detection in satellite videos,” IEEE Geoscience and Remote Sensing Letters , vol. 21, pp. 1–5, 2024. [28] Z. Feng, B. Yang, and B. Deng, “Mdfnet: Multimodal remote sensing image segmentation method based on multilevel discrepancy feature fusion,” in ICIC , D.-S. Huang, B. Li, H. Chen, and C. Zhang, Eds., 2025, pp. 119–131. [29] M. A. Khan, A. Hamza, W. Ibrar, L. Jamel, A. Alasiry, M. Mar-zougui, S. Kumari, and Y. Nam, “Coastal and land use land cover area recognition from high-resolution remote sensing images using a novel multimodal attention inception residual deep network,” IEEE Journal of Selected Topics in Applied Earth Observations and Remote Sensing ,vol. 18, pp. 17 460–17 475, 2025. [30] Q. Zhang, J. Zhang, H. Huang, F. Wu, and H. Yu, “Establishing nuanced multimodal attention for weakly supervised semantic segmentation of remote sensing scenes,” IEEE Geoscience and Remote Sensing Letters ,vol. 22, pp. 1–5, 2025. [31] W. Zhou, X. Lin, J. Lei, L. Yu, and J.-N. Hwang, “Mffenet: Multiscale feature fusion and enhancement network for rgb–thermal urban road scene parsing,” IEEE Transactions on Multimedia , vol. 24, pp. 2526– 2538, 2022. [32] X. Ma, X. Xu, X. Zhang, and M.-O. Pun, “Adjacent-scale multimodal fusion networks for semantic segmentation of remote sensing data,” 
+
+IEEE Journal of Selected Topics in Applied Earth Observations and Remote Sensing , vol. 17, pp. 20 116–20 128, 2024. [33] N. Audebert, B. Le Saux, and S. Lefèvre, “Beyond rgb: Very high resolution urban remote sensing with multimodal deep networks,” ISPRS Journal of Photogrammetry and Remote Sensing , vol. 140, pp. 20–32, June 2018. [34] D. Hong, L. Gao, N. Yokoya, J. Yao, J. Chanussot, Q. Du, and B. Zhang, “More diverse means better: Multimodal deep learning meets remote-sensing imagery classification,” IEEE Transactions on Geoscience and Remote Sensing , vol. 59, no. 5, pp. 4340–4354, May 2021. [35] D. Hong, B. Zhang, H. Li, Y. Li, J. Yao, C. Li, M. Werner, J. Chanussot, A. Zipf, and X. X. Zhu, “Cross-city matters: A multimodal remote sensing benchmark dataset for cross-city semantic segmentation using high-resolution domain adaptation networks,” Remote Sensing of Envi-ronment , vol. 299, p. 113856, December 2023. [36] Y. Liu, Y. Wang, Y. Zhang, and S. Mei, “Mmglots: Multi-modal global-local transformer segmentor for remote sensing image segmentation,” in 
+
+WHISPERS , October 2023, pp. 1–5. [37] J. Fan, J. Li, Z. Hua, F. Zhang, and C. Zhang, “Elevation information-guided multimodal fusion robust framework for remote sensing image segmentation,” IEEE Geoscience and Remote Sensing Letters , vol. 21, pp. 1–5, 2024. [38] D. Yu, S. Ji, S. Wei, and K. Khoshelham, “3-d building instance extraction from high-resolution remote sensing images and dsm with an end-to-end deep neural network,” IEEE Transactions on Geoscience and Remote Sensing , vol. 62, pp. 1–19, 2024. [39] S. Lan, Y. Zhang, T. Gao, F. Tong, Z. Tian, H. Zhang, M. Li, and N. S. Mustafa, “Uav remote sensing monitoring of winter wheat tiller number based on vegetation pixel extraction and mixed-features selection,” In-ternational Journal of Applied Earth Observation and Geoinformation ,vol. 131, p. 103940, July 2024. [40] Y. Gao, H. Chai, and X. Lv, “Mmrad-net: A multi-scale model for precise building extraction from high-resolution remote sensing imagery with dsm integration,” Remote Sensing , vol. 17, no. 6, p. 952, January 2025. [41] L. N. Sotomayor, A. Lucieer, D. Turner, M. Lewis, and T. Kattenborn, “Mapping fractional vegetation cover in uas rgb and multispectral imagery in semi-arid australian ecosystems using cnn-based semantic segmentation,” Landscape Ecology , vol. 40, no. 8, p. 169, August 2025. [42] S. Xiao, P. Wang, W. Diao, K. Fu, and X. Sun, “A multimodal semantic segmentation framework for heterogeneous optical and complex sar data,” IEEE Journal of Selected Topics in Applied Earth Observations and Remote Sensing , vol. 18, pp. 8083–8098, 2025. [43] D. Xu, J. Qian, H. Feng, Z. Li, and Y. Wang, “Semantic segmentation of multimodal optical and sar images with multiscale attention network,” 
+
+IEEE Geoscience and Remote Sensing Letters , vol. 22, pp. 1–5, 2025. [44] X. Ma, X. Zhang, M.-O. Pun, and M. Liu, “A multilevel multimodal fusion transformer for remote sensing semantic segmentation,” IEEE Transactions on Geoscience and Remote Sensing , vol. 62, pp. 1–15, 2024. [45] H. Feng, Q. Hu, P. Zhao, S. Wang, M. Ai, D. Zheng, and T. Liu, “Ftrans-deeplab: Multimodal fusion transformer-based deeplabv3+ for remote sensing semantic segmentation,” IEEE Transactions on Geoscience and Remote Sensing , vol. 63, pp. 1–18, 2025. [46] J. Gao, L. Zhao, and X. Li, “Nwpu-moc: A benchmark for fine-grained multicategory object counting in aerial images,” IEEE Transactions on Geoscience and Remote Sensing , vol. 62, pp. 1–14, 2024. [47] M. K. Reza, A. Prater-Bennette, and M. S. Asif, “Mmsformer: Multi-modal transformer for material and semantic segmentation,” IEEE Open Journal of Signal Processing , vol. 5, pp. 599–610, 2024. [48] Q. Wang, W. Chen, Z. Huang, H. Tang, and L. Yang, “Multisenseseg: A cost-effective unified multimodal semantic segmentation model for remote sensing,” IEEE Transactions on Geoscience and Remote Sensing ,vol. 62, pp. 1–24, 2024. [49] J. Zhang, R. Liu, H. Shi, K. Yang, S. Reiß, K. Peng, H. Fu, K. Wang, and R. Stiefelhagen, “Delivering arbitrary-modal semantic segmentation,” in 
+
+CVPR , 2023, pp. 1136–1147. [50] S. Gao, X. Yang, L. Jiang, Z. Fu, and J. Du, “Global feature-based multimodal semantic segmentation,” Pattern Recognition , vol. 151, p. 110340, July 2024. [51] K. Kuckreja, M. S. Danish, M. Naseer, A. Das, S. Khan, and F. S. Khan, “Geochat:grounded large vision-language model for remote sensing,” in 
+
+CVPR , June 2024, pp. 27 831–27 840. [52] Y. Hu, J. Yuan, C. Wen, X. Lu, Y. Liu, and X. Li, “Rsgpt: A remote sensing vision language model and benchmark,” ISPRS Journal of Photogrammetry and Remote Sensing , vol. 224, pp. 272–286, June 2025. [53] Y. Zhang, Y. Li, and F. Zhang, “Multi-level urban street representation with street-view imagery and hybrid semantic graph,” ISPRS Journal of Photogrammetry and Remote Sensing , vol. 218, pp. 19–32, December 2024. [54] C. Li, H. Lyu, W. Jing, Y. Yuan, and G. Cheng, “Mffnet: A wavelet transform-based multimodal frequency fusion network for remote sens-ing semantic segmentation,” GIScience & Remote Sensing , vol. 62, no. 1, p. 2534740, August 2025. [55] J. Ding, Y. Zhao, L. Pei, Y. Shan, Y. Du, and W. Li, “Modal-invariant progressive representation for multimodal image registration,” 
+
+Information Fusion , vol. 117, p. 102903, May 2025. [56] X. Zhang, X. Zhang, J. Wang, J. Ying, Z. Sheng, H. Yu, C. Li, and H.-L. Shen, “Tfdet: Target-aware fusion for rgb-t pedestrian detection,” 
+
+IEEE Transactions on Neural Networks and Learning Systems , vol. 36, no. 7, pp. 13 276–13 290, July 2025. JOURNAL OF L ATEX CLASS FILES, VOL. 13, NO. 9, SEPTEMBER 2014 16 
+
+[57] Y. Zan, S. Ji, S. Chao, and M. Luo, “Open-vocabulary generative vision-language models for creating a large-scale remote sensing change detec-tion dataset,” ISPRS Journal of Photogrammetry and Remote Sensing ,vol. 225, pp. 275–290, July 2025. [58] J. Gao, D. Zhang, F. Wang, L. Ning, Z. Zhao, and X. Li, “Combining sam with limited data for change detection in remote sensing,” IEEE Transactions on Geoscience and Remote Sensing , vol. 63, pp. 1–11, 2025. [59] J. Wang, Z. Zheng, Z. Chen, A. Ma, and Y. Zhong, “Earthvqa: Towards queryable earth via relational reasoning-based remote sensing visual question answering,” in AAAI , vol. 38, March 2024, pp. 5481–5489. [60] Y. Wang and P. Ghamisi, “Rsadapter: Adapting multimodal models for remote sensing visual question answering,” IEEE Transactions on Geoscience and Remote Sensing , vol. 62, pp. 1–13, 2024. [61] H. Wang, C. Ma, J. Zhang, Y. Zhang, J. Avery, L. Hull, and G. Carneiro, “Learnable cross-modal knowledge distillation for multi-modal learning with missing modality,” in MICCAI , October 2023, pp. 216–226. [62] L. Wen, J. Xiao, L. Liao, J. Chen, and M. Wang, “Charm: Collaborative harmonization across arbitrary modalities for modality-agnostic semantic segmentation,” arXiv preprint arXiv:2508.03060 , 2025. [63] V. Hertel, C. Chow, O. Wani, M. Wieland, and S. Martinis, “Probabilistic sar-based water segmentation with adapted bayesian convolutional neural network,” Remote Sensing of Environment , vol. 285, p. 113388, February 2023. [64] S. Wang, X. Sun, C. Chen, D. Hong, and J. Han, “Semi-supervised semantic segmentation for remote sensing images via multiscale uncer-tainty consistency and cross-teacher–student attention,” IEEE Transac-tions on Geoscience and Remote Sensing , vol. 63, pp. 1–15, 2025. [65] M. A. Valiuddin, R. J. van Sloun, C. G. Viviers, P. de With, and F. van der Sommen, “A review of bayesian uncertainty quan-tification in deep probabilistic image segmentation,” arXiv preprint arXiv:2411.16370 , 2024. [66] F. Rottensteiner, G. Sohn, J. Jung, M. Gerke, C. Baillard, S. Benitez, and U. Breitkopf, “The isprs benchmark on urban object classification and 3d building reconstruction,” ISPRS Annals of the Photogrammetry, Remote Sensing and Spatial Information Sciences , vol. I-3, pp. 293–298, July 2012. [67] C. Persello, R. Hänsch, G. Vivone, K. Chen, Z. Yan, D. Tang, H. Huang, M. Schmitt, and X. Sun, “2023 ieee grss data fusion contest: Large-scale fine-grained building classification for semantic urban reconstruction [technical committees],” IEEE Geoscience and Remote Sensing Mag-azine , vol. 11, no. 1, pp. 94–97, March 2023. [68] W. Wang, E. Xie, X. Li, D.-P. Fan, K. Song, D. Liang, T. Lu, P. Luo, and L. Shao, “Pvt v2: Improved baselines with pyramid vision transformer,” 
+
+Computational Visual Media , vol. 8, no. 3, pp. 415–424, September 2022. [69] K. He, X. Zhang, S. Ren, and J. Sun, “Deep residual learning for image recognition,” in CVPR , June 2016, pp. 770–778. 
+
+Lekang Wen received the B.S. degree from Sun Yat-sen University, Zhuhai, China, in 2024. He is currently pursuing the Ph.D. degree with the State Key Laboratory of Information Engineering in Surveying, Mapping and Remote Sensing, Wuhan University, Wuhan, China. His research interests include multimodal learning, foundation models, and satellite photogrammetry. 
+
+Liang Liao (Senior Member, IEEE) received the B.S. degree from International School of Software, Wuhan University, Wuhan, China, in 2013, and the Ph.D. degree from the National Engineering Research Center for Multimedia Software, School of Computer Science, Wuhan University, Wuhan, China, in 2019. He is currently a Professor with the Hangzhou Institute of Technology, Xidian Univer-sity. He was a Research Fellow with the School of Computer Science and Engineering, Nanyang Tech-nological University, Singapore, from 2022 to 2024, and was a Project Researcher with the National Institute of Informatics, Japan, from 2019 to 2022. His research interests include image/video processing, transmission, and quality assessment. 
+
+Jing Xiao received the B.Sc. and M.Sc. degrees in computer science and technology from Wuhan University, Wuhan, China, in 2006 and 2008, respec-tively, and the Ph.D. degree in computer science and technology from the Institute of Geo-Information Science and Earth Observation, Twente University, Enschede, The Netherlands, in 2013. She was a Project Researcher with the National Institute of Informatics, Tokyo, Japan, from 2019 to 2020. She is currently a Professor with the National Engineering Research Center for Multimedia Software, School of Artificial Intelligence, Wuhan University. Her research interests include image/video processing and compression and analysis. 
+
+Mi Wang received the B.Eng., M.Sc., and Ph.D. degrees in photogrammetry and remote sensing from Wuhan University, Wuhan, China, in 1997, 1999, and 2001, respectively. Since 2008, he has been a Professor with the State Key Laboratory of In-formation Engineering in Surveying, Mapping and Remote Sensing, Wuhan University. His research interests include measurable seamless stereo ortho-image databases, geographic information systems (GIS), and high-precision remote-sensing image pro-cessing and intelligent spatial information service.

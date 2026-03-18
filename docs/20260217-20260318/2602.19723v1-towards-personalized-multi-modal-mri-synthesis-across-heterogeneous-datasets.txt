@@ -1,0 +1,723 @@
+Title: Towards Personalized Multi-Modal MRI Synthesis across Heterogeneous Datasets
+
+URL Source: https://arxiv.org/pdf/2602.19723v1
+
+Published Time: Tue, 24 Feb 2026 02:41:28 GMT
+
+Number of Pages: 19
+
+Markdown Content:
+# Towards Personalized Multi-Modal MRI Synthesis across Heterogeneous Datasets 
+
+Yue Zhang ∗1,2,3 , Zhizheng Zhuo ∗4, Siyao Xu ∗4, Shan Lv 4, Zhaoxi Liu 4, Jun Qiu 4,5 , Qiuli Wang 6, Yaou Liu †4,7 and S. Kevin Zhou †1,2,8,9 
+
+> 1
+
+School of Biomedical Engineering, Division of Life Sciences and Medicine, University of Science and Technology of China, Hefei, Anhui, 230026, China 
+
+> 2
+
+Center for Medical Imaging, Robotics, Analytic Computing & Learning (MIRACLE), Suzhou Institute for Advanced Research, University of Science and Technology of China, Suzhou, Jiangsu, 215123, China 
+
+> 3
+
+National Key Laboratory of Intelligent Collaborative Computing, University of Electronic Science and Technology of China, Chengdu, 610097, China 
+
+> 4
+
+Department of Radiology, Beijing Tiantan Hospital, Capital Medical University, Beijing, 100070, China 
+
+> 5
+
+Department of Radiology, The First Affiliated Hospital of USTC, Division of Life Sciences and Medicine, University of Science and Technology of China, Hefei, Anhui, 230036, China 
+
+> 6
+
+Department of Radiology, Southwest Hospital, Army Medical University, Chongqing, 400038, China 
+
+> 7
+
+China National Clinical Research Center for Neurological Diseases, Beijing, 100070, China 
+
+> 8
+
+State Key Laboratory of Precision and Intelligent Chemistry, University of Science and Technology of China, Hefei, Anhui, 230026, China 
+
+> 9
+
+Jiangsu Provincial Key Laboratory of Multimodal Digital Twin Technology, USTC, Suzhou Jiangsu, 215123, China 
+
+# Abstract 
+
+Synthesizing missing modalities in multi-modal magnetic resonance imaging (MRI) is vital for ensuring diag-nostic completeness, particularly when full acquisitions are infeasible due to time constraints, motion artifacts, and patient tolerance. Recent unified synthesis models have enabled flexible synthesis tasks by accommodating various input–output configurations. However, their training and evaluation are typically restricted to a sin-gle dataset, limiting their generalizability across diverse clinical datasets and impeding practical deployment. To address this limitation, we propose PMM-Synth, a personalized MRI synthesis framework that not only supports various synthesis tasks but also generalizes effectively across heterogeneous datasets. PMM-Synth is jointly trained on multiple multi-modal MRI datasets that differ in modality coverage, disease types, and intensity distributions. It achieves cross-dataset generalization through three core innovations: a Personalized Feature Modulation module that dynamically adapts feature representations based on dataset identifier to mitigate the impact of distributional shifts; a Modality-Consistent Batch Scheduler that facilitates stable and efficient batch training under inconsistent modality conditions; and a selective supervision loss to ensure effec-tive learning when ground truth modalities are partially missing. Evaluated on four clinical multi-modal MRI datasets, PMM-Synth consistently outperforms state-of-the-art methods in both one-to-one and many-to-one synthesis tasks, achieving superior PSNR and SSIM scores. Qualitative results further demonstrate improved preservation of anatomical structures and pathological details. Additionally, downstream tumor segmentation and radiological reporting studies suggest that PMM-Synth holds potential for supporting reliable diagnosis under real-world modality-missing scenarios. 
+
+# Introduction 
+
+Magnetic resonance imaging (MRI) plays a central role in the diagnosis and management of neurological diseases, as it provides non-invasive, high-resolution visualization of brain anatomy and pathology. In clinical 
+
+> ∗Yue Zhang, Zhizheng Zhuo and Siyao Xu contribute equally to this work.
+> †Corresponding authors: Yaou Liu (Yaouliu80@163.com); S. Kevin Zhou (skevinzhou@ustc.edu.cn)
+
+1
+
+> arXiv:2602.19723v1 [cs.CV] 23 Feb 2026
+
+practice, multiple MRI sequences are often acquired to capture complementary aspects of tissue characteristics (see Fig. 1a). Among them, T1-weighted imaging (T1) provides excellent anatomical detail and is useful for delineating normal brain structures and fat-containing regions. T2-weighted imaging (T2) is sensitive to water content, aiding in the detection of edema, inflammation, and cystic lesions. Contrast-enhanced T1 (T1C) highlights regions with blood–brain barrier disruption, improving lesion delineation and vascular assessment. Fluid-Attenuated Inversion Recovery (FLAIR) suppresses cerebrospinal fluid signals, enhancing the visibility of periventricular, cortical, and subcortical lesions. Diffusion-Weighted Imaging (DWI) and the derived Apparent Diffusion Coefficient (ADC) maps characterize water diffusion, enabling rapid identification of acute ischemic stroke, assessment of tissue cellularity, and distinction between cytotoxic and vasogenic edema. By integrating these modalities, clinicians can obtain a more comprehensive understanding of brain pathologies, supporting accurate diagnosis, treatment planning, and prognosis evaluation. Despite their clinical value, it is often challenging to acquire a complete set of modalities for every patient. Time limitations, patient intolerance, motion artifacts, and contraindications to contrast agents frequently result in missing sequences. For example, stroke patients may undergo urgent DWI but lack contrast-enhanced scans due to time constraints, while tumor patients may have T1, T2, and FLAIR available but lack other modalities. This incompleteness presents a major challenge for downstream tasks such as tumor segmentation and imaging diagnosis, where the absence of key modalities can impair model performance and reduce diagnostic reliability. To address the problem of missing modalities, generative models [1–3] have been widely adopted to syn-thesize unavailable MRI sequences from the available ones. In recent years, research has increasingly focused on improving the task-level versatility of synthesis models, aiming to support synthesis tasks with a broad range of input-output configurations. This trend has driven the evolution from one-to-one synthesis [4–22], to many-to-one synthesis [23–32], and more recently to unified synthesis frameworks [33–38] that support flexi-ble synthesis tasks within a single trained model. Representative unified approaches, such as MM-GAN [34], ResViT [36], and Uni-Synth [38], have demonstrated impressive task-level flexibility. However, these methods are typically trained and evaluated on a single dataset (such as the BraTS dataset [39–41]). From a clinical perspective, task-level versatility alone is insufficient for real-world deployment. In routine clinical practice, MRI data are acquired across multiple institutions and imaging protocols, leading to substantial inter-dataset heterogeneity. A synthesis model trained on a single curated dataset, even if it supports flexible input-output configurations, often generalize poorly to unseen datasets. Consequently, hospitals are compelled to retrain or fine-tune models for each dataset, and model performance remains constrained by the limited scale and diver-sity of individual datasets. These limitations highlight the need for dataset-level versatility in MRI synthesis models: the ability of a single model to leverage information from multiple datasets and generalize across them without dataset-specific retraining. Such capability is critical for clinical deployment, as it reduces the burden of maintaining multiple models and is expected to deliver stronger synthesis performance. Here, we pose the following question: How can we develop a more powerful synthesis model that not only supports diverse synthesis tasks, but also generalizes effectively across multiple heterogeneous datasets? Ad-dressing this challenge is essential for developing clinically deployable synthesis solutions that are robust to the heterogeneity of real-world data. A promising direction is to jointly train the synthesis model on mul-tiple heterogeneous datasets. However, multi-dataset training is not trivial due to substantial inter-dataset heterogeneity, which primarily manifests in two aspects. First, there exist distributional shifts across datasets. Differences in imaging devices, acquisition protocols, and disease types cause the same modality to exhibit varying intensity distributions and visual characteristics (see Fig. 1b). These shifts lead multi-dataset train-ing to converge toward an averaged representation, which hinders the modeling of dataset-specific features. As a result, performance on individual datasets becomes suboptimal or even degraded. Second, there exist significant modality inconsistency. Different datasets often contain different sets of imaging modalities, and even within a single dataset, modality coverage may vary case by case (see Fig. 1b). For instance, the publicly available BraTS dataset for glioma includes T1, T2, T1C, and FLAIR, and each case includes the four modal-ities. Nevertheless, our private TTI dataset for immune-related brain diseases includes T1, T2, FLAIR, and ADC, and each case only contains a subset of these modalities. Such inconsistency hinders batch training, as varying modality availability across samples disrupts unified input formatting, posing challenges to efficient model optimization and convergence. In this work, we propose PMM-Synth , a Personalized Multi-Modal MRI Synth esis framework jointly trained on multi-datasets with varying modality coverage, intensity distributions, and disease types. PMM-Synth allows a single trained model to not only support various input-output configurations but also generalize effectively across these datasets, thereby reducing the need for dataset-specific retraining and facilitating scalable deployment in real-world radiological workflows. Specifically, it is built upon our unified synthesis 2Inputs PMM -Synth 
+
+Modality -Consistent 
+
+Batch Scheduler (MCBS)     
+
+> ①Sample grouping
+> ②Group padding
+> ③Shuffling
+> Batch Size 𝑩
+> Share consistent modality
+> availability and dataset identifier
+> within a batch
+
+Personalized Feature Modulation 
+
+(PFM) 
+
+> Mini -batch
+> Dataset
+> Identifier
+> [𝑛 ]
+> Sinusoidal
+> Positional
+> Embedding
+
+Outputs & 
+
+Applications       
+
+> Dataset
+> embedding
+> …
+> 𝛾
+> 𝛽
+> F
+> Affine
+> Transfor
+> mation
+> SiLU
+> Linear
+> 𝐷 !"#
+> 𝐷 !"#
+> 𝐷 !"#
+> 𝐹 (𝛾 +1+𝛽
+> Backbone
+> Generator
+> PFM
+> PFM
+> PFM
+> PFM
+> PFM
+> PFM
+> PFM
+
+a
+
+> Selective
+> Supervision
+> Loss
+> …
+> MLP
+> Linear
+> GeLU
+> Linear
+> Imputed full modalities
+> Facilitate
+> Chunk
+
+Selective 
+
+Supervision                            
+
+> MR scanner
+> Datasets Disease
+> Types Modality Coverage Modality
+> Consistency Cases Slices
+> Per case
+> TTG Glioma T1, T2, T1C, FLAIR,
+> DWI, ADC Consistent 983 24
+> TTI Immune -
+> related T1, T2, FLAIR, ADC Inconsistent 246 24
+> BraTS Glioma T1, T2, T1C, FLAIR Consistent 292 155
+> ISLES Stroke FLAIR, DWI, ADC Consistent 232 25~73
+> Total 1753
+
+Method Overview 
+
+Multi -Modal MR Images 
+
+Inter -Dataset Heterogeneity 
+
+> …
+> 𝑩
+> …
+> MLP
+
+b
+
+c             
+
+> Modality inconsistency
+> Distributional shifts
+> TTG -FLAIR BraTS -FLAIR
+> TTI -FLAIR ISLES -FLAIR
+> T1 T2 T1C FLAIR DWI ADC T1 T2 T1C FLAIR DWI ADC
+> Example sequences #1 Example sequences #2
+> Activated
+> Activated
+> Activated
+> Activated
+> Outputs GT
+> Dectivated
+> Dectivated
+> TTG cohort
+> TTI cohort
+> BraTS cohort
+> ISLES cohort
+> Tumor Segmentation
+> Radiological Reporting
+
+Fig. 1. Overview of PMM-Synth. (a) Commonly used multi-modal brain MR imaging includes T1, T2, T1C, FLAIR, DWI, and ADC sequences. (b) Illustration of inter-dataset heterogeneity, which mainly includes modality inconsistency and distributional shifts. Modality inconsistency refers to the fact that different datasets cover different modality combinations, and cases within the same dataset may also contain varying subsets of modalities (e.g., the TTI dataset). Distributional shifts are exemplified using the FLAIR modality, where images from different datasets show clear differences in visual appearance and intensity distribution. (c) Architectural design of PMM-Synth. The framework includes three core components: the PFM to model dataset-specific distributions, the MCBS to enable efficient batch training under modality inconsistency, and the selective supervision loss to enable effective learning with partially missing ground truth. PMM-Synth improves the performance in downstream clinical tasks such as tumor segmentation and radiological reporting. backbone [38], and achieves cross-dataset versatility through three key innovations. First, to handle the inter-dataset distributional shifts, PMM-Synth introduces a novel Personalized Feature Modulation (PFM) module, which explicitly encodes the dataset identifier and modulates feature representations according to the data source. This mechanism facilitates personalized synthesis tailored to each dataset, and enables the generated images to better match the intensity distribution specific to each dataset. Then, to tackle inconsistent modality availability across and within datasets, PMM-Synth introduces a Modality-Consistent Batch Scheduler (MCBS). This scheduler ensures that all samples in a training batch share the same available modalities and dataset identifier, allowing for efficient and stable batch training. Finally, PMM-Synth adopts a selective supervision loss that activates only when ground-truth modalities are available, which ensures effective learning when ground truth modalities are partially missing. We evaluate PMM-Synth on four heterogeneous multi-modal MRI datasets. As shown in Fig. 1b, four datasets differ in modality coverage, distributions and disease focus (including glioma, stroke, and immune-related brain diseases). Experimental results show that 3PMM-Synth consistently outperforms state-of-the-art methods in both PSNR and SSIM across one-to-one and many-to-one synthesis tasks. Qualitative assessments demonstrate improved synthesis of tumor regions and sharper structural boundaries across all datasets. In downstream applications, the synthesized modalities enhance performance in tumor segmentation and radiological reporting, which reflects the potential of PMM-Synth to support clinical decision-making in scenarios with incomplete imaging modalities. 
+
+# Results 
+
+Experimental design 
+
+To comprehensively evaluate the performance of PMM-Synth, we conduct a series of experiments on four heterogeneous multi-modal MRI datasets: TTG, TTI, BraTS [39–41], and ISLES [42, 43]. TTG and TTI are private datasets, while BraTS and ISLES are publicly available. These datasets vary in disease types, modal-ity coverage, and intensity distributions, providing a representative benchmark for multi-dataset synthesis. Trained on all four datasets, PMM-Synth supports arbitrary synthesis tasks among six MRI modalities (T1, T2, T1C, FLAIR, DWI, and ADC), which corresponds to the union of modality coverage across four datasets. We first compare PMM-Synth with six representative single-dataset and multi-dataset synthesis methods on various synthesis tasks on each dataset. The single-dataset methods, including MM-GAN [34], MM-Synth [33], and ResViT [36], are trained and evaluated on individual datasets. To evaluate the performance of these methods on different datasets, we train one model per dataset, resulting in four models for each method. The multi-dataset methods, including pFLSynth [44], FTN [45], and PMM-Synth w/o PFM (an ablated version of our model without PFM), are trained using four datasets and enable a single model to operate across them. It is worth noting that, to the best of our knowledge, no existing MRI synthesis methods have been designed for centralized training across multiple heterogeneous datasets. Therefore, we select two federated learning-based methods, pFLSynth and FTN, as the closest alternatives. Although originally developed under federated learning settings, both methods incorporate architectural components that enable dataset-specific personalization. For fair comparison, we adapt them to a centralized setting and train them on the combined four datasets. The ‘PMM-Synth w/o PFM’ variant is trained directly on the mixed multi-datasets (using MCBS to generate modality-consistent mini-batches), without applying any dataset-specific personalization strategies. All networks are trained for 200 epochs on a single NVIDIA A100 GPU. The initial learning rate is set to 2×10 −4 and linearly decays to zero after 50 epochs. To quantitatively evaluate the synthesis performance of different methods, we adopt PSNR and SSIM as evaluation metrics. In addition to qualitative and quantitative analyses of synthesis results, we further design clinical down-stream experiments to assess the practical utility of PMM-Synth. Specifically, we perform glioma and stroke lesion segmentation on the BraTS and ISLES datasets, respectively, to evaluate the fidelity of the synthesized images, particularly in lesion regions. Besides, we conduct a radiological reporting study, in which two expe-rienced radiologists independently write diagnostic reports based on either real or synthesized sequences. The synthesized sequences are generated under three clinically common modality-missing scenarios: (1) only T1, T2, and FLAIR are available; (2) only T1 and T2 are available; and (3) only T1 is available. We then examine whether the synthesized images can reliably support diagnostic decisions by analyzing report similarity and diagnostic accuracy. Finally, we conduct ablation studies to evaluate the individual contributions of PFM and MCBS to performance improvements and training efficiency, highlighting the importance of each component within the framework. 
+
+PMM-Synth achieves high-fidelity synthesis across heterogeneous datasets 
+
+In this section, we compare PMM-Synth with six single- and multi-dataset synthesis methods to demonstrate its effectiveness. The comparison covers various one-to-one and many-to-one synthesis tasks on four datasets to comprehensively evaluate the performance of each method. 
+
+One-to-one synthesis scenarios. Since pFLSynth and FTN are one-to-one synthesis models that do not support multi-modal inputs, we first select representative one-to-one synthesis tasks from each dataset for comparison. Specifically, we use T1 →T1C and T2 →FLAIR on the TTG dataset; T1 →T2 and T2 →FLAIR on the TTI dataset; T1 →T1C and T2 →FLAIR on the BraTS dataset; FLAIR →DWI and FLAIR →ADC on the ISLES dataset. Quantitative and qualitative results of one-to-one tasks are presented in Table 1 and Fig. 2a. Overall, three single-dataset methods exhibit obvious limited performance due to the restricted scale 4TTG dataset        
+
+> T1 →T1C
+> TTI dataset
+> T1 →T2
+> BraTS dataset
+> T2 →FLAIR
+> ISLES dataset
+> FLAIR →DWI
+> Source image Target image MM -GAN MM -Synth ResViT pFLSyn FTN PMM -Synth
+> PMM -Synth
+> w/o PFM
+
+(a) Qualitative comparisons of one-to-one MRI synthe-sis across heterogeneous datasets. Blue decimals denote PSNR/SSIM values. HSMS006_6.png 
+
+BraTS19_CBICA_BHF_1_45.png 
+
+sub -strokecase0161_6.png 
+
+20211109003335_6.png      
+
+> TTG dataset
+> T1+T2+FLAIR
+> →T1C
+> TTI dataset
+> T1+T2 →FLAIR
+> BraTS dataset
+> T1+T2+FLAIR
+> →T1C
+> ISELS dataset
+> FLAIR+DWI →ADC
+> Source images Target image MM -GAN MM -Synth ResViT PMM -Synth
+> PMM -Synth
+> w/o PFM
+
+(b) Qualitative comparisons of many-to-one MRI syn-thesis across heterogeneous datasets. Blue decimals de-note PSNR/SSIM values. w/o PFM (single) w/o PFM (multi) w/ PFM (multi) w/o MCBS w/ MCBS 
+
+a b c
+
+(c) Impact of synthesized modalities on downstream tumor (glioma and stroke lesion) segmentation performance. WT: Whole tumor. TC: Tumor core. ET: Enhancing tumor. Modality marked with * is synthesized by PMM-Synth. a b c
+
+w/o PFM (single) w/o PFM (multi) full model w/o MCBS 
+
+(d) Ablation analysis of PFM module and MCBS module. 
+
+Fig. 2. Comprehensive evaluation and ablation analysis of PMM-Synth across heterogeneous multi-modal MRI datasets. 5Table 1: Quantitative evaluation of one-to-one MRI synthesis across multiple datasets. 
+
+(a) PSNR results across the TTG, TTI, BraTS, and ISLES datasets.                                                                   
+
+> TTG TTI Methods T1 →T1C T2 →FLAIR T1 →T2 T2 →FLAIR
+> MM-GAN 27.17 ±2.03 27.93 ±1.82 25.43 ±2.77 27.32 ±2.34 MM-Synth 27.17 ±2.10 28.07 ±2.11 25.72 ±1.63 28.05 ±1.58 ResViT 26.57 ±2.05 28.29 ±1.82 25.03 ±1.61 27.69 ±1.65 pFLSyn 26.45 ±1.87 27.54 ±1.90 26.28 ±1.49 28.46 ±1.29 FTN 27.55 ±2.03 28.68 ±2.05 27.55 ±1.94 29.62 ±1.95 PMM-Synth w/o PFM 27.46 ±2.14 29.37 ±1.98 27.73 ±2.28 29.13 ±1.97 PMM-Synth 27.72 ±2.10 29.47 ±1.98 28.07 ±2.17 29.86 ±1.99 BraTS ISLES Methods T1 →T1C T2 →FLAIR FLAIR →DWI FLAIR →ADC
+> MM-GAN 25.67 ±1.38 25.76 ±1.41 25.10 ±1.93 22.98 ±1.47 MM-Synth 26.09 ±1.64 26.18 ±1.20 25.38 ±1.38 23.04 ±1.50 ResViT 25.66 ±1.20 26.01 ±1.18 24.83 ±1.58 22.68 ±1.33 pFLSyn 25.51 ±1.29 26.00 ±1.27 24.79 ±1.46 22.54 ±1.30 FTN 26.60 ±1.43 26.93 ±1.31 25.68 ±1.42 23.30 ±1.56 PMM-Synth w/o PFM 26.34 ±1.39 26.81 ±1.42 25.29 ±1.63 23.37 ±1.47 PMM-Synth 26.85 ±1.45 27.23 ±1.41 25.54 ±1.50 23.48 ±1.45
+
+(b) SSIM results across the TTG, TTI, BraTS, and ISLES datasets.                                                                   
+
+> TTG TTI Methods T1 →T1C T2 →FLAIR T1 →T2 T2 →FLAIR
+> MM-GAN 0.918 ±0.038 0.902 ±0.026 0.903 ±0.068 0.879 ±0.036 MM-Synth 0.920 ±0.038 0.910 ±0.029 0.922 ±0.023 0.896 ±0.028 ResViT 0.912 ±0.039 0.915 ±0.027 0.910 ±0.035 0.887 ±0.035 pFLSyn 0.912 ±0.039 0.901 ±0.029 0.928 ±0.022 0.901 ±0.027 FTN 0.925 ±0.035 0.920 ±0.027 0.939 ±0.025 0.923 ±0.025 PMM-Synth w/o PFM 0.928 ±0.036 0.934 ±0.024 0.942 ±0.028 0.925 ±0.030 PMM-Synth 0.930 ±0.034 0.934 ±0.024 0.945 ±0.027 0.931 ±0.030 BraTS ISLES Methods T1 →T1C T2 →FLAIR FLAIR →DWI FLAIR →ADC
+> MM-GAN 0.852 ±0.037 0.817 ±0.031 0.867 ±0.037 0.839 ±0.043 MM-Synth 0.869 ±0.039 0.834 ±0.029 0.869 ±0.030 0.839 ±0.041 ResViT 0.861 ±0.036 0.836 ±0.028 0.866 ±0.033 0.839 ±0.040 pFLSyn 0.849 ±0.037 0.827 ±0.030 0.860 ±0.030 0.827 ±0.040 FTN 0.874 ±0.034 0.851 ±0.028 0.876 ±0.032 0.848 ±0.041 PMM-Synth w/o PFM 0.872 ±0.035 0.855 ±0.032 0.880 ±0.029 0.856 ±0.041 PMM-Synth 0.883 ±0.035 0.863 ±0.030 0.885 ±0.029 0.856 ±0.039
+
+and diversity of a single training dataset. While FTN trained on multiple datasets achieves competitive quantitative performance, its synthesized images appear noticeably blurred and lack high-frequency details. Besides, FTN is fundamentally limited to one-to-one synthesis tasks and cannot accommodate multi-modal inputs, revealing its restricted task versatility. Through comparison, PMM-Synth yields the best quantitative results and generates the most visually realistic images across all four datasets. Especially, PMM-Synth generates clearer tumor enhancement and richer high-frequency details while competing methods often miss or oversmooth. For example, in the row of the TTG dataset in Fig. 2a, MM-GAN, MM-Synth and FTN fail to enhance the tumor region, and pFLSyn produces inaccurate enhancement. In contrast, PMM-Synth preserves realistic texture and edge sharpness, yielding higher fidelity in pathological regions. Similar advantages are observed in the BraTS dataset, where PMM-Synth generates FLAIR images with sharper lesion contours and more clearer edema areas. Beyond capturing finer structural details, PMM-Synth also better preserves the intensity characteristics of the target modality, which benefits from its dataset-specific personalization strategy. As shown in the TTI dataset example in Fig. 2a, removing PFM from PMM-Synth (PMM-Synth w/o PFM) leads to more obvious intensity shifts from the real image, particularly in white matter and ventricular regions. Such findings confirm that our complete model is robust to distribution variations across datasets and capable of learning dataset-specific characteristics. 
+
+Many-to-one synthesis scenarios. Except for pFLSyn and FTN, all the other methods are capable of han-dling synthesis tasks with various input-output configurations. Therefore, we further compare and analyze their performance on many-to-one synthesis tasks. Specifically, we select T1+T2 →FLAIR and T1+T2+FLAIR →T1C 6Table 2: Quantitative evaluation of many-to-one MRI synthesis across multiple datasets. 
+
+(a) PSNR results across the TTG, TTI, BraTS, and ISLES datasets.                                             
+
+> TTG TTI Methods T1+T2
+> →FLAIR T1+T2+FLAIR
+> →T1C T1+T2
+> →FLAIR T1+T2+FLAIR
+> →ADC
+> MM-GAN 29.40 ±1.45 27.51 ±2.09 28.84 ±2.04 23.96 ±2.36 MM-Synth 29.40 ±1.60 27.73 ±2.13 29.24 ±1.98 24.85 ±1.33 ResViT 29.60 ±1.53 27.15 ±2.00 28.99 ±1.87 24.00 ±1.25 Ours w/o PFM 30.77 ±1.72 28.17 ±2.24 31.01 ±1.77 26.29 ±1.25 Ours 30.90 ±1.66 28.36 ±2.22 31.45 ±2.03 26.41 ±1.42 BraTS ISLES Methods T1+T2
+> →FLAIR T1+T2+FLAIR
+> →T1C FLAIR+DWI
+> →ADC FLAIR+ADC
+> →DWI
+> MM-GAN 26.50 ±1.47 26.46 ±1.41 26.98 ±1.46 27.69 ±1.83 MM-Synth 26.75 ±1.50 26.91 ±1.50 27.32 ±1.50 28.27 ±1.60 ResViT 26.35 ±1.37 26.37 ±1.20 27.17 ±1.30 28.22 ±2.07 PMM-Synth w/o PFM 27.25 ±1.58 27.65 ±1.58 28.32 ±1.54 29.44 ±1.97 PMM-Synth 27.71 ±1.59 28.13 ±1.64 28.43 ±1.51 29.60 ±1.93
+
+(b) SSIM results across the TTG, TTI, BraTS, and ISLES datasets.                                             
+
+> TTG TTI Methods T1+T2
+> →FLAIR T1+T2+FLAIR
+> →T1C T1+T2
+> →FLAIR T1+T2+FLAIR
+> →ADC
+> MM-GAN 0.925 ±0.019 0.924 ±0.036 0.908 ±0.030 0.875 ±0.051 MM-Synth 0.928 ±0.022 0.928 ±0.036 0.919 ±0.029 0.901 ±0.029 ResViT 0.932 ±0.021 0.922 ±0.037 0.913 ±0.031 0.879 ±0.037 PMM-Synth w/o PFM 0.949 ±0.017 0.938 ±0.032 0.944 ±0.023 0.925 ±0.025
+> PMM-Synth 0.950 ±0.016 0.941 ±0.031 0.949 ±0.022 0.923 ±0.028
+> BraTS ISLES Methods T1+T2
+> →FLAIR T1+T2+FLAIR
+> →T1C FLAIR+DWI
+> →ADC FLAIR+ADC
+> →DWI
+> MM-GAN 0.834 ±0.029 0.869 ±0.031 0.926 ±0.024 0.926 ±0.021 MM-Synth 0.847 ±0.031 0.882 ±0.033 0.933 ±0.021 0.934 ±0.017 ResViT 0.845 ±0.027 0.881 ±0.028 0.934 ±0.021 0.936 ±0.018 PMM-Synth w/o PFM 0.864 ±0.031 0.896 ±0.029 0.948 ±0.018 0.952 ±0.014 PMM-Synth 0.875 ±0.029 0.905 ±0.029 0.947 ±0.017 0.953 ±0.014
+
+on the TTG dataset; T1+T2 →FLAIR and T1+T2+FLAIR →ADC on the TTI dataset; T1+T2 →FLAIR, T1+T2+FLAIR →T1C on the BraTS dataset; FLAIR+DWI →ADC, FLAIR+ADC →DWI on the ISLES dataset. Table 2 and Fig. 2b report the comparison results. PMM-Synth effectively leverages complemen-tary information from multi-modal inputs to enhance image fidelity, and achieves the best quantitative scores and visual quality across all four datasets. For example, the T1+T2+FLAIR →T1C task on the TTG dataset (in Table 2) outperforms the one-to-one T1 →T1C task (in Table 1) in all quantitative metrics, which is consistent with the expected benefits of multi-modal integration. Results across both one-to-one and many-to-one scenarios demonstrate that PMM-Synth consistently outperforms competing methods on heterogeneous multi-modal MRI datasets, highlighting its superior generalizability and dataset-level versatility. 
+
+PMM-Synth facilitates clinical downstream tasks 
+
+Previous sections have demonstrated the superior synthesis quality of PMM-Synth through both quantitative metrics and visual assessments. We now turn to evaluating its impact on downstream clinical tasks. Specif-ically, we assess whether the synthesized modalities can effectively support two critical applications: tumor segmentation and radiological reporting. These tasks directly reflect the clinical utility of synthesized images in aiding treatment planning through accurate tumor delineation and supporting diagnostic decision-making when certain modalities are unavailable. 
+
+Tumor segmentation. Based on the disease types included in the datasets, we select glioma segmentation on the BraTS dataset and stroke lesion segmentation on the ISLES dataset. For the BraTS dataset, we consider four scenarios with one modality missing: T2+T1C+FLAIR, T1+T1C+FLAIR, T1+T2+FLAIR, and T1+T2+T1C as available modalities. PMM-Synth is used to synthesize the missing fourth modality (denoted 7Real 3-to -3 2-to -4 1-to -5         
+
+> T1
+> T2
+> T1C
+> FLAIR
+> DWI
+> ADC
+> Real 3-to -32-to -41-to -5Real 3-to -32-to -41-to -5
+> Case ID: 20210707000257 Case ID: 20210716003946 Case ID: 20210906002668
+
+Fig. 3. Examples of cases with real and synthesized sequences. ‘3-to-3’ refers to synthesizing T1C, DWI, and ADC from T1, T2, and FLAIR; ‘2-to-4’ uses T1 and T2 to generate the remaining four modalities; ‘1-to-5’ uses only T1 to synthesize the other five modalities. The synthesized modalities are highlighted with yellow dashed boxes. by ∗ in Fig. 2c). We train a U-Net accepting four-modal inputs for glioma segmentation, and three U-Nets accepting three-modal inputs to serve as baselines. We report Dice scores for whole tumor (WT), tumor core (TC), and enhancing tumor (ET) by comparing segmentation masks generated from four-modal synthesized sequences (or three-modal real sequences) with four-modal real sequences. Similarly, for the ISLES dataset, we consider three scenarios with one modality missing: DWI+ADC, FLAIR+ADC, and FLAIR+DWI as available modalities. PMM-Synth is used to generate the missing third modality. Accordingly, a U-Net that accepts three-modal inputs and two U-Nets that accept two-modal inputs are trained for stroke lesion segmentation. As illustrated in Fig. 2c, PMM-Synth consistently improves segmentation accuracy of WT, TC, and ET compared to three-modal counterparts. This indicates that the synthesized modality effectively recovers missing contrast information beneficial for glioma segmentation. For stroke lesion segmentation, similar improvements are observed on the ISLES dataset. In particular, the FLAIR+DWI+ADC* setting yields a notable increase in Dice score over its two-modal counterpart (FLAIR+DWI), suggesting that PMM-Synth successfully captures diffusion-relevant features that are critical for stroke characterization. These findings demonstrate the value of PMM-Synth in completing missing clinical data, which yields tangible benefits for downstream segmentation performance. 
+
+Radiological reporting study. While the segmentation results demonstrate PMM-Synth’s effectiveness in supporting accurate tumor delineation, its potential for clinical application ultimately depends on whether the synthesized images can meaningfully support clinical interpretation. To this end, we conduct a controlled radiological reporting study. Two board-certified radiologists from Beijing Tiantan Hospital, with six to ten years of clinical experience, are invited to independently review MRI sequences and produce structured diagnostic reports, enabling a direct comparison between reports derived from real acquisitions and synthetic ones. Our report analysis primarily focus on glioma cases. Specifically, 20 cases are randomly selected from the TTG cohort for detailed evaluation. For each case, four sets of image sequences are constructed to form a within-case controlled comparison. These include one fully real reference set and three synthetic sets generated under different modality-missing scenarios (see Fig. 3). The real set contain all six modalities (T1, T2, T1C, FLAIR, DWI, and ADC) and serve as the ground-truth. The three synthesis settings progressively reduce the number of real input modalities while completing the missing sequences using PMM-Synth: (1) a 3-to-3 
+
+8Table 3: Examples of radiological reports written by two radiologists. Each report consists of the Findings 
+
+and Impression . The differences between each report and the ground truth are marked in red. □□□ indicates missing findings/impression compared to the ground truth. 
+
+(a) Radiological reports written by Radiologist 1. 
+
+Real sequences 3-to-3 sequences 2-to-4 sequences 1-to-5 sequences Case ID: 
+
+20210707000257 
+
+Findings: 
+
+Patchy low signal on T1WI and high signal on T2WI and FLAIR are observed in the left insular lobe, with ill-defined margins. The lesion measures approxi-mately 49 mm × 22 mm on the axial section. No signif-icant diffusion restriction is noted on DWI/ADC. Post-contrast images show small patchy areas of marked enhancement locally. 
+
+Impression: 
+
+Diffuse glioma, grade III astrocytoma/oligoden-droglioma? 
+
+Findings: 
+
+Patchy low signal on T1WI and high signal on T2WI and FLAIR are observed in the left insular lobe, with ill-defined margins. The lesion measures approxi-mately 49 mm × 22 mm on the axial section. No signif-icant diffusion restriction is noted on DWI/ADC. Post-contrast images show small patchy areas of marked enhancement locally. 
+
+Impression: 
+
+Diffuse glioma, □□□ 
+
+Findings: 
+
+Patchy low signal on T1WI and high signal on T2WI and FLAIR are observed in the left insular lobe, with ill-defined margins. The lesion measures approxi-mately 49 mm × 22 mm on the axial section. No signif-icant diffusion restriction is noted on DWI/ADC. Post-contrast images show small patchy areas of marked enhancement locally. 
+
+Impression: 
+
+Diffuse glioma, □□□ 
+
+Findings: 
+
+Patchy low signal on T1WI and high signal on T2WI and FLAIR are observed in the left insular lobe, with relatively well-defined mar-gins. The lesion measures approximately 36 mm × 19 mm on the axial section. No significant diffusion restric-tion is noted on DWI/ADC. No definite enhancement is observed on post-contrast images. 
+
+Impression: 
+
+Low-grade glioma, □□□ 
+
+Case ID: 
+
+20210915004134 
+
+Findings: 
+
+Patchy low signal on T1WI and high signal on T2WI and FLAIR are observed in the left frontal lobe, with relatively well-defined mar-gins. The lesion measures approximately 35 mm × 26 mm on the axial section. No definite diffusion restriction is observed on DWI/ADC, and no obvious enhance-ment is seen on contrast-enhanced scans. 
+
+Impression: 
+
+Low-grade glioma, oligoden-droglioma? 
+
+Findings: 
+
+Patchy low signal on T1WI and high signal on T2WI and FLAIR are observed in the left frontal lobe, with relatively well-defined mar-gins. The lesion measures approximately 35 mm × 26 mm on the axial section. No definite diffusion restriction is observed on DWI/ADC, and no obvious enhance-ment is seen on contrast-enhanced scans. 
+
+Impression: 
+
+□□□ , Oligodendroglioma? Astrocytoma? 
+
+Findings: 
+
+Patchy low signal on T1WI and high signal on T2WI and FLAIR are observed in the left frontal lobe, with relatively well-defined mar-gins. The lesion measures approximately 35 mm × 26 mm on the axial section. No definite diffusion restriction is observed on DWI/ADC, and no obvious enhance-ment is seen on contrast-enhanced scans. 
+
+Impression: 
+
+□□□ , Oligodendroglioma? Astrocytoma? 
+
+Findings: 
+
+Patchy low signal on T1WI and high signal on T2WI and FLAIR are observed in the left frontal lobe, with relatively well-defined mar-gins. The lesion measures approximately 35 mm × 26 mm on the axial section. No definite diffusion restriction is observed on DWI/ADC, and no obvious enhance-ment is seen on contrast-enhanced scans. 
+
+Impression: 
+
+□□□ , Oligodendroglioma? Astrocytoma? 
+
+(b) Radiological reports written by Radiologist 2. 
+
+Real sequences 3-to-3 sequences 2-to-4 sequences 1-to-5 sequences Case ID: 
+
+20210707000257 
+
+Findings: 
+
+Patchy low signal on T1WI and high signal on T2WI are present in the left frontal temporal insular region, with high signal on FLAIR. Small round foci with iso signal on T1WI/high signal on T2WI/high signal on FLAIR are observed locally and no diffusion restriction is observed on DWI/ADC. Contrast enhanced imaging shows small patchy areas of relatively homogeneous enhancement, with indis-tinct margins. The lesion measures approximately 51 mm × 24 mm on the axial section. The left lateral ventricle is compressed and narrowed. The midline remains central. 
+
+Impression: 
+
+Low-grade glioma 
+
+Findings: 
+
+Patchy low signal on T1WI and high signal on T2WI are present in the left frontal temporal insular region, with high signal on FLAIR. Small round foci with iso signal on T1WI/high signal on T2WI/high signal on FLAIR are observed locally and no diffusion restriction is observed on DWI/ADC. Contrast enhanced imag-ing shows small patchy areas of heterogeneous enhancement, with indis-tinct margins. The lesion measures approximately 51 mm × 24 mm on the axial section. The left lateral ventricle is compressed and narrowed. The midline remains central. 
+
+Impression: 
+
+Low-grade glioma 
+
+Findings: 
+
+Patchy low signal on T1WI and high signal on T2WI are present in the left frontal temporal insular region, with high signal on FLAIR. Small round foci with iso signal on T1WI/high signal on T2WI/high signal on FLAIR are observed locally and no diffusion restriction is observed on DWI/ADC. Contrast enhanced imag-ing shows small patchy areas of heterogeneous enhancement, with indis-tinct margins. The lesion measures approximately 51 mm × 24 mm on the axial section. The left lateral ventricle is compressed and narrowed. The midline remains central. 
+
+Impression: 
+
+Low-grade glioma 
+
+Findings: 
+
+Patchy low signal on T1WI and high signal on T2WI are present in the left frontal temporal insular region, with high signal on FLAIR. DWI /ADC demon-strate mildly increased signal. Contrast enhanced imaging shows small patchy areas of heterogeneous enhancement, with indis-tinct margins. The lesion measures approximately 40 mm × 23 mm on the axial section. The left lateral ventricle is compressed and narrowed. The midline remains central. 
+
+Impression: 
+
+Low-grade glioma 
+
+Case ID: 
+
+20210915004134 
+
+Findings: 
+
+Patchy low signal on T1WI and high signal on T2WI are present in the left frontal lobe, with iso- to high signal on FLAIR. The margins are indistinct. The lesion mea-sures approximately 36 mm 
+
+× 26 mm. No apparent dif-fusion restriction is seen on DWI/ADC, and no obvious enhancement is observed on contrast-enhanced imaging. 
+
+Impression: 
+
+Low-grade glioma, astrocy-toma? 
+
+Findings: 
+
+Patchy low signal on T1WI and high signal on T2WI are present in the left frontal lobe, with iso- to high signal on FLAIR. The margins are indistinct. The lesion mea-sures approximately 35 mm 
+
+× 28 mm. No apparent dif-fusion restriction is seen on DWI/ADC, and no obvious enhancement is observed on contrast-enhanced imaging. 
+
+Impression: 
+
+Low-grade glioma, astrocy-toma? 
+
+Findings: 
+
+Patchy low signal on T1WI and high signal on T2WI are present in the left frontal lobe, with iso- to high signal on FLAIR. The margins are indistinct. The lesion mea-sures approximately 35 mm 
+
+× 28 mm. No apparent dif-fusion restriction is seen on DWI/ADC, and no obvious enhancement is observed on contrast-enhanced imaging. 
+
+Impression: 
+
+Low-grade glioma, astrocy-toma? 
+
+Findings: 
+
+Patchy low signal on T1WI and high signal on T2WI are present in the left frontal lobe, with iso- to high signal on FLAIR. The margins are indistinct. The lesion mea-sures approximately 40 mm 
+
+× 28 mm. No apparent dif-fusion restriction is seen on DWI/ADC, and no obvious enhancement is observed on contrast-enhanced imaging. 
+
+Impression: 
+
+Low-grade glioma, □□□ 
+
+9Table 4: Radiological reporting analysis on the TTG dataset. 
+
+(a) Assessment of textual similarity within the Findings descriptions.         
+
+> 3-to-3 sequences 2-to-4 sequences 1-to-5 sequences
+> Radiologist 1 0.974 0.972 0.843 Radiologist 2 0.871 0.893 0.860
+
+(b) Analysis of diagnostic accuracy based on the Impression provided by Radiologist 1. LGG: low-grade glioma. HGG: high-grade glioma. ODG: oligodendroglioma. GBM: glioblastoma. EPN: ependymoma. The ‘unspecified glioma’ category includes cases labeled as ‘glioma’ or ‘diffuse glioma’ that lack explicit grading or subtype. The ‘other’ category includes non-neoplastic findings such as ‘no definite abnormality’, ‘inflammatory lesions’, and ‘imaging artifacts’.                                                                                                               
+
+> 3-to-3 sequences 2-to-4 sequences 1-to-5 sequences Type Precision Recall F1 Precision Recall F1 Precision Recall F1
+> LGG 1.000 0.750 0.857 1.000 0.750 0.857 0.667 0.500 0.571 HGG 1.000 0.889 0.941 1.000 0.889 0.941 1.000 0.889 0.941 Astrocytoma 0.875 0.875 0.875 0.875 0.875 0.875 0.875 0.875 0.875 ODG 1.000 0.857 0.923 1.000 0.857 0.923 0.857 0.857 0.857 GBM 1.000 1.000 1.000 0.500 1.000 0.667 1.000 1.000 1.000 EPN 0.500 1.000 0.667 0.500 1.000 0.667 1.000 1.000 1.000 Unspecified Glioma 0.667 1.000 0.800 0.667 1.000 0.800 1.000 1.000 1.000 Metastasis 1.000 0.500 0.667 0.500 0.500 0.500 1.000 0.500 0.667 Other 1.000 1.000 1.000 1.000 1.000 1.000 0.500 1.000 0.667 Macro-average 0.894 0.875 0.859 0.782 0.875 0.803 0.878 0.847 0.842 Micro-average 0.912 0.861 0.886 0.838 0.861 0.849 0.882 0.833 0.857
+
+(c) Analysis of diagnostic accuracy based on the Impression provided by Radiologist 2.                                                                                                               
+
+> 3-to-3 sequences 2-to-4 sequences 1-to-5 sequences Type Precision Recall F1 Precision Recall F1 Precision Recall F1
+> LGG 1.000 0.857 0.923 1.000 1.000 1.000 1.000 1.000 1.000 HGG 1.000 1.000 1.000 1.000 1.000 1.000 1.000 1.000 1.000 Astrocytoma 1.000 1.000 1.000 1.000 1.000 1.000 1.000 0.500 0.667 ODG /////////GBM /////////EPN 1.000 1.000 1.000 1.000 1.000 1.000 1.000 1.000 1.000 Unspecified Glioma 1.000 1.000 1.000 1.000 1.000 1.000 1.000 1.000 1.000 Metastasis 0.500 1.000 0.667 1.000 1.000 1.000 1.000 1.000 1.000 Other 0.750 1.000 0.857 0.750 1.000 0.857 1.000 1.000 1.000 Macro-average 0.893 0.980 0.921 0.964 1.000 0.980 1.000 0.929 0.952 Micro-average 0.929 0.963 0.945 0.964 1.000 0.982 1.000 0.926 0.962
+
+setting, in which T1, T2, and FLAIR are real and the remaining three modalities are synthesized; (2) a 2-to-4 
+
+setting, in which only T1 and T2 are real; and (3) a 1-to-5 setting, in which T1 is the sole real input. The three synthesis settings are designed to reflect common modality-missing patterns encountered in routine clinical practice. The 3-to-3 scenario represents typical neuro-oncology protocols where core anatomical sequences are acquired but advanced or contrast-enhanced scans are missing. The 2-to-4 and 1-to-5 settings further simulate more constrained conditions such as emergency imaging or incomplete follow-up examinations. To eliminate bias, four image sets of each case are presented to the radiologists in a random order, and the readers are blind to the composition of each set. In addition, radiologists review only one image set at a time and take a sufficient time interval between reviewing different sets from the same case, ensuring that the reporting process rely solely on the available imaging information rather than prior knowledge of data provenance. Table 3 presents representative diagnostic reports produced by the two radiologists for selected cases. Each report consists of two components: Findings , which systematically describe imaging characteristics such as signal intensity patterns on T1/T2/FLAIR, lesion morphology, location, enhancement features, and diffusion restriction; and Impression , which provides diagnostic hypotheses (may include both a tumor grade and specific histologic subtypes) based on the observed radiological evidence. Owing to differences in clinical experience and diagnostic preference, inter-observer variability is expected, and radiologists may generate distinct interpretations for the same case. To quantitatively assess report consistency, we separately evaluate the similarity of the Findings and the diagnostic accuracy of the Impression . Given the highly structured and templated nature of the Findings , direct sentence-level similarity measures using large language models [46] tend to yield inflated similarity scores. Instead, we decompose each Findings paragraph into semantically independent clauses (separated by punctuations ‘,;.’), each corresponding to a specific imaging attribute, and 10 perform bidirectional clause-level matching between Findings derived from synthetic sequences and Findings 
+
+derived from real sequences. The final similarity score is computed as the average of the two directional matching results. For Impression evaluation, where multiple diagnostic labels may co-exist, we adopt precision, recall, and F1-score to comprehensively assess diagnostic accuracy. Then, we assess the consistency between radiological reports by analyzing the Findings descriptions and the Impression diagnoses. Quantitative evaluation of the Findings (Table 4a) reveals consistently high textual similarity across all modality-missing scenarios, with similarity scores exceeding 0.8 for both radiologists. This indicates that the synthesized images largely preserve key imaging attributes. Notably, a modest degradation in similarity is observed under the most extreme 1-to-5 setting. In this scenario, deviations mainly manifest as less precise lesion measurements or subtle differences in margin definition and enhancement pattern, which suggests that severe modality missing conditions may introduce localized descriptive variability in detailed image interpretation. In contrast, analysis of the Impression (Table 4b and Table 4c) demonstrates robustness across different modality-missing conditions. Both radiologists achieve comparable macro- and micro-averaged diagnostic performance regardless of the number of real modalities, with no systematic decline observed in the 1-to-5 setting. This stability indicates that, although fine-grained details in the Findings may be affected under severe modality loss, the synthesized images still retain key diagnostic cues relevant to tumor grading and major histological subtypes, supporting consistent radiological impressions. These results highlight the potential of PMM-Synth to complement incomplete MRI acquisitions and support dependable clinical assessment in real-world imaging workflows. 
+
+Ablation Study 
+
+Effectiveness of Personalized Feature Modulation. We investigate the effectiveness of PFM through controlled ablation experiments under three training–testing configurations: (1) w/o PFM (single) , where the backbone Uni-Synth [38] is trained and evaluated independently on single dataset without PFM, resulting in four separate models corresponding to TTG, TTI, BraTS, and ISLES; (2) w/o PFM (multi) , where the model is trained on the combined multi-dataset collection without PFM and subsequently evaluated on each individual dataset; and (3) full model , where the model equipped with PFM is trained on the multi-dataset collection and tested on each dataset individually. Fig. 2d summarizes the quantitative results. For each dataset, PSNR and SSIM are reported as averages over four synthesis tasks, including two selective one-to-one tasks and two many-to-one tasks. As shown in Fig. 2d, incorporating PFM consistently improves synthesis performance across all four datasets. In contrast, directly training a unified model on mixed datasets without PFM yields inferior results. This performance degradation can be attributed to inter-dataset heterogeneity, which causes the model to learn averaged feature representations and suppress dataset-specific imaging characteristics. By explicitly modulating intermediate features conditioned on the dataset source, PFM allows the model to adapt its representations to distinct dataset-specific distributions, thereby improving robustness and generalization to heterogeneous clinical data. 
+
+Effectiveness of Modality-Consistent Batch Scheduler. Here, we evaluate the effectiveness of MCBS. Our synthesis backbone [38] adopts multiple modality-specific encoding and decoding streams, which are dy-namically activated based on the available modalities of each input. This design requires that all samples within a batch share the same modality availability to ensure consistent stream activation during training. Without MCBS, randomly sampling batches from multiple datasets often leads to inconsistent modality avail-ability within a batch, restricting the batch size to 1 and severely hindering training efficiency and stability. MCBS overcomes this limitation by constructing batches composed of samples that share the same modality availability and dataset identifier. This strategy enables larger batch sizes without requiring any modifications to the network architecture. As shown in Fig. 2d, our full model equipped with MCBS ( batch _size = 16 )improves PSNR and SSIM across all four datasets compared with the model without MCBS ( batch _size = 1 ). By enforcing intra-batch consistency and allowing for increased batch sizes, MCBS promotes more stable con-vergence and improves synthesis performance. In addition to performance gains, MCBS substantially improves training efficiency, reducing the per-epoch training time from 8,724 seconds to 2,078 seconds ( batch size = 16 )on an NVIDIA A100 GPU. Larger batch sizes can be further supported when sufficient GPU memory is available. 11 Discussion 
+
+In this work, we presents PMM-Synth, a personalized multi-modal MRI synthesis framework that addresses the joint training on multiple clinical datasets. Although existing methods have shown promising results in synthesizing missing modalities within a single dataset, they often struggle to generalize across datasets due to distributional shifts and inconsistent modality coverage commonly encountered in clinical data. PMM-Synth overcomes this limitation by enabling a single model to adapt to diverse datasets and synthesis tasks, thereby achieving both task-level and dataset-level versatility. Our results demonstrate that PMM-Synth consistently surpasses state-of-the-art methods across multiple heterogeneous datasets that vary in disease types, modality coverage, and intensity distributions. Our model achieves superior quantitative and qualitative performance in both one-to-one and many-to-one synthesis scenarios. Besides, incorporating the synthesized modalities into downstream clinical tasks, such as glioma and stroke lesion segmentation, significantly improves the segmentation accuracy. Moreover, blind radiological reporting study with expert radiologists confirm that the synthesized images preserve key radiological features, even in challenging settings where only a single input modality is available. These findings underscore the potential of PMM-Synth to support reliable clinical decision-making when imaging data are incomplete. The effectiveness of PMM-Synth stems from its capacity to address both inter-dataset distributional shifts and modality inconsistencies. On one hand, the PFM module injects the dataset identifier into the network’s convolutional blocks, enabling the model to learn dataset-specific characteristics and alleviating the adverse effects of inter-dataset distributional shifts during training. On the other hand, the MCBS batching strategy in conjunction with the selective supervision loss addresses modality inconsistencies. MCBS generates larger batches where all samples share the same modality availability to improve training efficiency and convergence. The selective supervision loss further ensures that the model training relies only on available ground truth information. Despite its strengths, PMM-Synth does not yet address the challenge of continual adaptation to new datasets and unseen modality synthesis tasks after the initial cross-dataset training. In real-world clinical settings, new datasets with novel imaging protocols or additional modalities are frequently introduced. Without careful design, updating the model for such tasks may result in catastrophic forgetting of previously acquired knowledge. Future work could explore two promising directions to mitigate this limitation. First, parameter-efficient tuning techniques, such as Low-Rank Adaptation (LoRA) [47], could enable the model to learn new tasks using a small number of additional parameters while preserving the core model. Second, integrating continual learning strategies [48] may support lifelong adaptation by allowing the model to incrementally incorporate new information while retaining performance on prior tasks. These extensions would further improve the clinical scalability of PMM-Synth, enabling it to adapt to more complex and diverse clinical datasets. In conclusion, PMM-Synth provides a versatile solution for multi-modal MRI synthesis across multiple datasets and synthesis tasks. By addressing both inter-dataset distributional shifts and modality inconsisten-cies, it achieves strong generalization across heterogeneous datasets. Its architectural innovations and superior performance in downstream tasks demonstrate its potential in supporting clinical decision-making. With fu-ture extensions toward continual adaptation to more datasets and modalities, PMM-Synth offers a promising direction for scalable deployment in real-world, data-rich clinical environments. 
+
+# Methods 
+
+Ethical issues 
+
+This study was approved by the Institutional Review Board of Beijing Tiantan Hospital, Capital Medical University, Beijing, China (NOs. KY-2019-050-02 and KY-2019-140-02) and ethics committees. Written informed consent was obtained from the participants. The study followed the tenets of the Declaration of Helsinki principles. 
+
+Dataset collection and pre-processing 
+
+Dataset. We use four heterogeneous multi-modal MR datasets, including two private datasets from Beijing Tiantan Hospital (TTG and TTI) and two public datasets (BraTS [39–41] and ISLES [42,43]), to evaluate the proposed method. As shown in Fig. 1b, these datasets exhibit substantial heterogeneity in modality coverage, disease types, and image intensity distributions. Specifically, the TTG dataset consists of 983 glioma cases, 12 each comprising six consistently available MR modalities: T1, T2, T1C, FLAIR, DWI, and ADC. Each case includes 24 axial slices. The TTI dataset contains 246 cases of immune-related diseases. Each case provides a variable subset of T1, T2, FLAIR, and ADC sequences, which exhibits inconsistent modality availability. All cases contain 24 axial slices. The BraTS dataset includes 292 cases of glioblastoma and lower-grade glioma. Each case offers skull-stripped, co-registered MR images with four consistent modalities: T1, T2, T1C, and FLAIR. Each case consists of 155 axial slices, and is accompanied by binary masks for glioma. The ISLES 
+
+dataset comprises 232 ischemic stroke cases. Each includes FLAIR, DWI, and ADC sequences acquired at 1.5T or 3T MRI scanners. All cases are skull-stripped and co-registered. The slice numbers vary between 25 and 73, and voxel-wise binary masks for infarcted areas are provided. 
+
+Pre-processing. All modalities of four datasets are resampled to a consistent voxel spacing, origin, and direction to ensure spatial alignment. For the TTG and TTI datasets, which are not co-registered and skull-stripped, we perform rigid registration to align all modalities to the T1 image for each case, using mutual information as the similarity metric. Besides, brain masks are derived from T1 images using a pre-trained segmentation model and applied across all modalities to remove non-brain regions. Each volume is then center-cropped to a fixed in-plane size of 192 × 192 to focus on anatomical structures. Finally, we check all processed cases and exclude those with poor registration quality. After pre-processing, 1460, 132, and 161 cases are used for training, validation, and testing, respectively. 
+
+Network architecture 
+
+The backbone synthesis network adopts our previously proposed unified synthesis network [38]. We extend the network from original four modality to accommodate the modality coverage of multiple datasets. Given 
+
+N datasets ( N = 4 in this work), each dataset has its own modality coverage, denoted as Cn for the n-th dataset. We compute the union of all available modalities across datasets, i.e., C = SNn=1 Cn, and expand the synthesis backbone to accommodate all |C| modalities (T1, T2, T1C, FLAIR, DWI, and ADC in this work). The updated network consists of one common encoding stream, six modality-specific encoding streams, six decoding streams, and six discriminators, each tailored to process a specific modality. Given any subset of the six modalities as input, the model is able to generate the complete set of modalities. The framework of our backbone is provided in Supplementary Materials. Building on this backbone, PMM-Synth further addresses the challenges of distributional shifts and modal-ity inconsistencies in multi-dataset training through three key components: the Personalized Feature Mod-ulation (PFM), Modality-Consistent Batch Scheduler (MCBS), and selective supervision loss. The PFM adaptively adjusts feature processing according to the source dataset, enabling personalized modeling across heterogeneous data and hence avoiding the impact of inter-dataset distributional shifts. To handle the problem of modality inconsistency, MCBS groups samples with consistent modality availability, allowing for larger batch size and improving training efficiency and stability. Complementarily, the selective supervision loss activates learning only when the target modality is available, ensuring effective learning under incomplete supervision. 
+
+Personalized Feature Modulation 
+
+In clinical practice, MR images acquired from different datasets often exhibit distributional shifts due to variations in scanners and acquisition protocols. Naively combining multi-datasets for training can hinder dataset-specific feature modeling, as the network tends to converge toward an averaged representation across datasets. This compromises model’s ability to capture distinctive characteristics and leads to suboptimal or even degraded performance on individual datasets. To address this issue, we introduce a PFM module into the synthesis network. PFM is a plug-and-play component that enables the model to incorporate dataset information and perform differentiated processing for different datasets. Specifically, for an input image from the n-th dataset, we use n as the dataset identifier. The PFM module first applies sinusoidal positional encoding to the identifier, followed by a multi-layer perceptron (MLP) to generate a dataset-specific embedding Demb :
+
+Demb = MLP (sin( n)) , (1) where sin( ·) denotes the sinusoidal encoding function. The resulting embedding Demb is injected into each convolutional block of the synthesis backbone. Within each block, a new MLP predicts the scale parameter γ
+
+13 and shift parameter β for feature modulation: 
+
+γ, β = chunk (MLP (Demb )) , (2) where chunk (·) splits the output tensor into two equal parts. Feature modulation is then performed via an affine transformation: ˆF = F · (γ + 1) + β, (3) where F denotes the input feature the convolutional block, and ˆF is the modulated output. By injecting the dataset embedding throughout all convolutional blocks, PFM enables dataset-specific feature adaptation while introducing only a marginal increase in model complexity. 
+
+Modality-Consistent Batch Scheduler 
+
+In the multi-dataset training setting, randomly sampled batches from different datasets commonly contain samples with inconsistent modalities. Such inconsistency poses a challenge for batch training. Since our backbone network dynamically selects synthesis streams based on the available modalities of each input, all samples within a mini-batch must share the same modality availability. When this condition is not met, the batch size must be reduced to one, which severely limits training efficiency and hinders convergence. A naive solution is to adopt per-sample processing using loops or multiple branches accounting for each sample within a batch. However, such implementations are inefficient and significantly increase model complexity. To overcome these limitations, PMM-Synth introduces the MCBS, a batching strategy that enforces con-sistent modality availability within each mini-batch. MCBS enables larger batch sizes without modifying the network architecture, thereby improving training efficiency and stability. To construct modality-consistent batches, MCBS performs the following steps: 
+
+Step 1: Sample grouping. For each sample, we record its dataset identifier n and modality availability vector M = {mi}6
+
+> i=1
+
+, where mi = 1 if the i-th modality is available and 0 otherwise. Samples with the same dataset identifier and identical modality availability are then assigned to the same group. 
+
+Step 2: Group padding. For each group, if the number of samples is not divisible by the predefined batch size B, additional samples are randomly duplicated from the same group to make the total count a multiple of B.
+
+Step 3: Shuffling. Within each group, the samples are randomly shuffled and then divided into non-overlapping batches of size B. Finally, all batches from all groups are combined and randomly shuffled again to form the final training sequence. 
+
+Selective Supervision Loss 
+
+Another challenge arising from inconsistent modalities of multi-datasets is the lack of ground truth for some synthesized modalities during training. To address this, PMM-Synth introduces a selective supervision loss that selectively applies supervision based on the availability of ground truth. Given a multi-modal MRI sample Y = {yi}6
+
+> i=1
+
+, where some modalities may be missing (imputed as zero-filled images), we derive its binary modality availability M = {mi}6
+
+> i=1
+
+. We further introduce a random synthesis condition SC = {sc i}6 
+
+> i=1
+
+to mask out a subset of modalities for training, where sc i = 1 denotes a source modality, and sc i = 0 denotes a target modality (to be synthesized), with the constraint that sc i = 0 
+
+when mi = 0 . Then, the network input X = {xi}6 
+
+> i=1
+
+is constructed as: 
+
+xi = yi · sc i (4) After feeding X into the generator of PMM-Synth, the outputs ˆY = {ˆyi}6 
+
+> i=1
+
+(ˆyi with sc i = 1 corresponds to the reconstruction image and ˆyi with sc i = 0 corresponds to the synthetic image for imputation) are evaluated by modality-specific discriminators Dis = {Dis i}6 
+
+> i=1
+
+to assess realism. Following our previous work [38], the generator loss LG consists of three terms: synthesis loss Lsyn ,reconstruction loss Lrec , and adversarial loss Ladv . The key difference lies in the incorporation of a selective supervision mechanism based on M and SC :
+
+LG = λ1Lsyn + λ2Lrec + λ3Ladv (5) 14 Lsyn =
+
+> 6
+
+X
+
+> i=1
+
+(1 − sc i) · mi · ∥ ˆyi − yi∥1 (6) 
+
+Lrec =
+
+> 6
+
+X
+
+> i=1
+
+sc i · mi · ∥ ˆyi − yi∥1 (7) 
+
+Ladv =
+
+> 6
+
+X
+
+> i=1
+
+(1 − sc i) · mi · ∥ Dis i(ˆ yi) − 1∥2 (8) Here, ∥ · ∥ 1 and ∥ · ∥ 2 denote the L1 and L2 norms. Lsyn measures the difference between synthetic images and real images. The coefficient (1 − sc i) · mi ensures that only the target modality which has ground truth is selected for computation. Lrec measures the difference between reconstruction images and real images. The coefficient sc i · mi ensures that only the source modality which has ground truth is selected for computation. The trade-off coefficients λ1, λ2, and λ3 are set to 100, 30, and 1, respectively. Likewise, the discriminator loss LD also employs the selective supervision mechanism, where the supervision is activated only when the corresponding ground truth for the synthesized target modality is available: 
+
+LD =
+
+> 6
+
+X
+
+> i=1
+
+(1 − sc i) · mi · (∥Dis i(ˆ yi)∥2 + ∥Dis i(yi) − 1∥2) (9) This selective supervision mechanism ensures that only modalities with available ground truth contribute to the loss, which enables flexible and effective learning under incomplete modality conditions. 
+
+Evaluation metrics 
+
+In this study, we use Peak Signal-to-Noise Ratio (PSNR) and Structural Similarity Index Measure (SSIM) as quantitative metrics to evaluate the quality of the synthesized images. 
+
+Peak Signal-to-Noise Ratio (PSNR). PSNR is a commonly used metric to evaluate the pixel-wise simi-larity between a synthesized image ˆy and its corresponding ground truth y, with higher PSNR values indicating better image fidelity. PSNR is defined as: 
+
+PSNR = 10 · log 10 
+
+ M AX 2
+
+MSE 
+
+
+
+, (10) where M AX is the maximum pixel value of the image, and MSE denotes the mean squared error between ˆy
+
+and y.
+
+Structural Similarity Index (SSIM). SSIM evaluates the perceptual similarity between two images by considering luminance, contrast, and structural information. A higher SSIM values reflect better perceived visual quality. SSIM is defined as: 
+
+SSIM( y, ˆy) = (2 μy μˆy + C1)(2 σy ˆy + C2)(μ2 
+
+> y
+
++ μ2ˆy + C1)( σ2 
+
+> y
+
++ σ2ˆy + C2) , (11) where μy and μˆy are the mean intensities of the ground truth and synthesized images, σ2 
+
+> y
+
+and σ2ˆy are their variances, and σy ˆy is the covariance. C1 and C2 are small constants to stabilize the division. 
+
+# Data availability 
+
+Two private brain MRI datasets TTG and TTI originate from clinical routine, protected by national privacy laws and hence are not publicly available or shareable with third parties due to the retrospective nature of the study performed and the associated IRB approval for the study limiting the data use. The public BraTS dataset can be accessed from https://www.med.upenn.edu/cbica/brats-2019/ . The ISLES dataset can be accessed from https://isles22.grand-challenge.org/ .15 References 
+
+[1] Ian Goodfellow et al. Generative adversarial networks. Communications of the ACM , 63(11):139–144, 2020. [2] Antonia Creswell, Tom White, Vincent Dumoulin, Kai Arulkumaran, Biswa Sengupta, and Anil A Bharath. Generative adversarial networks: An overview. IEEE signal processing magazine , 35(1):53–65, 2018. [3] Ling Yang, Zhilong Zhang, Yang Song, Shenda Hong, Runsheng Xu, Yue Zhao, Wentao Zhang, Bin Cui, and Ming-Hsuan Yang. Diffusion models: A comprehensive survey of methods and applications. ACM Comput. Surv. ,56(4), November 2023. [4] Christopher Bowles et al. Pseudo-healthy image synthesis for white matter lesion segmentation. In Simulation and Synthesis in Medical Imaging: First International Workshop, SASHIMI 2016, Held in Conjunction with MICCAI 2016, Athens, Greece, October 21, 2016, Proceedings 1 , pages 87–96. Springer, 2016. [5] Snehashis Roy, Yi-Yu Chou, Amod Jog, John A Butman, and Dzung L Pham. Patch based synthesis of whole head mr images: application to epi distortion correction. In Simulation and Synthesis in Medical Imaging: First International Workshop, SASHIMI 2016, Held in Conjunction with MICCAI 2016, Athens, Greece, October 21, 2016, Proceedings 1 , pages 146–156. Springer, 2016. [6] Snehashis Roy, Aaron Carass, and Jerry L Prince. Magnetic resonance image example-based contrast synthesis. 
+
+IEEE transactions on medical imaging , 32(12):2348–2363, 2013. [7] Yawen Huang, Leandro Beltrachini, Ling Shao, and Alejandro F Frangi. Geometry regularized joint dictionary learning for cross-modality image synthesis in magnetic resonance imaging. In Simulation and Synthesis in Medical Imaging: First International Workshop, SASHIMI 2016, Held in Conjunction with MICCAI 2016, Athens, Greece, October 21, 2016, Proceedings 1 , pages 118–126. Springer, 2016. [8] Amod Jog, Aaron Carass, Snehashis Roy, Dzung L Pham, and Jerry L Prince. Mr image synthesis by contrast learning on neighborhood ensembles. Medical image analysis , 24(1):63–76, 2015. [9] Dong Hye Ye, Darko Zikic, Ben Glocker, Antonio Criminisi, and Ender Konukoglu. Modality propagation: coherent synthesis of subject-specific scans with data-driven regularization. In Medical Image Computing and Computer-Assisted Intervention–MICCAI 2013: 16th International Conference, Nagoya, Japan, September 22-26, 2013, Proceedings, Part I 16 , pages 606–613. Springer, 2013. [10] Raviteja Vemulapalli, Hien Van Nguyen, and Shaohua Kevin Zhou. Unsupervised cross-modal synthesis of subject-specific scans. In Proceedings of the IEEE International Conference on Computer Vision , pages 630–638, 2015. [11] Hien Van Nguyen, Kevin Zhou, and Raviteja Vemulapalli. Cross-domain synthesis of medical images using efficient location-sensitive deep network. In Medical Image Computing and Computer-Assisted Intervention–MICCAI 2015: 18th International Conference, Munich, Germany, October 5-9, 2015, Proceedings, Part I 18 , pages 677–684. Springer, 2015. [12] Vasileios Sevetlidis, Mario Valerio Giuffrida, and Sotirios A Tsaftaris. Whole image synthesis using a deep encoder-decoder network. In Simulation and Synthesis in Medical Imaging: First International Workshop, SASHIMI 2016, Held in Conjunction with MICCAI 2016, Athens, Greece, October 21, 2016, Proceedings 1 , pages 127–137. Springer, 2016. [13] Rongjian Li et al. Deep learning based imaging data completion for improved brain disease diagnosis. In Medical Image Computing and Computer-Assisted Intervention–MICCAI 2014: 17th International Conference, Boston, MA, USA, September 14-18, 2014, Proceedings, Part III 17 , pages 305–312. Springer, 2014. [14] Dong Nie et al. Medical image synthesis with context-aware generative adversarial networks. In Medical Image Computing and Computer Assisted Intervention- MICCAI 2017: 20th International Conference, Quebec City, QC, Canada, September 11-13, 2017, Proceedings, Part III 20 , pages 417–425. Springer, 2017. [15] Dong Nie et al. Medical image synthesis with deep convolutional adversarial networks. IEEE Transactions on Biomedical Engineering , 65(12):2720–2730, 2018. [16] Qiuli Wang et al. Realistic lung nodule synthesis with multi-target co-guided adversarial mechanism. IEEE Transactions on Medical Imaging , 40(9):2343–2353, 2021. [17] Salman UH Dar, Mahmut Yurt, Levent Karacan, Aykut Erdem, Erkut Erdem, and Tolga Cukur. Image synthesis in multi-contrast mri with conditional generative adversarial networks. IEEE transactions on medical imaging ,38(10):2375–2388, 2019. [18] Wenguang Yuan, Jia Wei, Jiabing Wang, Qianli Ma, and Tolga Tasdizen. Unified generative adversarial networks for multimodal segmentation from unpaired 3d medical images. Medical Image Analysis , 64:101731, 2020. [19] Yanmei Luo et al. Adaptive rectification based adversarial network with spectrum constraint for high-quality pet image synthesis. Medical Image Analysis , 77:102335, 2022. 
+
+16 [20] Yuchen Fei et al. Classification-aided high-quality pet image synthesis via bidirectional contrastive gan with shared information maximization. In International Conference on Medical Image Computing and Computer-Assisted Intervention , pages 527–537. Springer, 2022. [21] Muzaffer Özbey, Onat Dalmaz, Salman UH Dar, Hasan A Bedel, Şaban Özturk, Alper Güngör, and Tolga Cukur. Unsupervised medical image translation with adversarial diffusion models. IEEE Transactions on Medical Imaging ,42(12):3524–3539, 2023. [22] Zhaohu Xing, Sicheng Yang, Sixiang Chen, Tian Ye, Yijun Yang, Jing Qin, and Lei Zhu. Cross-conditioned diffusion model for medical image to image translation. In International Conference on Medical Image Computing and Computer-Assisted Intervention , pages 201–211. Springer, 2024. [23] Amod Jog, Aaron Carass, Dzung L Pham, and Jerry L Prince. Random forest flair reconstruction from t 1, t 2, and p d-weighted mri. In 2014 IEEE 11th International Symposium on Biomedical Imaging (ISBI) , pages 1079–1082. IEEE, 2014. [24] Amod Jog, Aaron Carass, Snehashis Roy, Dzung L Pham, and Jerry L Prince. Random forest regression for magnetic resonance image synthesis. Medical image analysis , 35:475–488, 2017. [25] Dongwook Lee, Junyoung Kim, Won-Jin Moon, and Jong Chul Ye. Collagan: Collaborative gan for missing image data imputation. In Proceedings of the IEEE/CVF conference on computer vision and pattern recognition , pages 2487–2496, 2019. [26] Hongwei Li et al. Diamondgan: unified multi-modal generative adversarial networks for mri sequences synthesis. In Medical Image Computing and Computer Assisted Intervention–MICCAI 2019: 22nd International Conference, Shenzhen, China, October 13–17, 2019, Proceedings, Part IV 22 , pages 795–803. Springer, 2019. [27] Tao Zhou, Huazhu Fu, Geng Chen, Jianbing Shen, and Ling Shao. Hi-net: hybrid-fusion network for multi-modal mr image synthesis. IEEE transactions on medical imaging , 39(9):2772–2781, 2020. [28] Bo Peng, Bingzheng Liu, Yi Bin, Lili Shen, and Jianjun Lei. Multi-modality mr image synthesis via confidence-guided aggregation and cross-modality refinement. IEEE Journal of Biomedical and Health Informatics , 26(1):27– 35, 2021. [29] Sahin Olut, Yusuf H Sahin, Ugur Demir, and Gozde Unal. Generative adversarial training for mra image synthesis using multi-contrast mri. In PRedictive Intelligence in MEdicine: First International Workshop, PRIME 2018, Held in Conjunction with MICCAI 2018, Granada, Spain, September 16, 2018, Proceedings 1 , pages 147–154. Springer, 2018. [30] Xin Yang, Yi Lin, Zhiwei Wang, Xin Li, and Kwang-Ting Cheng. Bi-modality medical image synthesis using semi-supervised sequential generative adversarial networks. IEEE journal of biomedical and health informatics ,24(3):855–865, 2019. [31] Akifumi Hagiwara et al. Improving the quality of synthetic flair images with deep learning using a conditional generative adversarial network for pixel-by-pixel image translation. American journal of neuroradiology , 40(2):224– 230, 2019. [32] Lan Jiang, Ye Mao, Xiangfeng Wang, Xi Chen, and Chao Li. Cola-diff: Conditional latent diffusion model for multi-modal mri synthesis. In International Conference on Medical Image Computing and Computer-Assisted Intervention , pages 398–408. Springer, 2023. [33] Agisilaos Chartsias, Thomas Joyce, Mario Valerio Giuffrida, and Sotirios A Tsaftaris. Multimodal mr synthesis via modality-invariant latent representation. IEEE transactions on medical imaging , 37(3):803–814, 2017. [34] Anmol Sharma and Ghassan Hamarneh. Missing mri pulse sequence synthesis using multi-modal generative adversarial network. IEEE transactions on medical imaging , 39(4):1170–1183, 2019. [35] Liyue Shen et al. Multi-domain image completion for random missing input data. IEEE transactions on medical imaging , 40(4):1113–1122, 2020. [36] Onat Dalmaz, Mahmut Yurt, and Tolga Çukur. Resvit: residual vision transformers for multimodal medical image synthesis. IEEE Transactions on Medical Imaging , 41(10):2598–2614, 2022. [37] Jiang Liu, Srivathsa Pasumarthi, Ben Duffy, Enhao Gong, Keshav Datta, and Greg Zaharchuk. One model to synthesize them all: Multi-contrast multi-scale transformer for missing data imputation. IEEE Transactions on Medical Imaging , 2023. [38] Yue Zhang, Chengtao Peng, Qiuli Wang, Dan Song, Kaiyan Li, and S Kevin Zhou. Unified multi-modal image synthesis for missing modality imputation. IEEE Transactions on Medical Imaging , 44(1):4–18, 2024. [39] Bjoern H Menze et al. The multimodal brain tumor image segmentation benchmark (brats). IEEE transactions on medical imaging , 34(10):1993–2024, 2014. [40] Spyridon Bakas et al. Advancing the cancer genome atlas glioma mri collections with expert segmentation labels and radiomic features. Scientific data , 4(1):1–13, 2017. 
+
+17 [41] Spyridon Bakas et al. Identifying the best machine learning algorithms for brain tumor segmentation, progression assessment, and overall survival prediction in the brats challenge. arXiv preprint arXiv:1811.02629 , 2018. [42] Ezequiel de la Rosa, Mauricio Reyes, Sook-Lei Liew, Alexandre Hutton, Roland Wiest, Johannes Kaesmacher, Uta Hanning, Arsany Hakim, Richard Zubal, Waldo Valenzuela, et al. A robust ensemble algorithm for is-chemic stroke lesion segmentation: Generalizability and clinical utility beyond the isles challenge. arXiv preprint arXiv:2403.19425 , 2024. [43] Moritz R Hernandez Petzsche, Ezequiel De La Rosa, Uta Hanning, Roland Wiest, Waldo Valenzuela, Mauricio Reyes, Maria Meyer, Sook-Lei Liew, Florian Kofler, Ivan Ezhov, et al. Isles 2022: A multi-center magnetic resonance imaging stroke lesion segmentation dataset. Scientific data , 9(1):762, 2022. [44] Onat Dalmaz, Muhammad U Mirza, Gokberk Elmas, Muzaffer Ozbey, Salman UH Dar, Emir Ceyani, Kader K Oguz, Salman Avestimehr, and Tolga Çukur. One model to unite them all: Personalized federated learning of multi-contrast mri synthesis. Medical Image Analysis , 94:103121, 2024. [45] Bo Zhou, Huidong Xie, Qiong Liu, Xiongchao Chen, Xueqi Guo, Zhicheng Feng, Jun Hou, S Kevin Zhou, Biao Li, Axel Rominger, et al. Fedftn: Personalized federated learning with deep feature transformation network for multi-institutional low-count pet denoising. Medical image analysis , 90:102993, 2023. [46] Shitao Xiao, Zheng Liu, Peitian Zhang, and Niklas Muennighoff. C-pack: Packaged resources to advance general chinese embedding, 2023. [47] Edward J Hu, Yelong Shen, Phillip Wallis, Zeyuan Allen-Zhu, Yuanzhi Li, Shean Wang, Lu Wang, Weizhu Chen, et al. Lora: Low-rank adaptation of large language models. ICLR , 1(2):3, 2022. [48] Liyuan Wang, Xingxing Zhang, Hang Su, and Jun Zhu. A comprehensive survey of continual learning: Theory, method and application. IEEE transactions on pattern analysis and machine intelligence , 46(8):5362–5383, 2024. 
+
+# Acknowledgements 
+
+This research was supported by Natural Science Foundation of China under Grant 62271465, Suzhou Ba-sic Research Program under Grant SYG202338, the Key Program of the National Natural Science Foun-dation of China under Grant 82330057, and Beijing Hospital Management Center-Climb Plan under Grant DFL20220503. 
+
+# Author contributions 
+
+In this work, Y. Z., Y. L., and S. K. Z. conceived the study and designed the experiments. Y. Z. performed the experiments, conducted the data analysis, and drafted the initial manuscript. Z. Z., S. X., S. L., Z. L., and J. Q. contributed to data curation and data management. Z. Z., and S. X. designed the radiological reporting experiments. S. L., Z. L., and J. Q. were responsible for radiological assessment and preparation of radiological reports. Y. Z., Z. Z., Q., W., Y. L., and S. K. Z. critically revised the manuscript. 
+
+# Competing interests 
+
+The authors declare no competing interests. 18 Supplementary information Available   
+
+> Condition
+> 100
+
+ES 1 ES C ES 2 ES C ES 3 ES C ES 4 ES C
+
+DS 1 DS 2 DS 3 DS 4
+
+> 1
+
+Dis 1 Dis 2 Dis 3 Dis 4
+
+Real/Fake? 
+
+T1 
+
+Real/Fake? Real/Fake? Real/Fake?    
+
+> Reconstruct Reconstruct Synthesize Synthesize
+
+T2 T1C (missing) FLAIR (missing) 
+
+Multi -scale feature maps Encoding Stream (ES) Decoding Stream (DS) Discriminator Data flow 
+
+> Discriminator
+
+FDFUM Dynamic Feature Unification Module 
+
+> Encoder Decoder
+> Generator
+
+ES 5 ES C ES 6 ES C
+
+DS 5 DS 6
+
+Dis 5 Dis 6
+
+Real/Fake? Real/Fake?  
+
+> Synthesize Synthesize
+
+ADC (missing) DWI (missing) 
+
+Synthesis backbone  
+
+> 00
+
+Fig. S1. The synthesis backbone adopted in this work is extended from our previous study. It comprises one common encoding stream, six modality-specific encoding streams, six decoding streams, and six discriminators, each specifically designed to process a corresponding imaging modality. A DFUM module is employed to integrate feature representations from a variable number of input modalities. 19

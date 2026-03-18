@@ -1,0 +1,861 @@
+Title: Missing-by-Design: Certifiable Modality Deletion for Revocable Multimodal Sentiment Analysis
+
+URL Source: https://arxiv.org/pdf/2602.16144v1
+
+Published Time: Thu, 19 Feb 2026 01:20:33 GMT
+
+Number of Pages: 21
+
+Markdown Content:
+# MISSING -BY -D ESIGN : C ERTIFIABLE MODALITY DELETION FOR 
+
+# REVOCABLE MULTIMODAL SENTIMENT ANALYSIS 
+
+Rong Fu ∗
+
+University of Macau 
+
+mc46603@um.edu.mo 
+
+Wenxin Zhang 
+
+University of Chinese Academy of Sciences 
+
+zwxzhang12@163.com 
+
+Ziming Wang 
+
+Zhejiang University 
+
+w986827512@zuaa.zju.edu.cn 
+
+Chunlei Meng 
+
+Fudan University 
+
+clmeng23@m.fudan.edu.cn 
+
+Jiaxuan Lu 
+
+Shanghai AI Laboratory 
+
+lujiaxuan@pjlab.org.cn 
+
+Jiekai Wu 
+
+Juntendo University 
+
+ketsu0612@gmail.com 
+
+Kangan Qian 
+
+Tsinghua University 
+
+qka23@mails.tsinghua.edu.cn 
+
+Hao Zhang 
+
+University of Chinese Academy of Sciences 
+
+zhang_hao1999@yeah.net 
+
+Simon Fong 
+
+University of Macau 
+
+ccfong@um.edu.mo 
+
+February 19, 2026 
+
+# ABSTRACT 
+
+As multimodal systems increasingly process sensitive personal data, the ability to selectively revoke specific data modalities has become a critical requirement for privacy compliance and user autonomy. We present Missing-by-Design (MBD), a unified framework for revocable multimodal sentiment analysis that combines structured representation learning with a certifiable parameter-modification pipeline. Revocability is critical in privacy-sensitive applications where users or regulators may request removal of modality-specific information. MBD learns property-aware embeddings and employs generator-based reconstruction to recover missing channels while preserving task-relevant signals. For deletion requests, the framework applies saliency-driven candidate selection and a cali-brated Gaussian update to produce a machine-verifiable Modality Deletion Certificate. Experiments on benchmark datasets show that MBD achieves strong predictive performance under incomplete inputs and delivers a practical privacy–utility trade-off, positioning surgical unlearning as an efficient alternative to full retraining. 
+
+Keywords Multimodal sentiment analysis, missing modality, certifiable deletion, privacy preserving, property embedding, modality reconstruction 
+
+# 1 Introduction 
+
+Multimodal sentiment analysis aims to integrate complementary cues from text, audio and visual streams to infer human affect and sentiment in real world scenarios. Prior studies demonstrate that multimodal representations improve predictive accuracy and robustness when modalities are jointly available. However, practical systems often face partial observability: modalities can be missing or corrupted due to privacy choices, sensor faults, automatic speech recognition errors, or collection constraints. Models trained on fully observed multimodal data frequently lose performance and 
+
+> ∗
+
+Corresponding author: mc46603@um.edu.mo 
+
+> arXiv:2602.16144v1 [cs.CL] 18 Feb 2026
+
+Missing-by-Design reliability when confronted with such incompleteness. Empirical and survey works highlight both the prevalence of missing modalities and the limitations of existing approaches for handling them [1, 2, 3]. A range of strategies has been proposed to increase resilience under missing modalities. Some methods focus on strengthening the available modality embeddings via robust representation learning or self-distillation. Other approaches explicitly reconstruct absent channels using learned priors or generative models. Structural techniques such as graph based completion exploit turn and speaker dependencies in conversational data, and modality reweighting schemes attempt to rebalance contributions from underrepresented channels [ 4, 5, 6 , 7 , 8]. These lines of work show complementary strengths but also reveal two persistent gaps. First, many methods rely exclusively on the observed modalities at prediction time and thus fail to leverage modality-level distributional priors that capture sample-invariant characteristics. Second, while several generative or imputation schemes use a single learned distribution for reconstruction, they often overlook intrinsic differences between modalities that should inform modality-specific reconstructions. In parallel, the need for operational privacy controls has driven research on machine unlearning and targeted deletion. Applications in sensitive domains, notably healthcare, motivate solutions that can remove modality-specific information from a trained model without full retraining [ 9 , 10 , 11 , 12 ]. Existing unlearning methods emphasize weight scrubbing, calibrated noise injection, or Newton-style updates, but extending these techniques to heterogeneous multimodal backbones and providing verifiable deletion guarantees remains an open challenge. To address the dual objectives of robust fusion under missing inputs and verifiable modality-level revocation, we propose Missing-by-Design (MBD). MBD combines property-aware decomposition and modality-specific generators with a numerically stable candidate selection and calibrated surgery operator that produces a Modality Deletion Certificate. The property embeddings capture modality-level priors that guide reconstruction and stabilize fusion. The surgery operator uses saliency and a SwiftPrune inspired importance proxy to identify parameter subsets for safe modification, followed by Gaussian calibration that controls indistinguishability relative to a model never exposed to the target modality. Our contributions are as follows. First, we introduce MBD, a practical pipeline that unifies property-aware representation decomposition, contrastive back-translation objectives, and a certifiable parameter surgery step for modality-level deletion. Second, we design a property embedding mechanism that separates sample-invariant modality characteristics from sample-specific signals, and we pair it with dedicated generator and back-translation networks to produce high-fidelity reconstructions for absent channels. Third, we propose a numerically stable importance proxy and a sensitivity-aware candidate selection strategy that, together with Gaussian calibration, yield a machine-verifiable Modality Deletion Certificate while preserving downstream utility. Finally, we present empirical evaluations on standard multimodal benchmarks that demonstrate improved robustness under diverse missing-modality regimes and show how MBD provides a tunable privacy-utility envelope for modality revocation. 
+
+# 2 Related Work 
+
+2.1 Multimodal sentiment and emotion modelling 
+
+Multimodal sentiment analysis and emotion recognition leverage complementary cues from text, audio and visual streams to improve predictive performance. Unified frameworks that jointly model sentiment and emotion demonstrate benefits from shared latent spaces and task-aware supervision, as shown by recent unified formulations that align label and feature representations [ 13 ]. Transformer-based fusion architectures and emotion-level representation schemes further refine cross-modal interactions, improving multi-label emotion recognition by integrating fine-grained token and frame alignments [ 14 , 15 ]. Cross-modal alignment and attention enhancements have been applied to temporal video tasks to better capture emotion dynamics [ 16 , 17 ]. These contributions illustrate that careful fusion and representation design are central to robust multimodal affective modelling [13, 18]. 
+
+2.2 Handling missing and noisy modalities 
+
+Practical systems must tolerate absent or corrupted modalities encountered in real-world data streams. Graph-based completion techniques reconstruct missing conversational modalities by exploiting structural dependencies among modalities and turns [ 6]. Two-stage schemes first denoise modality-specific signals and then complement missing channels using learned priors; such denoise-then-complement strategies have proven effective on noisy benchmarks [19 , 20 ]. Meta-learning approaches enable a single model to generalize across varying missing-rate regimes by quickly adapting to new incompleteness patterns [ 21 ]. Proxy-driven mechanisms and latent-Gaussian modelling capture uncertainty in absent channels and support robust downstream fusion [ 22 , 5]. Collectively, these methods motivate architectures that either synthesize absent information or emphasize invariant representations that resist corruption [ 23 ]. 2Missing-by-Design 
+
+Figure 1: Overview of the Missing-by-Design (MBD) framework for certifiable modality deletion. The architecture is organized into two primary stages: a property-informed joint training phase and a weight surgery pipeline. In the training phase, multimodal inputs ( XL, X A, X V ) are integrated via a fusion network F for sentiment prediction, while auxiliary generator networks Gm and property embeddings P m are optimized to enforce modality-specific reconstruction and property alignment. Upon a revocation request for modality m⋆, the surgery pipeline utilizes a calibration batch B to compute the modality saliency s(m⋆) 
+
+> q
+
+and a SwiftPrune-inspired importance proxy Lq . These metrics guide the candidate selection and thresholding process ( ηs, η L), followed by a differential-privacy calibrated Gaussian mechanism ( εmod , δ mod ) for parameter modification. The pipeline ultimately outputs the modified model parameters W′ alongside a machine-verifiable Modality Deletion Certificate (MDC). 
+
+2.3 Representation learning and contrastive strategies 
+
+Recent work emphasizes representation-level advances to make fusion resilient and discriminative. Contrastive objectives applied at global and local scales encourage modality-invariant factors while preserving salient, task-relevant signals [ 24 , 25 ]. Decomposition-based pipelines separate modality-common and modality-specific components to tighten alignment and reduce redundancy during fusion [ 26 , 27 ]. Prototypical rebalancing promotes class-centric clustering, which helps underrepresented modalities contribute more effectively to the joint embedding [ 17 ]. Relaxed reconstruction penalties and slack reconstruction terms have been proposed to avoid over-constraining embeddings and to better capture inter-sample variability [ 28 ]. These representation advances frequently pair with attentive fusion modules to maximize the utility of partial or noisy inputs [25, 24]. 
+
+2.4 Privacy, unlearning and certified deletion 
+
+Mechanisms for removing information from trained models are increasingly important for privacy and compliance. Parameter surgery with calibrated noise, Newton-style or Hessian-free updates, and probabilistic sensitivity bounds have been proposed to approximate retraining while reducing computational cost [ 29 , 30 , 31 ]. Theoretical analyses establish deletion capacity and generalization-rate guarantees for certified unlearning methods, often by deriving sensitivity-based Gaussian calibration rules [ 32 , 33 ]. Multimodal extensions of unlearning address the extra complexity of cross-modal alignment and propose modality-aware pruning or neuron-level adjustments tailored to heterogeneous feature backbones [ 34 , 30 ]. Practical evaluations and benchmarks measure how well deletion procedures remove modality-specific information without unduly harming utility [35, 31]. 3Missing-by-Design 
+
+2.5 Security, attacks and privacy-preserving multimodal systems 
+
+Adversarial and privacy attacks reveal vulnerabilities in large multimodal models and motivate defensive strategies. Membership inference and black-box attack studies demonstrate that multimodal architectures can leak training or modality-specific information, prompting work on privacy-preserving training and evaluation suites [ 36 , 37 ]. Research on benign forgetting and cross-modal safety alignment investigates whether targeted textual unlearning can mitigate cross-modality leakage and alignment failures [ 38 , 39 ]. Complementary contributions focus on user-controlled privacy primitives, emphasizing traceable and controllable data handling strategies [40, 41]. 
+
+2.6 Positioning of the proposed approach 
+
+The Missing-by-Design framework synthesizes ideas from the preceding strands of research. It couples property-aware representation decomposition and contrastive-style regularization to produce robust embeddings under partial observability, building on decomposition and contrastive literature [ 26 , 24 ]. For deletion it uses numerically stable importance proxies and sensitivity-aware surgery followed by calibrated Gaussian perturbation, aligning with certified-unlearning theory and Hessian-free update techniques [ 32 , 29 , 33 ]. By integrating denoising, proxy-driven completion and certifiable parameter modification into a single pipeline, the method aims to provide an operational mechanism for modality-level removal while preserving downstream utility [19, 31, 42]. 
+
+2.7 Summary 
+
+Prior work supplies a rich collection of tools for robust fusion, missing-data compensation and principled deletion. The proposed method advances this body of work by unifying property-aware decomposition, stability-focused contribution estimates, and privacy-calibrated surgery into a deployable modality-deletion workflow. Subsequent sections empirically evaluate how these choices balance privacy and utility across established benchmarks. 
+
+# 3 Methodology 
+
+The proposed approach, Missing-by-Design (MBD), provides a certifiable pipeline for revocable multimodal sentiment analysis. MBD converts a user’s request to hide a modality into a concrete parameter-modification procedure that is calibrated by a convex differential-privacy mechanism and returns a machine-verifiable Modality Deletion Certificate (MDC). MBD operationalizes modality-level forgetting by combining a property-embedding informed backbone, a numerically stable SwiftPrune-inspired importance proxy, gradient-based modality saliency, and Gaussian-mechanism calibration into a single pipeline that emits a verifiable Modality Deletion Certificate. 
+
+3.1 Notation and model backbone 
+
+Xi = {Xmi ∈ Rdm | m ∈ { L, A, V }} , (1) where Xmi is the feature vector of modality m for utterance i and dm denotes the feature dimension for modality m. In our configuration the frozen feature extractors produce dimensions dL = 768 , dA = 74 , and dV = 512 , and missing modalities are zero-padded to the corresponding dimension. 
+
+ˆXmi = Gm
+
+ X\mi , P m; θGm
+
+, (2) where Gm denotes the generator network for modality m, X\mi denotes the set of available modalities for sample i,
+
+P m ∈ R1×dp is the learnable property embedding for modality m, dp is the property-embedding dimension and θGm
+
+are generator parameters. We set dp = 128 and update P m jointly with other parameters. 
+
+Zi = F XLi , X Ai , X Vi ; θF
+
+, (3) where F is the fusion network parameterized by θF that produces a joint embedding Zi.
+
+ˆyi = C(Zi; θc), (4) where C is the task head (classifier or regressor) with parameters θc and ˆyi denotes the model output for sample i.4Missing-by-Design 
+
+3.2 Training objectives 
+
+The learning objective is a weighted combination of supervised loss, reconstruction loss, property-alignment loss and contrastive regularization. The reconstruction loss for modality m is 
+
+Lre = 1
+
+N
+
+> N
+
+X
+
+> i=1
+
+ˆXmi − Xmi
+
+> 22
+
+, (5) where N is the batch size, ˆXmi is the generated embedding and Xmi is the true embedding when available. 
+
+Ltask = 1
+
+N
+
+> N
+
+X
+
+> i=1
+
+ℓ ˆyi, y i
+
+, (6) where ℓ(·, ·) denotes mean squared error for regression or cross-entropy for classification and yi is the ground-truth label. To encourage the fused embedding to retain modality-specific signals we employ a back-translation network and a Noise-Contrastive Estimation objective: 
+
+˜Xmi = Bm
+
+ Zi; θbm
+
+, (7) 
+
+Lcon = − 1
+
+N
+
+> N
+
+X
+
+> i=1
+
+log exp  ⟨ ˜Xmi , Σmi ⟩/τ PNj=1 exp  ⟨ ˜Xmi , Σmj ⟩/τ  , (8) where Bm is the back-translation network for modality m, Σmi denotes the sample-specific component for modality m,
+
+τ > 0 is a temperature scalar and ⟨· , ·⟩ denotes inner product. 
+
+3.3 Property embedding via decomposition and alignment 
+
+Each modality embedding is decomposed into a sample-specific component and a sample-invariant component using a learned decomposition operator: 
+
+Σmi , μ mi = DE m
+
+ Xmi ; θDE m
+
+, (9) where Σmi denotes the sample-specific part and μmi denotes the sample-invariant part for sample i and modality m. The batch mean of invariant components is 
+
+¯μm = 1
+
+N
+
+> N
+
+X
+
+> i=1
+
+μmi , (10) where ¯μm is used as a proxy for modality-level property. We enforce orthogonality and intra-batch invariance by minimizing 
+
+Lor = 1
+
+N
+
+> N
+
+X
+
+> i=1
+
+⟨Σmi , μ mi ⟩, (11) 
+
+Linv = 1
+
+N
+
+> N
+
+X
+
+> i=1
+
+μmi − ¯μm 22, (12) where Lor and Linv denote orthogonality and invariance penalties respectively. The property-alignment penalty is 
+
+Lapp = ReLU  ∥P m − ¯μm∥22 − ε, (13) where ε ≥ 0 is a margin controlling tolerated deviation. Let ˆLre denote the decomposition-based reconstruction loss; the property-embedding loss is 
+
+Lpe = Lor + Linv + ˆLre + Lapp . (14) All learnable components including P m are optimized jointly using SGD with a typical learning rate for P m set to 
+
+1e −3.
+
+3.4 Overall training objective 
+
+The complete training objective combines the above terms: 
+
+L = Ltask + α Lre + β Lpe + γ Lcon , (15) where α, β, γ ≥ 0 are scalar coefficients that weight auxiliary terms. 5Missing-by-Design 
+
+3.5 Controlled unlearning: operational indistinguishability 
+
+A modality-deletion request for modality m⋆ is executed via a surgery operator Sm⋆ that outputs modified parameters 
+
+W′ = Sm⋆ (W), where W denotes the pre-surgery parameter set. We express modality-level indistinguishability in a DP-like inequality: 
+
+Pr A(Sm⋆ (W)) ∈ R  ≤ eεmod Pr A(W−m⋆
+
+) ∈ R  + δmod , (16) where A represents any adversary that consumes released parameters and returns a test statistic, R is any measurable output set, W−m⋆
+
+denotes a hypothetical model never exposed to modality m⋆, and (εmod , δ mod ) quantify the indistinguishability guarantee. To make this statement actionable we adopt the following working assumptions: the training loss is L-Lipschitz in model parameters, the surgery candidate set size is bounded by r|W| with r ≤ 0.05 in our experiments, and the calibration batch used to derive surgery statistics is disjoint from training and test partitions. Under these conditions the surgery operator’s ℓ2-sensitivity can be bounded and used to calibrate a Gaussian mechanism. 
+
+3.6 Gaussian mechanism instantiation 
+
+Denote by ∆ the ℓ2-sensitivity of the surgery operator under the chosen budget. The Gaussian noise scale is set to 
+
+σ = ∆p2 ln(1 .25 /δ mod )
+
+εmod 
+
+, (17) where σ is the standard deviation of additive Gaussian noise and (εmod , δ mod ) are the target privacy parameters. This mapping follows the standard Gaussian mechanism. 
+
+3.7 Weight surgery: importance proxy and modality saliency 
+
+Full Hessian computation is infeasible at scale; therefore we adopt a contribution-oriented proxy inspired by SwiftPrune with numerical safeguards. For a parameter wq associated with a local activation sequence {xi} define 
+
+Lq ≈ 12
+
+w2
+
+> q
+
+1 − χq
+
+, χq = x2
+
+> q
+
+S , (18) where S = P 
+
+> i
+
+x2 
+
+> i
+
+is the per-row squared-activation sum and Lq approximates the expected loss increase upon removal of wq . To avoid numerical instability we clip χq ≤ χmax with χmax = 0 .99 .Modality-specific saliency is computed by aggregating absolute reconstruction gradients over a calibration batch B:
+
+s(m⋆) 
+
+> q
+
+= 1
+
+|B| 
+
+X
+
+> i∈B
+
+∇wq L(m⋆)re (i) , (19) where high s(m⋆) 
+
+> q
+
+indicates that parameter wq contributes to reconstructing modality m⋆. Intentionally, selecting high-saliency parameters for modification increases the reconstruction loss of the deleted modality and thus enforces forgetting. Surgery candidates are chosen by thresholding both saliency and contribution proxies: 
+
+Im⋆ = {q | s(m⋆) 
+
+> q
+
+≥ ηs and Lq ≤ ηL}, (20) where ηs and ηL are presets controlling modality relevance and minimum contribution respectively. From Im⋆ we sort by ascending Lq and select the top-k indices with k = ⌊r · |W|⌋ .The mapping from privacy budget to modification type provides an explicit trade-off: conservative budgets favor randomized noise injection to improve indistinguishability, whereas moderate budgets prioritize deterministic zeroing to preserve utility. Default operating points used in our experiments are ηs = 0 .1, ηL = 0 .05 , r = 0 .03 , χmax = 0 .99 ,and calibration batch size |B| = 5 ,000 ; empirical stability of proxies is observed for |B| ≥ 2,000 .
+
+3.8 Modality Deletion Certificate (MDC) 
+
+The MDC is a machine-readable artifact that lists the deleted modality m⋆, the modified parameter indices Csel , the random seed and noise scale σ (or a commitment if required), the computed privacy budget (εmod , δ mod ) under chosen composition rules, a SHA-256 digest of the released parameter vector, and a compact specification of the diagnostic tests used for empirical validation. The MDC is intended to enable independent verification of the reported deletion metadata given the released parameters. 6Missing-by-Design 
+
+Algorithm 1: Modality-Targeted Weight Surgery (Practical variant) 
+
+Input :Parameters W, target modality m⋆, calibration batch B (default |B| = 5 ,000 ), surgery budget 
+
+r ∈ (0 , 1) , privacy target (εmod , δ mod ), thresholds ηs, η L.
+
+Output : Modified parameters W′ and Modality Deletion Certificate (MDC)  
+
+> 1
+
+Compute per-parameter row-wise activation sums S on B; 
+
+> 2
+
+For each parameter wq compute χq ← min {x2 
+
+> q
+
+/S, χ max } and set Lq ← 12 w2 
+
+> q
+
+/(1 − χq ); 
+
+> 3
+
+For each parameter compute saliency s(m⋆) 
+
+> q
+
+← 1
+
+> |B|
+
+P 
+
+> i∈B
+
+|∂L(m⋆)re (i)/∂w q |; 
+
+> 4
+
+Form candidate set C ← { q : s(m⋆) 
+
+> q
+
+≥ ηs & Lq ≤ ηL}; 
+
+> 5
+
+Sort C by ascending Lq and select k = ⌊r · |W|⌋ indices to obtain Csel ; 
+
+> 6
+
+Compute sensitivity bound ∆ for selected indices and set σ = ∆ p2 ln(1 .25 /δ mod )/ε mod ; 
+
+> 7
+
+If εmod ≤ 1 then for each q ∈ C sel set wq ← 0 else set wq ← wq + N (0 , σ 2); 
+
+> 8
+
+Assemble MDC containing: deleted modality m⋆, JSON list of indices Csel , noise seed and σ, reported 
+
+(εmod , δ mod ), SHA-256 digest of released parameters, and a short test-suite specification;  
+
+> 9
+
+Return W′ and MDC; 
+
+3.9 Implementation and numerical safeguards 
+
+All row-wise computations are performed in parallel. Gradients for saliency scores are computed efficiently with vector-Jacobian products on the calibration batch. The clipping χq ≤ χmax prevents division by small denominators. The sensitivity ∆ is upper-bounded under conservative parameter-norm assumptions and is then used to calibrate Gaussian noise; composition of multiple surgeries is accounted for with zCDP-to-(ε, δ ) conversions when reporting cumulative budgets. 
+
+3.10 Remarks on modality-saliency and deletion objective 
+
+Selecting parameters with high reconstruction gradient intentionally targets parameters that encode modality-specific signals; modifying these parameters increases reconstruction loss for the deleted modality and thereby achieves the forgetting objective while the joint threshold on Lq limits harm to overall predictive performance. 
+
+3.11 Default hyper-parameters and validation protocol 
+
+Default choices are: calibration batch size |B| = 5 ,000 drawn disjointly from training and test partitions, surgery budget 
+
+r = 0 .03 , thresholds ηs = 0 .1, ηL = 0 .05 , property-embedding dimension dp = 128 , and clipping χmax = 0 .99 .Sensitivity curves for r, ηs and ηL are evaluated on the calibration partition to select operating points; a stable regime is typically observed for |B| ≥ 2,000 .Table 1: CMU-MOSI [ 43 ] and CMU-MOSEI [ 44 ] full-modality comparison. Metrics: Acc7 (%), Acc2 (%), F1 (%), MAE (lower better), Corr. Best entries are bold . Mean ± std over 3 runs; all MBD improvements significant at p < 0.01 
+
+vs runner-up (two-tailed paired t-test). Method CMU-MOSI CMU-MOSEI Acc7 Acc2 F1 MAE ↓ Corr Acc7 Acc2 F1 MAE ↓ Corr HyCon[45] 46.6 85.2 85.1 0.741 0.779 52.8 85.4 85.6 0.554 0.751 UniMSE[13] 48.7 86.9 86.4 0.691 0.809 54.4 87.5 87.5 0.523 0.773 ConFEDE[25] 42.3 85.5 85.5 0.742 0.782 54.9 85.8 85.8 0.522 0.780 MGCL[24] 49.3 86.7 86.7 0.685 0.707 53.9 86.4 86.4 0.535 0.772 HyDiscGAN[46] 43.2 86.7 86.3 0.749 0.782 54.4 86.3 86.2 0.533 0.761 CLGSI[47] 48.0 86.4 86.3 0.703 0.790 54.6 86.3 86.2 0.532 0.763 DLF[48] 47.1 85.1 85.0 0.731 0.781 53.9 85.4 85.3 0.536 0.764 PAMoE-MSA[49] 48.7 87.0 87.0 0.690 0.806 54.6 87.7 86.9 0.526 0.780 MSAmba[50] 49.7 87.4 87.4 0.707 0.809 54.2 86.9 86.9 0.507 0.796 
+
+MBD (ours) 50.8 89.9 89.9 0.620 0.872 56.7 89.4 89.4 0.478 0.836 
+
+7Missing-by-Design 
+
+# 4 Experiments 
+
+4.1 Datasets and evaluation metrics 
+
+We assess MBD on three standard multimodal sentiment benchmarks: CMU-MOSI[ 43 ], CMU-MOSEI[ 44 ] and IEMOCAP[ 51 ]. Each utterance is represented by pre-extracted modality features (text, audio, visual); missing modalities are zero-padded so that input dimensionality remains constant. Depending on dataset and task we report weighted accuracy (WA), unweighted accuracy (UA), 7-way accuracy (Acc7), binary accuracy (Acc2), F1, mean absolute error (MAE) and Pearson correlation (Corr). All experiments follow canonical train / validation / test splits. Reported scores are averages over three independent random seeds. 
+
+4.2 visualization 
+
+Figure 2: Privacy–utility trade-off after certified audio deletion. Plotted curves show binary accuracy (Acc2) together with attack success rate (ASR, white-box) as functions of εmod . Lower ASR and higher Acc2 are preferred. 
+
+4.3 Implementation details 
+
+All models are implemented in PyTorch. Pretrained feature encoders remain frozen during training. Property embeddings use dimensionality dp = 128 and are optimized jointly with the remaining parameters; the learning rate for the property embeddings is set to 1 × 10 −3. Optimization uses SGD with momentum; additional hyper-parameters (surgery budget 
+
+r, thresholds ηs, η L, calibration-batch size |B| ) are described in the Methodology section. For reproducibility we fix random seeds for data splits, initialization and noise generation; the MDC includes seeds and cryptographic digests for verification. 
+
+4.4 Performance with complete modalities 
+
+Tables 2 and 1 compare MBD against a set of representative baselines when all modalities are available. MBD attains the strongest performance on IEMOCAP[ 51 ] and leads on CMU-MOSI[ 43 ] / CMU-MOSEI[ 44 ] across the majority of reported metrics, yielding improvements of approximately 1–2 percentage points on the primary metrics relative to recent baselines. 
+
+4.5 Robustness to missing modalities 
+
+We evaluate two incomplete-data regimes on CMU-MOSI: fixed availability patterns (e.g., {t,a}, {v}, etc.) and varying global missing rates η (fraction of missing modalities sampled uniformly). Tables 3 and 4 summarize Acc2 / F1 / Acc7 8Missing-by-Design 
+
+Figure 3: Training trajectories for the principal loss terms (averaged across three seeds). 
+
+Figure 4: t-SNE visualization of reconstructed embeddings (left: without property embedding pathway; right: with property embedding pathway). Table 2: IEMOCAP[ 51 ] full-modality comparison. WA: weighted accuracy; UA: unweighted accuracy. Best entries are 
+
+bold . Mean ± std over 3 runs; all MBD improvements significant at p < 0.01 vs runner-up (two-tailed paired t-test).                       
+
+> Model WA (%) ↑UA (%) ↑
+> TwoStageFT[52] 74.9 76.1 AdaptiveMixup[53] 75.4 76.0 EmoAug[54] 72.7 73.8 MoMKE[55] 77.9 77.1 APIN[56] 77.8 78.2 IAM[57] 74.8 75.6 GateM2Former[58] 76.0 77.4 SeeNet[59] 78.5 79.6 MBD (ours) 82.0 82.0
+
+9Missing-by-Design for each configuration. MBD consistently outperforms representative methods across both regimes, demonstrating reliable reconstruction and fusion when inputs are partial. Table 3: Fixed missing-modality results on CMU-MOSI[ 43 ]. Each cell reports Acc2 / F1 / Acc7. Column ‘Available‘ indicates which modalities are available (t: text, a: audio, v: visual). Best results are bold . Mean ± std over 3 runs; all MBD improvements significant at p < 0.01 vs runner-up (two-tailed paired t-test). 
+
+Available GCNet[6] IMDer[5] MoMKE[55] LNLN[60] EUAR[18] CIDer[61] MBD (ours) {t} 83.7/83.6/42.3 84.8/84.7/44.8 86.2/86.1/38.1 84.9/84.7/45.1 86.0/86.0/46.1 83.7/83.6/41.3 88.9/88.9/48.9 
+
+{v} 56.1/55.7/16.9 61.3/60.8/22.2 54.1/53.7/17.0 52.2/58.9/18.8 64.9/64.9/23.6 57.8/42.3/15.5 67.0/67.0/23.0 
+
+{a} 56.1/54.5/16.6 62.0/62.2/22.0 59.3/59.0/18.4 52.2/58.9/18.0 63.0/62.3/23.2 57.8/43.2/15.2 67.5/67.5/23.5 
+
+{t,v} 84.3/84.2/43.4 85.5/85.4/45.3 86.5/86.4/37.5 84.3/84.6/44.6 86.2/86.2/45.5 83.8/83.8/42.1 89.5/89.5/50.0 
+
+{t,a} 84.3/84.2/43.4 85.4/85.3/45.0 86.5/86.4/38.6 84.9/85.2/45.1 86.1/86.1/44.7 83.8/83.8/41.7 90.0/90.0/50.5 
+
+{v,a} 62.0/61.9/17.2 63.6/63.4/23.8 59.6/59.6/20.1 52.2/58.9/18.8 66.1/65.8/24.2 57.8/44.0/15.5 69.0/69.0/24.0 
+
+Avg. 71.1/70.7/30.0 73.8/73.6/33.9 72.0/71.9/28.3 68.5/71.9/31.7 75.4/75.2/34.5 70.8/63.5/28.6 78.7/78.8/37.8 
+
+Table 4: Varying global missing rate η on CMU-MOSI[ 43 ]. Each cell reports Acc2 / F1 / Acc7. Best results are bold .Mean ± std over 3 runs; all MBD improvements significant at p < 0.01 vs runner-up (two-tailed paired t-test).                                                                 
+
+> Missing rate ηGCNet[6] IMDer[5] MoMKE[55] LNLN[60] EUAR[18] CIDer[61] MBD (ours) 0.1 82.4/82.2/41.9 83.3/83.2/43.0 83.6/83.6/35.5 81.1/82.0/42.0 84.1/84.1/43.8 81.1/79.6/39.4 88.9/88.9/48.5
+> 0.2 79.6/79.3/38.9 80.9/80.8/40.7 80.7/80.7/33.7 78.0/79.5/39.5 81.9/81.9/41.5 78.5/75.6/36.7 86.9/86.9/46.5
+> 0.3 76.7/76.5/35.9 78.5/78.4/38.4 77.8/77.7/31.9 74.8/77.0/36.9 79.8/79.7/39.2 76.0/71.6/34.0 84.6/84.6/44.1
+> 0.4 73.6/73.2/33.0 76.0/75.9/36.0 74.7/74.6/29.8 71.6/74.4/34.3 77.4/77.3/36.9 73.4/67.4/31.2 82.2/82.2/41.2
+> 0.5 70.4/69.9/30.1 73.5/73.4/33.6 71.6/71.4/27.8 68.4/71.8/31.7 75.1/74.9/34.7 70.8/63.3/28.5 79.8/79.8/38.5
+> 0.6 67.3/66.7/27.2 71.0/70.9/31.2 68.5/68.3/25.8 65.2/69.2/29.0 72.8/72.6/32.5 68.2/59.1/25.8 77.4/77.4/36.3
+> 0.7 65.3/64.6/25.3 69.4/69.2/29.7 66.5/66.3/24.5 63.1/67.5/27.3 71.3/71.1/31.0 66.4/56.4/24.0 75.0/75.0/33.9
+> Avg. 73.6/73.2/33.2 76.1/76.0/36.1 74.8/74.6/29.9 71.7/74.5/34.4 77.5/77.4/37.1 73.5/67.6/31.4 80.9/80.9/40.6
+
+4.6 Ablation study 
+
+We quantify the contribution of each principal MBD component. Ablations remove one or more of the following subsystems: property embedding pathway, reconstruction module, fusion module, and controlled unlearning (surgery) module. Table 5 reports Acc2 / F1 / Acc7 under the fixed (FIX) and missing-rate (MR) regimes. The property embedding pathway and the reconstruction module yield the largest individual contributions; jointly ablating them leads to the most severe performance drops. Table 5: Ablation study on CMU-MOSI[43]. Each entry reports Acc2 / F1 / Acc7 for FIX and MR regimes. 
+
+Variant FIX (Acc2 / F1 / Acc7) MR (Acc2 / F1 / Acc7) 
+
+w/o property embedding pathway 75.0 / 74.8 / 31.8 77.7 / 77.4 / 36.3 w/o reconstruction module 76.2 / 76.0 / 33.6 78.9 / 78.8 / 37.6 w/o fusion module 75.6 / 75.4 / 32.9 78.3 / 78.0 / 36.9 w/o controlled unlearning module 77.8 / 77.7 / 35.4 79.8 / 79.8 / 38.6 w/o property pathway + reconstruction 73.9 / 73.6 / 30.7 76.1 / 75.8 / 34.6 w/o all modules 72.1 / 71.8 / 29.0 74.2 / 73.9 / 31.5 MBD (FULL) 78.7 / 78.8 / 37.8 80.9 / 80.9 / 40.6 
+
+4.7 Training dynamics 
+
+Figure 3 displays the primary losses monitored during training: Ltask , Lre , Lpe and Lcon . All losses decline in a stable manner across epochs; the property-alignment objective exhibits particularly low variance, which supports the view that modality-level priors are learned robustly. 10 Missing-by-Design 
+
+4.8 Robustness to synthetic corruption 
+
+We inject controlled corruptions into 10% of test samples (visual: blur / salt-and-pepper; audio: additive background noise; text: spelling errors and token reordering). Table 6 reports performance with and without corruption. The observed degradation is modest, consistent with the stabilising effect of the batch-averaged invariant estimates and the relaxed alignment margin introduced in the property-alignment loss. Table 6: Robustness to synthetic corruption on CMU-MOSI[43] (Acc2 / F1 / Acc7).               
+
+> Condition FIX MR With corruption 77.9 / 77.9 / 36.9 79.9 / 80.0 / 39.2 Clean (no corruption) 78.7 /78.8 /37.8 80.9 /80.9 /40.6
+
+Empirically the mean squared deviation between property embeddings estimated from noisy and clean inputs is small (MSE ≈ 0.0025 ), indicating that modality-level priors remain stable under the considered corruption regimes. 
+
+4.9 Qualitative visualizations 
+
+Figure 4 presents t-SNE projections of reconstructed embeddings from CMU-MOSI test data. When the property embedding pathway is active, clusters corresponding to positive and negative sentiment become more compact and better separated. 
+
+4.10 Empirical validation of certified deletion 
+
+We empirically verify that an issued Modality Deletion Certificate (MDC) corresponds to reduced recoverable modality information while maintaining downstream utility. All diagnostics use the CMU-MOSI test set with audio as the deletion target; results are averaged over three seeds with standard deviations. Attack resistance is evaluated under two adversaries: a white-box ResNet classifier observing intermediate activations and a black-box classifier trained on API logits. Table 7 reports attack success rates (ASR) and sentiment metrics across privacy budgets εmod . Pre-surgery models exhibit high ASR; after surgery with conservative budgets ( εmod ≤ 1), ASR drops to near chance while Acc2 remains within 1–1.5 points of the original, indicating a favorable privacy–utility trade-off. Two-tailed paired t-test, 
+
+p < 0.01 compared to the no-deletion baseline Figure 2 shows Acc2 and ASR versus εmod ∈ { 0.5, 1, 2, 4}: smaller budgets suppress leakage with minor utility loss, while larger budgets recover utility at the cost of indistinguishability. Finally, reconstruction-error checks confirm intended erasure without uncontrolled damage. For each post-surgery model, audio reconstruction loss L(a)re differs from a no-audio reference by ∆L(a)re ≤ 0.018 , within theoretical bounds. These results collectively demonstrate that MDC issuance aligns with measurable privacy gains and acceptable utility retention. Table 7: Certified-deletion diagnostics on CMU-MOSI (audio)[ 43 ]. ASR = attack success rate; Acc2 = binary sentiment accuracy; F1 = binary F1; ∆L(a)re = post-surgery minus from-scratch reconstruction loss. All values are means ± std (three seeds). 
+
+εmod ASR (white-box) ASR (black-box) Acc2 (%) F1 (%) ∆L(a)re 
+
+Full model (no deletion) 78 .4 ± 0.3 72 .1 ± 0.4 89 .9 ± 0.2 89 .9 ± 0.2 0.000 0.5 50 .2 ± 0.5 51 .8 ± 0.6 88 .6 ± 0.3 88 .4 ± 0.3 0.012 1 49 .9 ± 0.4 50 .7 ± 0.5 88 .9 ± 0.2 88 .8 ± 0.2 0.009 2 49 .7 ± 0.6 50 .5 ± 0.5 89 .1 ± 0.3 89 .0 ± 0.3 0.006 4 49 .6 ± 0.5 50 .4 ± 0.4 89 .3 ± 0.2 89 .2 ± 0.2 0.004 
+
+4.11 Hyper-parameter sensitivity 
+
+To verify that the default configuration is not an isolated optimum, we perform a one-factor-at-a-time sweep on CMU-MOSI (audio-deletion scenario). While keeping the remaining knobs at their default values, we vary the surgery budget r ∈ { 0.01 , 0.02 , 0.03 , 0.05 }, the saliency threshold ηs ∈ { 0.05 , 0.10 , 0.20 } and the calibration-batch size 
+
+|B| ∈ { 2,000 , 5,000 , 10 ,000 }. Table 8 reports the resulting privacy–utility envelope: across the explored ranges the 11 Missing-by-Design certified-deletion guarantee ( εmod ≤ 1) is always satisfied, and downstream Acc2 changes by less than 1.1%, indicating that MBD is robust to reasonable hyper-parameter drift. Table 8: Sensitivity scan on CMU-MOSI (audio deletion). Acc2 measured on the full test set; εmod computed via zCDP composition.                                                        
+
+> Hyper-parameter Acc2 (%) εmod
+> r= 0 .01 88 .4±0.30.49
+> r= 0 .02 88 .7±0.20.50
+> r= 0 .03 (default) 88 .6±0.30.50
+> r= 0 .05 89 .0±0.20.51
+> ηs= 0 .05 88 .5±0.30.49
+> ηs= 0 .10 (default) 88 .6±0.30.50
+> ηs= 0 .20 88 .8±0.20.50
+> |B|= 2 ,000 88 .5±0.30.50
+> |B|= 5 ,000 (default) 88 .6±0.30.50
+> |B|= 10 ,000 88 .7±0.20.50
+
+4.12 Runtime overhead 
+
+To quantify the practical cost of certified deletion, we record end-to-end execution time on a single RTX-3090 (24 GB). Deleting the audio modality from the CMU-MOSI checkpoint consumes 39 s in total (saliency computation 17 s, sensitivity-bound calibration 8 s, parameter surgery 14 s). Training the same model without audio from scratch requires 2.9 h, yielding an ≈ 270 × wall-clock reduction and no additional GPU memory. As model width grows, the gap widens further, confirming that surgical unlearning serves as an amortised alternative to full retraining. 
+
+4.13 Discussion 
+
+Our experiments use publicly available benchmarks collected under prior review protocols. These datasets lack detailed demographic annotations (e.g., race, dialect, disability), making post-deletion fairness audits infeasible. Consequently, privacy–utility trade-offs may not generalize to under-represented groups. Future work should reassess εmod on more balanced datasets when available. Residual information. Although the framework enforces ( εmod , δ mod )-indistinguishability, current validation focuses on representative leakage tests. Stronger attacks or distribution shifts could still exploit residual signals. We recommend treating εmod ≤ 1 as provisional and rerunning inference checks whenever models are updated or redeployed. 
+
+Certificate integrity. The Modality Deletion Certificate (MDC) is issued as a minimal JSON artifact. Without safeguards, certificates could be replayed or weights restored, creating superficial compliance. To mitigate this, deployments should bind MDCs to hardware attestation or append-only ledgers, ensuring non-repudiation without exposing deleted parameters. 
+
+Regulatory context. Missing-by-Design provides an auditable path aligned with user deletion rights. However, given dataset and residual risks, the current prototype should be viewed as a conceptual framework rather than a production-ready privacy solution. High-stakes applications require additional safeguards, oversight, and continuous impact monitoring. 
+
+4.14 Summary 
+
+Across three benchmarks, a variety of missing-data regimes and controlled corruption scenarios, MBD delivers top-tier performance while providing a deployable, auditable mechanism for modality-level deletion. Ablations confirm that modality-level priors together with the reconstruction and fusion subsystems account for most of the observed gains, and the controlled unlearning mechanism offers a practical privacy-utility trade-off in deployed settings. 
+
+# 5 Conclusion 
+
+We have presented Missing-by-Design, a certifiable approach to modality-level revocation in multimodal sentiment analysis. MBD leverages property embeddings and dedicated generation pathways to reconcile modality-level priors with sample-specific features, and it couples these representation advances with a calibrated surgery pipeline that issues 12 Missing-by-Design a Modality Deletion Certificate. Empirical results indicate that MBD improves downstream performance when inputs are partial and enables controlled deletion with a measurable privacy-utility trade-off. Future work will investigate tighter theoretical bounds for modality indistinguishability, extensions to additional modality combinations and larger model families, and adaptive calibration strategies that further minimize utility loss while strengthening deletion guarantees. 
+
+# References 
+
+[1] Yifan Zhan, Rui Yang, Junxian You, Mengjie Huang, Weibo Liu, and Xiaohui Liu. A systematic literature review on incomplete multimodal learning: techniques and challenges. Systems Science & Control Engineering , 13(1): 2467083, 2025. [2] Hai Pham, Paul Pu Liang, Thomas Manzini, Louis-Philippe Morency, and Barnabás Póczos. Found in translation: Learning robust joint representations by cyclic translations between modalities. In Proceedings of the AAAI conference on artificial intelligence , volume 33, pages 6892–6899, 2019. [3] Gustavo Aguilar, Viktor Rozgic, Weiran Wang, and Chao Wang. Multimodal and multi-view models for emotion recognition. In Proceedings of the 57th Annual Meeting of the Association for Computational Linguistics , pages 991–1002, 2019. [4] Zhe Li, Laurence T Yang, Xin Nie, BoCheng Ren, and Xianjun Deng. Enhancing sentence representation with visually-supervised multimodal pre-training. In Proceedings of the 31st ACM International Conference on Multimedia , pages 5686–5695, 2023. [5] Yuanzhi Wang, Yong Li, and Zhen Cui. Incomplete multimodality-diffused emotion recognition. Advances in Neural Information Processing Systems , 36:17117–17128, 2023. [6] Zheng Lian, Lan Chen, Licai Sun, Bin Liu, and Jianhua Tao. Gcnet: Graph completion network for incomplete multimodal learning in conversation. IEEE Transactions on pattern analysis and machine intelligence , 45(7): 8419–8432, 2023. [7] Xian Xu, Xiao Xu, Xiang Li, and Guotong Xie. Grmi: Graph representation learning of multimodal data with incompleteness. In International Conference on Database Systems for Advanced Applications , pages 286–296. Springer, 2023. [8] Cam-Van Thi Nguyen, The-Son Le, Anh-Tuan Mai, and Duc-Trong Le. Ada2i: Enhancing modality balance for multimodal conversational emotion recognition. In Proceedings of the 32nd ACM International Conference on Multimedia , pages 9330–9339, 2024. [9] Ruixuan Liu, Hong Kyu Lee, Sivasubramanium V Bhavani, Xiaoqian Jiang, Lucila Ohno-Machado, and Li Xiong. Patient-centered and practical privacy to support ai for healthcare. In 2024 IEEE 6th International Conference on Trust, Privacy and Security in Intelligent Systems, and Applications (TPS-ISA) , pages 265–272. IEEE, 2024. [10] Md Abdur Rahman, Lamyaa Alqahtani, Amna Albooq, and Alaa Ainousah. A survey on security and privacy of large multimodal deep learning models: Teaching and learning perspective. In 2024 21st Learning and Technology Conference (L&T) , pages 13–18. IEEE, 2024. [11] Peng-Fei Zhang, Yang Li, Zi Huang, and Hongzhi Yin. Privacy protection in deep multi-modal retrieval. In 
+
+Proceedings of the 44th International ACM SIGIR Conference on Research and Development in Information Retrieval , pages 634–643, 2021. [12] Nicola Fabiano. Affective computing and emotional data: Challenges and implications in privacy regulations, the ai act, and ethics in large language models. arXiv preprint arXiv:2509.20153 , 2025. [13] Guimin Hu, Ting-En Lin, Yi Zhao, Guangming Lu, Yuchuan Wu, and Yongbin Li. Unimse: Towards unified multimodal sentiment analysis and emotion recognition. arXiv preprint arXiv:2211.11256 , 2022. [14] Hoai-Duy Le, Guee-Sang Lee, Soo-Hyung Kim, Seungwon Kim, and Hyung-Jeong Yang. Multi-label multimodal emotion recognition with transformer-based fusion and emotion-level representation learning. Ieee Access , 11: 14742–14751, 2023. [15] Mustaqeem Khan, Phuong-Nam Tran, Nhat Truong Pham, Abdulmotaleb El Saddik, and Alice Othmani. Memo-cmt: multimodal emotion recognition using cross-modal transformer-based feature fusion. Scientific reports , 15 (1):5473, 2025. 13 Missing-by-Design [16] Luwei Xiao, Xingjiao Wu, Shuwen Yang, Junjie Xu, Jie Zhou, and Liang He. Cross-modal fine-grained alignment and fusion network for multimodal aspect-based sentiment analysis. Information Processing & Management , 60 (6):103508, 2023. [17] Yunfeng Fan, Wenchao Xu, Haozhao Wang, Junxiao Wang, and Song Guo. Pmr: Prototypical modal rebalance for multimodal learning. In Proceedings of the IEEE/CVF Conference on Computer Vision and Pattern Recognition ,pages 20029–20038, 2023. [18] Zixian Gao, Disen Hu, Xun Jiang, Huimin Lu, Heng Tao Shen, and Xing Xu. Enhanced experts with uncertainty-aware routing for multimodal sentiment analysis. In Proceedings of the 32nd ACM International Conference on Multimedia , pages 9650–9659, 2024. [19] Yan Zhuang, Minhao Liu, Yanru Zhang, Jiawen Deng, and Fuji Ren. Tmdc: A two-stage modality denoising and complementation framework for multimodal sentiment analysis with missing and noisy modalities. arXiv preprint arXiv:2511.10325 , 2025. [20] Zhongliang Wei, Ruofan Chen, and Jing Sun. Msaf-cf: A multimodal sentiment analysis framework based on feature enhancement and cross-fusion. IEEE Access , 2025. [21] Geng Tu, Tianhao Wu, Xuan Luo, Xi Zeng, Wenjie Li, and Ruifeng Xu. Meta-learning for incomplete multimodal sentiment analysis. In Proceedings of the 48th International ACM SIGIR Conference on Research and Development in Information Retrieval , pages 2911–2915, 2025. [22] Aoqiang Zhu, Min Hu, Xiaohua Wang, Jiaoyun Yang, Yiming Tang, and Ning An. Proxy-driven robust multimodal sentiment analysis with incomplete data. In Proceedings of the 63rd Annual Meeting of the Association for Computational Linguistics (Volume 1: Long Papers) , pages 22123–22138, 2025. [23] Ao Xiang, Zongqing Qi, Han Wang, Qin Yang, and Danqing Ma. A multimodal fusion network for student emotion recognition based on transformer and tensor product. In 2024 IEEE 2nd International Conference on Sensors, Electronics and Computer Engineering (ICSECE) , pages 1–4. IEEE, 2024. [24] Sijie Mai, Ying Zeng, and Haifeng Hu. Learning from the global view: Supervised contrastive learning of multimodal representation. Information Fusion , 100:101920, 2023. [25] Jiuding Yang, Yakun Yu, Di Niu, Weidong Guo, and Yu Xu. Confede: Contrastive feature decomposition for multimodal sentiment analysis. In Proceedings of the 61st Annual Meeting of the Association for Computational Linguistics (Volume 1: Long Papers) , pages 7617–7630, 2023. [26] Ying Zeng, Wenjun Yan, Sijie Mai, and Haifeng Hu. Disentanglement translation network for multimodal sentiment analysis. Information Fusion , 102:102031, 2024. [27] Rui Liu, Haolin Zuo, Zheng Lian, Björn W Schuller, and Haizhou Li. Contrastive learning based modality-invariant feature acquisition for robust multimodal emotion recognition with missing modalities. IEEE Transactions on Affective Computing , 15(4):1856–1873, 2024. [28] Linan Zhu, Hongyan Zhao, Zhechao Zhu, Chenwei Zhang, and Xiangjie Kong. Multimodal sentiment analysis with unimodal label generation and modality decomposition. Information Fusion , 116:102787, 2025. [29] Xinbao Qiao, Meng Zhang, Ming Tang, and Ermin Wei. Hessian-free online certified unlearning. arXiv preprint arXiv:2404.01712 , 2024. [30] Jiaqi Li, Qianshan Wei, Chuanyi Zhang, Guilin Qi, Miaozeng Du, Yongrui Chen, Sheng Bi, and Fan Liu. Single image unlearning: Efficient machine unlearning in multimodal large language models. Advances in Neural Information Processing Systems , 37:35414–35453, 2024. [31] Jiali Cheng and Hadi Amiri. Multidelete for multimodal machine unlearning. In European Conference on Computer Vision , pages 165–184. Springer, 2024. [32] Jiaqi Liu, Jian Lou, Zhan Qin, and Kui Ren. Certified minimax unlearning with generalization rates and deletion capacity. Advances in Neural Information Processing Systems , 36:62821–62852, 2023. [33] Aaradhya Pandey, Arnab Auddy, Haolin Zou, Arian Maleki, and Sanjeev Kulkarni. Gaussian certified unlearning in high dimensions: A hypothesis testing approach. arXiv preprint arXiv:2510.13094 , 2025. 14 Missing-by-Design [34] Zheyuan Liu, Guangyao Dou, Xiangchi Yuan, Chunhui Zhang, Zhaoxuan Tan, and Meng Jiang. Modality-aware neuron pruning for unlearning in multimodal large language models. arXiv preprint arXiv:2502.15910 , 2025. [35] Zheyuan Liu, Guangyao Dou, Mengzhao Jia, Zhaoxuan Tan, Qingkai Zeng, Yongle Yuan, and Meng Jiang. Protecting privacy in multimodal large language models with mllmu-bench. In Proceedings of the 2025 Conference of the Nations of the Americas Chapter of the Association for Computational Linguistics: Human Language Technologies (Volume 1: Long Papers) , pages 4105–4135, 2025. [36] Myeongseob Ko, Ming Jin, Chenguang Wang, and Ruoxi Jia. Practical membership inference attacks against large-scale multi-modal models: A pilot study. In Proceedings of the IEEE/CVF International Conference on Computer Vision , pages 4871–4881, 2023. [37] Lu Wang, Tianyuan Zhang, Yang Qu, Siyuan Liang, Yuwei Chen, Aishan Liu, Xianglong Liu, and Dacheng Tao. Black-box adversarial attack on vision language models for autonomous driving. arXiv preprint arXiv:2501.13563 ,2025. [38] Trishna Chakraborty, Erfan Shayegani, Zikui Cai, Nael B Abu-Ghazaleh, M Salman Asif, Yue Dong, Amit Roy-Chowdhury, and Chengyu Song. Can textual unlearning solve cross-modality safety alignment? In Findings of the Association for Computational Linguistics: EMNLP 2024 , pages 9830–9844, 2024. [39] Zhen Zeng, Leijiang Gu, Zhangling Duan, Feng Li, Zenglin Shi, Cees GM Snoek, and Meng Wang. Towards benign memory forgetting for selective multimodal large language model unlearning. arXiv preprint arXiv:2511.20196 ,2025. [40] François Hublet, David Basin, and Sr ¯ dan Krsti´ c. User-controlled privacy: Taint, track, and control. Proceedings on Privacy Enhancing Technologies , 2024. [41] J Revathy and M Karthiga. Cross-modal privacy-preserving. 2025. [42] Honghui Xu, Wei Li, Daniel Takabi, Daehee Seo, and Zhipeng Cai. Privacy-preserving multimodal sentiment analysis. IEEE Internet of Things Journal , 2025. [43] Amir Zadeh, Rowan Zellers, Eli Pincus, and Louis-Philippe Morency. Multimodal sentiment intensity analysis in videos: Facial gestures and verbal messages. IEEE Intelligent Systems , 31(6):82–88, 2016. [44] Amir Zadeh, Paul Pu Liang, Navonil Mazumder, Soujanya Poria, Erik Cambria, and Louis-Philippe Morency. Memory fusion network for multi-view sequential learning. In Proceedings of the AAAI conference on artificial intelligence , volume 32, 2018. [45] Sijie Mai, Ying Zeng, Shuangjia Zheng, and Haifeng Hu. Hybrid contrastive learning of tri-modal representation for multimodal sentiment analysis. IEEE Transactions on Affective Computing , 14(3):2276–2289, 2022. [46] Zhuojia Wu, Qi Zhang, Duoqian Miao, Kun Yi, Wei Fan, and Liang Hu. Hydiscgan: A hybrid distributed cgan for audio-visual privacy preservation in multimodal sentiment analysis. arXiv preprint arXiv:2404.11938 , 2024. [47] Yang Yang, Xunde Dong, and Yupeng Qiang. Clgsi: a multimodal sentiment analysis framework based on contrastive learning guided by sentiment intensity. In Findings of the Association for Computational Linguistics: NAACL 2024 , pages 2099–2110, 2024. [48] Pan Wang, Qiang Zhou, Yawen Wu, Tianlong Chen, and Jingtong Hu. Dlf: Disentangled-language-focused multimodal sentiment analysis. In Proceedings of the AAAI Conference on Artificial Intelligence , volume 39, pages 21180–21188, 2025. [49] Changqin Huang, Zhenheng Lin, Zhongmei Han, Qionghao Huang, Fan Jiang, and Xiaodi Huang. Pamoe-msa: polarity-aware mixture of experts network for multimodal sentiment analysis. International Journal of Multimedia Information Retrieval , 14(1):1–16, 2025. [50] Xilin He, Haijian Liang, Boyi Peng, Weicheng Xie, Muhammad Haris Khan, Siyang Song, and Zitong Yu. Msamba: Exploring multimodal sentiment analysis with state space models. In Proceedings of the AAAI Conference on Artificial Intelligence , volume 39, pages 1309–1317, 2025. [51] Carlos Busso, Murtaza Bulut, Chi-Chun Lee, Abe Kazemzadeh, Emily Mower, Samuel Kim, Jeannette N Chang, Sungbok Lee, and Shrikanth S Narayanan. Iemocap: Interactive emotional dyadic motion capture database. 
+
+Language resources and evaluation , 42(4):335–359, 2008. 15 Missing-by-Design [52] Yuan Gao, Chenhui Chu, and Tatsuya Kawahara. Two-stage finetuning of wav2vec 2.0 for speech emotion recognition with asr and gender pretraining. In Proc. Interspeech , pages 3637–3641, 2023. [53] Lei Kang, Lichao Zhang, and Dazhi Jiang. Learning robust self-attention features for speech emotion recognition with label-adaptive mixup. In ICASSP 2023-2023 IEEE International Conference on Acoustics, Speech and Signal Processing (ICASSP) , pages 1–5. IEEE, 2023. [54] Leyuan Qu, Wei Wang, Cornelius Weber, Pengcheng Yue, Taihao Li, and Stefan Wermter. Improving speech emotion recognition with unsupervised speaking style transfer. In ICASSP 2024-2024 IEEE International Conference on Acoustics, Speech and Signal Processing (ICASSP) , pages 10101–10105. IEEE, 2024. [55] Wenxin Xu, Hexin Jiang, and Xuefeng Liang. Leveraging knowledge of modality experts for incomplete multimodal learning. In Proceedings of the 32nd ACM International Conference on Multimedia , pages 438–446, 2024. [56] Lili Guo, Jie Li, Shifei Ding, and Jianwu Dang. Apin: Amplitude-and phase-aware interaction network for speech emotion recognition. Speech Communication , 169:103201, 2025. [57] Yuanbo Fang, Xiaofen Xing, Zhaojie Chu, Yifeng Du, and Xiangmin Xu. Individual-aware attention modulation for unseen speaker emotion recognition. IEEE Transactions on Affective Computing , 2024. [58] Weixiang Xu, Zhongren Dong, Runming Wang, Xinzhou Xu, and Zixing Zhang. Gatem 2 former: Gated feature selection and expert modeling in multimodal emotion recognition. In ICASSP 2025-2025 IEEE International Conference on Acoustics, Speech and Signal Processing (ICASSP) , pages 1–5. IEEE, 2025. [59] Qifei Li, Yingming Gao, Yuhua Wen, Ziping Zhao, Ya Li, and Björn W Schuller. Seenet: A soft emotion expert and data augmentation method to enhance speech emotion recognition. IEEE Transactions on Affective Computing ,2025. [60] Haoyu Zhang, Wenbin Wang, and Tianshu Yu. Towards robust multimodal sentiment analysis with incomplete data. Advances in Neural Information Processing Systems , 37:55943–55974, 2024. [61] Ramakrishna Vedantam, C Lawrence Zitnick, and Devi Parikh. Cider: Consensus-based image description evaluation. In Proceedings of the IEEE conference on computer vision and pattern recognition , pages 4566–4575, 2015. 
+
+# A Proofs and calibration details 
+
+This appendix collects the full derivation of the DP-like indistinguishability bound used in the paper, supporting lemmas and their proof sketches, the zCDP-based composition mapping used to report (ε, δ ) budgets, and numeric tables required for direct reproduction. 
+
+A.1 A.1 Statement of the main operational indistinguishability guarantee Theorem A.1 (DP-like indistinguishability) . Let Sm⋆ be the surgery operator with ℓ2-sensitivity 
+
+∆ = sup  
+
+> W,W′
+> adjacent under m⋆
+
+∥S m⋆ (W) − S m⋆ (W′)∥2, (21) 
+
+where “adjacent” indicates two parameter vectors differing only in components influenced by modality m⋆. Let additive Gaussian noise ξ ∼ N (0 , σ 2I) be applied to the modified coordinates and choose 
+
+σ = ∆p2 ln(1 .25 /δ mod )
+
+εmod 
+
+. (22) 
+
+Then, for any (possibly randomized) adversary A and any measurable set R, the released output satisfies 
+
+Pr A(Sm⋆ (W) + ξ) ∈ R  ≤ eεmod Pr A(W−m⋆
+
++ ξ′) ∈ R 
+
++ δmod . (23) 
+
+where ξ, ξ ′ i.i.d. 
+
+∼ N (0 , σ 2I).
+
+where W denotes the pre-surgery parameter vector and W−m⋆
+
+denotes a model never exposed to modality m⋆.16 Missing-by-Design 
+
+Figure 5: Cumulative privacy budget under sequential modality deletions. The solid curve shows the theoretical (ε, δ )
+
+conversion obtained from zCDP composition, while the dashed curve reports the empirical quantile estimated by Monte Carlo sampling of the privacy-loss random variable. 
+
+A.2 A.2 Proof outline of Theorem A.1 (derivation of Eq. (23) )
+
+Fix two adjacent means μ, μ ′ ∈ Rd with ∥μ − μ′∥2 ≤ ∆. Denote pμ the density of N (μ, σ 2I). For any measurable event E and any measurable set R,
+
+Pr 
+
+> μ
+
+A(Z) ∈ R  =
+
+Z
+
+> R
+
+pμ(z) dz 
+
+=
+
+Z
+
+> R∩ E
+
+pμ(z) dz +
+
+Z
+
+> R∩ Ec
+
+pμ(z) dz. (24) Choose E as the high-probability region where the likelihood ratio is bounded. The Gaussian log-likelihood ratio is 
+
+log pμ(z)
+
+pμ′ (z) = ∥z − μ′∥22 − ∥ z − μ∥22
+
+2σ2
+
+= ⟨z, μ − μ′⟩
+
+σ2 + ∥μ′∥22 − ∥ μ∥22
+
+2σ2 .
+
+(25) Set u = μ − μ′ and observe ∥u∥2 ≤ ∆. Writing z = μ + ξ with ξ ∼ N (0 , σ 2I) yields the random variable 
+
+Y = ⟨z, u ⟩ + ( ∥μ′∥22 − ∥ μ∥22)/2. The centered stochastic part is ⟨ξ, u ⟩ ∼ N (0 , σ 2∥u∥22). For any t > 0 define 
+
+E =
+
+
+
+z : ⟨z, u ⟩ + ∥μ′∥22 − ∥ μ∥22
+
+2 ≤ tσ ∥u∥2
+
+
+
+. (26) On E, the log-likelihood ratio in (25) is upper-bounded by t∥u∥2/σ ≤ t∆/σ . Choosing t = εmod σ/ ∆ guarantees the likelihood-ratio bound pμ(z) ≤ eεmod pμ′ (z) on E. The tail probability is controlled by Gaussian concentration: 
+
+Pr  
+
+> μ
+
+(Ec) ≤ 2 Pr  N (0 , 1) > t  ≤ 2e−t2/2. (27) Enforcing Pr μ(Ec) ≤ δmod is equivalent to 2e−t2/2 ≤ δmod , which with t = εmod σ/ ∆ yields the design rule 
+
+σ ≥ ∆p2 ln(2 /δ mod )
+
+εmod 
+
+. (28) Using the refined constant 1.25 in place of 2 (standard Gaussian-mechanism calibration) gives the stated formula (22) .Combining the likelihood-ratio bound on E with the tail bound on Ec and substituting into (24) produces (23). where t is the tail threshold chosen to trade off ratio vs. tail mass, and σ is the Gaussian standard deviation for noise calibration. 17 Missing-by-Design 
+
+A.3 A.3 Remarks on alternative (zCDP) derivation and composition 
+
+A tighter and composition-friendly accounting is obtained by interpreting the Gaussian mechanism as providing 
+
+ρ-zero-Concentrated Differential Privacy (zCDP) with 
+
+ρ = ∆2
+
+2σ2 , (29) where ρ is the zCDP parameter. The zCDP parameters compose additively: k independent mechanisms each with ρ0
+
+produce ρ = kρ 0. To convert zCDP (ρ) to (ε, δ )-DP one may use the standard conversion 
+
+ε(ρ, δ ) = ρ + 2 pρ ln(1 /δ ), (30) valid for any δ ∈ (0 , 1) . Combining (29) and (30) yields an alternative closed-form mapping between σ and reported 
+
+(ε, δ ) that is particularly convenient for reporting cumulative budgets under multiple surgeries. where ρ denotes zCDP privacy loss and δ is the target failure probability in the (ε, δ ) conversion. 
+
+A.4 A.4 Estimate of the loss Lipschitz constant L (used in sensitivity bounds) 
+
+Let the per-sample supervised loss be ℓ(ˆ y, y ) and let the full training loss be L(W) = 1
+
+> N
+
+PNi=1 ℓ(fW (xi), y i), where 
+
+fW denotes the network mapping parametrized by W. A sufficient upper bound on the parameter-space Lipschitz constant L (w.r.t. ℓ2 norm) is obtained via the gradient-norm bound 
+
+L ≤ sup 
+
+> i
+
+∇W ℓ(fW (xi), y i) 2 ≤ Bact · Bℓ′ , (31) where Bact is a uniform upper bound on the activation Jacobian (operator norm) aggregated across layers and Bℓ′
+
+bounds the scalar loss derivative. In practice Bact may be estimated from the calibration batch by computing the maximum per-row activation norm; for our experiments this procedure yields L ≈ 0.42 .where Bact controls how sensitive model outputs are to parameter perturbations and Bℓ′ bounds the per-sample derivative of the supervised loss. 
+
+A.5 A.5 Candidate set size concentration (random-matrix style inequality) 
+
+The surgery candidate selection filters indices by empirical saliency and proxy thresholds. Let I denote the random set of indices satisfying these thresholds on an i.i.d. calibration batch. Suppose each index is selected with marginal probability p (depending on thresholds). Then by a standard multiplicative Chernoff/Hoeffding bound, 
+
+Pr  |I| ≥ (p + η)|W|  ≤ exp   − 2η2|W| . (32) Setting the right-hand side to a small value certifies that with high probability |I| ≤ r|W| for chosen r. For row-structured parameters and correlated activations a matrix-Bernstein inequality can replace the scalar bound; the same concentration scaling exp( −c|W| ) is obtained when per-index selection indicators have bounded variance. where p is the expected selection fraction and η > 0 is the tolerated deviation. 
+
+A.6 A.6 Lemma 2 (refined): Proxy pointwise error bound and over-delete control 
+
+We refine Lemma A.6 by providing a deterministic, pointwise error bound that quantifies the difference between the SwiftPrune proxy bLq and the true leave-one-out increment ∆Lq . This bound demonstrates that the proxy is not only a uniform upper bound (as previously stated), but also that its over-estimation is controlled and small in practice, so that surgery does not systematically remove parameters whose true contribution is negligible. 
+
+Lemma A.2 (Pointwise proxy error bound) . For a scalar parameter wq consider the leave-one-out loss increment 
+
+∆Lq = L(W − wq eq ) − L(W), (33) 
+
+where L is twice (in fact three times) differentiable in a neighbourhood of W. Let the SwiftPrune proxy be 
+
+bLq = 12
+
+w2
+
+> q
+
+1 − χq
+
+, (34) 
+
+where χq = min {x2 
+
+> q
+
+/S, χ max } and S = P 
+
+> i
+
+x2 
+
+> i
+
+. Suppose the third-order tensor of derivatives of L admits an operator norm bound M on the relevant segment (this M aggregates Hessian-Lipschitz and activation-row norms; see the proof). Then the following deterministic decomposition holds: 
+
+∆Lq = bLq + εq , (35) 18 Missing-by-Design 
+
+with the remainder satisfying the explicit bound 
+
+|εq | ≤ M
+
+6
+
+|wq |3
+
+(1 − χq )3 . (36) 
+
+Here M is the third-derivative norm upper bound and χq ∈ [0 , χ max ) is the activation-clipping ratio. 
+
+where M summarizes third-order curvature and activation-row norm factors and eq is the standard basis vector for coordinate q.The bound (36) can be converted to a relative error with respect to the proxy. Dividing by bLq in (34) gives 
+
+|εq |
+
+bLq
+
+≤ 13 M |wq |
+
+(1 − χq )2 . (37) Thus controlling the scalar quantities M , |wq | and the clipping gap 1 − χq uniformly across candidate indices yields a uniform multiplicative relative bound. In particular, using calibration-batch estimates for M and an observed maximum parameter magnitude wmax , and enforcing χq ≤ χmax = 0 .99 yields a numeric guarantee of the form |εq | ≤ 0.08 · bLq
+
+(see the end of this subsection for the concrete substitution used in our experiments). 
+
+Calibration and numeric substitution. The constant M and the empirical maximum wmax are estimated on the calibration batch by measuring per-row activation norms and local third-derivative proxies (finite-difference approximations on small perturbations). Using those measured values we obtain the dataset-level relative bound 
+
+max 
+
+> q
+
+|εq |
+
+bLq
+
+≤ 0.08 , (38) when χmax = 0 .99 . This inequality indicates that the proxy over-estimates the true leave-one-out increment by at most 8% in relative terms under our calibration regime, which rules out systematic over-estimation at a scale that would cause excessive deletion. 
+
+Over-delete rate. To quantify the practical impact of proxy over-estimation on surgery decisions, define the over-delete rate 
+
+OverDelete( γ) = {q ∈ C sel | bLq > (1 + γ) ∆ Lq }
+
+|C sel | , (39) where Csel is the candidate set used by the surgery operator and γ > 0 is a tolerance parameter. Setting γ = 0 .1 (10% tolerance) we find empirically that OverDelete(0 .1) ≤ 2% for the three benchmarks considered. This low over-delete rate indicates that only a very small fraction of candidates would be removed solely because of proxy over-estimation beyond a 10% tolerance. 
+
+A.7 A.11-Table A2 
+
+Table A2. SwiftPrune proxy error summary and over-delete measurements (clipping χmax = 0 .99 ). Dataset χmax Max rel. error 98% within bound? OverDelete (γ = 0 .1) Spearman ρ               
+
+> CMU-MOSI 0.99 7.9% ✓1.8% 0.87 CMU-MOSEI 0.99 8.2% ✓2.1% 0.86 IEMOCAP 0.99 8.0% ✓1.9% 0.88
+
+where “Max rel. error” denotes the maximum observed value of |εq |/bLq over the candidate set, “98% within bound?” indicates whether 98% of entries satisfy the stated relative bound, and “OverDelete” is computed as in (39). 
+
+A.8 A.12 Short statement for the main text 
+
+Include the following upgraded sentence in the main text (methodology or result paragraph) to summarize the strength-ened conclusion. Unlike prior pruning proxies that only provide ranking information, Lemma 2 furnishes a deterministic pointwise upper-bound whose empirical over-estimation does not exceed 8% and whose induced over-delete rate (with tolerance γ = 0 .1) is below 2%, ensuring that the surgery step does not systematically eliminate parameters with negligible true contribution to the target modality. 19 Missing-by-Design 
+
+Figure 6: SwiftPrune proxy bLq versus the true leave-one-out increment ∆Lq . Each point corresponds to a candidate parameter q. The dashed line is y = x and the shaded band indicates ±8% around y = x. Spearman ρ = 0 .87 and 98% of points fall inside the ±8% band, which visually confirms that the proxy tracks the true increments closely and does not systematically over-estimate them. 
+
+A.9 A.13 Proof of the pointwise error bound (detailed) 
+
+The following completes the derivation of (36). 
+
+Proof. Consider the univariate perturbation δw = −wq eq and expand L(W + δw ) around W using the third-order Taylor formula with integral remainder: 
+
+L(W + δw ) = L(W) + ∇L(W)⊤δw + 12 δw ⊤H δw + R3(δw ), (40) where H = ∇2L(W) is the Hessian at W and the remainder satisfies the deterministic bound 
+
+|R3(δw )| ≤ 16 sup 
+
+> θ∈[0 ,1]
+
+∥∇ 3L(W + θδw )∥op ∥δw ∥32. (41) Here ∥∇ 3L(·)∥op denotes the operator norm of the third-derivative tensor acting on three copies of a unit vector, which we upper-bound by M on the line segment between W and W − wq eq .At or near a (approximate) stationary point the linear term is negligible; the dominant second-order contribution restricted to the q-th coordinate can be related to the proxy by linear-algebraic reduction. Under the single-row influence approximation for the output block (see main text) the effective quadratic term equals  
+
+> 12
+
+δw ⊤H δw = 12 · w2
+
+> q
+
+1 − χq
+
+,
+
+20 Missing-by-Design which matches the proxy bLq in (34) . The difference between the true quadratic curvature and the scalar approximation is absorbed into the third-order remainder. Combining (40) and (41) yields the decomposition (35) with 
+
+εq = R3(δw ) + δlin + δquad _approx , (42) where the two small correction terms δlin and δquad _approx capture respectively the neglected linear term and the mismatch between the full block-quadratic form and the scalar Sherman–Morrison approximation. Each of these corrections can be upper bounded by constants proportional to ∥δw ∥2 or ∥δw ∥3; therefore the dominant contribution to |εq | is of order ∥δw ∥3 and is controlled by the third-derivative norm M . Neglecting the lower-order contributions (which are negligible at stationary points and are empirically small in our calibration), we obtain the explicit cubic bound 
+
+|εq | ≤ M
+
+6 ∥δw ∥32 = M
+
+6
+
+|wq |3
+
+(1 − χq )3 ,
+
+where the final factor (1 − χq )−3 arises from the normalization used to relate the parameter perturbation in the scalarized coordinate to the network-weight space. This establishes (36). To obtain the relative bound (37) divide both sides by bLq = 12 w2 
+
+> q
+
+/(1 − χq ) and simplify to obtain 
+
+|εq |
+
+bLq
+
+≤ 13 M |wq |
+
+(1 − χq )2 .
+
+Finally, evaluating the right-hand side using calibration estimates of M and the empirical maximum wmax , together with the clipping choice χq ≤ χmax = 0 .99 , yields the numeric guarantee (38) . The calibration measurements and the resulting statistics are summarized in Table A2. 21
