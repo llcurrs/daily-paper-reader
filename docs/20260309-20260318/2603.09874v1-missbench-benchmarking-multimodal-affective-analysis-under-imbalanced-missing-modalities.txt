@@ -1,0 +1,1481 @@
+Title: MissBench: Benchmarking Multimodal Affective Analysis under Imbalanced Missing Modalities
+
+URL Source: https://arxiv.org/pdf/2603.09874v1
+
+Published Time: Wed, 11 Mar 2026 01:20:44 GMT
+
+Number of Pages: 16
+
+Markdown Content:
+# MissBench: Benchmarking Multimodal Affective Analysis under Imbalanced Missing Modalities 
+
+## Tien Anh Pham 
+
+VNU University of Engineering and Technology Hanoi, Vietnam 23021696@vnu.edu.vn 
+
+## Phuong-Anh Nguyen 
+
+VNU University of Engineering and Technology Hanoi, Vietnam 22028332@vnu.edu.vn 
+
+## Duc-Trong Le 
+
+VNU University of Engineering and Technology Hanoi, Vietnam trongld@vnu.edu.vn 
+
+## Cam-Van Thi Nguyen ∗
+
+VNU University of Engineering and Technology Hanoi, Vietnam vanntc@vnu.edu.vn 
+
+## Abstract 
+
+Multimodal affective computing underpins key tasks such as sen-timent analysis and emotion recognition. Standard evaluations, however, often assume that textual, acoustic, and visual modalities are equally available. In real applications, some modalities are sys-tematically more fragile or expensive, creating imbalanced missing rates and training biases that task-level metrics alone do not reveal. We introduce MissBench, a benchmark and framework for multi-modal affective tasks that standardizes both shared and imbalanced missing-rate protocols on four widely used sentiment and emotion datasets. MissBench also defines two diagnostic metrics. The Modal-ity Equity Index (MEI) measures how fairly different modalities contribute across missing-modality configurations. The Modality Learning Index (MLI) quantifies optimization imbalance by compar-ing modality-specific gradient norms during training, aggregated across modality-related modules. Experiments on representative method families show that models that appear robust under shared missing rates can still exhibit marked modality inequity and opti-mization imbalance under imbalanced conditions. These findings position MissBench, together with MEI and MLI, as practical tools for stress-testing and analyzing multimodal affective models in re-alistic incomplete-modality settings. For reproducibility, we release our code at: https://anonymous.4open.science/r/MissBench-4098/ 
+
+## CCS Concepts 
+
+• Information systems → Multimedia information systems ; •
+
+Computing methodologies → Simulation evaluation ; Learn-ing paradigms .
+
+## Keywords 
+
+Multimodal affective computing, Imbalanced missing modalities, Modality equity, Gradient dominance 
+
+## 1 Introduction 
+
+Multimodal affective computing underpins key applications such as sentiment analysis and emotion recognition in dialog systems, call centers, and social media [ 7 , 22 , 39 ]. These systems typically integrate language, visual, and acoustic modalities, yet in realis-tic environments data from some modalities are often missing or 
+
+> ∗Corresponding author.
+
+0.4 0.5 
+
+> Modality A
+
+0.45 0.50 0.55 
+
+> Modality V
+
+0.5 0.6  
+
+> Modality L
+> SMR(Histogram) IMR(Line)
+
+Figure 1: Sampled modality-specific missing rate under mean-match SMR= 0.5 and IMR= (0.4, 0.5, 0.6). Under SMR ˆ𝑟 𝑚 ≈ 𝑟 sh ,while under IMR 𝑟 𝑚 can receive any predefined value ∈ [ 0, 1).No missing 
+
+> 1.0
+> 1.5
+> 2.0
+> SMR=0.5
+> 1
+> 2
+> IMR=(0.2,0.5,0.8)
+> 1
+> 2
+
+A V L
+
+Figure 2: Decoupled modality parameters [ 28 ] of RedCore [ 25 ] on IEMOCAP under different missing-rate configura-tions, illustrating how a single dominant modality can drive most parameter updates under imbalanced missing rates. 
+
+severely degraded due to sensor failures, noise, occlusion, or pri-vacy and transcription constraints [ 30 , 37 ]. As a result, learning from incomplete multimodal inputs is essential for building reliable affective models [13, 14, 16]. A large body of work has been devoted to improving robust-ness under missing modalities, including imputation strategies, reconstruction-based models, and architectures designed to operate on arbitrary modality subsets [ 10 , 17 , 23 , 40 ]. While these meth-ods substantially improve performance compared to naive fusion, their evaluation predominantly relies on task-level metrics such as Accuracy, F1-score, MAE, or correlation. Such aggregate met-rics summarize end performance but offer limited insight into how 
+
+different modalities contribute, or how learning dynamics change when missingness is systematic rather than random [16, 29, 30]. In practice, missingness is rarely symmetric across modalities. Some modalities are systematically more fragile or costly than others. Audio channels may fail more frequently than text tran-scripts. In medical or sensor-rich scenarios, high-cost modalities  
+
+> arXiv:2603.09874v1 [cs.CV] 10 Mar 2026 Conference acronym ’XX, June 03–05, 2018, Woodstock, NY Pham et al.
+
+Table 1: Comparison with prior work on missing modalities, multimodal imbalance, and benchmarks. “Missing protocol” shows whether SMR or IMR is explicitly modeled. “Mod.-level” and “Grad.-level” indicate modality-wise and optimization-level diagnostics comparable to odality Equity Index (MEI) and Modality Learning Index (MLI). 
+
+Work Affective Missing IMR Mod.-level Grad.-level Public focus protocol (imb.) diagnostics diagnostics benchmark MMIN [40] ✓ SMR / pattern × × × ×
+
+GCNet [10] ✓ SMR / fixed × × × ×
+
+RedCore [25] ✓ IMR (custom) ✓ limited × ×
+
+MCE [38] general IMR (general) ✓ utility metric gradient-aware ×
+
+MultiBench [12] mixed noise / drop × × × ✓
+
+MERBench [11] ✓ noise / robustness × × × ✓
+
+MissMAC-Bench [15] ✓ fixed & random MR × perf. mean & std × ✓
+
+BalanceBenchmark [31] general imbalance × imbalance index × ✓
+
+MissBench (ours) ✓ SMR & IMR ✓ MEI MLI ✓
+
+may only be available for a small fraction of samples [ 25 , 37 , 38 ]. This leads to imbalanced missing rates (IMR), where certain modali-ties are observed much more often than others. IMR changes the effective exposure of each modality during training. As a result, learning can become biased toward dominant modalities. Under IMR, a single modality may receive a disproportionate share of gradient updates. This effect can produce biased representations even when task accuracy remains high [ 25 , 29 , 38 ]. Figure 1 illus-trates the difference between shared missing rates (SMR) and IMR at the data level. Under SMR, all modalities exhibit similar empir-ical missing rates. Under IMR, modality-specific exposure differs substantially, even when the average missing rate is matched. Fig-ure 2 shows a complementary effect at the optimization level. Using RedCore [ 25 ] as a representative IMR-aware method on IEMOCAP, the figure demonstrates that, under IMR conditions, the language modality consistently drives larger parameter updates than the visual and acoustic modalities. This observation indicates that IMR can induce persistent gradient dominance within the model. Impor-tantly, this behavior is not revealed by task metrics alone. Although several recent methods explicitly consider IMR [ 24 , 25 , 38 ], many missing-modality handling approaches still assume shared or nearly symmetric missing patterns across modalities [ 6 , 10 , 27 , 40 ]. More broadly, existing evaluations rarely distinguish SMR from IMR in a systematic manner. They also lack standardized tools for modality-and optimization-level analysis across missingness regimes. At the benchmark level, prior efforts such as MultiBench [ 12 ]and multimodal affective benchmarks [ 15 , 30 ] provide unified evalu-ation platforms but primarily focus on balanced or fixed corruption scenarios. As a result, current benchmarks mainly answer how accu-rate a model is under missing modalities. They offer limited insight into which modality is disadvantaged or how strongly each modal-ity influences the optimization process. No existing benchmark simultaneously distinguishes shared and imbalanced missing-rate regimes and provides modality-aware diagnostics beyond task per-formance. In realistic deployments, however, imbalanced missing rates are common, making such analysis necessary. To address this gap, we introduce MissBench , a benchmark and framework for incomplete multimodal affective computing that explicitly accounts for both shared and imbalanced missing rates. MissBench reorganizes three English datasets (CMU-MOSI [ 34 ], CMU-MOSEI [ 35 ], and IEMOCAP [ 2]) and one Chinese dataset (CH-SIMS [ 33 ]) under controlled masking protocols that cover SMR and a family of IMR settings. Beyond conventional task metrics, we propose two diagnostic measures. The Modality Equity Index 
+
+(MEI) quantifies how evenly different modalities contribute to pre-dictive performance across missing-modality configurations. The 
+
+Modality Learning Index (MLI) captures optimization imbalance by summarizing modality-specific gradient dynamics during training. MissBench exposes modality inequity and optimization dominance that remain hidden when evaluation is limited to task-level metrics. Overall, our main contributions are: 
+
+• We present MissBench , a benchmark for multimodal af-fective computing under incomplete modalities that stan-dardizes shared and imbalanced missing-rate protocols on multiple datasets with fixed data splits and masking seeds for reproducible evaluation. 
+
+• We introduce two diagnostic metrics, the Modality Eq-uity Index (MEI) and the Modality Learning Index (MLI), which quantify modality-level contribution equity and opti-mization imbalance from performance shifts and modality-specific gradient dynamics. 
+
+• We provide a unified evaluation pipeline and conduct a com-prehensive empirical study across representative model fam-ilies, showing that MissBench reveals modality inequity and optimization imbalance that are not captured by task metrics alone. 
+
+## 2 Related Work 
+
+Multimodal affective computing and robustness. Multimodal affective computing has been extensively studied, with surveys summariz-ing advances in feature design, fusion strategies, and robustness to noise and distribution shifts [ 2, 7, 34 , 35 ]. These works primar-ily aim to improve task performance under clean or mildly cor-rupted inputs. When missing data are considered, they are typically treated as a secondary robustness factor rather than a central design axis. As a result, robustness is often assessed only at the output level. Modality-level contribution and optimization behavior remain largely unexplored in these studies. MissBench: Benchmarking Multimodal Affective Analysis under Imbalanced Missing Modalities Conference acronym ’XX, June 03–05, 2018, Woodstock, NY Multimodal Affective 
+
+Datasets 
+
+Missingness 
+
+Protocol 
+
+Benchmark 
+
+Training Engine  Evaluation & Diagnostics 
+
+Shared Missing Rate 
+
+(SMR) 
+
+Imbalanced Missing Rate 
+
+(IMR)     
+
+> WA UA Acc
+> MAE W-F1 Corr
+
+Task Metrics 
+
+Model Diagnostics   
+
+> MEI Modality Equity Index
+> MLI Modality Learning Index
+
+CMU -MOSI 
+
+Sentiment (MSA) 
+
+CMU -MOSEI 
+
+Sentiment (MSA) 
+
+IEMOCAP 
+
+Emotion (MER) 
+
+CH -SIMS 
+
+Sentiment – Chinese 
+
+(MSA)                                              
+
+> Multimodal sample 𝑥 ,𝑦 ∈𝔻
+> with fixed train/valid/test splits.
+> 𝑥 𝑖 =𝑥 𝑖
+> 𝑚
+> 𝑚
+> 𝑀
+> consists of feature
+> 𝑥 𝑖
+> 𝑚 for modality 𝑚
+> Randomly drop modalities using
+> missing -rate vector 𝒓
+> SMR :𝑟 𝑚 =𝑟 𝑠ℎ for all modalities 𝑚
+> IMR : modality -specific rates
+> 𝒓 =(𝑟 𝐿 ,𝑟 𝐴 ,𝑟 𝑉 )
+> Output: {(෤𝑥 𝑖 ,𝑦 𝑖 ,𝑒 𝑖 )}with at least
+> one observed modality
+> 𝐌𝐄𝐈 =log 𝑀 −𝐻 2(𝑝 𝑀𝐸𝐼 )
+> log 𝑀
+> 𝐻 2𝑝 𝑀𝐸𝐼 =−log ෍
+> 𝑚 =1
+> 𝑀
+> 𝑝 𝑚
+> 2
+> 𝐌𝐋𝐈 =1
+> 𝑇 −1𝑀 ෍
+> 𝑡 =2
+> 𝑇
+> ෍
+> 𝑚 =1
+> 𝑀
+> ሚ𝛿 𝑡 −𝛿 𝑚 𝑡
+> 1
+> 𝑀
+
+Model Plugin Interface 
+
+ො𝑦 = 𝐹 𝜃 ( ෤𝑥 , e)               
+
+> Standardized training and logging:
+> fixed optimize, bath size, epochs
+> •forward function takes abatch
+> of in -complete inputs and
+> masks and returns predictions
+> •get _loss function returns per -
+> modality gradient norms after
+> backpropagation,
+
+Figure 3: MissBench benchmark pipeline for multimodal affective tasks, illustrating data preparation, SMR/IMR missingness protocols, unified training with model plugins, and evaluation with both task metrics and modality-aware diagnostics. 
+
+Incomplete multimodal learning and missing modalities. A large body of methods has been proposed to address missing modalities. Representative approaches include imagination-based reconstruc-tion, graph-based completion, and generative or robust architec-tures for incomplete multimodal inputs [ 10 , 17 , 27 , 32 , 40 ]. These methods significantly improve robustness compared to naive fusion. However, most of them assume fixed or shared missing patterns and are evaluated on a limited set of datasets. Evaluation is pre-dominantly conducted using task-level metrics such as accuracy, F1-score, and MAE. In particular, the effect of systematically imbal-anced missing rates on modality equity and learning dynamics is not explicitly analyzed. 
+
+Benchmarks and multimodal imbalance. Several benchmarks have been proposed to evaluate robustness in multimodal learning. Multi-Bench [ 12 ] and related efforts provide broad evaluations across tasks and domains [ 11 , 26 , 30 ]. These benchmarks mainly focus on balanced corruption or generic robustness scenarios. They do not explicitly distinguish shared and imbalanced missing-rate regimes. They also lack modality-aware diagnostic metrics beyond task per-formance. Recent work on multimodal imbalance and IMR-aware learning, such as BalanceBenchmark [ 31 ], RedCore [ 25 ], and MCE [38 ], studies unequal modality contributions and imbalanced miss-ing rates. However, these efforts either target general multimodal tasks without affective-specific protocols or adopt method-specific setups that hinder direct comparison. MissMAC-Bench [ 15 ] in-troduces a benchmark for missing modality issues in multimodal affective computing. It evaluates holistic robustness under fixed and random missing patterns using competence-resilience measures. However, it does not explicitly model imbalanced missing rates or provide modality-level or optimization-level diagnostics. As summarized in Table 1, existing methods and benchmarks leave a clear gap: none simultaneously standardizes shared and imbalanced missing-rate protocols for multimodal affective tasks while exposing both modality-level contributions and optimization dynamics. As a result, evaluations may report similar task accuracy while masking substantial differences in modality dominance and learning imbalance. MissBench is designed to fill this gap. 
+
+## 3 MissBench Design 
+
+Figure 3 summarizes the four phases of MissBench, including dataset organization, missingness protocol generation, standardized train-ing, and modality-aware evaluation. 
+
+## 3.1 Datasets and Tasks 
+
+Datasets. Let D = {( 𝑥 𝑖 , 𝑦 𝑖 )} 𝑁 𝑖 =1 be a multimodal dataset with 𝑀 
+
+modalities and label space Y. Each input 𝑥 𝑖 = {𝑥 (𝑚 ) 
+
+> 𝑖
+
+}𝑀 𝑚 =1 consists of features 𝑥 (𝑚 ) 
+
+> 𝑖
+
+∈ R𝑑 𝑚 for modality 𝑚 . MissBench adopts four affective datasets with three core modalities: language (L), visual (V), and acoustic (A) , namely IEMOCAP [ 2], CMU-MOSI [ 34 ], CMU-MOSEI [35], and CH-SIMS [33]. After applying a masking protocol (Section 3.2), each clean in-put 𝑥 𝑖 is transformed into an incomplete sample ˜𝑥 𝑖 = { ˜𝑥 (𝑚 ) 
+
+> 𝑖
+
+}𝑀 𝑚 =1,forming the corrupted dataset ˜D = {( ˜𝑥 𝑖 , 𝑦 𝑖 )} 𝑁 𝑖 =1. We always ensure that at least one modality remains observed in every sample so that supervision is well defined. 
+
+Task formulation. Given an incomplete sample ˜𝑥 𝑖 , a multi-modal model F𝜃 produces a prediction ˆ𝑦 𝑖 = F𝜃 ( ˜𝑥 𝑖 ). MissBench considers two task families. 
+
+Multimodal Emotion Recognition (MER). On IEMOCAP, the label space is a set of emotion categories YMER = {1, . . . , 𝐶 }. The training Conference acronym ’XX, June 03–05, 2018, Woodstock, NY Pham et al. 
+
+objective is multiclass classification with cross-entropy loss: 
+
+LMER (𝜃 ) = 1
+
+𝑁 
+
+> 𝑁
+
+∑︁ 
+
+> 𝑖 =1
+
+ℓCE ( ˆ𝑦 𝑖 , 𝑦 𝑖 ) (1) We report weighted accuracy (WA), unweighted accuracy (UA), and weighted F1-score (W-F1) as MER metrics. 
+
+Multimodal Sentiment Analysis (MSA). On CMU-MOSI, CMU-MOSEI, and CH-SIMS, each utterance is annotated with a real-valued sentiment intensity label. Let 𝑦 reg  
+
+> 𝑖
+
+∈ R denote the intensity label. The model outputs ˆ𝑦 reg  
+
+> 𝑖
+
+, we use the following regression loss: 
+
+LMSA (𝜃 ) = 1
+
+𝑁 
+
+> 𝑁
+
+∑︁ 
+
+> 𝑖 =1
+
+ℓreg ( ˆ𝑦 reg  
+
+> 𝑖
+
+, 𝑦 reg  
+
+> 𝑖
+
+) (2) where ℓreg is a regression loss (e.g., MAE or MSE). For evaluation, we follow common practice and report binary accuracy (Acc-2), weighted F1-score (WAF), mean absolute error (MAE), and Pearson correlation (Corr). Throughout this paper, training under SMR and IMR corresponds to minimizing the same task loss (MER or MSA) with masks drawn from 𝑝 SMR and 𝑝 IMR , respectively. Section 3.3 introduces MEI and MLI to measure how these different masking distributions lead to inequity in modality contribution and optimization dynamics. 
+
+## 3.2 Missingness Protocol 
+
+Given a clean multimodal dataset D, MissBench generates incom-plete samples by applying a stochastic masking operator M (· ; r)
+
+parameterized by a missing-rate vector r.
+
+Masking operator. For each sample 𝑥 𝑖 = {𝑥 (𝑚 ) 
+
+> 𝑖
+
+}𝑀 𝑚 =1 and missing-rate vector r = [𝑟 1, . . . , 𝑟 𝑀 ], the operator draws a binary mask 
+
+𝑒 𝑖 = {𝑒 (𝑚 ) 
+
+> 𝑖
+
+}𝑀 𝑚 =1 with 𝑒 (𝑚 ) 
+
+> 𝑖
+
+∈ { 0, 1}, Í𝑚 𝑒 (𝑚 ) 
+
+> 𝑖
+
+≥ 1. The incomplete sample ˜𝑥 (𝑚 ) 
+
+> 𝑖
+
+is constructed as ˜𝑥 (𝑚 ) 
+
+> 𝑖
+
+= 𝑥 (𝑚 ) 
+
+> 𝑖
+
+if 𝑒 (𝑚 ) 
+
+> 𝑖
+
+= 1, and ®0 other-wise. MissBench instantiates two families of masking distributions, corresponding to shared and imbalanced missing-rate regimes. 
+
+Shared Missing Rate (SMR) Under SMR, all modalities share the same missing probability 𝑟 sh ∈ [ 0, 1). Each modality 𝑚 in sample 
+
+𝑖 is independently retained with probability 1 − 𝑟 sh and dropped with probability 𝑟 sh :
+
+Pr (𝑒 (𝑚 ) 
+
+> 𝑖
+
+= 1) = 1 − 𝑟 sh , Pr (𝑒 (𝑚 ) 
+
+> 𝑖
+
+= 0) = 𝑟 sh (3) The induced distribution over a masking pattern 𝑒 = {𝑒 (𝑚 ) }𝑀 𝑚 =1 is: 
+
+𝑝 SMR (𝑒 ) =
+
+Î𝑀 𝑚 =1 (1 − 𝑟 sh )𝑒 (𝑚 )
+
+𝑟 1−𝑒 (𝑚 )
+
+> sh
+
+1 − 𝑟 𝑀 
+
+> sh
+
+(4) where the denominator excludes the all-missing case. Under this regime, the empirical missing ratios ˆ𝑟 𝑚 = 1
+
+> 𝑁
+
+Í𝑁 𝑖 =1 (1 − 𝑒 (𝑚 ) 
+
+> 𝑖
+
+) con-centrate around 𝑟 sh as 𝑁 grows, ensuring that all modalities are statistically symmetric and any observed differences arise from random fluctuation rather than systematic imbalance. 
+
+Imbalanced Missing Rate (IMR) In realistic scenarios, different modalities have heterogeneous missing probabilities 𝑟 𝑚 ≠ 𝑟 𝑚 ′ .MissBench models this by assigning each modality its own missing ratio 𝑟 𝑚 ∈ [ 0, 1) and defining: 
+
+𝑝 IMR (𝑒 ) =
+
+Î𝑀 𝑚 =1 (1 − 𝑟 𝑚 )𝑒 (𝑚 )
+
+𝑟 1−𝑒 (𝑚 )
+
+> 𝑚
+
+1 − Î𝑀 𝑚 =1 𝑟 𝑚 
+
+(5) Compared with a mean-matched SMR distribution, 𝑝 IMR concen-trates probability mass on patterns that retain low-𝑟 𝑚 modalities while dropping high-𝑟 𝑚 ones, creating systematic exposure imbal-ance across modalities. The degree of imbalance can be quantified by a divergence: ΔIMR = D  𝑝 IMR (𝑒 ) ∥ 𝑝 SMR (𝑒 ), where D can be, for example, KL or Jensen–Shannon divergence. Larger ΔIMR indi-cates stronger modality heterogeneity and a more biased sampling of multimodal patterns. 
+
+## 3.3 Metrics for Modality Equity and Optimization 
+
+Given a multimodal model F𝜃 trained under a masking protocol (SMR or IMR), MissBench evaluates not only task performance but also the equity of modality contributions and the balance of optimization dynamics. We formalize F𝜃 as consisting of M mod-ules {𝑓 𝜃 1 , . . . , 𝑓 𝜃 M }, where each module 𝑓 𝜃 𝑖 typically corresponds to a modality encoder or a shared fusion component. We introduce two diagnostic metrics: the Modality Equity Index (MEI) and the 
+
+Modality Learning Index (MLI) .
+
+3.3.1 Modality Equity Index (MEI). It measures how evenly differ-ent modalities contribute to predictive performance by evaluating model behavior across all possible missing-modality configurations. To compute MEI, we evaluate the trained model on the uncor-rupted test dataset S under synthetic missing-modality patterns. For each modality 𝑚 , let C𝑚 denote the set of all modality com-binations in which 𝑚 is unavailable, with |C 𝑚 | = 2𝑀 −1 − 1. For a specific combination ˆ𝑐 ∈ C 𝑚 , we construct a synthetic test set Sˆ𝑐 
+
+by replacing features of modalities not in ˆ𝑐 with zero vectors ®0. Let 
+
+Perf ˆ𝑐 be the task-specific performance score of F𝜃 on Sˆ𝑐 .We first measure the performance fluctuation associated with modality 𝑚 across all combinations in C𝑚 :
+
+s𝑚 = {Perf full − Perf ˆ𝑐 : ˆ 𝑐 ∈ C 𝑚 } (6) where s𝑚 ∈ R| C 𝑚 | captures the performance drop when 𝑚 is re-moved in each combination. The contribution of modality 𝑚 is characterized by the mean 𝜇 𝑚 = E[s𝑚 ] and standard deviation 
+
+𝜎 𝑚 =√︁ Var (s𝑚 ).We then normalize the contribution as: 
+
+𝜍 𝑚 = 𝜇 𝑚 
+
+𝜎 𝑚 + 𝜀 (7) where 𝜀 > 0 ensures numerical stability. This normalization yields a signal-to-noise ratio: modalities with consistent, large performance drops have high |𝜍 𝑚 |, while those with noisy or small drops have low |𝜍 𝑚 |.To construct a probability distribution over modality contribu-tions, we define: 
+
+𝑝 𝑚 = |𝜍 𝑚 |
+
+Í𝑀 𝑚 ′=1 |𝜍 𝑚 ′ | + 𝜀 , 𝑚 = 1, . . . , 𝑀 (8) and let pMEI = [𝑝 1, 𝑝 2, . . . , 𝑝 𝑀 ] represent the normalized contri-bution distribution. Here, we use the magnitude |𝜍 𝑚 | to capture the strength of modality 𝑚 ’s contribution regardless of sign, as large absolute values indicate strong impact (beneficial if 𝜍 𝑚 > 0,detrimental if 𝜍 𝑚 < 0). MissBench: Benchmarking Multimodal Affective Analysis under Imbalanced Missing Modalities Conference acronym ’XX, June 03–05, 2018, Woodstock, NY 
+
+Finally, MEI is defined as: 
+
+MEI = log 𝑀 − 𝐻 2 (pMEI )
+
+log 𝑀 (9) where 𝐻 2 (p) = − log Í𝑀 𝑚 =1 𝑝 2 
+
+> 𝑚
+
+is the Rényi entropy of order 2. MEI ranges from 0 (one modality dominates) to 1 (perfectly balanced contribution). High MEI indicates that all modalities contribute evenly, while low MEI signals that one or a few modalities dominate task performance. 
+
+3.3.2 Modality Learning Index (MLI). MLI quantifies optimization imbalance by comparing gradient magnitudes across modalities during training. Let L (𝑡 ) = 1
+
+> 𝑁
+
+Í𝑁 𝑖 =1 ℓ (𝑡 ) 
+
+> 𝑖
+
+be the task loss at iteration 𝑡 . We define the modality-specific loss for modality 𝑚 as the average loss over samples in which 𝑚 is available: 
+
+L (𝑡 ) 
+
+> 𝑚
+
+=
+
+Í𝑁 𝑖 =1 𝑒 (𝑚 ) 
+
+> 𝑖
+
+ℓ (𝑡 )
+
+> 𝑖
+
+Í𝑁 𝑖 =1 𝑒 (𝑚 )
+
+> 𝑖
+
+(10) where 𝑒 (𝑚 ) 
+
+> 𝑖
+
+∈ { 0, 1} indicates whether modality 𝑚 is observed in sample 𝑖 . For each module 𝑓 𝜃 𝑘 , we compute its modality-specific gradient vector at step 𝑡 via: 
+
+g𝑚 𝜃 𝑘 (𝑡 ) = 𝜕 L (𝑡 )
+
+> 𝑚
+
+𝜕𝜃 𝑘 
+
+(11) The optimization magnitude for modality 𝑚 is then estimated by averaging gradient norms across all M modules: 
+
+G𝑚 (𝑡 ) = 1
+
+M
+
+> M
+
+∑︁ 
+
+> 𝑘 =1
+
+∥g𝑚 𝜃 𝑘 (𝑡 )∥ 2 (12) This aggregation provides a holistic view of how strongly modality 
+
+𝑚 drives parameter updates across the entire model. We define the temporal gradient variation of modality 𝑚 at train-ing step 𝑡 as: 
+
+𝛿 𝑚 (𝑡 ) = |G𝑚 (𝑡 ) − G𝑚 (𝑡 − 1)| , 𝑡 = 2, . . . ,𝑇 (13) which quantifies the change in the magnitude of the uni-modal gradient between consecutive iterations. 𝑇 denotes the total number of training iterations, and 𝛿 𝑚 (𝑡 ) is defined from the second iteration onward. To capture the overall update behavior across modalities, we further compute the cross-modal variation: 
+
+¯𝛿 (𝑡 ) = 1
+
+𝑀 
+
+> 𝑀
+
+∑︁ 
+
+> 𝑚 =1
+
+𝛿 𝑚 (𝑡 ) (14) Finally, our metric MLI is formulated as: 
+
+MLI = 1max 𝑡 ¯𝛿 (𝑡 )( 𝑇 − 1)𝑀 
+
+> 𝑇
+
+∑︁ 
+
+> 𝑡 =2
+> 𝑀
+
+∑︁ 
+
+> 𝑚 =1
+
+| ¯𝛿 (𝑡 ) − 𝛿 𝑚 (𝑡 )| 
+
+! 1
+
+> 𝑀
+
+(15) Overall, MLI measures the extent to which individual modalities deviate from the shared update dynamics throughout training. 
+
+MLI ∈ [ 0, 1], where lower values indicate more consistent and balanced temporal updates across modalities, whilst higher values reflect heterogeneous update stability, suggesting asynchronous optimization during learning. 
+
+## 3.4 Benchmark Pipeline and Model Plugin 
+
+MissBench provides a unified pipeline that applies missingness protocols, trains models, and evaluates arbitrary methods through a simple plugin interface, ensuring fair comparison under identical masking, training, and evaluation conditions. 
+
+Overall pipeline. Given a clean dataset D, MissBench first ap-plies a chosen missingness protocol (SMR or IMR) to generate the corrupted dataset ˜D = {( ˜𝑥 𝑖 , 𝑦 𝑖 )} 𝑁 𝑖 =1 together with binary masks 𝑒 𝑖 
+
+that indicate which modalities remain observed in each sample. During training, the benchmark repeatedly samples mini-batches 
+
+{( ˜𝑥 𝑖 , 𝑒 𝑖 , 𝑦 𝑖 )} , feeds them to a user-specified model plugin F𝜃 , and optimizes the total objective. The pipeline supports flexible op-timization by aggregating the task loss (MER or MSA) with any model-specific auxiliary losses returned by the plugin. At evalua-tion time, task metrics are computed on held-out data, and MEI and MLI are derived from logged performance and gradient statistics. 
+
+Model plugin interface. To integrate a new method, users im-plement a model plugin that exposes two functions: forward and 
+
+get_loss . The forward function takes a batch of incomplete in-puts and masks as input, and returns predictions and intermediate representations: 
+
+ˆ𝑦, 𝑧 = F𝜃 ( ˜𝑥, 𝑒 ) (16) where 𝑧 denotes optional auxiliary outputs and 𝑒 allows the model to identify missing modalities without accessing ground-truth full features. The get_loss function then consumes these outputs to compute auxiliary objectives, allowing the benchmark to support complex multi-task learning frameworks. By offloading diagnos-tics to external MLI and MEI modules, we eliminate the need for complex internal hooks within the model. 
+
+Standardized training and logging. All methods are trained un-der the same optimization budget: identical batch size, optimizer, number of epochs, and early-stopping criterion. This ensures that differences in results arise from modeling choices rather than hy-perparameter tuning advantages. During training, MissBench logs per-epoch task metrics, modality-wise performance on validation data, and uses the MLI evaluator to track the fluctuation of gradient norms for each modality. These logs enable the computation of MLI over the training trajectory. Complementing this, MEI is evaluated through a separate ablation inference loop on the valid and test set, and these metrics jointly provide a consistent diagnostic view of how each model behaves under SMR and IMR protocols. 
+
+## 4 MissBench Empirical Analysis 4.1 Experimental Setup 
+
+We evaluate MissBench on four multimodal affective datasets (IEMO-CAP [ 2 ], CMU-MOSI [ 34 ], CMU-MOSEI [ 35 ], CH-SIMS [ 33 ]) with language, acoustic, and visual modalities, following the standard MER/MSA protocols and official splits when available. Compared methods cover three families: (i) IMR-aware approaches (RedCore [25 ], MCE [ 38 ]), (ii) missing-modality handling models (MMIN [ 40 ], GCNet [ 10 ], SDR-GNN [ 6 ], Mi-CGA [ 19 ]), and (iii) gradient-based or generic baselines (Ada2I [20], OGM-GE [21], naive fusion). We evaluate all methods under identical training budgets (op-timizer, batch size, number of epochs) and report results for both SMR and IMR masking protocols with fixed random seeds to ensure Conference acronym ’XX, June 03–05, 2018, Woodstock, NY Pham et al. 
+
+Table 2: MEI UA /MLI(%) of representatives from each method-family. 
+
+Method Setting IEMOCAP CMU-MOSI 0.3 / (0.1,0.2,0.6) 0.5 / (0.2,0.5,0.8) 0.7 / (0.4,0.8,0.9) 0.3 / (0.1,0.2,0.6) 0.5 / (0.2,0.5,0.8) 0.7 / (0.4,0.8,0.9) MEI 𝑈 𝐴 MLI MEI 𝑈 𝐴 MLI MEI 𝑈 𝐴 MLI MEI 𝑈 𝐴 MLI MEI 𝑈 𝐴 MLI MEI 𝑈 𝐴 MLI GCNet SMR 8.21 ±5.40 31 .56 ±3.08 11 .41 ±8.31 38 .83 ±6.99 20 .57 ±17 .78 41 .15 ±6.45 79 .67 ±14 .41 34 .77 ±7.29 76 .67 ±7.15 43 .12 ±8.51 48 .75 ±30 .61 62 .42 ±5.19 
+
+IMR 7.33 ±2.48 32 .89 ±3.55 30 .71 ±34 .82 42 .52 ±8.69 25 .06 ±28 .70 41 .97 ±4.62 70 .83 ±10 .94 41 .06 ±9.81 71 .24 ±18 .21 55 .85 ±10 .38 79 .90 ±15 .55 58 .02 ±9.19 
+
+RedCore SMR 5.92 ±2.71 34 .77 ±7.29 13 .45 ±8.89 44 .03 ±2.64 11 .48 ±10 .00 43 .12 ±8.51 88 .08 ±2.50 34 .28 ±2.56 85 .04 ±3.57 41 .76 ±5.30 83 .57 ±8.65 49 .20 ±5.40 
+
+IMR 7.06 ±1.73 41 .06 ±9.81 8.39 ±10 .67 46 .81 ±4.34 5.63 ±2.50 55 .85 ±10 .38 86 .85 ±2.03 40 .39 ±5.54 87 .16 ±2.13 40 .86 ±7.70 80 .58 ±6.82 51 .01 ±2.50 
+
+Ada2I SMR 10 .65 ±6.85 32 .87 ±1.71 6.77 ±7.77 38 .00 ±3.35 10 .21 ±8.54 39 .50 ±5.47 67 .60 ±18 .78 32 .87 ±2.79 60 .40 ±17 .71 38 .85 ±3.91 42 .91 ±22 .21 39 .50 ±5.13 
+
+IMR 10 .58 ±12 .20 35 .48 ±3.27 9.68 ±8.71 41 .73 ±6.45 20 .86 ±25 .99 43 .69 ±2.07 40 .47 ±19 .05 35 .48 ±4.47 50 .97 ±36 .04 38 .16 ±4.37 49 .23 ±14 .34 43 .69 ±2.85 
+
+fair and reproducible comparisons. Our empirical study is organized around the following research questions: 
+
+RQ1 (Shared missing rates ). Do existing methods behave as ex-pected under standard shared missing rates (SMR), in terms of both task performance and modality/gradient diagnostics? 
+
+RQ2 (Mean-matched IMR ). When the average missing rate re-mains constant, how does moving from SMR to imbalanced missing rates (IMR) affect performance, MEI, and MLI? 
+
+RQ3 (Extreme IMR and trade-offs ). Under more extreme IMR scenarios, how do different method families trade off task accuracy against modality equity (MEI) and optimization balance (MLI)? 
+
+## 4.2 Behavior under Shared Missing Rates (SMR) 
+
+Task-level performance under SMR. We address RQ1 by examining model behavior under shared missing rates (SMR). Figure 4 shows that, across all datasets, task performance degrades smoothly and monotonically as the shared missing ratio increases, confirming that SMR induces a controlled and predictable degradation. IMR-aware models and dedicated missing-modality handlers consistently out-perform naive fusion and generic baselines, with more pronounced gains at moderate to high missing ratios (0.3–0.7).However, similar task-level trends may arise from fundamentally different modality usage patterns, which cannot be distinguished by accuracy alone. 
+
+MEI and MLI under SMR. Table 2 reveals substantial dataset-dependent differences in modality equity and optimization balance under SMR. On IEMOCAP, all models exhibit low MEI UA (mostly below 25 ) together with relatively high MLI values, indicating pro-nounced modality and optimization imbalance even under symmet-ric missing patterns. In contrast, on CMU-MOSI, the same models achieve much higher MEI UA (typically 70 –90 ) with more moderate MLI, suggesting more balanced modality exploitation. Overall, while SMR provides a stable baseline with smooth task degradation, modality equity and learning balance vary substan-tially across datasets. Notably, IEMOCAP already exhibits strong imbalance under SMR, motivating the more challenging IMR set-tings examined next. 
+
+## 4.3 Mean-matched SMR vs IMR 
+
+Mean-matched protocol. To isolate the effect of imbalance from overall missing severity, we construct SMR–IMR pairs with matched expected missing ratios. Under SMR with rate 𝑟 sh , the expected number of missing modalities per sample is 𝑀𝑟 sh , whereas under IMR with modality-specific rates r = (𝑟 1, . . . , 𝑟 𝑀 ) it is Í𝑀 𝑚 =1 𝑟 𝑚 . We 0.0 0.1 0.2 0.3 0.4 0.5 0.6 0.7                             
+
+> 45
+> 50
+> 55
+> 60
+> 65
+> 70
+> 75
+> 80
+> WA (%)
+> (a) IEMOCAP
+> 0.0 0.1 0.2 0.3 0.4 0.5 0.6 0.7
+> 40
+> 45
+> 50
+> 55
+> 60
+> 65
+> 70
+> 75
+> 80
+> Acc-2 (%)
+> (b) CMU-MOSI
+> 0.0 0.1 0.2 0.3 0.4 0.5 0.6 0.7
+> Missing Ratio
+> 65.0
+> 67.5
+> 70.0
+> 72.5
+> 75.0
+> 77.5
+> 80.0
+> 82.5
+> 85.0
+> Acc-2 (%)
+> (c) CMU-MOSEI
+> 0.0 0.1 0.2 0.3 0.4 0.5 0.6 0.7
+> Missing Ratio
+> 55
+> 60
+> 65
+> 70
+> 75
+> 80
+> 85
+> Acc-2 (%)
+> (d) CH-SIMS
+> GCNet MMIN SDR-GNN RedCore MCE Ada2I OGM-GE Naive
+
+Figure 4: Performance of multimodal methods under shared missing rates (SMR) on IEMOCAP (WA) and CMU-MOSI/MOSEI/CH-SIMS (Acc-2). IMR-aware methods are shown in red, missing-modality handling models in blue, and gradient-based or generic baselines in green. 
+
+define the mean-matched condition as: 
+
+𝑀𝑟 sh ≈
+
+𝑀 ∑︁ 
+
+𝑚 =1
+
+𝑟 𝑚 . (17) Under this constraint, SMR and IMR exhibit comparable overall missingness, and observed differences can be attributed to imbal-ance in modality exposure rather than total missing data. We instantiate three mean-matched pairs corresponding to low ,
+
+medium , and high missing regimes with 𝑟 sh ∈ { 0.3, 0.5, 0.7}. Each SMR setting is paired with an IMR configuration whose (𝑟 𝐴 , 𝑟 𝑉 , 𝑟 𝐿 )
+
+values approximate the same average missing ratio. We assign higher missing rates to language to reflect its dominant role in many multimodal affective models; however, this choice is illustrative, and MissBench supports arbitrary SMR/IMR configurations and modality orderings. 
+
+Task performance under mean-matched SMR vs. IMR. On CMU-MOSI (Table 3), moving from SMR to mean-matched IMR con-sistently degrades task performance across all method families. For missing-modality handlers such as MMIN and GCNet, Acc-2 drops by approximately 3–10 points at the same mean missing level, accompanied by higher MAE and lower correlation across low, medium, and high regimes. IMR-aware methods also incur MissBench: Benchmarking Multimodal Affective Analysis under Imbalanced Missing Modalities Conference acronym ’XX, June 03–05, 2018, Woodstock, NY 
+
+Table 3: Task performance on CMU-MOSI under SMR and mean-matched IMR across low, medium, and high missing regimes. For IMR, modality-specific rates follow the order (𝑟 𝐴 , 𝑟 𝑉 , 𝑟 𝐿 ).
+
+Method Setting 0.3 / (0.1, 0.2, 0.6) 0.5 / (0.2, 0.5, 0.8) 0.7 / (0.4, 0.8, 0.9) Acc-2( ↑) MAE( ↓) Corr( ↑) Acc-2( ↑) MAE( ↓) Corr( ↑) Acc-2( ↑) MAE( ↓) Corr( ↑)MMIN SMR 67 .20 ±1.48 1.180 ±0.085 0.543 ±0.025 63 .57 ±2.82 1.249 ±0.008 0.472 ±0.015 55 .09 ±6.66 1.374 ±0.064 0.331 ±0.092 
+
+IMR 61 .80 ±1.43 1.288 ±0.017 0.425 ±0.020 55 .61 ±3.86 1.398 ±0.042 0.305 ±0.064 52 .59 ±4.11 1.425 ±0.027 0.293 ±0.027 
+
+GCNet SMR 67 .59 ±1.60 1.227 ±0.025 0.453 ±0.014 65 .15 ±2.77 1.283 ±0.057 0.428 ±0.020 60 .79 ±4.01 1.387 ±0.043 0.284 ±0.070 
+
+IMR 64 .33 ±3.04 1.316 ±0.055 0.346 ±0.073 55 .58 ±3.78 1.436 ±0.043 0.167 ±0.066 55 .95 ±4.01 1.425 ±0.058 0.208 ±0.043 
+
+RedCore SMR 68 .75 ±1.59 1.188 ±0.032 0.509 ±0.013 65 .21 ±1.73 1.256 ±0.008 0.433 ±0.023 61 .43 ±2.70 1.347 ±0.047 0.352 ±0.047 
+
+IMR 62 .87 ±2.14 1.307 ±0.029 0.393 ±0.033 59 .48 ±2.09 1.372 ±0.022 0.323 ±0.029 54 .60 ±5.43 1.424 ±0.038 0.258 ±0.117 
+
+MCE SMR 69 .97 ±2.29 1.146 ±0.041 0.547 ±0.015 65 .79 ±2.60 1.230 ±0.028 0.467 ±0.015 57 .44 ±2.06 1.357 ±0.037 0.367 ±0.037 
+
+IMR 63 .35 ±1.49 1.300 ±0.029 0.413 ±0.021 58 .05 ±1.23 1.381 ±0.017 0.323 ±0.034 57 .96 ±1.49 1.367 ±0.015 0.335 ±0.014 
+
+Ada2I SMR 70 .40 ±1.65 1.380 ±0.097 0.494 ±0.027 63 .87 ±4.92 1.387 ±0.097 0.362 ±0.091 54 .54 ±4.07 1.472 ±0.065 0.158 ±0.089 
+
+IMR 57 .47 ±3.24 1.494 ±0.106 0.234 ±0.093 55 .12 ±2.87 1.452 ±0.042 0.174 ±0.071 52 .10 ±3.94 1.552 ±0.080 0.134 ±0.072 
+
+OGM-GE SMR 68 .24 ±1.80 1.234 ±0.026 0.450 ±0.030 62 .02 ±1.56 1.315 ±0.029 0.360 ±0.043 52 .67 ±5.31 1.444 ±0.042 0.144 ±0.099 
+
+IMR 59 .76 ±3.13 1.375 ±0.050 0.278 ±0.073 53 .38 ±2.73 1.453 ±0.031 0.138 ±0.077 51 .98 ±3.65 1.468 ±0.036 0.119 ±0.052 
+
+Table 4: Task performance on IEMOCAP under SMR and mean-matched IMR across low, medium, and high missing regimes. IMR configurations are reported using the modality order (𝑟 𝐴 , 𝑟 𝑉 , 𝑟 𝐿 ).
+
+Method Setting 0.3 / (0.1, 0.2, 0.6) 0.5 / (0.2, 0.5, 0.8) 0.7 / (0.4, 0.8, 0.9) WA F1 WA F1 WA F1 MMIN SMR 63 .98 ±1.90 64 .30 ±1.88 55 .10 ±2.60 55 .36 ±2.67 49 .43 ±1.96 49 .51 ±1.94 
+
+IMR 61 .00 ±2.53 61 .19 ±2.57 55 .55 ±1.95 55 .91 ±1.91 50 .25 ±1.72 50 .18 ±2.03 
+
+GCNet SMR 76 .07 ±2.06 76 .23 ±1.95 75 .33 ±2.04 75 .49 ±1.99 73 .52 ±2.95 73 .54 ±2.89 
+
+IMR 73 .70 ±3.58 73 .96 ±3.26 65 .21 ±4.47 65 .35 ±4.67 65 .61 ±3.70 66 .09 ±3.69 
+
+RedCore SMR 64 .90 ±0.88 65 .15 ±0.92 58 .58 ±1.69 58 .82 ±1.66 51 .36 ±1.30 51 .71 ±1.28 
+
+IMR 62 .69 ±2.17 62 .72 ±2.18 57 .16 ±1.58 57 .34 ±1.60 52 .38 ±1.09 52 .53 ±1.01 
+
+MCE SMR 66 .72 ±1.20 66 .93 ±1.18 60 .87 ±0.44 61 .06 ±0.47 53 .80 ±1.19 53 .97 ±1.16 
+
+IMR 63 .87 ±1.16 63 .98 ±1.16 59 .27 ±1.03 59 .48 ±0.96 54 .44 ±1.38 54 .47 ±1.37 
+
+Ada2I SMR 78 .81 ±1.10 78 .81 ±1.22 75 .86 ±1.95 76 .00 ±1.89 69 .99 ±4.92 70 .26 ±5.11 
+
+IMR 76 .52 ±2.39 76 .67 ±2.31 71 .97 ±2.14 72 .34 ±2.18 71 .94 ±2.22 72 .40 ±2.21 
+
+OGM-GE SMR 74 .34 ±1.76 74 .62 ±1.67 71 .74 ±2.47 71 .85 ±2.25 67 .16 ±2.14 67 .24 ±2.11 
+
+IMR 70 .93 ±3.15 71 .11 ±3.21 63 .35 ±3.89 63 .51 ±3.80 63 .05 ±1.62 63 .72 ±1.52 
+
+non-trivial losses. For example, RedCore’s Acc-2 decreases from 
+
+68 .8 to 62 .9 in the low regime and from 61 .4 to 54 .6 in the high regime, with corresponding increases in MAE and decreases in Corr. Generic or gradient-based baselines are the most sensitive. Ada2I’s Acc-2 drops from 70 .4 to 57 .5 under the low setting, and its correla-tion nearly halves from 0.494 to 0.234 , with further degradation at higher missing levels. On IEMOCAP (Table 4), a similar pattern is observed, though with greater variation across methods. GCNet and OGM-GE show substantial WA drops when switching from SMR to IMR, partic-ularly at medium and high missing levels. For instance, GCNet decreases from 75 .3 to 65 .2 at the medium setting and from 73 .5 to 
+
+65 .6 at the high setting. IMR-aware methods such as RedCore and MCE exhibit smaller but consistent degradations at low and medium levels, with partial stabilization at the highest missing ratio. Ada2I experiences relatively mild WA degradation and even a slight im-provement at the highest setting (from 70 .0 to 71 .9), but its absolute 0.0 
+
+> 0.2
+> 0.4
+> 0.6
+> 0.8
+> 1.0
+
+SMR=0.3/IMR=(0.1,0.2,0.6) SMR=0.7/IMR=(0.4,0.8,0.9) 
+
+IMR SMR A V L
+
+(a) Modality contribution pMEI on validation data (by epoch) 0.0 
+
+> 0.2
+> 0.4
+
+SMR=0.3 0.0 
+
+> 0.1
+> 0.2
+
+IMR=(0.1,0.2,0.6) 
+
+> 0.0
+> 0.2
+> 0.4
+
+SMR=0.7 0.0 
+
+> 0.1
+> 0.2
+
+IMR=(0.4,0.8,0.9) 
+
+A V L
+
+(b) Unimodal temporal gradient variation 𝛿 𝑚 (𝑡 ) from MLI (by step) 
+
+Figure 5: Statistics of GCNet [ 10 ] during training on IEMO-CAP under different missing configurations. 
+
+performance remains below that of leading missing-modality han-dlers, and its instability on CMU-MOSI indicates limited robustness across tasks. 
+
+Bimodal analysis under mean-matched IMR. Table 5 reports bi-modal results under mean-matched SMR and IMR settings. Across all modality pairs, moving from SMR to IMR consistently increases MLI and amplifies modality imbalance, even when task-level per-formance changes are modest. This effect is particularly evident in settings with reduced redundancy. For example, in the AV configu-ration, GCNet’s MEI UA rises sharply under IMR at higher missing Conference acronym ’XX, June 03–05, 2018, Woodstock, NY Pham et al. 
+
+Table 5: Performance comparison under different bimodal combinations (A: Audio, V: Visual, L: Language) and missing-rate settings, including Shared Missing Rate (SMR) and Imbalanced Missing Rate (IMR). 
+
+Method Setting (AV) 0.1 / (0.1, 0.1) 0.3 / (0.1, 0.5) 0.5 / (0.6, 0.4) WA F1 MEI UA MLI WA F1 MEI UA MLI WA F1 MEI UA MLI GCNet SMR 68 .07 ±3.55 68 .57 ±3.43 38 .45 ±16 .94 13 .20 ±3.21 64 .88 ±3.01 65 .17 ±3.30 52 .18 ±34 .67 15 .87 ±4.57 64 .56 ±3.08 65 .11 ±2.70 41 .05 ±32 .08 18 .19 ±5.21 
+
+IMR 68 .99 ±3.54 69 .35 ±3.47 32 .71 ±14 .74 11 .27 ±3.69 66 .24 ±1.79 66 .69 ±1.56 64 .24 ±19 .16 12 .15 ±3.38 65 .00 ±3.53 65 .41 ±3.27 77 .01 ±9.12 16 .99 ±4.04 
+
+RedCore SMR 60 .35 ±1.47 60 .60 ±1.32 10 .42 ±6.40 15 .73 ±1.34 54 .68 ±0.73 54 .79 ±0.74 3.60 ±4.78 22 .50 ±1.53 48 .62 ±2.04 47 .33 ±3.74 2.77 ±3.59 28 .95 ±3.57 
+
+IMR 58 .03 ±2.02 58 .32 ±1.91 5.24 ±5.12 14 .86 ±2.40 54 .18 ±1.13 54 .22 ±1.29 9.78 ±9.00 22 .03 ±2.13 48 .88 ±1.66 48 .07 ±2.54 15 .30 ±9.15 26 .20 ±1.34 
+
+Ada2I SMR 72 .07 ±1.00 72 .01 ±1.08 17 .45 ±1.54 19 .69 ±4.27 71 .39 ±1.39 71 .44 ±1.41 17 .05 ±4.25 27 .07 ±5.26 71 .75 ±1.84 71 .78 ±1.77 22 .02 ±7.26 32 .42 ±6.46 
+
+IMR 71 .80 ±1.21 71 .65 ±1.45 19 .08 ±3.66 16 .95 ±3.35 72 .38 ±0.58 72 .56 ±0.48 20 .76 ±1.77 23 .88 ±3.96 67 .83 ±3.23 67 .89 ±3.19 14 .69 ±7.76 24 .53 ±2.70 
+
+Method Setting (AL) 0.1 / (0.1, 0.1) 0.3 / (0.4, 0.2) 0.5 / (0.3, 0.7) WA F1 MEI UA MLI WA F1 MEI UA MLI WA F1 MEI UA MLI GCNet SMR 73 .44 ±2.82 73 .83 ±2.58 11 .24 ±6.63 11 .31 ±1.23 70 .09 ±8.31 70 .06 ±8.87 24 .74 ±9.21 16 .15 ±2.44 73 .55 ±1.04 73 .71 ±1.02 40 .32 ±30 .70 18 .23 ±3.06 
+
+IMR 75 .34 ±2.28 75 .51 ±2.25 9.51 ±6.44 13 .22 ±3.37 73 .84 ±5.17 73 .97 ±4.88 25 .97 ±20 .36 18 .00 ±1.37 66 .48 ±8.18 65 .68 ±10 .43 20 .88 ±22 .84 18 .13 ±5.53 
+
+RedCore SMR 62 .35 ±1.50 62 .37 ±1.55 68 .35 ±17 .09 15 .12 ±2.22 56 .86 ±0.71 56 .76 ±0.77 66 .52 ±11 .27 20 .85 ±2.38 48 .99 ±4.45 48 .41 ±5.02 53 .33 ±37 .97 23 .37 ±4.38 
+
+IMR 62 .71 ±0.71 62 .75 ±0.69 60 .44 ±13 .37 14 .76 ±2.15 58 .63 ±2.55 58 .46 ±2.81 61 .94 ±13 .93 20 .40 ±3.49 46 .58 ±2.85 44 .85 ±3.76 60 .46 ±19 .69 24 .21 ±1.79 
+
+Ada2I SMR 79 .85 ±1.37 80 .08 ±1.32 6.78 ±5.18 13 .94 ±1.75 75 .95 ±3.15 76 .15 ±3.18 7.98 ±6.37 18 .13 ±1.79 75 .21 ±0.71 75 .41 ±0.59 12 .41 ±6.55 25 .63 ±4.16 
+
+IMR 79 .05 ±2.07 79 .31 ±1.97 8.75 ±6.92 13 .17 ±1.79 75 .62 ±5.14 75 .83 ±5.17 5.09 ±3.85 20 .02 ±2.65 73 .02 ±5.95 73 .24 ±5.96 6.58 ±4.48 28 .12 ±4.95 
+
+Method Setting (VL) 0.1 / (0.1, 0.1) 0.3 / (0.1, 0.5) 0.5 / (0.2, 0.8) WA F1 MEI UA MLI WA F1 MEI UA MLI WA F1 MEI UA MLI GCNet SMR 77 .82 ±0.81 77 .75 ±0.75 43 .86 ±19 .16 11 .00 ±1.87 77 .94 ±1.61 77 .86 ±1.53 75 .00 ±17 .23 17 .20 ±3.21 75 .04 ±2.19 74 .77 ±2.08 80 .74 ±12 .41 20 .08 ±2.67 
+
+IMR 77 .97 ±1.37 77 .75 ±1.59 61 .14 ±23 .80 13 .20 ±1.88 72 .51 ±5.51 71 .68 ±5.68 43 .98 ±26 .49 14 .96 ±2.87 67 .69 ±4.01 67 .10 ±4.02 53 .37 ±31 .76 23 .54 ±4.26 
+
+RedCore SMR 65 .62 ±0.53 65 .70 ±0.98 51 .91 ±11 .02 13 .80 ±1.23 57 .50 ±1.91 56 .75 ±2.63 36 .30 ±14 .96 22 .57 ±3.48 53 .36 ±1.89 52 .69 ±2.06 41 .69 ±13 .55 29 .94 ±2.66 
+
+IMR 65 .62 ±1.22 65 .64 ±1.32 43 .47 ±17 .53 13 .85 ±1.49 57 .37 ±1.24 57 .16 ±1.14 42 .26 ±23 .39 23 .48 ±2.42 50 .07 ±0.94 47 .05 ±3.15 23 .98 ±12 .20 29 .57 ±3.66 
+
+Ada2I SMR 77 .55 ±2.75 77 .39 ±2.83 28 .55 ±14 .56 12 .85 ±1.46 76 .36 ±2.15 76 .21 ±2.23 40 .57 ±28 .42 19 .88 ±2.47 73 .30 ±1.04 73 .18 ±1.12 39 .72 ±11 .41 22 .49 ±3.72 
+
+IMR 77 .76 ±2.56 77 .60 ±2.70 42 .70 ±32 .25 14 .30 ±1.75 73 .60 ±3.18 73 .35 ±3.37 30 .68 ±16 .59 20 .03 ±3.31 68 .36 ±4.29 67 .80 ±4.36 13 .87 ±13 .41 22 .94 ±4.32 0 10 20 30 40 50 
+
+MEI UA (%) 
+
+35 
+
+40 
+
+45 
+
+50 
+
+55 
+
+60 
+
+65 
+
+70 
+
+> MLI(%)
+
+GCNet 
+
+Ada2I 
+
+RedCore 
+
+MCE 
+
+SDR-GNN 
+
+MMIN 
+
+OGM-GE 
+
+Naive 
+
+IMR-aware 
+
+Missing-modality 
+
+Gradient-based/Generic 
+
+W-F1=43.7 W-F1=50.7 W-F1=67.4 
+
+Figure 6: Performance of baselines on IEMOCAP under ex-treme IMR=(0.4,0.8,0.9). 
+
+levels (e.g., from 41 .05 to 77 .01 at 0.5), indicating strong dominance of the less-missing modality alongside elevated MLI. 
+
+MEI and MLI under mean-matched settings. Building on the SMR analysis, we examine how modality equity and learning dynamics change under mean-matched IMR ( RQ2 ). Across datasets, IMR consistently worsens modality-level behavior compared to SMR at the same mean missing level. On IEMOCAP, all representative methods (GCNet, RedCore, and Ada2I) exhibit markedly higher MLI under IMR. For example, RedCore’s MLI increases from 34 .8
+
+to 43 .1 under SMR and from 41 .1 to 55 .9 under IMR when moving from low to high missing regimes (Table 2). On CMU-MOSI, GCNet and RedCore retain relatively high MEI UA under IMR, yet their MLI still rises substantially, while Ada2I shows unstable MEI UA together with steadily increasing MLI, indicating compounded imbalance in both contribution and optimization. Figure 5 provides a mechanistic illustration of these effects using GCNet on IEMOCAP. Under SMR, modality contribution trajecto-ries remain stable across epochs, whereas IMR induces pronounced shifts during training, with modalities experiencing lower missing rates becoming increasingly dominant. This behavior is accom-panied by higher temporal gradient volatility and reduced cross-modality similarity, explaining the elevated MLI values observed under IMR. Consistent trends are also observed in the bimodal setting (Table 5), where reduced modality redundancy further am-plifies IMR-induced imbalance. 
+
+## 4.4 Beyond Mean-matched: Extreme IMR and Method Trade-offs 
+
+To address RQ3 , we move beyond mean-matched settings and examine model behavior under an extreme IMR configuration 
+
+(𝑟 𝐴 , 𝑟 𝑉 , 𝑟 𝐿 ) = (0.4, 0.8, 0.9).
+
+Extreme IMR exposes distinct equity–stability trade-offs. Under this setting, different method families occupy clearly separated regions in the MEI–MLI plane on IEMOCAP (Figure 6). IMR-aware methods achieve relatively high MEI but incur noticeably higher MLI, while MissBench: Benchmarking Multimodal Affective Analysis under Imbalanced Missing Modalities Conference acronym ’XX, June 03–05, 2018, Woodstock, NY 
+
+missing-modality handling models cluster in an intermediate region. Gradient-based or generic baselines exhibit divergent behaviors, either reducing MLI at the expense of low MEI or maintaining moderate equity without competitive performance. 
+
+Training-time diagnostics reveal language-locking. Training-time analysis on IEMOCAP and CMU-MOSI shows that moving from SMR to IMR progressively shifts contribution trajectories toward the language modality. For GCNet (Figure 5), language dominates 
+
+𝑝 MEI and exhibits the largest temporal gradient variation, even when its missing rate is only moderately lower than the others. Similar trends are observed for RedCore and Ada2I across both datasets (Figures 10-11, reported in Appendix). These patterns indicate a 
+
+language-locking failure mode under severe imbalance. 
+
+Failure modes beyond mean-matched IMR. Combined with the mean-matched results and the IMR sweep results reported in Ta-bles 9-10 and Figure 8 ( Appendix ), extreme IMR reveals a distinct trade-off that does not surface under milder imbalance. Methods that appear well-behaved under SMR or mean-matched IMR can shift to markedly different regions of the MEI-MLI plane as imbal-ance intensifies or the dominant modality changes. These obser-vations answer RQ3 by exposing failure modes, such as language locking and severe gradient dominance, that remain invisible to task-level evaluation under symmetric missing rates. 
+
+## 5 Conclusion 
+
+We presented MissBench, a benchmark and framework for multi-modal affective computing that standardizes shared and imbalanced missing-rate protocols on four popular datasets. By introducing the Modality Equity Index (MEI) and Modality Learning Index (MLI), MissBench complements accuracy-based evaluation with modality-and optimization-level diagnostics. Our experiments show that models can look robust under shared missing rates yet still suffer from modality inequity and gradient dominance under imbalanced conditions, even at matched mean missing ratios. MissBench thus offers a practical tool for stress-testing multimodal affective mod-els in realistic incomplete-modality settings and motivates future methods that jointly optimize task performance, modality equity, and balanced learning dynamics. 
+
+## References 
+
+[1] Tadas Baltrusaitis, Amir Zadeh, Yao Chong Lim, and Louis-Philippe Morency. 2018. OpenFace 2.0: Facial Behavior Analysis Toolkit. In 2018 13th IEEE Interna-tional Conference on Automatic Face & Gesture Recognition (FG 2018) . IEEE Press, 59–66. [2] Carlos Busso, Murtaza Bulut, Chi-Chun Lee, Abe Kazemzadeh, Emily Mower, Samuel Kim, Jeannette N Chang, Sungbok Lee, and Shrikanth S Narayanan. 2008. IEMOCAP: Interactive emotional dyadic motion capture database. Language resources and evaluation 42 (2008), 335–359. [3] Gilles Degottex, John Kane, Thomas Drugman, Tuomo Raitio, and Stefan Scherer. 2014. COVAREP: A Collaborative Voice Analysis Repository for Speech Tech-nologies. ICASSP .[4] Jacob Devlin, Ming-Wei Chang, Kenton Lee, and Kristina Toutanova. 2019. BERT: Pre-training of Deep Bidirectional Transformers for Language Understanding. In 
+
+Proceedings of the 2019 Conference of the North American Chapter of the Association for Computational Linguistics: Human Language Technologies, Volume 1 (Long and Short Papers) . Association for Computational Linguistics, 4171–4186. [5] Florian Eyben, Martin Wöllmer, and Björn Schuller. 2010. Opensmile: the munich versatile and fast open-source audio feature extractor. In Proceedings of the 18th ACM International Conference on Multimedia (MM ’10) . 1459–1462. [6] Fangze Fu, Wei Ai, Fan Yang, Yuntao Shou, Tao Meng, and Keqin Li. 2024. SDR-GNN: Spectral Domain Reconstruction Graph Neural Network for incomplete multimodal learning in conversational emotion recognition. Knowledge-Based Systems (2024), 112825. [7] Guimin Hu, Yi Xin, Weimin Lyu, Haojian Huang, Chang Sun, Zhihong Zhu, Lin Gui, Ruichu Cai, Erik Cambria, and Hasti Seifi. 2024. Recent trends of multimodal affective computing: A survey from NLP perspective. arXiv preprint arXiv:2409.07388 (2024). [8] Gao Huang, Zhuang Liu, Laurens Van Der Maaten, and Kilian Q Weinberger. 2017. Densely connected convolutional networks. In Proceedings of the IEEE conference on computer vision and pattern recognition . 4700–4708. [9] iMotions. 2017. Facial Expression Analysis. https://imotions.com/products/ imotions-lab/modules/fea-facial-expression-analysis/. Accessed: 2017. [10] Zheng Lian, Lan Chen, Licai Sun, Bin Liu, and Jianhua Tao. 2023. GCNet: Graph Completion Network for Incomplete Multimodal Learning in Conversation. IEEE Transactions on Pattern Analysis and Machine Intelligence (2023). [11] Zheng Lian, Licai Sun, Yong Ren, Hao Gu, Haiyang Sun, Lan Chen, Bin Liu, and Jianhua Tao. 2026. Merbench: A unified evaluation benchmark for multi-modal emotion recognition. IEEE Transactions on Pattern Analysis and Machine Intelligence (2026). [12] Paul Pu Liang, Yiwei Lyu, Xiang Fan, Zetian Wu, Yun Cheng, Jason Wu, Leslie Chen, Peter Wu, Michelle A Lee, Yuke Zhu, et al . 2021. Multibench: Multi-scale benchmarks for multimodal representation learning. Advances in neural information processing systems 2021, DB1 (2021), 1. [13] Paul Pu Liang, Amir Zadeh, and Louis-Philippe Morency. 2024. Foundations & trends in multimodal machine learning: Principles, challenges, and open ques-tions. Comput. Surveys 56, 10 (2024), 1–42. [14] Ronghao Lin and Haifeng Hu. 2024. Adapt and explore: Multimodal mixup for representation learning. Information Fusion 105 (2024), 102216. [15] Ronghao Lin, Honghao Lu, Ruixing Wu, Aolin Xiong, Qinggong Chu, Qiaolin He, Sijie Mai, and Haifeng Hu. 2026. MissMAC-Bench: Building Solid Benchmark for Missing Modality Issue in Robust Multimodal Affective Computing. arXiv preprint arXiv:2602.00811 (2026). [16] Mengmeng Ma, Jian Ren, Long Zhao, Davide Testuggine, and Xi Peng. 2022. Are multimodal transformers robust to missing modality?. In Proceedings of the IEEE/CVF conference on computer vision and pattern recognition . 18177–18186. [17] Mengmeng Ma, Jian Ren, Long Zhao, Sergey Tulyakov, Cathy Wu, and Xi Peng. 2021. Smil: Multimodal learning with severely missing modality. In Proceedings of the AAAI Conference on Artificial Intelligence , Vol. 35. 2302–2310. [18] Brian McFee, Colin Raffel, Dawen Liang, Daniel Ellis, Matt Mcvicar, Eric Batten-berg, and Oriol Nieto. 2015. librosa: Audio and Music Signal Analysis in Python. 18–24. [19] Cam-Van Thi Nguyen, Hai-Dang Kieu, Quang-Thuy Ha, Xuan-Hieu Phan, and Duc-Trong Le. 2025. Mi-CGA: Cross-modal Graph Attention Network for robust emotion recognition in the presence of incomplete modalities. Neurocomputing 
+
+623 (2025), 129342. doi:10.1016/j.neucom.2025.129342 [20] Cam-Van Thi Nguyen, The-Son Le, Anh-Tuan Mai, and Duc-Trong Le. 2024. Ada2I: Enhancing Modality Balance for Multimodal Conversational Emotion Recognition. In Proceedings of the 32nd ACM International Conference on Multi-media . 9330–9339. [21] Xiaokang Peng, Yake Wei, Andong Deng, Dong Wang, and Di Hu. 2022. Balanced multimodal learning via on-the-fly gradient modulation. In Proceedings of the IEEE/CVF conference on computer vision and pattern recognition . 8238–8247. [22] Soujanya Poria, Erik Cambria, Rajiv Bajpai, and Amir Hussain. 2017. A review of affective computing: From unimodal analysis to multimodal fusion. Information fusion 37 (2017), 98–125. [23] Md Kaykobad Reza, Ashley Prater-Bennette, and M Salman Asif. 2024. Robust multimodal learning with missing modalities via parameter-efficient adaptation. 
+
+IEEE Transactions on Pattern Analysis and Machine Intelligence (2024). [24] Junjie Shi, Caozhi Shang, Zhaobin Sun, Li Yu, Xin Yang, and Zengqiang Yan. 2024. Passion: Towards effective incomplete multi-modal medical image segmentation with imbalanced missing rates. In Proceedings of the 32nd ACM International Conference on Multimedia . 456–465. [25] Jun Sun, Xinxin Zhang, Shoukang Han, Yu-Ping Ruan, and Taihao Li. 2024. RedCore: Relative advantage aware cross-modal representation learning for missing modalities with imbalanced missing rates. In Proceedings of the AAAI Conference on Artificial Intelligence , Vol. 38. 15173–15182. [26] Chengye Wang, Yuyuan Li, XiaoHua Feng, Chaochao Chen, Xiaolin Zheng, and Jianwei Yin. 2025. UMU-Bench: Closing the Modality Gap in Multimodal Un-learning Evaluation. In The Thirty-ninth Annual Conference on Neural Information Processing Systems Datasets and Benchmarks Track .[27] Yuanzhi Wang, Yong Li, and Zhen Cui. 2023. Incomplete multimodality-diffused emotion recognition. Advances in Neural Information Processing Systems 36 (2023), 17117–17128. [28] Yunxiao Wang, Meng Liu, Zhe Li, Yupeng Hu, Xin Luo, and Liqiang Nie. 2023. Unlocking the power of multimodal learning for emotion recognition in conver-sation. In Proceedings of the 31st ACM International Conference on Multimedia .5947–5955. [29] Nan Wu, Stanislaw Jastrzebski, Kyunghyun Cho, and Krzysztof J Geras. 2022. Characterizing and overcoming the greedy nature of learning in multi-modal deep neural networks. In International Conference on Machine Learning . PMLR, Conference acronym ’XX, June 03–05, 2018, Woodstock, NY Pham et al.                                 
+
+> 24043–24055. [30] Renjie Wu, Hu Wang, Hsiang-Ting Chen, and Gustavo Carneiro. 2024. Deep mul-timodal learning with missing modality: A survey. arXiv preprint arXiv:2409.07825
+> (2024). [31] Shaoxuan Xu, Menglu Cui, Chengxiang Huang, Hongfa Wang, and Di Hu. 2025. Balancebenchmark: A survey for multimodal imbalance learning. arXiv preprint arXiv:2502.10816 (2025). [32] Wenxin Xu, Hexin Jiang, et al .2024. Leveraging Knowledge of Modality Experts for Incomplete Multimodal Learning. In ACM Multimedia 2024 .[33] Wenmeng Yu, Hua Xu, Fanyang Meng, Yilin Zhu, Yixiao Ma, Jiele Wu, Jiyun Zou, and Kaicheng Yang. 2020. Ch-sims: A chinese multimodal sentiment analysis dataset with fine-grained annotation of modality. In Proceedings of the 58th annual meeting of the association for computational linguistics . 3718–3727. [34] Amir Zadeh, Rowan Zellers, Eli Pincus, and Louis-Philippe Morency. 2016. Mul-timodal Sentiment Intensity Analysis in Videos: Facial Gestures and Verbal Messages. IEEE Intelligent Systems 31 (11 2016), 82–88. [35] AmirAli Bagher Zadeh, Paul Pu Liang, Soujanya Poria, Erik Cambria, and Louis-Philippe Morency. 2018. Multimodal language analysis in the wild: Cmu-mosei dataset and interpretable dynamic fusion graph. In Proceedings of the 56th Annual Meeting of the Association for Computational Linguistics (Volume 1: Long Papers) .2236–2246. [36] Kaipeng Zhang, Zhanpeng Zhang, Zhifeng Li, and Yu Qiao. 2016. Joint face detection and alignment using multitask cascaded convolutional networks. IEEE signal processing letters 23, 10 (2016), 1499–1503. [37] Qingyang Zhang, Yake Wei, Zongbo Han, Huazhu Fu, Xi Peng, Cheng Deng, Qinghua Hu, Cai Xu, Jie Wen, Di Hu, et al .2024. Multimodal fusion on low-quality data: A comprehensive survey. arXiv preprint arXiv:2404.18947 (2024). [38] Binyu Zhao, Wei Zhang, and Zhaonian Zou. 2025. MCE: Towards a General Framework for Handling Missing Modalities under Imbalanced Missing Rates.
+> Pattern Recognition (2025), 112591. [39] Fei Zhao, Chengcui Zhang, and Baocheng Geng. 2024. Deep multimodal data fusion. ACM computing surveys 56, 9 (2024), 1–36. [40] Jinming Zhao, Ruichen Li, and Qin Jin. 2021. Missing modality imagination network for emotion recognition with uncertain missing modalities. In Proceed-ings of the 59th Annual Meeting of the Association for Computational Linguistics .2608–2618.
+
+## Appendices A Benchmark Datasets 
+
+This section provides an overview of the benchmark datasets used in our experiments. We summarize their key characteristics, including modality composition, task settings, and data statistics, to support reproducibility and facilitate interpretation of the experimental results reported in the main paper. 
+
+Table 6: Statistical overview of the MER and MSA datasets. Dataset Dialogues Utterances 
+
+train valid test train valid test 
+
+IEMOCAP 120 31 5810 1623 
+
+CMU-MOSI 52 10 31 1284 229 686 
+
+CMU-MOSEI 2249 300 676 16326 1871 4659 
+
+CH-SIMS 60 59 59 1,368 456 457 
+
+IEMOCAP [2] is a dataset of two-person interactions where actors take part in scripted and improvised conversations to ex-press different emotions. It contains five sessions, each divided into several utterances with categorical emotion labels. Following pre-vious work, we use the common four-class emotion setting. Since the dataset only includes training and test sets, we further split the training data into training and validation sets with a ratio of 𝑟 
+
+(default 0.1). 
+
+CMU-MOSI [ 34 ] & CMU-MOSEI [ 35 ] consist of monologue and movie review video clips annotated with sentiment intensity scores between −3 and 3. Aligning with the sentiment analysis setting, the datasets are trained as a regression task and evaluated using binary sentiment classification by thresholding the scores at zero, where samples with scores below 0 are labeled as negative and those above 0 as positive. The official data splits are adopted in all experiments. 
+
+CH-SIMS [ 33 ] is a Chinese benchmark dataset designed for multimodal sentiment analysis. In contrast to the two datasets men-tioned earlier, it offers both multimodal and unimodal sentiment labels, however, we make use of only the multimodal ones. The dataset contains over 2000 utterance-level video clips spanning a wide range of content such as films, television dramas, and vari-ety programs. Each sample is manually labeled with a continuous sentiment score ranging from −1 (strongly negative) to 1 (strongly positive). 
+
+## B Multimodal Feature Extraction 
+
+For the IEMOCAP dataset, we adopt the feature extraction proce-dures described in [ 40 ] to obtain feature representations for each modality. Specifically, acoustic features are extracted using the openSMILE toolkit [ 5], resulting in 130-dimensional frame-level fea-ture vectors. For the visual modality, we use a pretrained DenseNet [ 8] and extract 342-dimensional sequential representations from video frames. Finally, we employ a pretrained BERT-large model [4 ] to derive 1024-dimensional contextual word embeddings for the textual features. For the CMU-MOSI and CMU-MOSEI datasets, we encode the textual modality with a pretrained BERT model [ 4] and generate 768-dimensional contextual word embeddings. For the visual part, MissBench: Benchmarking Multimodal Affective Analysis under Imbalanced Missing Modalities Conference acronym ’XX, June 03–05, 2018, Woodstock, NY 
+
+we process each video frame with the Facet toolkit [ 9] and capture 35 facial action unit features. Finally, we extract acoustic features via the COVAREP toolkit [ 3] and obtain 74-dimensional feature vectors. For the CH-SIMS dataset, we use a pre-trained Chinese BERT-base [ 4] model to obtain 768-dimensional word vectors. For the visual modality, we employ the MTCNN [ 36 ] algorithm together with the OpenFace2.0 toolkit [ 1 ] to perform face alignment and extract 709-dimensional frame-level features. Finally, we utilize the LibROSA [ 18 ] toolkit and extract 33-dimensional acoustic features, including log F0, MFCCs, and CQT. 
+
+## C Baseline Methods 
+
+We categorize baseline methods into three groups according to how they address missing or imbalanced modalities. This organiza-tion clarifies their design assumptions and facilitates a structured comparison under SMR and IMR settings. 
+
+Missing Modality Handling Methods. This category includes meth-ods explicitly designed to operate when one or more modalities are missing at inference time. These approaches typically rely on modality reconstruction, adaptive fusion, or robustness-oriented architectures to mitigate performance degradation caused by in-complete inputs. 
+
+MMIN [ 40 ] adopts a masking-based training strategy that ran-domly drops modalities and learns modality-invariant representa-tions, so that the model can maintain performance when certain modalities are absent at test time. 
+
+GCNet [ 10 ] captures speaker and temporal dependencies with graph neural networks to handle incomplete conversations, and adopts a dual-task framework that jointly predicts target labels and reconstructs missing features to enhance robustness to modality absence. 
+
+SDR-GNN [6 ] integrates spectral analysis into a hypergraph framework to impute missing data while explicitly retaining high-frequency signals that are typically attenuated in conventional GNNs, thereby improving robustness under incomplete multimodal observations. 
+
+IMR-aware Methods. IMR-aware methods explicitly account for imbalanced modality exposure during training. Instead of assuming uniform or random missing patterns, they introduce mechanisms to promote modality equity under asymmetric missing rates. 
+
+RedCore [ 25 ] employs variational encoders to construct robust cross-modal representations and dynamically regulates auxiliary supervision according to reconstruction difficulty, encouraging the model to focus more on hard-to-reconstruct modalities and samples. 
+
+MCE [38 ] optimizes training dynamics via game-theoretic evalu-ations and promotes semantic robustness through subset prediction, thereby encouraging balanced feature capability even under highly imbalanced missing rates. 
+
+Gradient-Based and Other Approaches. This group consists of methods that do not directly model missingness or imbalance, but instead rely on optimization-level techniques or generic multimodal fusion strategies. 
+
+OGM-GE [ 21 ] introduces orthogonal gradient modulation for pairs of modalities to reduce gradient conflict and enforces gradient equilibrium across modalities, leading to more balanced and stable multimodal optimization. 
+
+Ada2I [ 20 ] rectifies learning imbalances by dynamically re-weighting feature and modality contributions under the supervision of a learning-discrepancy metric, so that modalities with under-optimized features receive stronger updates. In addition, we include a naive missing-modality baseline 
+
+that performs simple zero imputation for absent modalities, feeding zero vectors into the fusion network whenever a modality is miss-ing. This baseline reflects the common practice of treating missing inputs as all-zero features and serves as a lower bound for more sophisticated missing-modality handling methods. 
+
+## D Implementation Details D.1 Benchmark Setup 
+
+D.1.1 Unified Configuration. The entry point of our pipeline is managed by a ConfigManager and a BaseConfig class. This struc-ture allows for dynamic loading of model-specific configurations while maintaining a consistent interface for experimental argu-ments such as missing rates and hyperparameters. To initiate an experiment, the system parses command-line ar-guments to select the base model and override default parameters: 
+
+Listing 1: Initialization of Configuration and Arguments                  
+
+> config_manager =ConfigManager () args =config_manager . get_args () #Example : Setting missing rates ( Modal MR ) for Audio , Visual , Language args . modal_MR =[0.5 , 0.3 , 0.0]
+
+The args object above encapsulates crucial settings, includ-ing modal_MR (missing rates for A/V/L modalities), dataset_mode 
+
+(Conversational or Non-conversational) and other optimization hyperparameters. 
+
+D.1.2 Data Loading Protocol. We provide a unified create_dataset 
+
+interface that abstracts the complexity of different datasets (e.g., IEMOCAP, CMU-MOSI). The data loader automatically handles the generation of missing modality masks based on the specified protocols. Listing 2 describes detail of unified data loading interface. Inside the Dataloader class, specific masking protocol (SMR or IMR) is applied to simulate missing modalities. The loader returns a dictionary containing aligned features ( A_feat , V_feat , L_feat )and their corresponding availability masks. 
+
+D.1.3 Model Construction. To evaluate diverse architectures fairly, we wrap all models within a generic Model class. This wrapper dynamically instantiates the specific encoder and base model logic defined in the configuration. Beyond instantiation, it provides a standardized interface for loss computation and advanced optimiza-tion strategies. Details can be seen in Listing 3. 
+
+D.1.4 Training and Evaluation. The train.py pipeline is designed to be model-agnostic (Algorithm 1), incorporating two independent evaluation modules (MEI and MLI). It also standardizes the calcu-lation of key performance metrics, including Weighted Accuracy (WA), Unweighted Accuracy (UA), and F1-score. Conference acronym ’XX, June 03–05, 2018, Woodstock, NY Pham et al. 
+
+Listing 2: Unified Data Loading Interface 
+
+def create_dataset ( args ): # Dynamically load dataset library (Conversational or Non - con ) lib = find_dataset_using_name ( args . dataset_mode ) # Load raw data and generate missing masks dataset , dims = lib . load_data ( args . data_dir , args . dataset , args . modal_MR )# Common arguments for all data loaders loader_args = {
+
+' batch_size ': args . batch_size , 
+
+' embedding_dim ': dims , 
+
+' regression ': args . regression , 
+
+' batch_first ': args . batch_first , 
+
+' device ': args . device }# Initialize PyTorch DataLoaders train_loader = lib . Dataloader ( dataset [ '
+
+train '], ** loader_args ) valid_loader = lib . Dataloader ( dataset [ '
+
+valid '], ** loader_args ) test_loader = lib . Dataloader ( dataset [ '
+
+test '], ** loader_args ) return [ train_loader , valid_loader , test_loader ], dims 
+
+## D.2 Experimental Setup 
+
+For all baselines, we adopt their official implementations, except for OGM-GE, for which a variant capable of handling three modalities is employed. Our benchmark is implemented in PyTorch 1 and ex-periment tracking is conducted using Comet.ml 2. All experiments are run on a Tesla T4 GPU, and the final results are averaged over five runs with different random seeds. For consistency, all meth-ods are trained under the same optimization budget and unified training and logging configurations across all datasets. Specifically, we use batch_size=16 for conversational handling methods and 
+
+batch_size=128 for non-conversational handling methods, with 
+
+epochs=50 , early_stop=10 , the Adam optimizer, and a learning rate of 2e-4 .
+
+## E Additional Experiment Results E.1 Full SMR and IMR Results on All Datasets 
+
+We provide the complete SMR/IMR results for all benchmarks to complement the main-text tables. Table 7 reports performance on CMU-MOSEI across different missing-rate configurations, while Table 8 presents the corresponding results on CH-SIMS. 
+
+> 1https://pytorch.org/
+> 2https://comet.ml
+
+Listing 3: Model Interface 
+
+class Model ( nn . Module ): def __init__ ( self , args ): super ( Model , self ). __init__ () # Dynamically find encoder and specific multimodal method base_encoder = find_encoder ( args ) base_model = find_basemodel ( args ) self . base_model = base_model ( args , base_encoder ) # Select loss function based on task type self . task_loss = MaskedMSELoss ( args ) if args . regression else MaskedCELoss ( args ) def forward ( self , inputs ): self . set_input ( inputs ) # Unpack targets and masks return self . base_model . get_outputs () def get_loss ( self , outputs ): # Calculate primary task loss considering the valid mask ( umask )loss = {
+
+' task_loss ': self . task_weight *self . task_loss ( outputs [0] , self . target , self . umask ) }# Aggregate auxiliary losses from the specific base model sub_loss = self . base_model . get_loss ( outputs ) for k in sub_loss : loss [k] = sub_loss [k] return loss def apply_modulation ( self , outputs ): # Hook for gradient - based method (e.g ., OGM , Ada2I ) self . base_model . apply_modulation ( outputs ) 
+
+Table 9 summarizes the performance on IEMOCAP under vary-ing imbalanced missing rates, and Table 10 shows the results on CMU-MOSI. These tables give a complete view of how all baselines and our method behave under both symmetric and imbalanced missing-modality regimes on each dataset. To better understand modality imbalance and optimization be-havior, we report additional MEI/MLI statistics and training-time measurements. Table 11 summarizes MEI UA /MLI (%) on CMU-MOSEI for representative methods from each family, quantifying how se-verely different approaches suffer from modality imbalance during training. Addionally, we report ablation about under different bimodal combinations on non missing data (Table 12). MissBench: Benchmarking Multimodal Affective Analysis under Imbalanced Missing Modalities Conference acronym ’XX, June 03–05, 2018, Woodstock, NY 
+
+Table 7: Performance comparison on CMU-MOSEI 
+
+Method Setting 0.3 / (0.1, 0.2, 0.6) 0.5 / (0.2, 0.5, 0.8) 0.7 / (0.4, 0.8, 0.9) Acc-2( ↑) MAE( ↓) Corr( ↑) Acc-2( ↑) MAE( ↓) Corr( ↑) Acc-2( ↑) MAE( ↓) Corr( ↑)MMIN SMR 77 .72 ±0.47 0.748 ±0.022 0.641 ±0.014 73 .64 ±2.82 0.814 ±0.015 0.558 ±0.004 69 .60 ±1.42 0.891 ±0.032 0.447 ±0.041 
+
+IMR 71 .80 ±0.50 0.855 ±0.021 0.497 ±0.026 68 .97 ±0.27 0.890 ±0.005 0.427 ±0.010 68 .00 ±0.36 0.916 ±0.002 0.392 ±0.011 
+
+GCNet SMR 80 .22 ±1.10 0.706 ±0.024 0.692 ±0.023 76 .84 ±0.67 0.773 ±0.016 0.621 ±0.018 76 .34 ±0.96 0.781 ±0.014 0.599 ±0.016 
+
+IMR 76 .74 ±0.86 0.776 ±0.016 0.616 ±0.016 73 .89 ±0.45 0.828 ±0.010 0.541 ±0.019 73 .19 ±0.63 0.839 ±0.013 0.525 ±0.021 
+
+RedCore SMR 77 .20 ±0.52 0.760 ±0.007 0.631 ±0.009 72 .57 ±0.79 0.845 ±0.012 0.535 ±0.015 68 .10 ±0.44 0.902 ±0.012 0.443 ±0.014 
+
+IMR 70 .39 ±0.54 0.866 ±0.006 0.491 ±0.010 66 .45 ±0.53 0.932 ±0.009 0.381 ±0.010 65 .87 ±0.49 0.951 ±0.006 0.352 ±0.018 
+
+MCE SMR 77 .87 ±0.64 0.746 ±0.020 0.647 ±0.009 73 .21 ±0.76 0.832 ±0.016 0.536 ±0.020 69 .71 ±1.04 0.885 ±0.024 0.448 ±0.033 
+
+IMR 72 .25 ±0.79 0.846 ±0.009 0.513 ±0.010 67 .32 ±0.48 0.920 ±0.004 0.391 ±0.001 67 .73 ±0.12 0.928 ±0.003 0.373 ±0.010 
+
+Ada2I SMR 82 .56 ±0.39 0.845 ±0.070 0.718 ±0.012 80 .13 ±0.32 0.940 ±0.112 0.680 ±0.004 78 .36 ±0.47 0.873 ±0.054 0.624 ±0.012 
+
+IMR 78 .96 ±0.44 0.917 ±0.080 0.646 ±0.005 75 .25 ±0.41 0.920 ±0.035 0.573 ±0.012 74 .51 ±0.91 0.910 ±0.030 0.541 ±0.034 
+
+OGM-GE SMR 82 .00 ±0.39 0.683 ±0.023 0.710 ±0.018 79 .69 ±0.22 0.736 ±0.012 0.660 ±0.005 76 .79 ±0.35 0.790 ±0.011 0.600 ±0.010 
+
+IMR 77 .72 ±0.58 0.767 ±0.006 0.624 ±0.004 74 .24 ±0.37 0.835 ±0.003 0.527 ±0.004 74 .13 ±0.55 0.850 ±0.021 0.523 ±0.018 
+
+Table 8: Performance comparison on CH-SIMS 
+
+Method Setting 0.3 / (0.1, 0.2, 0.6) 0.5 / (0.2, 0.5, 0.8) 0.7 / (0.4, 0.8, 0.9) Acc-2( ↑) MAE( ↓) Corr( ↑) Acc-2( ↑) MAE( ↓) Corr( ↑) Acc-2( ↑) MAE( ↓) Corr( ↑)MMIN SMR 78 .19 ±0.26 0.480 ±0.012 0.596 ±0.026 72 .21 ±1.86 0.544 ±0.009 0.485 ±0.028 67 .26 ±2.28 0.594 ±0.034 0.330 ±0.097 
+
+IMR 71 .80 ±0.50 0.509 ±0.010 0.542 ±0.031 68 .97 ±0.27 0.621 ±0.046 0.212 ±0.190 68 .00 ±0.36 0.603 ±0.013 0.318 ±0.036 
+
+GCNet SMR 66 .03 ±0.59 0.628 ±0.008 0.234 ±0.024 65 .97 ±1.45 0.645 ±0.010 0.168 ±0.041 65 .10 ±0.66 0.644 ±0.005 0.163 ±0.022 
+
+IMR 64 .94 ±0.96 0.648 ±0.009 0.161 ±0.055 64 .77 ±0.67 0.648 ±0.002 0.152 ±0.026 65 .55 ±0.43 0.649 ±0.002 0.140 ±0.024 
+
+RedCore SMR 75 .25 ±1.57 0.517 ±0.024 0.550 ±0.053 70 .82 ±1.49 0.561 ±0.012 0.445 ±0.023 66 .95 ±1.39 0.596 ±0.016 0.354 ±0.040 
+
+IMR 76 .28 ±0.63 0.521 ±0.008 0.538 ±0.008 66 .15 ±1.60 0.591 ±0.011 0.355 ±0.037 64 .34 ±0.12 0.613 ±0.006 0.304 ±0.021 
+
+MCE SMR 77 .06 ±0.81 0.486 ±0.006 0.581 ±0.027 73 .09 ±0.68 0.528 ±0.013 0.498 ±0.023 67 .78 ±1.83 0.590 ±0.021 0.359 ±0.033 
+
+IMR 74 .39 ±1.68 0.514 ±0.009 0.521 ±0.024 67 .44 ±3.40 0.578 ±0.023 0.372 ±0.061 68 .47 ±0.85 0.582 ±0.019 0.350 ±0.028 
+
+Ada2I SMR 61 .08 ±3.45 0.728 ±0.059 0.179 ±0.062 58 .55 ±3.35 0.800 ±0.105 0.086 ±0.036 59 .74 ±4.66 0.996 ±0.388 0.084 ±0.087 
+
+IMR 60 .30 ±1.67 1.028 ±0.190 0.111 ±0.019 63 .31 ±1.43 0.755 ±0.123 0.156 ±0.080 58 .59 ±3.16 1.228 ±0.379 0.026 ±0.058 
+
+OGM-GE SMR 77 .16 ±1.08 0.539 ±0.007 0.506 ±0.013 72 .06 ±0.35 0.572 ±0.005 0.422 ±0.028 65 .67 ±1.43 0.647 ±0.011 0.191 ±0.032 
+
+IMR 69 .07 ±1.38 0.624 ±0.019 0.281 ±0.065 66 .58 ±1.55 0.634 ±0.020 0.202 ±0.088 65 .63 ±1.90 0.654 ±0.020 0.111 ±0.104 
+
+Table 9: Performance comparison on IEMOCAP under different imbalanced missing rates 
+
+Method (0.1, 0.6, 0.2) (0.6, 0.1, 0.2) (0.2, 0.8, 0.5) (0.8, 0.2, 0.5) (0.4, 0.9, 0.8) (0.9, 0.4, 0.8) WA F1 WA F1 WA F1 WA F1 WA F1 WA F1 MMIN 66 .04 ±2.63 66 .34 ±2.60 68 .95 ±0.65 69 .05 ±0.69 57 .31 ±0.88 57 .46 ±0.89 60 .35 ±1.61 60 .22 ±1.26 52 .32 ±2.17 52 .38 ±2.09 53 .72 ±0.50 53 .74 ±0.46 
+
+GCNet 74 .61 ±2.28 74 .91 ±2.04 77 .14 ±2.63 76 .87 ±2.94 68 .03 ±4.52 68 .31 ±4.45 76 .52 ±2.09 76 .33 ±2.12 65 .24 ±0.56 65 .58 ±0.43 72 .52 ±3.67 72 .42 ±3.43 
+
+RedCore 65 .94 ±0.27 66 .11 ±0.25 65 .94 ±0.56 66 .12 ±0.57 60 .05 ±0.74 60 .27 ±0.72 59 .97 ±2.73 60 .06 ±2.40 52 .61 ±1.42 52 .52 ±1.49 53 .34 ±2.46 53 .56 ±2.35 
+
+MCE 68 .73 ±0.84 68 .84 ±0.81 69 .54 ±0.62 69 .49 ±0.55 59 .54 ±1.20 59 .67 ±1.25 62 .47 ±0.89 62 .46 ±0.77 53 .93 ±0.81 53 .92 ±0.86 55 .43 ±1.55 55 .18 ±1.47 
+
+Ada2I 80 .12 ±1.03 80 .31 ±0.98 77 .89 ±0.53 78 .00 ±0.47 76 .92 ±1.73 77 .14 ±1.69 74 .48 ±1.22 74 .36 ±1.38 73 .70 ±2.12 73 .62 ±2.74 71 .60 ±2.68 71 .32 ±3.10 
+
+OGM-GE 71 .39 ±5.20 71 .57 ±5.28 74 .80 ±1.64 74 .89 ±1.49 69 .83 ±2.83 69 .92 ±2.76 72 .81 ±2.17 72 .88 ±1.98 66 .04 ±1.32 66 .48 ±1.26 64 .22 ±5.56 63 .57 ±6.46 
+
+## E.2 MEI/MLI Analysis and Training Cost 
+
+Figure 8 further tracks MEI over epochs for GCNet on IEMOCAP under different task-specific metrics (UA/WA/F1), revealing the temporal evolution of imbalance. Finally, Figure 7 compares the estimated training time per epoch of all baselines, providing a complementary view of their computational cost alongside perfor-mance. Conference acronym ’XX, June 03–05, 2018, Woodstock, NY Pham et al. 
+
+Algorithm 1 Benchmark Training Pipeline 
+
+1: Input: args , train_loader , val_loader , test_loader 
+
+2: Initialize: model , optimizer , scheduler 
+
+3: Initialize Analyzers: A𝑀𝐿𝐼 (if enabled), A𝑀𝐸𝐼 (if enabled) 
+
+4: for 𝑒𝑝𝑜𝑐ℎ ← 1 to 𝑎𝑟𝑔𝑠.𝑒𝑝𝑜𝑐ℎ𝑠 do 
+
+5: model.train() 
+
+6: for 𝑏𝑎𝑡𝑐ℎ in train_loader do 
+
+7: 𝑜𝑢𝑡𝑝𝑢𝑡𝑠 ← 𝑚𝑜𝑑𝑒𝑙 (𝑏𝑎𝑡𝑐ℎ )
+
+8: 𝑙𝑜𝑠𝑠 ← 𝑚𝑜𝑑𝑒𝑙 .𝑔𝑒𝑡 _𝑙𝑜𝑠𝑠 (𝑜𝑢𝑡𝑝𝑢𝑡𝑠 )
+
+9: if A𝑀𝐿𝐼 is enabled then 
+
+10: A𝑀𝐿𝐼 .𝑠𝑡𝑒𝑝 _𝑒𝑣𝑎𝑙𝑢𝑎𝑡𝑒 (𝑚𝑜𝑑𝑒𝑙, 𝑜𝑢𝑡𝑝𝑢𝑡𝑠, 𝑏𝑎𝑡𝑐ℎ )
+
+11: end if 
+
+12: 𝑙𝑜𝑠𝑠.𝑏𝑎𝑐𝑘𝑤𝑎𝑟𝑑 () 
+
+13: model.clip_gradients(args.max_grad_norm) 
+
+14: if 𝑎𝑟𝑔𝑠.𝑚𝑜𝑑𝑢𝑙𝑎𝑡𝑖𝑜𝑛 is active then 
+
+15: model.apply_modulation(outputs) 
+
+16: end if 
+
+17: optimizer.step() 
+
+18: end for 
+
+19: 𝑣𝑎𝑙 _𝑚𝑒𝑡𝑟𝑖𝑐𝑠 ← 𝑒𝑣𝑎𝑙𝑢𝑎𝑡𝑒 (𝑎𝑟𝑔𝑠, 𝑚𝑜𝑑𝑒𝑙, 𝑣𝑎𝑙 _𝑙𝑜𝑎𝑑𝑒𝑟 )
+
+20: scheduler.step() 
+
+21: if A𝑀𝐸𝐼 is enabled and 𝑒𝑝𝑜𝑐ℎ %𝑀𝐸𝐼 _𝑒𝑝𝑜𝑐ℎ == 0 then 
+
+22: A𝑀𝐸𝐼 .𝑒𝑣𝑎𝑙𝑢𝑎𝑡𝑒 (𝑚𝑜𝑑𝑒𝑙, 𝑣𝑎𝑙 _𝑙𝑜𝑎𝑑𝑒𝑟 )
+
+23: end if 
+
+24: if 𝑣𝑎𝑙 _𝑚𝑒𝑡𝑟𝑖𝑐𝑠 is best then 
+
+25: Save checkpoint state 𝜃 ∗
+
+26: end if 
+
+27: Check Early Stopping 
+
+28: end for 
+
+29: Test Phase: 
+
+30: Load best model state 𝜃 ∗
+
+31: 𝑡𝑒𝑠𝑡 _𝑚𝑒𝑡𝑟𝑖𝑐𝑠 ← test (𝑎𝑟𝑔𝑠, 𝑚𝑜𝑑𝑒𝑙, 𝑡𝑒𝑠𝑡 _𝑙𝑜𝑎𝑑𝑒𝑟 )
+
+32: Final Analysis: 
+
+33: if A𝑀𝐿𝐼 is enabled then A𝑀𝐿𝐼 .𝑒𝑣𝑎𝑙𝑢𝑎𝑡𝑒 () 
+
+34: end if 
+
+35: if A𝑀𝐸𝐼 is enabled then A𝑀𝐸𝐼 .𝑒𝑣𝑎𝑙𝑢𝑎𝑡𝑒 (𝑚𝑜𝑑𝑒𝑙, 𝑡𝑒𝑠𝑡 _𝑙𝑜𝑎𝑑𝑒𝑟 )
+
+36: end if 0 5 10 15 
+
+Naive 
+
+OGM-GE 
+
+SDR-GNN 
+
+GCNet 
+
+Ada2I 
+
+MMIN 
+
+RedCore 
+
+MCE 
+
+> 0.17s
+> 0.69s
+> 1.51s
+> 1.51s
+> 1.68s
+> 3.71s
+> 11.39s
+> 13.84s
+
+Figure 7: Estimated training time (sec/epoch) of the baselines. Table 10: Performance comparison on CMU-MOSI under dif-ferent imbalanced missing rates 
+
+Method Setting Acc-2( ↑) MAE( ↓) Corr( ↑)MMIN (0.1,0.6,0.2) 74 .13 ±0.72 1.009 ±0.019 0.635 ±0.010 
+
+(0.6,0.1,0.2) 73 .73 ±0.96 1.076 ±0.097 0.622 ±0.022 
+
+(0.2,0.8,0.5) 67 .02 ±0.94 1.191 ±0.024 0.514 ±0.001 
+
+(0.8,0.2,0.5) 65 .65 ±0.31 1.210 ±0.028 0.493 ±0.006 
+
+(0.4,0.9,0.8) 52 .03 ±7.26 1.397 ±0.077 0.263 ±0.166 
+
+(0.9,0.4,0.8) 52 .38 ±7.18 1.417 ±0.060 0.248 ±0.156 
+
+GCNet (0.1,0.6,0.2) 70 .78 ±0.61 1.157 ±0.017 0.507 ±0.017 
+
+(0.6,0.1,0.2) 70 .73 ±1.14 1.146 ±0.017 0.516 ±0.014 
+
+(0.2,0.8,0.5) 66 .15 ±0.89 1.285 ±0.026 0.403 ±0.016 
+
+(0.8,0.2,0.5) 64 .99 ±1.24 1.293 ±0.028 0.386 ±0.017 
+
+(0.4,0.9,0.8) 61 .83 ±1.34 1.330 ±0.025 0.314 ±0.010 
+
+(0.9,0.4,0.8) 60 .77 ±1.90 1.337 ±0.026 0.297 ±0.016 
+
+RedCore (0.1,0.6,0.2) 74 .03 ±1.50 1.072 ±0.023 0.578 ±0.004 
+
+(0.6,0.1,0.2) 74 .84 ±1.74 1.076 ±0.030 0.593 ±0.010 
+
+(0.2,0.8,0.5) 65 .95 ±0.61 1.234 ±0.010 0.461 ±0.009 
+
+(0.8,0.2,0.5) 67 .02 ±1.18 1.209 ±0.011 0.480 ±0.007 
+
+(0.4,0.9,0.8) 60 .41 ±1.00 1.364 ±0.006 0.355 ±0.013 
+
+(0.9,0.4,0.8) 60 .82 ±2.09 1.360 ±0.034 0.330 ±0.025 
+
+MCE (0.1,0.6,0.2) 74 .54 ±1.40 1.049 ±0.039 0.613 ±0.013 
+
+(0.6,0.1,0.2) 73 .93 ±0.69 1.049 ±0.018 0.611 ±0.011 
+
+(0.2,0.8,0.5) 66 .41 ±1.22 1.200 ±0.015 0.491 ±0.011 
+
+(0.8,0.2,0.5) 66 .26 ±1.83 1.208 ±0.030 0.500 ±0.023 
+
+(0.4,0.9,0.8) 59 .60 ±2.07 1.324 ±0.010 0.383 ±0.006 
+
+(0.9,0.4,0.8) 58 .99 ±1.07 1.377 ±0.034 0.334 ±0.021 
+
+Ada2I (0.1,0.6,0.2) 71 .29 ±4.56 1.416 ±0.134 0.562 ±0.043 
+
+(0.6,0.1,0.2) 73 .47 ±3.14 1.210 ±0.091 0.557 ±0.059 
+
+(0.2,0.8,0.5) 66 .41 ±1.15 1.310 ±0.061 0.442 ±0.017 
+
+(0.8,0.2,0.5) 62 .24 ±2.61 1.341 ±0.032 0.382 ±0.017 
+
+(0.4,0.9,0.8) 49 .08 ±4.04 1.724 ±0.202 0.118 ±0.082 
+
+(0.9,0.4,0.8) 55 .48 ±5.34 1.586 ±0.140 0.182 ±0.089 
+
+OGM-GE (0.1,0.6,0.2) 71 .85 ±1.27 1.156 ±0.027 0.537 ±0.015 
+
+(0.6,0.1,0.2) 71 .74 ±0.38 1.151 ±0.022 0.531 ±0.015 
+
+(0.2,0.8,0.5) 65 .39 ±2.24 1.290 ±0.032 0.391 ±0.054 
+
+(0.8,0.2,0.5) 64 .17 ±1.95 1.323 ±0.046 0.358 ±0.072 
+
+(0.4,0.9,0.8) 52 .23 ±8.15 1.432 ±0.082 0.116 ±0.176 
+
+(0.9,0.4,0.8) 51 .42 ±7.23 1.440 ±0.069 0.125 ±0.175 0.0 
+
+> 0.5
+> 1.0
+
+No missing SMR=0.5 IMR=(0.2,0.5,0.8) 
+
+UA WA F1 
+
+Figure 8: MEI evaluated by different task-specific metrics UA/WA/F1 during the training of GCNet on IEMOCAP. 
+
+## E.3 Case Studies: Modality Contribution and Gradient Dynamics 
+
+We further conduct case studies to analyze how representative methods behave at the modality and optimization level. MissBench: Benchmarking Multimodal Affective Analysis under Imbalanced Missing Modalities Conference acronym ’XX, June 03–05, 2018, Woodstock, NY 
+
+Table 11: MEI UA /MLI(%) of representatives from each method-family on CMU-MOSEI. 
+
+Method Setting 0.3 / (0.1, 0.2, 0.6) 0.5 / (0.2, 0.5, 0.8) 0.7 / (0.4, 0.8, 0.9) 
+
+MEI UA MLI MEI UA MLI MEI UA MLI GCNet SMR 74 .25 ±8.58 33 .63 ±2.97 82 .90 ±7.13 41 .05 ±1.84 89 .51 ±7.02 44 .12 ±3.99 
+
+IMR 62 .83 ±15 .95 32 .86 ±3.65 63 .82 ±6.30 37 .65 ±2.67 74 .61 ±15 .01 39 .74 ±2.49 
+
+RedCore SMR 80 .19 ±2.73 33 .92 ±1.27 80 .52 ±4.42 38 .63 ±2.29 83 .62 ±0.75 43 .25 ±2.43 
+
+IMR 80 .65 ±1.39 35 .00 ±2.10 84 .36 ±3.72 40 .40 ±3.51 84 .83 ±1.73 42 .86 ±4.67 
+
+Ada2I SMR 86 .82 ±5.45 15 .22 ±1.21 80 .65 ±10 .39 13 .41 ±2.22 89 .86 ±7.60 12 .79 ±1.48 
+
+IMR 81 .72 ±10 .60 14 .91 ±1.53 77 .97 ±13 .79 14 .41 ±1.19 81 .27 ±13 .01 12 .21 ±0.56 
+
+Table 12: Performance comparison under different bimodal combinations (A: Audio, V: Visual, L: Language) on non-missing data 
+
+Method AV AL VL WA F1 MEI 𝑈 𝐴 WA F1 MEI 𝑈 𝐴 WA F1 MEI 𝑈 𝐴 
+
+GCNet 68 .61 ±1.92 69 .19 ±1.56 35 .05 ±21 .01 74 .62 ±2.71 74 .83 ±2.75 6.80 ±6.16 78 .31 ±1.40 78 .04 ±1.26 62 .24 ±20 .04 
+
+RedCore 72 .93 ±0.95 72 .89 ±0.92 13 .75 ±1.39 80 .61 ±2.18 80 .84 ±2.09 8.62 ±7.84 78 .69 ±2.85 78 .50 ±2.94 39 .77 ±29 .06 
+
+Ada2I 62 .34 ±0.67 62 .47 ±0.74 9.55 ±6.20 65 .51 ±1.49 65 .53 ±1.57 71 .70 ±14 .28 68 .73 ±0.74 68 .73 ±0.64 45 .48 ±19 .01 0.0      
+
+> 0.2
+> 0.4
+> 0.6
+> 0.8
+> 1.0
+> SMR=0.3/IMR=(0.1,0.2,0.6) SMR=0.7/IMR=(0.4,0.8,0.9)
+> IMR SMR AVL
+
+(a) Modality contribution 0.0     
+
+> 0.1
+> 0.2
+> 0.3
+> SMR=0.3 0.0
+> 0.2
+> 0.4
+> IMR=(0.1,0.2,0.6)
+> 0.0
+> 0.2
+> 0.4
+> SMR=0.7 0.0
+> 0.1
+> 0.2
+> 0.3
+> IMR=(0.4,0.8,0.9)
+> AVL
+
+(b) Unimodal temporal gradient variation 
+
+Figure 9: Diagnosis of GCNet on a different IEMOCAP train/-valid split from Figure 5. 
+
+For IEMOCAP, Figures 9 and 10 visualize modality contribution and unimodal temporal gradient variation for GCNet and RedCore, while Figure 11 presents the same diagnostics for Ada2I. 0.0      
+
+> 0.2
+> 0.4
+> 0.6
+> 0.8
+> SMR=0.3/IMR=(0.1,0.2,0.6) SMR=0.7/IMR=(0.4,0.8,0.9)
+> IMR SMR AVL
+
+(a) Modality contribution 0.000     
+
+> 0.025
+> 0.050
+> 0.075
+> SMR=0.3 0.00
+> 0.05
+> IMR=(0.1,0.2,0.6)
+> 0.00
+> 0.05
+> 0.10
+> SMR=0.7 0.00
+> 0.05
+> 0.10
+> 0.15
+> IMR=(0.4,0.8,0.9)
+> AVL
+
+(b) Unimodal temporal gradient variation 
+
+Figure 10: Diagnosis of RedCore on IEMOCAP. 
+
+For CMU-MOSI, Figures 14, 12, and 13 provide analogous plots for GCNet, RedCore, and Ada2I, respectively. These qualitative re-sults complement the quantitative tables by revealing how different architectures redistribute modality contributions and stabilize (or destabilize) gradients under imbalanced missing rates. Conference acronym ’XX, June 03–05, 2018, Woodstock, NY Pham et al. 0.0 
+
+> 0.2
+> 0.4
+> 0.6
+> 0.8
+> 1.0
+
+SMR=0.3/IMR=(0.1,0.2,0.6) SMR=0.7/IMR=(0.4,0.8,0.9) 
+
+IMR SMR A V L
+
+(a) Modality contribution 0
+
+> 1
+> 2
+
+SMR=0.3 0
+
+> 1
+> 2
+
+IMR=(0.1,0.2,0.6) 
+
+> 0
+> 5
+> 10
+> 15
+
+SMR=0.7 0
+
+> 5
+> 10
+> 15
+
+IMR=(0.4,0.8,0.9) 
+
+A V L
+
+(b) Unimodal temporal gradient variation 
+
+Figure 13: Diagnosis of Ada2I on CMU-MOSI. 0.0 
+
+> 0.2
+> 0.4
+> 0.6
+> 0.8
+> 1.0
+
+SMR=0.3/IMR=(0.1,0.2,0.6) SMR=0.7/IMR=(0.4,0.8,0.9) 
+
+IMR SMR A V L
+
+(a) Modality contribution 0.0 
+
+> 0.1
+> 0.2
+> 0.3
+
+SMR=0.3 0.0 
+
+> 0.2
+> 0.4
+
+IMR=(0.1,0.2,0.6) 
+
+> 0.0
+> 0.2
+> 0.4
+
+SMR=0.7 0.0 
+
+> 0.1
+> 0.2
+> 0.3
+
+IMR=(0.4,0.8,0.9) 
+
+A V L
+
+(b) Unimodal temporal gradient variation 
+
+Figure 14: Diagnosis of GCNet on CMU-MOSI. 0.0 
+
+> 0.2
+> 0.4
+> 0.6
+> 0.8
+
+SMR=0.3/IMR=(0.1,0.2,0.6) SMR=0.7/IMR=(0.4,0.8,0.9) 
+
+IMR SMR A V L
+
+(a) Modality contribution 0.00 
+
+> 0.05
+> 0.10
+> 0.15
+
+SMR=0.3 0.00 
+
+> 0.05
+> 0.10
+> 0.15
+
+IMR=(0.1,0.2,0.6) 
+
+> 0.0
+> 0.1
+> 0.2
+
+SMR=0.7 0.0 
+
+> 0.1
+> 0.2
+> 0.3
+
+IMR=(0.4,0.8,0.9) 
+
+A V L
+
+(b) Unimodal temporal gradient variation 
+
+Figure 11: Diagnosis of Ada2I on IEMOCAP. 0.0 
+
+> 0.2
+> 0.4
+> 0.6
+> 0.8
+> 1.0
+
+SMR=0.3/IMR=(0.1,0.2,0.6) SMR=0.7/IMR=(0.4,0.8,0.9) 
+
+IMR SMR A V L
+
+(a) Modality contribution 0.0 
+
+> 0.5
+> 1.0
+> 1.5
+
+SMR=0.3 0.0 
+
+> 0.2
+> 0.4
+
+IMR=(0.1,0.2,0.6) 
+
+> 0.0
+> 0.2
+> 0.4
+
+SMR=0.7 0.0 
+
+> 0.1
+> 0.2
+> 0.3
+
+IMR=(0.4,0.8,0.9) 
+
+A V L
+
+(b) Unimodal temporal gradient variation 
+
+Figure 12: Diagnosis of RedCore on CMU-MOSI.

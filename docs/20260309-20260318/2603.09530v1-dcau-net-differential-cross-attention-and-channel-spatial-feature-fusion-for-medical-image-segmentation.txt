@@ -1,0 +1,306 @@
+Title: DCAU-Net: Differential Cross Attention and Channel-Spatial Feature Fusion for Medical Image Segmentation
+
+URL Source: https://arxiv.org/pdf/2603.09530v1
+
+Published Time: Wed, 11 Mar 2026 00:59:03 GMT
+
+Number of Pages: 6
+
+Markdown Content:
+# DCAU-Net: Differential Cross Attention and Channel-Spatial Feature Fusion for Medical Image Segmentation 
+
+Yanxin Li , Hui Wan , and Libin Lan (B)
+
+College of Computer Science and Engineering, Chongqing University of Technology, Chongqing, China 
+
+{yanxin.li, huiwan }@stu.cqut.edu.cn, lanlbn@cqut.edu.cn 
+
+Abstract —Accurate medical image segmentation requires effec-tive modeling of both long-range dependencies and fine-grained boundary details. While transformers mitigate the issue of insuf-ficient semantic information arising from the limited receptive field inherent in convolutional neural networks, they introduce new challenges: standard self-attention incurs quadratic com-putational complexity and often assigns non-negligible attention weights to irrelevant regions, diluting focus on discriminative structures and ultimately compromising segmentation accuracy. Existing attention variants, although effective in reducing com-putational complexity, fail to suppress redundant computation and inadvertently impair global context modeling. Furthermore, conventional fusion strategies in encoder-decoder architectures, typically based on simple concatenation or summation, can not adaptively integrate high-level semantic information with low-level spatial details. To address these limitations, we propose DCAU-Net, a novel yet efficient segmentation framework with two key ideas. First, a new Differential Cross Attention (DCA) is designed to compute the difference between two independent softmax attention maps to adaptively highlight discriminative structures. By replacing pixel-wise key and value tokens with window-level summary tokens, DCA dramatically reduces com-putational complexity without sacrificing precision. Second, a Channel-Spatial Feature Fusion (CSFF) strategy is introduced to adaptively recalibrate features from skip connections and up-sampling paths through using sequential channel and spatial attention, effectively suppressing redundant information and amplifying salient cues. Experiments on two public benchmarks demonstrate that DCAU-Net achieves competitive performance with enhanced segmentation accuracy and robustness. 
+
+Index Terms —Convolutional neural network, differential cross attention, feature fusion, medical image segmentation, trans-former. 
+
+I. I NTRODUCTION 
+
+Accurate medical image segmentation is a cornerstone of computer-aided diagnosis and clinical decision-making. Precise delineation of anatomical structures and pathological regions across diverse imaging modalities, such as magnetic resonance imaging (MRI) and computed tomography (CT), enables critical applications, including disease diagnosis, treat-ment planning, and image-guided surgery [1], [2], [3]. 
+
+This work described in this paper was supported in part by the Scientific Research Foundation of Chongqing University of Technology under Grant 2021ZDZ030 and in part by the Youth Project of Science and Technology Research Program of Chongqing Education Commission of China under Grant KJQN202301145. 
+
+Early medical image segmentation models, such as U-Net [4] and its numerous variants [5], [6], [7], are predom-inantly built upon convolutional neural networks (CNNs), which leverage local receptive fields and parameter sharing for efficient feature extraction. However, the inherent local inductive bias of CNNs limits their ability to model long-range dependencies critical for accurately modeling global anatomical context in complex medical images. Recently, transformers have been introduced into medical image segmentation to address the limitations of CNNs in capturing long-range dependencies [1], [8]. By leveraging self-attention, these models explicitly capture pixel-wise global contextual relationships, significantly enhancing semantic con-sistency across the entire image. However, standard self-attention adopts a pixel-wise query-key-value computation paradigm, resulting in a high computational complexity of 
+
+O(N 2) [9]. Moreover, it tends to assign non-negligible at-tention weights to irrelevant or redundant regions, thereby weakening the focus on discriminative features [10]. To reduce such computational cost, a series of effi-cient attention variants have been introduced into medi-cal image segmentation field, including window-based atten-tion [2], [11], [12], axial attention [13], [14], and dynamic sparse attention [15]. Nevertheless, they still have inherent limitations. For instance, window-based attention is confined to local interactions, and even with shift strategies, it falls short of achieving true global modeling; axial attention splits spatial dimensions, disrupting the holistic correlation of features; and dynamic sparse attention suffers from training instability due to dynamic sparsity and suboptimal hardware utilization compared to static attention. Consequently, existing efficient attention primarily prior-itizes computational efficiency but often reintroduces local inductive biases, typically by partitioning spatial regions, which undermines their capacity to model long-range de-pendencies effectively. This raises a critical challenge: how to simultaneously achieve low computational cost and high-quality, globally aware attention modeling in medical image segmentation. In addition, within the encoder–decoder architectures, the decoder commonly fuses features from skip connections and upsampled decoder features through simple operations such as concatenation or element-wise addition [1], [4]. Such fusion 
+
+> arXiv:2603.09530v1 [cs.CV] 10 Mar 2026
+
+strategies struggle to suppress redundant features and fail to fully exploit the complementary information between high-level semantic content and low-level spatial details. Although channel and spatial attention mechanisms have been widely adopted for feature recalibration in general computer vision tasks [16], [17], [18], to the best of our knowledge, they have not yet been explored in medical image segmentation for adaptive fusion of features from skip connections and up-sampling paths. This highlights the need for a fusion strategy that can jointly enhance discriminative features and suppress redundant ones across both channel and spatial dimensions. In this paper, we propose a lightweight yet efficient med-ical image segmentation framework, termed DCAU-Net. The DCAU-Net is built upon two key ideas. First, it adapts the differential attention [10], originally proposed for natural lan-guage processing under a “pixel-wise query–key–value” self-attention paradigm, to the medical vision domain by reformu-lating it into a “pixel-wise query – window-level key-value” cross-attention paradigm, which is referred to as Differential 
+
+Cross Attention ( DCA ). This design computes the difference between two independent softmax attention maps to suppress noise and enhance focus on relevant structures. By summa-rizing keys and values at the window level, it reduces com-putational complexity by a factor of M 2 (where M denotes the window size), while effectively suppressing background artifacts, avoiding distraction from irrelevant regions, and preserving fine-grained boundary sensitivity. Second, DCAU-Net introduces the Channel-Spatial Feature Fusion ( CSFF )strategy to better integrate encoder features via skip connec-tions and decoder features through up-sampling paths, while suppressing redundancy and amplifying discriminative cues via lightweight convolutions followed by sequential channel and spatial attention. Our main contributions are as follows: (1) We propose a novel Differential Cross Attention (DCA) mechanism that adapts differential attention by replacing pixel-wise key and value tokens with window-level summary tokens, enabling computationally efficient yet high-quality attention modeling; (2) We introduce a Channel-Spatial Feature Fusion (CSFF) strategy, which adaptively recalibrates the features from skip connections and up-sampling paths to suppress redundancy and enhance discriminative cues; and (3) We integrate DCA and CSFF into a unified U-shaped framework, DCAU-Net, achieving competitive segmentation performance on two public benchmarks. Code will be released upon acceptance. II. M ETHOD 
+
+A. Differential Cross Attention 
+
+As shown in Fig. 1, the DCA adapts the differential atten-tion [10] to an efficient cross attention framework. Given an input feature map X ∈ RH×W ×C , pixel-wise query tokens 
+
+Xq ∈ RN ×C with N = HW are obtained by flatten-ing X. Meanwhile, window-level summary tokens Xsum ∈
+
+RNwin ×C , where Nwin = HW/M 2, are generated by par-titioning X into non-overlapping M × M spatial windows (default M = 7) and applying average pooling within each window. This design enables fine-to-coarse interaction while reducing computational cost. 𝑸  ௜,ଵ  𝑸  ௜,ଶ           
+
+> ℎKHDGV
+> ൈ ሺ1 െ 𝜆 ୧୬୧୲  ሻ
+> 5061RUP &RQFDW /LQHDU
+> ሾsoftmax൫𝑄  ௜,ଵ  𝐾  ௜,ଵ்  ൯ െ λsoftmax൫𝑄  ௜,ଶ  𝐾  ௜,ଶ்  ൯ሿ𝑉  ௜
+> ͻͻͻ 𝐻 𝑊 𝑀 𝐻𝑊 ×𝐶
+> 𝑀 𝐻𝑊/𝑀 ଶ×𝐶
+> $YJSRRO /LQHDU
+> 𝑲 ௜,ଵ  𝑲 ௜,ଶ
+> /LQHDU  /LQHDU
+> ZZ
+> 𝑿 ௤𝑿 ௦௨௠ 𝑉  𝒊
+> Z5HVKDSH
+> Fig. 1. Details of the differential cross attention. It performs efficient cross attention between pixel-wise queries and window-level key–value pairs via differential attention, suppressing redundancy and enhancing focus on discriminative structures.
+
+We then compute cross attention between the pixel-wise query tokens Xq and the window-level summary tokens Xsum 
+
+using a multi-head differential attention mechanism, denoted as MHDiffAttn. The output of the DCA is defined as: DCA (X) = MHDiffAtt (Xq , Xsum , Xsum ). (1) For each head i ∈ { 1, . . . , h }, we project Xq and Xsum into queries, keys, and values: Qi, 1, Qi, 2 ∈ RN ×d, Ki, 1, Ki, 2 ∈
+
+RNwin ×d, and Vi ∈ RNwin ×2d. The projections are defined as: 
+
+[Qi, 1; Qi, 2] = Xq W Qi ,
+
+[Ki, 1; Ki, 2] = Xsum W Ki ,
+
+Vi = Xsum W Vi ,
+
+(2) where W Qi , W Ki , W Vi ∈ RC×2d are learnable projection matrices, and 2 d denotes the dimension of each head. For Q and K, we compute two independent softmax attention maps: 
+
+Si, 1 = softmax Qi, 1K⊤
+
+> i, 1
+
+√d
+
+!
+
+, Si, 2 = softmax Qi, 2K⊤
+
+> i, 2
+
+√d
+
+!
+
+,
+
+(3) and form the output of the i-th attention head as: head i = ( Si, 1 − λSi, 2) Vi, (4) where the λ is a learnable scalar shared across all heads within the same layer and re-parameterized as: 
+
+λ = exp( λq1 · λk1 ) − exp( λq2 · λk2 ) + λinit , (5) with learnable vectors λq1 , λk1 , λq2 , λk2 ∈ Rd and a depth-dependent initialization λinit = 0 .8 − 0.6 exp( −0.3 · (l − 1)) ,where l is the index of the DCA block. Each head output is then normalized and scaled independently: 
+
+ghead i = (1 − λinit ) · RMSNorm( head i). (6) Here, RMSNorm [19] is used instead of Layer Normalization to reduce computational overhead. Finally, all head outputs are concatenated and projected back to the model dimension via a learnable matrix WO ∈ RC×C :MHDiffAttn (X) = Concat( ghead 1, . . . , ghead h)WO , (7) where the number of heads is set to h = C/ (2 d).Notably, when M = H = W , the summary tokens collapse to a single global token, and the DCA module reverts to stan-dard differential attention instead of performing differential cross attention. 
+
+B. Differential Cross Attention Block 
+
+Building on the above proposed DCA mechanism, we design a DCA block, as illustrated in Fig. 2. The DCA block comprises three main components: a 3 ×3 depth-wise convo-lution, a DCA module, and a 2-layer MLP with an expansion ratio of e = 4. Each component is equipped with a residual connection, followed by Layer Normalization. Formally, the DCA Block is computed as follows: 
+
+ˆzl−1 = f 3×3 
+
+> dwc
+
+(zl−1) + zl−1, (8) 
+
+ˆzl = DCA   LayerNorm( ˆ zl−1) + ˆ zl−1, (9) 
+
+zl = MLP   LayerNorm( ˆ zl) + ˆ zl, (10) where f 3×3 
+
+> dwc
+
+denotes a 3 ×3 depth-wise convolution, and ˆzl−1,
+
+ˆzl, zl denote the intermediate outputs by the depth-wise convolution, DCA module, and MLP, respectively. 
+
+C. Channel-Spatial Feature Fusion Block 
+
+As previously mentioned, the primary goal of the Channel-Spatial Feature Fusion (CSFF) strategy is to adaptively recal-ibrate features from skip connections and up-sampling paths so as to suppress redundancy and enhance discriminative cues. To this end, we design a CSFF block, as shown in Fig. 3 (right). The CSFF block fuses encoder and decoder features 
+
+Xe, Xd ∈ RH×W ×C by first refining each input separately and then combining them into an intermediate representation 
+
+Xf ∈ RH×W ×C :
+
+˜Xe = γ BN( f3×3(Xe)) , (11) 
+
+˜Xd = γ BN( f3×3(Xd)) , (12) 
+
+Xf = γ BN( f3×3(Concat( ˜Xe, ˜Xd))) , (13) DWConv  3×3  
+
+> Differential
+> Cross
+> Attention
+> MLP
+> 𝒛 𝑙 −1ො𝒛 𝑙 𝒛 𝑙
+> ො𝒛 𝑙 −1
+> LayerNorm
+> LayerNorm
+> Fig. 2. Details of the DCA Block, consisting of a 3 ×3 depth-wise convolution, a DCA module, and a 2-layer MLP.
+
+where fk×k denotes a k × k convolution, γ(·) is ReLU, BN( ·)
+
+is batch normalization, and Concat( ·) denotes channel-wise concatenation. Since the resulting Xf exhibits redundancy in both channel and spatial dimensions, we sequentially apply channel and spatial attention mechanisms to selectively en-hance informative features. First, the channel attention learns a channel-wise weight map from global spatial statistics: 
+
+F c 
+
+> avg
+
+= AvgPool( Xf ), F c 
+
+> max
+
+= MaxPool( Xf ), (14) 
+
+Mc = σ MLP( F c
+
+> avg
+
+) + MLP( F c
+
+> max
+
+), (15) 
+
+Xc = Mc ⊙ Xf , (16) where AvgPool and MaxPool operate over the spatial dimen-sions, MLP denotes a shared 2-layer perceptron with reduction ratio r = 4 , σ(·) is the sigmoid activation, and ⊙ denotes element-wise multiplication. Second, the spatial attention produces a spatial weight map from channel-aggregated features: 
+
+F s 
+
+> avg
+
+= AvgPool( Xc), F s 
+
+> max
+
+= MaxPool( Xc), (17) 
+
+Ms = σ  f3×3
+
+ Concat  F s
+
+> avg
+
+, F s
+
+> max
+
+ , (18) 
+
+Xo = Ms ⊙ Xc, (19) where AvgPool and MaxPool operate along the channel dimension, producing two maps of size H×W ×1.
+
+D. Overall Architecture 
+
+The overall architecture of the proposed DCAU-Net is illustrated in Fig. 3. DCAU-Net adopts a U-shaped structure commonly used in segmentation tasks and consists of three main components: a DCA block-based encoder, skip connec-tions, and a CSFF block-based decoder. The encoder adopts a four-stage hierarchical structure, where spatial downsampling is achieved through Patch Embedding Layers, progressively reducing the feature map resolution while increasing the channel dimension. Each stage employs the Differential Cross Attention (DCA) block, whose core component is the DCA module that leverages window-level summary tokens derived via average pooling to compute keys and values. This allows for capturing long-range dependencies through cross attention. The decoder symmetrically performs four upsampling steps to restore the original spatial resolution and fuses the features from corresponding encoder stages and from the previous decoder layer. To enable more refined encoder-decoder fea-ture fusion, we introduce the Channel-Spatial Feature Fusion (CSFF) block into the decoder, which conducts dual adaptive calibration in both channel and spatial dimensions. Finally, the network outputs a pixel-wise segmentation mask with the same resolution as the input image. III. E XPERIMENTS 
+
+A. Datasets 
+
+Synapse Multi-Organ Segmentation Dataset [20]. The dataset originates from the MICCAI 2015 Multi-Atlas Ab-domen Labeling Challenge and consists of 30 abdominal contrast-enhanced CT scans. It is split into 18 scans for the 3DWFK(PEHGGLQJ '&$%ORFN 
+
+ൈ 
+
+8S6DPSOLQJ /LQHDU 3URMHFWLRQ 6WDJH      
+
+> 𝐻 4×𝑊 4×64
+
+6NLS&RQQHFWLRQ      
+
+> 𝐻 ×𝑊 ×𝐶𝑙𝑎𝑠𝑠
+
+8S6DPSOLQJ 3DWFK(PEHGGLQJ '&$%ORFN 
+
+ൈ 3DWFK(PEHGGLQJ '&$%ORFN 
+
+ൈ 3DWFK(PEHGGLQJ '&$%ORFN 
+
+ൈ 
+
+&6)) 8S6DPSOLQJ             
+
+> 6WDJH
+> 𝐻 8×𝑊 8×128
+> 6WDJH
+> 𝐻 16 ×𝑊 16 ×256
+> 6WDJH
+> 𝐻 32 ×𝑊 32 ×512
+
+&RQY ൈ%15H/8 &RQY ൈ%15H/8 
+
+ &RQFDWHQDWLRQ 
+
+
+
+&RQY ൈ%15H/8 $YJSRRO 0D[SRRO &RQY ൈ5H/8 &RQY ൈ&RQY ൈ5H/8 &RQY ൈ(OHPHQWZLVH $GGLWLRQ &KDQQHO6SDWLDO)HDWXUH)XVLRQ%ORFN (OHPHQWZLVH 0XOWLSOLFDWLRQ 6LJPRLG $YJSRRO 
+
+
+
+&RQY ൈ
+
+6SDWLDO $WWHQWLRQ 
+
+)HDWXUH0DS                                                                      
+
+> 𝐻 ×𝑊 ×𝐶 𝐻 ×𝑊 ×
+> C𝐻 ×𝑊 ×2𝐶 𝐻 ×𝑊 ×𝐶 1×1×𝐶 1×1×𝐶/ r1×1×𝐶/ r1×1×𝐶 1×1×𝐶 1×1×𝐶/ r1×1×𝐶/ r1×1×𝐶 𝐻 ×𝑊 ×𝐶 𝐻 ×𝑊 ×1𝐻 ×𝑊 ×1𝐻 ×𝑊 ×2𝐻 ×𝑊 ×1
+
+8S6DPSOLQJ 
+
+𝑿 ௘
+
+6NLS&RQQHFWLRQ  6NLS&RQQHFWLRQ  &6)) &6)) 0D[SRRO 
+
+&KDQQHO $WWHQWLRQ 
+
+𝑿 ௗ𝑿 ௢𝑿 ௙Fig. 3. Overall architecture of the proposed DCAU-Net. The network adopts a U-shaped encoder-decoder framework with four hierarchical stages. The encoder integrates DCA blocks, centered on the differential cross attention. Features from the encoder are transferred to the decoder via skip connections and adaptively fused with those from previous decoder layers through CSFF blocks to enhance segmentation accuracy. 
+
+training set and 12 for the testing set. Each scan includes expert-annotated segmentations for eight abdominal organs: aorta, gallbladder, liver, spleen, stomach, pancreas, left kidney, and right kidney. Performance is evaluated using the average Dice Similarity Coefficient (DSC) and the average Hausdorff Distance (HD) across all target structures. 
+
+Automated Cardiac Diagnosis Challenge (ACDC) Dataset [21]. The ACDC dataset contains cardiac MRI scans acquired from 100 patients. Each scan is accompanied by expert-provided ground-truth segmentations for three key anatomical structures: left ventricle (LV), right ventricle (RV), and myocardium (MYO). The scans are allocated into 70 for the training set, 10 for the validation set, and 20 for the testing set. Following [1], [2], evaluation is based solely on the average DSC across the three structures. 
+
+B. Implementation Details 
+
+The proposed DCAU-Net is implemented in PyTorch 2.0 and trained on an NVIDIA GeForce RTX 3090 GPU. The encoder backbone is initialized with weights pretrained on ImageNet. For both the Synapse and ACDC datasets, input images are resized to 224 ×224, and standard data augmenta-tions including random rotation and flipping are applied during training. The model is trained for 400 epochs with a batch size of 24, optimized using the AdamW optimizer with a weight decay of 1 e−4. The initial learning rate is set to 1 e−3 for Synapse and 3 e−4 for ACDC, optimizing a combined Cross-entropy (0.4) and DICE (0.6) loss. 
+
+C. Comparison on Synapse Dataset 
+
+We evaluate DCAU-Net on the Synapse dataset against recent CNN, Transformer, and hybrid-based methods. As shown in Table I, our method achieves a new state-of-the-art DSC of 83.29% with only 4.67G FLOPs – the lowest among all competitive approaches – and just 21.56M parameters. It also attains the second-best HD of 15.14 mm, demonstrating strong boundary accuracy. Notably, DCAU-Net yields the highest organ-wise DSC on the gallbladder (73.09%), left kidney (88.20%), right kidney (84.05%), liver (94.98%), and spleen (93.26%), highlighting its robustness on both small and complex anatomical structures. Qualitative comparisons in Fig. 4 further illustrate that DCAU-Net produces more accurate masks, especially for challenging organs like the gallbladder and spleen. 
+
+D. Comparison on ACDC Dataset 
+
+We further evaluate DCAU-Net on the ACDC dataset. As shown in Table II, our method achieves a new state-of-the-art overall DSC of 92.11%. It delivers the best performance TABLE I QUANTITATIVE RESULTS OF OUR APPROACH AGAINST OTHER STATE -OF -THE -ART METHODS ON THE SYNAPSE DATASET . T HE SYMBOL ↑ INDICATES THE LARGER THE BETTER . T HE SYMBOL ↓ DENOTES THE SMALLER THE BETTER . T HE BEST RESULT IS IN BLOD , AND THE SECOND BEST IS UNDERLINED .Methods Params (M) Flops (G) DSC (%) ↑ HD (mm) ↓ Aorta Gallbladder Kidney (L) Kidney (R) Liver Pancreas Spleen Stomach U-Net [4] 14.80 8.43 76.85 39.70 89.07 69.72 77.77 68.60 93.43 53.98 86.67 75.58 Att-UNet [6] 34.88 66.64 77.77 36.02 89.55 68.88 77.98 71.11 93.57 58.04 87.30 75.75 TransUNet [1] 105.28 29.35 77.48 31.69 87.23 63.13 81.87 77.02 94.08 55.86 85.08 75.62 Swin-Unet [2] 27.17 6.16 79.13 21.55 85.47 66.53 83.28 79.61 94.29 56.58 90.66 76.60 HiFormer [12] 25.51 8.05 80.39 14.70 86.21 65.69 85.23 79.77 94.61 59.52 90.99 81.08 PVT-CASCADE [22] 35.28 7.62 81.06 20.23 83.01 70.59 82.23 80.37 94.08 64.43 90.10 83.69                                     
+
+> MISSFormer [23] 42.46 9.89 81.96 18.20 86.99 68.65 85.21 82.00 94.41 65.67 91.92 80.81 BRAU-Net++ [15] 62.63 17.66 82.47 19.07 87.95 69.10 87.13 81.53 94.71 65.17 91.89 82.26 DCAU-Net (Ours) 21.56 4.67 83.29 15.14 87.91 73.09 88.20 84.05 94.98 63.89 93.26 80.94
+
+Aorta  Gallbladder  Spleen Left Kidney  Right Kidney  Liver  Pancreas  Stomach 
+
+Groud Truth  TransUNet  Swin -Unet  MISSFormer  BRAU -Net ++  DCAU -Net PVT -CASCADE 
+
+Fig. 4. Qualitative comparisons of our approach against other state-of-the-art methods on the Synapse dataset. TABLE II QUANTITATIVE RESULTS OF DIFFERENT METHODS ON ACDC DATASET .
+
+Method DSC (%) ↑ RV Myo LV R50+U-Net [1] 87.55 87.10 80.63 94.92 R50+Att-UNet [1] 86.75 87.58 79.20 93.47 UNETR [3] 88.61 85.29 86.52 94.02 TransUNet [1] 89.71 88.86 84.54 95.73 Swin-Unet [2] 90.00 88.55 85.62 95.83 MISSFormer [23] 90.86 89.55 88.04 94.99 PVT-CASCADE [22] 91.46 88.90 89.97 95.50 BRAU-Net++ [15] 92.07 90.72 89.57 95.90 DCAU-Net (Ours) 92.11 90.46 89.88 95.98 
+
+on both Myo and LV, demonstrating superior accuracy in segmenting clinically critical cardiac structures. 
+
+E. Ablation Study 1) Effectiveness of Pre-trained Weights: We evaluate the impact of ImageNet pre-trained weights on DCAU-Net using the Synapse dataset. As shown in Table III, training from random initialization achieves a DSC of 81.25% and HD of 17.63 mm. Initializing with pre-trained weights improves DSC by 2.04% and reduces HD by 2.49 mm, demonstrating the benefit of pre-trained weights. For consistency and to isolate architectural contributions, all subsequent ablation studies use random initialization. 
+
+2) Effectiveness of Different Attention and λ Initialization Strategy in DCA: Table IV shows the impact of different attention and λ initialization strategies in the DCA under the “pixel-wise query – window-level key-value” cross-attention paradigm. The baseline employs standard scaled dot-product attention [9]. We compare it against differential attention with fixed λinit ∈ { 0.5, 0.8} and the dynamic initialization schedule λinit = 0 .8 − 0.6 exp( −0.3 · (l − 1)) [10]. Results show that differential attention consistently outperforms the baseline, with the dynamic initialization achieving the best performance, demonstrating that our efficient cross attention design effectively preserves the capacity to adaptively suppress redundant attention computation. 
+
+3) Effectiveness of CSFF: We conduct an ablation study to evaluate the CSFF block by comparing four decoder fusion TABLE III ABLATION STUDY OF PRE -TRAINED WEIGHTS FOR DCAU-N ET ON THE SYNAPSE DATASET .Pre-trained DSC (%) ↑ HD (mm) ↓ Aorta Gallbladder Kidney (L) Kidney (R) Liver Pancreas Spleen Stomach w/o 81.25 17.63 87.68 67.88 86.77 82.31 94.36 59.56 92.02 79.43 w 83.29 15.14 87.91 73.09 88.20 84.05 94.98 63.89 93.26 80.94 
+
+TABLE IV ABLATION STUDY OF THE ATTENTION TYPE AND λ INITIALIZATION STRATEGY FOR DCA ON THE SYNAPSE DATASET .Attention Type λ Init Strategy DSC (%) ↑ HD (mm) ↓
+
+Standard Attention - 80.79 19.35 Differential Attention Fixed (0.5) 81.18 19.10 Differential Attention Fixed (0.8) 81.03 17.94 Differential Attention Dynamic 81.25 17.63 
+
+strategies: standard U-Net fusion (baseline), CSFF without spatial attention (w/o SA), CSFF without channel attention (w/o CA), and the full CSFF. As shown in Table V, the full CSFF outperforms the baseline by +1.49% in DSC and reduces HD by 2.87 mm. Removing either attention compo-nent degrades performance, demonstrating that channel and spatial attention provide complementary benefits and their joint integration is essential for effective feature fusion. 
+
+TABLE V ABLATION STUDY OF THE CSFF BLOCK ON THE SYNAPSE DATASET .Fusion Strategy DSC (%) ↑ HD (mm) ↓
+
+Standard U-Net Fusion 79.76 20.50 CSFF (w/o SA) 79.63 23.19 CSFF (w/o CA) 80.83 21.56 CSFF (Full) 81.25 17.63 
+
+IV. C ONCLUSION 
+
+In this paper, we propose DCAU-Net, a lightweight yet powerful medical image segmentation framework with two key designs: (1) a differential cross attention mechanism that efficiently applies differential attention between pixel-wise queries and window-level key–value pairs; and (2) a channel-spatial feature fusion strategy that adaptively integrates en-coder and decoder features through joint channel and spatial attention. DCAU-Net achieves state-of-the-art performance on the Synapse and ACDC datasets, demonstrating superior accuracy with lower computational cost. REFERENCES [1] J. Chen et al. , “TransUNet: Transformers make strong encoders for medical image segmentation,” 2021. [Online]. Available: https: //arxiv.org/pdf/2102.04306 1, 4, 5 [2] H. Cao, Y. Wang, J. Chen, D. Jiang, X. Zhang, Q. Tian, and M. Wang, “Swin-Unet: Unet-like pure transformer for medical image segmenta-tion,” in Proc. Eur. Conf. Comput. Vis. , 2022, pp. 205–218. 1, 4, 5 [3] A. Hatamizadeh et al. , “UNETR: Transformers for 3d medical image segmentation,” in Proc. IEEE Winter Conf. Appl. Comput. Vis. , 2022, pp. 574–584. 1, 5 [4] O. Ronneberger, P. Fischer, and T. Brox, “U-Net: Convolutional net-works for biomedical image segmentation,” in Proc. Int. Conf. Med. Image Comput. Comput.-Assist. Intervent. , 2015, pp. 234–241. 1, 5 [5] Z. Zhou et al. , “UNet++: A nested u-net architecture for medical image segmentation,” in Proc. Deep Learn. Med. Imag. Anal. Multimodal Learn. Clin. Decis. Support , 2018, pp. 3–11. 1 [6] O. Oktay et al. , “Attention U-Net: Learning where to look for the pancreas,” 2018. [Online]. Available: https://arxiv.org/pdf/1804.03999 1, 5 [7] H. Huang et al. , “UNet 3+: A full-scale connected unet for medical image segmentation,” in Proc. IEEE Int. Conf. Acoust. Speech Signal Process. , 2020, pp. 1055–1059. 1 [8] A. Dosovitskiy et al. , “An image is worth 16 ×16 words: Transformers for image recognition at scale,” in Proc. Int. Conf. Learn. Represent. ,2021. 1 [9] A. Vaswani et al. , “Attention is all you need,” in Proc. Adv. Neural Inf. Process. Syst. , 2017, pp. 6000–6010. 1, 5 [10] T. Ye, L. Dong, Y. Xia, Y. Sun, Y. Zhu, G. Huang, and F. Wei, “Differential transformer,” in Proc. Int. Conf. Learn. Represent. , 2025. 1, 2, 5 [11] H. Du, J. Wang, M. Liu, Y. Wang, and E. Meijering, “SwinPA-Net: Swin transformer-based multiscale feature pyramid aggregation network for medical image segmentation,” IEEE Trans. Neural Netw. Learn. Syst. ,vol. 35, no. 4, pp. 5355–5366, 2022. 1 [12] M. Heidari et al. , “HiFormer: Hierarchical multi-scale representations using transformers for medical image segmentation,” in Proc. IEEE Winter Conf. Appl. Comput. Vis. , 2023, pp. 6202–6212. 1, 5 [13] H. Zeng, X. Shan, Y. Feng, and Y. Wen, “MSAANet: Multi-scale axial attention network for medical image segmentation,” in Proc. IEEE Int. Conf. Multimedia Expo , 2023, pp. 2291–2296. 1 [14] J. M. J. Valanarasu et al. , “Medical Transformer: Gated axial-attention for medical image segmentation,” in Proc. Int. Conf. Med. Image Comput. Comput.-Assist. Intervent. , 2021, pp. 36–46. 1 [15] L. Lan et al. , “BRAU-Net++: U-shaped hybrid cnn-transformer network for medical image segmentation,” 2024. [Online]. Available: https://arxiv.org/pdf/2401.00722 1, 5 [16] J. Hu, L. Shen, and G. Sun, “Squeeze-and-excitation networks,” in Proc. IEEE Conf. Comput. Vis. Pattern Recognit. , 2018, pp. 7132–7141. 2 [17] Q. Wang, B. Wu, P. Zhu, P. Li, W. Zuo, and Q. Hu, “ECA-Net: Efficient channel attention for deep convolutional neural networks,” in Proc. IEEE Conf. Comput. Vis. Pattern Recognit. , 2020, pp. 11 534–11 542. 2 [18] S. Woo, J. Park, J.-Y. Lee, and I. S. Kweon, “CBAM: Convolutional block attention module,” in Proc. Eur. Conf. Comput. Vis. , 2018, pp. 3–19. 2 [19] B. Zhang and R. Sennrich, “Root mean square layer normalization,” in 
+
+Proc. Adv. Neural Inf. Proces. Syst. , 2019, pp. 1–14. 3 [20] B. Landman et al. , “Synapse multi-organ abdominal CT segmentation dataset,” Multi-Atlas Labeling Beyond the Cranial Vault–Workshop and Challenge , 2015. [Online]. Available: https://www.synapse.org/#! Synapse:syn3193805/wiki/217789 3 [21] O. Bernard et al. , “Deep learning techniques for automatic MRI cardiac multi-structures segmentation and diagnosis: Is the problem solved?” 
+
+IEEE Trans. Med. Imag. , vol. 37, no. 11, pp. 2514–2525, 2018. 4 [22] M. M. Rahman and R. Marculescu, “Medical image segmentation via cascaded attention decoding,” in Proc. IEEE Winter Conf. Appl. Comput. Vis. , 2023, pp. 6222–6231. 5 [23] X. Huang, Z. Deng, D. Li, and X. Yuan, “MISSFormer: An effective medical image segmentation transformer,” 2021. [Online]. Available: https://arxiv.org/pdf/2109.07162 5

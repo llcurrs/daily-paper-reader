@@ -1,0 +1,660 @@
+Title: Bidirectional Cross-Attention Fusion of High-Res RGB and Low-Res HSI for Multimodal Automated Waste Sorting
+
+URL Source: https://arxiv.org/pdf/2603.13941v1
+
+Published Time: Tue, 17 Mar 2026 04:34:27 GMT
+
+Number of Pages: 23
+
+Markdown Content:
+# Bidirectional Cross-Attention Fusion of High-Res RGB and Low-Res HSI for Multimodal Automated Waste Sorting 
+
+Jonas V. Funk a,b,∗ , Lukas Roming b , Andreas Michel b , Paul Bäcker b , Georg Maier b , Thomas Längle a,b , Markus Klute a
+
+> aKIT, Karlsruhe Institute of Technology, 76131 Karlsruhe, Germany
+> bFraunhofer IOSB, Fraunhofer Institute of Optronics, System Technologies and Image Exploitation, 76131 Karlsruhe, Germany
+
+Abstract 
+
+Growing waste streams and the transition to a circular economy require e ffi cient automated waste sorting. In indus-trial settings, materials move on fast conveyor belts, where reliable identification and ejection demand pixel-accurate segmentation. RGB imaging delivers high-resolution spatial detail, which is essential for accurate segmentation, but it confuses materials that look similar in the visible spectrum. Hyperspectral imaging (HSI) provides spectral signa-tures that separate such materials, yet its lower spatial resolution limits detail. E ff ective waste sorting therefore needs methods that fuse both modalities to exploit their complementary strengths. We present Bidirectional Cross-Attention Fusion (BCAF), which aligns high-resolution RGB with low-resolution HSI at their native grids via localized, bidirec-tional cross-attention, avoiding pre-upsampling or early spectral collapse. BCAF uses two independent backbones: a standard Swin Transformer for RGB and an HSI-adapted Swin backbone that preserves spectral structure through 3D tokenization with spectral self-attention. We also analyze trade-o ff s between RGB input resolution and the number of HSI spectral slices. Although our evaluation targets RGB-HSI fusion, BCAF is modality-agnostic and applies to co-registered RGB with lower-resolution, high-channel auxiliary sensors. On the benchmark SpectralWaste dataset, BCAF achieves state-of-the-art performance of 76.4% mIoU at 31 images /s and 75.4% mIoU at 55 images /s. We fur-ther evaluate a novel industrial dataset: K3I-Cycling (first RGB subset already released on Fordatis). On this dataset, BCAF reaches 62.3% mIoU for material segmentation (paper, metal, plastic, etc.) and 66.2% mIoU for plastic-type segmentation (PET, PP, HDPE, LDPE, PS, etc.). 
+
+Keywords: Multi-modal fusion, Sensor-based sorting, Polymer identification, Near-Infrared (NIR), Short-Wave Infrared (SWIR), Packaging waste 
+
+1. Introduction 
+
+The transition towards a circular economy requires high-quality sorting of heterogeneous waste streams by material to enable e ffi cient recycling. Automated waste sorting plants address this need using sensor-based sort-ing systems comprising high-throughput conveyor belts, where objects must be detected and ejected with com-pressed air nozzles. This setting demands reliable, real-time, pixel-level semantic segmentation that can cope with clutter, occlusions, contamination, and variable ob-ject appearances [1]. A range of sensors is deployed for such sorting tasks. RGB cameras capture color, texture, and shape cues. Hyperspectral imaging (HSI) in the near-infrared (NIR, ∼700-1000 nm) and short-wave infrared (SWIR, 
+
+∼1000-2500 nm) ranges supports material identifica-tion. Other application-specific sensors include X-ray transmission, fluorescence systems, laser-induced breakdown spectroscopy (LIBS), and Raman spec-troscopy. For polymer sorting in particular, HSI ex-ploits characteristic absorption features to discriminate polyethylene terephthalate (PET), polyethylene (PE), polypropylene (PP), and other polymers [2, 3]. Previous work has shown that segmentation perfor-mance can often be improved by fusing heterogeneous sensors [4, 5, 6, 7]. In this article, we follow this di-rection by fusing RGB and HSI: RGB excels at high-resolution spatial detail but cannot reliably separate ma-terials with similar colors, whereas HSI provides the 
+
+> arXiv:2603.13941v1 [cs.CV] 14 Mar 2026
+
+spectral richness needed for material discrimination but sacrifices spatial resolution. We argue that exploit-ing the strengths of both modalities without collaps-ing spectral information or eroding spatial detail is a promising approach for improved semantic waste seg-mentation on conveyor belts, and it motivates fusion mechanisms that respect each modality’s native resolu-tion and structure while remaining e ffi cient enough for deployment on commodity hardware. To address this, we introduce Bidirectional Cross-Attention Fusion (BCAF), a multimodal architecture that fuses RGB and HSI without sacrificing either modality’s native strengths. BCAF aligns modalities at their native resolutions across multiple scales via lo-calized bidirectional cross-attention between fine-grid RGB features and coarse-grid multi-slice HSI features. The HSI pathway preserves spectral information, while the RGB pathway retains high-resolution spatial con-text. Both backbones build upon hierarchical Swin Transformer encoders [8]. We additionally construct unimodal RGB and HSI segmentation pipelines based on these backbones paired with a shared U-Net-like de-coder [9] and compare them against BCAF. This native-resolution, channel-preserving fusion set-ting represents a broader class of multimodal sys-tems that combine high-resolution RGB with lower-resolution, high-channel auxiliary sensors. Such con-figurations are common because silicon CMOS pro-cesses enable inexpensive, high-resolution RGB cam-eras, whereas hyperspectral and other non-RGB sen-sors still require more complex materials and fabrica-tion, which limits their attainable resolution. We there-fore expect BCAF to transfer to other RGB +X sensor combinations of this kind. We evaluate our method on two datasets: Spectral-Waste [10] and a novel dataset called K3I-Cycling. We consider two tasks: material-type segmentation (paper, metal, plastic, etc.) and plastic-type segmentation (PET, PP, HDPE, LDPE, PS, etc.), targeting the increasing re-cycling requirements for packaging waste set by, for ex-ample, the European Union [11]. Our study yields five main findings: (i) for both eval-uated datasets, increasing RGB input resolution (256 →
+
+512 → 1024) improves Swin-based semantic segmen-tation, (ii) preserving native high-resolution RGB detail (resolution as information ) yields gains beyond scaling alone, (iii) the optimal number of HSI spectral slices de-pends on task granularity: material segmentation peaks with fewer slices, whereas fine-grained plastic-type seg-mentation benefits from more slices to capture subtle spectral cues, (iv) the adapted HSI backbone preserves more discriminative spectral information than an HSI-to-RGB band-projection baseline using an RGB back-bone, and (v) BCAF consistently outperforms unimodal baselines and learned-logit late fusion, achieving real-time throughput. In summary, BCAF achieves state-of-the-art semantic segmentation on SpectralWaste with 76.4% mIoU at 31 images /s and 75.4% mIoU at 55 images /s on an NVIDIA GeForce RTX 4090. On the novel K3I-Cycling dataset, BCAF attains 62.3% mIoU for material segmentation and 66.2% mIoU for plastic-type segmentation. The main contributions are: 
+
+• A bidirectional, multi-scale fusion mechanism that aligns fine-grid RGB with coarse multi-slice HSI via localized cross-attention at native resolutions. 
+
+• An HSI-adapted Swin backbone with grouped spectral tokenization and factorized spatial-spectral attention, preserving spectral structure without early collapse. 
+
+• A simple two-phase training protocol (unimodal followed by multimodal fine-tuning) that stabilizes fusion and reuses unimodal checkpoints. 
+
+• A systematic study of RGB input resolution and HSI slice count ( K=1-10), revealing resolution-as-information gains and task-dependent optimal K.The article is organized as follows: Section 2 reviews unimodal RGB /HSI segmentation and multimodal fu-sion. Section 3 presents BCAF and its constituent mod-ules, including the adapted HSI Swin Transformer. Sec-tion 4 details the datasets (SpectralWaste, K3I-Cycling), training and evaluation protocols. Section 5 reports uni-modal and fusion results, e ffi ciency, and ablation stud-ies. Section 6 concludes, while the Appendix provides additional visualizations and details. 
+
+2. Related Work 
+
+We review RGB feature extraction backbones, hyper-spectral adaptations of these backbones, semantic seg-mentation architectures for RGB and HSI, and multi-modal fusion strategies, and we identify the gap our method addresses. 
+
+2.1. Feature Extraction Backbones (RGB) 
+
+Early deep backbones for vision were convolu-tional neural networks (CNNs), which remain compet-itive for dense prediction under real-time constraints. Lightweight CNNs such as ENet [12] and ICNet [13] 2are widely used as e ffi cient feature extractors in indus-trial settings. More recent work has adopted hierarchical Vision Transformer backbones tailored for dense prediction. Mixed Transformer (MiT, used in SegFormer) [14] and Swin Transformer [8] produce four-stage feature pyra-mids that are well suited to multi-scale decoding. MiT employs spatial-reduction attention to reduce complex-ity and underpins SegFormer-B0, which has been shown to enable real-time processing on waste-sorting data [10]. Swin uses shifted-window attention with com-plexity O(n · M2), which scales linearly with the number of tokens for a fixed window size M. O ff -the-shelf Ima-geNet pretraining and strong downstream performance have made Swin and MiT practical backbones for in-dustrial deployments, including waste sorting [15, 6]. In this work, we adopt a Swin encoder as our RGB feature extractor. 
+
+2.2. HSI Adaptations of Feature Extraction Backbones 
+
+Hyperspectral imaging (HSI) provides strong spec-tral discrimination thanks to material-specific signa-tures, but its high channel count and often lower spatial resolution pose architectural and e ffi ciency challenges. CNN-based HSI models include 1D spectral CNNs, 3D CNNs, and factorized 2D plus 1D designs. 3D CNNs capture joint spatial-spectral context but are computa-tionally heavy, motivating factorized or dimensionality-reduced approaches under real-time constraints [16]. Transformer-based HSI backbones adapt image Transformers to handle spectral structure. Spectral-Former [17] builds on the ViT design [18], using patch embeddings and a Transformer encoder while apply-ing self-attention along the spectral dimension to model band-wise dependencies. Subsequent variants incorpo-rate spatial attention [19] or factorized spatial-spectral attention [20, 21] to jointly capture spatial and spectral context. However, many of these models are designed for patch-wise classification or small tiles rather than dense, real-time segmentation. In our work, we adapt the hierarchical Swin backbone to HSI by grouping spectral bands into slices and ap-plying factorized spatial-spectral attention, preserving spectral structure without early collapse while remain-ing compatible with multi-scale decoding. 
+
+2.3. Semantic Segmentation for RGB and HSI 
+
+Semantic segmentation networks map backbone fea-tures to pixel-wise predictions. Fully Convolutional Network (FCN) architectures [22] and U-Net [9] pop-ularized encoder-decoder designs with skip connections that recover spatial detail while aggregating seman-tic context. U-Net-like decoders remain standard due to their simplicity, e ffi ciency, and strong performance across modalities. For RGB imagery, subsequent architectures such as DeepLab [23] variants and Transformer-based de-coders further improved segmentation quality, while lightweight designs like ENet [12], ICNet [13], and SegFormer-B0 [14, 10] target real-time inference. In in-dustrial waste sorting, encoder-decoder models with hi-erarchical Transformer backbones (MiT, Swin) and U-Net-like decoders have been evaluated for multimaterial segmentation under throughput constraints [10, 6, 15]. These works demonstrate that real-time semantic seg-mentation on conveyor belts is feasible, but they also highlight the limitations of RGB-only cues for distin-guishing visually similar materials, such as di ff erent plastic types [24]. For HSI, many models are formulated as patch clas-sification or small-tile segmentation, and often focus on remote-sensing benchmarks [17, 19, 20, 21, 16]. When applied to dense segmentation, HSI is frequently pro-cessed with standard 2D backbones after early spec-tral collapse into a few bands or pseudo-RGB channels [10, 6, 24, 15], which limits the exploitation of fine-grained spectral information. In this work, we follow the encoder-decoder paradigm and employ a shared U-Net-like decoder on top of Swin encoders for unimodal RGB, HSI, and their fusion. 
+
+2.4. Multimodal Fusion for Semantic Segmentation 
+
+Fusion strategies are commonly grouped into early, mid-level, and late fusion. Early fusion stacks channels across modalities, often requiring dimensionality reduc-tion (e.g., principal component analysis, PCA), which can discard spectral structure. Mid-level fusion com-bines intermediate features via concatenation, summa-tion, gating, or cross-attention, enabling richer cross-modal interactions at the cost of alignment complexity and compute. Late fusion merges decisions (e.g., log-its), which is e ffi cient but limits feature sharing. Recent segmentation systems use feature-level cross-
+
+/co-attention and multi-scale fusion to align heteroge-neous cues. RGB-X methods such as CMX [4] and CANet [5] rely on up /downsampling to obtain matched spatial grids before fusion, and use cross-attention to exchange information between modalities. In in-dustrial contexts, multimodal setups (e.g., RGB +NIR, RGB +depth) have shown that fusion can outperform unimodal baselines [7, 6]. 3For the modality combination of RGB and HSI, much of the fusion literature targets remote sensing, with fewer works addressing material discrimination and recycling. Ji et al. [24] apply an unaltered Swin Transformer backbone to plastic-flake recognition, us-ing learned spectral channel selection and 2D convo-lutions in the embedding layer to collapse 224 bands and process data purely in the spatial domain. Fu-sionSort [25] achieves strong performance on RGB-HSI /multispectral fusion by applying PCA to reduce the spectral dimension prior to fusion, again operating pri-marily in the spatial domain. Li et al. [6] propose the Hybrid Long-Range Feature Fusion Network (HLRFF-Net) and benchmark a broad set of state-of-the-art ar-chitectures for multimodal waste segmentation, but also rely on PCA-based band reduction (to three compo-nents) and resampling operations that reduce the e ff ec-tive RGB resolution during fusion. 
+
+2.5. Summary and Gap 
+
+In summary, RGB-based segmentation methods are effi cient but struggle to reliably distinguish materials with similar appearance, especially di ff erent polymer types with overlapping color and texture cues [24]. HSI provides strong spectral cues for material dis-crimination [2, 3, 17] but typically has lower spatial res-olution and higher computational cost than RGB sen-sors [16]. Moreover, many HSI networks are tailored to patch-wise classification rather than dense, real-time segmentation [17, 19, 20, 21]. In multimodal settings, prior RGB-HSI fusion meth-ods frequently rely on spectral dimensionality reduction (e.g., PCA) and operate mainly in the spatial domain, collapsing the hyperspectral cube into a few pseudo-RGB channels and limiting the exploitation of fine-grained spectral structure [25, 6]. Furthermore, several architectures resize RGB data to the lower HSI resolu-tion before fusion [6], discarding high-frequency spatial information that is crucial for segmenting small or thin objects on conveyor belts. This creates a gap for a multimodal architecture that (i) preserves spectral structure during fusion, (ii) aligns RGB and HSI features with di ff erent native resolutions at multiple scales via cross-attention, and (iii) remains effi cient enough for real-time deployment on industrial conveyor-belt data. 
+
+3. Methods 
+
+We first present an overview of the proposed bidirec-tional spectral cross-attention fusion (BCAF) architec-ture. In subsequent subsections, we detail the modality-specific RGB and HSI backbones, the multimodal fu-sion mechanism and the shared segmentation head. 
+
+3.1. Architecture Overview 
+
+Figure 1 shows the BCAF architecture for seman-tic segmentation of co-registered RGB-HSI scenes that may di ff er in spatial resolution. BCAF comprises an RGB backbone (blue), an HSI backbone (red), bidirectional spectral cross-attention (dark green), agated modality-fusion module (light green), and ashared U-Net-like decoder /segmentation head (grey). Modality-specific backbones enable unimodal training and reuse, while the shared decoder ensures comparable capacity across RGB-only, HSI-only, and fused models. BCAF is designed around three requirements: (i) preserve high-resolution RGB detail, (ii) preserve HSI spectral structure without early collapse to a few bands, and (iii) remain e ffi cient enough for real-time deploy-ment on conveyor belts. To this end, both backbones follow a multi-scale encoder-decoder paradigm, and fu-sion is performed locally at the feature level via bidirec-tional cross-attention at the native grids of each modal-ity. 
+
+Encoder. Both backbones follow a four-stage hierar-chical Swin Transformer design with patch partition and patch merging. The RGB backbone performs spatial self-attention in shifted windows and acts as a pure spa-tial feature extractor for inputs H f ×W f ×3. The adapted HSI Swin Transformer preserves the hyperspectral axis for inputs Hc × Wc × S by grouping spectral bands into 
+
+K slices and applying a factorized spatial-spectral at-tention design to model spectral structure without early dimensionality reduction (e.g., PCA). The spatial ratio 
+
+r satisfies H f = rH c and W f = rW c and remains con-stant across stages because both encoders downsample equally. 
+
+Fusion and decoder. Bidirectional local cross-attention aligns fine-grid RGB features with coarse-grid HSI features at native resolutions, followed by gated modality fusion. Unless otherwise stated, these mod-ules are applied at all four stages. A single shared 2D decoder consumes the fused features via standard skip connections across stages, providing a lightweight ar-chitecture that reuses existing encoder-decoder designs. 
+
+Notation. We use channels-last tensor shapes. RGB features are H f × W f × C (fine grid), and HSI features are Hc × Wc × K × C (coarse grid with K spectral slices). 
+
+S denotes the number of raw HSI bands. K denotes the slice count after grouping. r denotes the integer spatial ratio with H f = rH c, W f = rW c. C denotes the per-stage embedding width. D denotes the decoder width and N
+
+4Table 1: Notation summary used throughout the methods. Symbol Meaning                      
+
+> Hf,WfFine-grid (RGB) spatial size (height, width)
+> Hc,WcCoarse-grid (HSI) spatial size (height, width)
+> rSpatial ratio: Hf=r H c,Wf=r W c
+> KNumber of HSI spectral slices retained after grouping
+> SNumber of raw HSI bands
+> CChannel width per encoder stage
+> DDecoder widths per upsampling stage
+> NNumber of foreground classes
+
+denotes the number of classes. Implementation details and hyperparameters are provided in Section 4.2. 
+
+3.2. RGB Backbone 
+
+We adopt a hierarchical Swin Transformer encoder [8] as the RGB backbone. Its four-stage design with shifted-window self-attention o ff ers a favorable trade-off between latency and accuracy for dense predic-tion tasks. The encoder outputs feature maps at 
+
+{1/4, 1/8, 1/16 , 1/32 } of the input resolution, which are consumed by the shared decoder. 
+
+3.3. HSI Backbone 
+
+We adapt Swin Transformer to hyperspectral inputs with a factorized 2D +1D attention design that preserves spectral structure and supports unimodal HSI segmenta-tion across variable spectral slice counts. 
+
+Grouped patch partition. Let S be the number of raw HSI bands. We replace the RGB patch partition over (4 ×4×3) with a grouped partition over (4 ×4×RG)bands. Each (4 ×4×RG) cube is projected by a convolu-tion into one token, yielding a 3D token lattice of size (Hc/4) × (Wc/4) × K with C channels, with K = ⌈S /RG⌉
+
+spectral slices with exact padding, if needed (see Sec-tion 4.2). We refer to this backbone configuration as HSI-K.
+
+Factorized attention ( K > 1). At each stage, we apply standard Swin spatial window attention (and its shifted variant) independently to every spectral slice, followed by spectral multi-head self-attention along the slice axis ( K) at each spatial location. A learnable ab-solute spectral positional embedding provides ordering information for the K slices. The number of attention heads follows Swin Transformer defaults. This fac-torization preserves spectral structure while decoupling spatial and spectral modeling. A block-level view of the spectral attention appears in Figure 2 (left, red). 
+
+Spatial-only patch merging. Patch merging aggre-gates tokens only across spatial dimensions, halving spatial resolution at each stage while keeping the slice count K unchanged. Consequently, spectral resolution remains consistent across all four stages. 
+
+Outcome. For K>1, the adapted Swin Transformer backbone processes HSI cubes without early dimen-sionality reduction (e.g., PCA) and produces hierarchi-cal 3D feature maps (height × width ×K slices) at four spatial resolutions for subsequent semantic segmenta-tion. 
+
+HSI-1 (spectral collapse, 2D backbone). When 
+
+K=1, there is a single spectral slice and the pathway is purely 2D. We embed the S -band input with a learned 4×4×S → C convolution and process it with a standard 2D Swin Transformer backbone and the shared 2D de-coder. No spectral self-attention is applied. This base-line collapses the spectral axis at input and serves as a strong 2D reference for comparisons to K>1 settings that preserve spectral structure. 
+
+3.4. Spectral SE Pooling Module 
+
+We introduce a spectral squeeze-excitation (SE) pool-ing module that adaptively compresses the spectral axis (slice count K), enabling a shared decoder across modalities. The design is inspired by SENet [26] and operates along the spectral dimension. Its block-level architecture is shown in Figure 2 (Middle /right, orange). 
+
+Formulation. Given HSI input features Fhsi ∈
+
+RH×W×K×C , we first perform spatial global average pool-ing: 
+
+z = AvgPool H,W (Fhsi ) ∈ RK×C .
+
+Then we compute per-slice, per-channel gates with a two-layer bottleneck (applied independently for each k): 
+
+a = σ   f2(ReLU( f1(z)))  ∈ RK×C ,
+
+where f1 : RC → RCh and f2 : RCh → RC
+
+are pointwise (1 ×1) projections shared across k, with 
+
+Ch = max( ⌊C/8⌋, 8). Finally, we aggregate across the spectral dimension: ˆFhsi =
+
+> K
+
+X
+
+> k=1
+
+ak ⊙ Fhsi ,k ∈ RH×W×C ,
+
+where ak ∈ R1×1×C is the gate for slice k, Fhsi ,k ∈
+
+RH×W×C is the k-th spectral slice, and ⊙ denotes channel-wise multiplication broadcast over H ×W. This spectral-to-spatial reduction produces a 3D feature map suitable for 2D decoders. 
+
+3.5. Bidirectional Cross-Attention 
+
+We fuse RGB and HSI features using bidirectional, local cross-attention without pre-upsampling (cf. Fig-ure 2, dark green). Let RGB features lie on a fine grid 5ConvTranspose2D   
+
+> Conv + BN + ReLU
+> Block 3
+> C
+> Conv
+> Prediction
+> Bilinear Interpolation
+> ConvTranspose2D
+> Conv + BN + ReLU
+> Block 1
+> C
+> Image
+> Patch Partition
+> Linear Embedding
+> Shifted
+> Spatial Attention
+> Spatial Attention
+> Stage 1
+> Patch Merging
+> Shifted
+> Spatial Attention
+> Spatial Attention
+> Stage 2
+> Patch Merging
+> Shifted
+> Spatial Attention
+> Spatial Attention
+> Stage 2
+> Image
+> Grouped
+> Patch Partition
+> Shifted
+> Spatial Attention
+> Spatial Attention
+> Stage 1
+> Spectral Attention
+> Spectral Attention
+> Patch Merging
+> Shifted
+> Spatial Attention
+> Spatial Attention
+> Stage 3
+> Patch Merging
+> Spatial Attention
+> Stage 4
+> Shifted
+> Spatial Attention
+> Spectral Attention
+> Spectral Attention
+> Patch Merging
+> Shifted
+> Spatial Attention
+> Spatial Attention
+> Stage 3
+> Patch Merging
+> Shifted
+> Spatial Attention
+> Spatial Attention
+> Stage 4
+> Bidirectional
+> Cross-Attention
+> ConvTranspose2D
+> Conv + BN + ReLU
+> Block 2
+> C
+> Gated
+> Modality Fusion
+> Gated
+> Modality Fusion
+> Bidirectional
+> Cross-Attention
+> Gated
+> Modality Fusion
+> Bidirectional
+> Cross-Attention
+> Gated
+> Modality Fusion
+> Bidirectional
+> Cross-Attention
+> C:Concatenate (along channel dim)
+> Linear Embedding
+
+Figure 1: BCAF architecture. Left: RGB backbone (blue). Middle: shared decoder /segmentation head (grey). Right: HSI backbone (red) with bidirectional spectral cross-attention and gated modality fusion modules (green). 
+
+H f × W f and HSI features on a coarse grid Hc × Wc,with H f = rH c and W f = rW c for integer r ≥ 1. Each coarse HSI location ( u, v) has K spectral slices and r2
+
+co-registered RGB “children”. Attention is computed strictly within each coarse location ( u, v) (no mixing across parents). Multi-head projections are used in both directions, where the per-head dimension is dh = C/h.Per-head indices are omitted for clarity. At each stage we have the two sets of features: 
+
+Frgb ∈ RH f ×W f ×C , Fhsi ∈ RHc×Wc×K×C .
+
+Fine →Coarse (RGB queries HSI). For each HSI parent ( u, v), we extract r2 RGB children Xrgb (u, v) ∈
+
+Rr2×C via pixel-unshu ffl e [27] (space-to-depth), which rearranges every r × r fine-grid neighborhood into a length-r2 vector per ( u, v). The K HSI slices are 
+
+Xhsi (u, v) ∈ RK×C . With linear projections for queries, keys, and values, 
+
+Qrgb = Xrgb Wr→hQ , Khsi = Xhsi Wr→hK , Vhsi = Xhsi Wr→hV ,
+
+the local scaled dot-product cross-attention at ( u, v) is 
+
+Of→c = softmax  Qrgb K⊤
+
+hsi 
+
+√dh
+
+Vhsi ∈ Rr2×C ,
+
+with softmax over the K keys. Outputs Of→c are re-assembled to the fine grid by pixel-shu ffl e (depth-to-space), linearly projected, fused with the RGB fea-tures via a residual connection, and passed through a position-wise FFN, preserving RH f ×W f ×C .
+
+Coarse →Fine (HSI queries RGB). Symmetrically, at each parent ( u, v) the K HSI slices attend to the r2
+
+RGB children: 
+
+Qhsi = Xhsi Wh→rQ , Krgb = Xrgb Wh→rK , Vrgb = Xrgb Wh→rV ,
+
+Oc→f = softmax  Qhsi K⊤
+
+rgb 
+
+√dh
+
+Vrgb ∈ RK×C ,
+
+with softmax over the r2 keys. These updates are added residually to the HSI slices and passed through a position-wise FFN, preserving RHc×Wc×K×C .6Multi-Head      
+
+> Spectral Attention
+> (Position-wise)
+> LN
+> LN
+> MLP
+> Multi-Head
+> Cross-Attention
+> Multi-Head
+> Cross-Attention
+> LN LN
+> LN LN
+> MLP MLP
+> Spectral Attention
+> Bidirectional
+> Cross-Attention
+> Gated
+> Modality Fusion
+> ,,
+> Conv
+> Spectral SE
+> Pooling LN
+> :Element-wise addition
+> Conv
+> Global Avg Pooling
+> Conv
+> ReLU
+> Sigmoid
+> Spectral Weighted Sum
+> :Element-wise multiplication
+> Spectral SE
+> Pooling
+> LN
+> Gate
+> Upsample
+> LN Figure 2: Module details. Left (red): position-wise spectral self-attention. Middle /left (light-green): gated modality fusion. Middle /right (orange): spectral SE Pooling module. Right (dark-green): bidirectional cross-attention modules.
+
+Special case r=1. When grids coincide, RGB →HSI reduces to 1 ×K attention and HSI →RGB reduces to single-key attention at each location. 
+
+3.6. Modality Fusion Module 
+
+The modality-fusion module merges the RGB and HSI branches into a single 2D feature map per stage for the shared decoder. It first applies spectral SE pool-ing (Section 3.4) to compress the HSI slice axis while preserving the channel dimension, then upsamples the result by r (nearest-neighbor) to match the RGB grid, yielding ˆFhsi (identity when r=1). Both branches are LayerNorm (LN) normalized. A learned per-channel gate α ∈ RC (sigmoid-activated) modulates the HSI con-tribution, and the fused output is 
+
+Ffuse = LN LN( Frgb ) + σ(α) ⊙ LN( ˆ Fhsi ) ∈ RH f ×W f ×C ,
+
+where σ(·) denotes the sigmoid and ⊙ denotes channel-wise multiplication broadcast over H f ×W f . The module is applied at all four stages after cross-attention, intro-duces minimal overhead ( O(H f W f C)), preserves spatial resolution, and allows adaptive control of HSI influence relative to RGB. 
+
+3.7. Segmentation Decoder 
+
+We use a single, 2D U-Net-like decoder across all settings (RGB-only, HSI-only, and RGB-HSI fusion). The decoder expects 2D feature maps at four hierar-chical stages and is identical in all cases. Features from the backbones are first channel-aligned via 1 ×1adapters to a common width D per stage. Starting from the deepest stage, the decoder performs three upsam-pling steps (transpose-convolution with stride 2), each followed by Conv-BatchNorm-ReLU refinement. Lat-eral skip connections from shallower stages are concate-nated at matching resolutions to preserve fine detail. A final 1 ×1 classifier maps to N classes. Logits are resized to input resolution by bilinear interpolation if needed. In the HSI-only path, each stage is passed through spectral SE pooling to collapse the slice axis (K) into a 2D map prior to channel alignment. In fusion, the fused 2D features are channel-aligned and decoded identically. 
+
+Losses. We optimize a weighted sum of cross-entropy and Dice losses: 
+
+L = 0.5 LCE + 1.5 LDice .
+
+Let z ∈ RH×W×(N+1) be the logits over N foreground classes plus background. Let p = softmax( z) denote class probabilities, and Y ∈ { 0, 1}H×W×(N+1) the one-hot labels. 
+
+LCE = − 1
+
+HW 
+
+> H
+
+X
+
+> h=1
+> W
+
+X
+
+> w=1
+> N+1
+
+X
+
+> n=1
+
+wn Yn,h,w log pn,h,w,
+
+with median-frequency class weights computed on the training set (background included) to compensate for pixel-level class imbalance: 
+
+wn = median { fk | fk > 0}
+
+fn + εw
+
+, εw = 10 −6.
+
+7Dice loss is computed on probabilities with ϵ = 1.0, averaged uniformly over all N+1 classes (background included): Dice n = 2 Ph,w pn,h,w Yn,h,w + ϵ
+
+Ph,w pn,h,w + Ph,w Yn,h,w + ϵ ,
+
+LDice = 1 − 1
+
+N + 1
+
+> N+1
+
+X
+
+> n=1
+
+Dice n.
+
+4. Experimental Setup 
+
+We evaluate our approach on two multimodal RGB-HSI datasets: the public SpectralWaste dataset[10] and our novel K3I-Cycling dataset. K3I-Cycling is eval-uated under two label taxonomies: K3I-Material (pri-mary materials) and K3I-Plastic (plastic-type distinc-tions). We first describe the datasets, splits, and prepro-cessing, then detail training and implementation, base-lines, and evaluation protocols. 
+
+4.1. Datasets 
+
+SpectralWaste. This multimodal benchmark was collected in an operational plastic-waste sorting facility, reflecting realistic indoor recycling lines with densely packed, partially occluded, and contaminated items [10]. Each scene includes a conventional RGB image (Teledyne DALSA Linea, initial resolution 1200 ×1184) and a near-infrared hyperspectral cube (Specim FX17, initial 600 ×640 ×224), pairing color cues with material-sensitive spectral signatures. The released subset pro-vides 852 non-overlapping images with 2,059 instance annotations across six categories: basket, film, filament, video tape, cardboard, and trash bag. We use the o ffi cial split of 514 /167 /171 for train /validation /test. The pub-lic release o ff ers aligned RGB at 256 × 256 and HSI at 256 × 256 × 224. For our resolution analysis, we keep HSI fixed at 256 ×256 and vary only the RGB input resolution. Specifically, we start from the provided 256 ×256 RGB images and upsample them to 512 ×512, 1024 ×1024, and 2048 ×2048, yielding a more pixels, same informa-tion regime where the e ff ective spatial information is unchanged but the number of pixels processed by the network increases. 
+
+K3I-Cycling. K3I-Cycling is a lightweight pack-aging dataset captured with a RGB (SW-4000T-10GE from JAI) and a hyperspectral line-scan camera (FX17e from SPECIM). Samples were transported on a con-veyor at 0.2 m /s with mixed materials and realis-tic residue /contamination. Items were post-consumer lightweight packaging provided by Lobbe RSW GmbH. Example scenes are shown in Figure 3. The dataset con-tains 354 co-registered RGB-HSI pairs with 4,855 la-belled object instances. RGB images have 4096 × 4096 resolution, HSI cubes have 512 × 512 × 205 with 205 being the number of spectral channels linearly dis-tributed from 964 nm to 1668 nm. We adopt a 214 /70 /70 train /val /test split. All foreground objects are assigned a semantic label. Background corresponds to the con-veyor and non-object pixels. We plan to publicly release the RGB images in the future (first subset released), with an expanded set of images and sensors. RGB and HSI images are co-registered via marker-based calibration. Circular fiducials at the start and end of each of 10 runs are automatically detected. We first rectify the RGB images and correct the nonlin-ear pixel distribution along the recording line to es-tablish an orthogonal, linearly spaced base coordinate system. A polynomial mapping between RGB and HSI feature coordinates is then fitted, and HSI im-ages are warped into the RGB coordinate system using 
+
+cv2.remap (OpenCV-Python). We evaluate two taxonomies and refer to them as: 
+
+• K3I-Material (4 primary materials): plastic (2,937 instances), paper /cardboard (1,072), metal (266), other (580). 
+
+• K3I-Plastic (8 plastic-related classes): no plas-tic (1,033), LDPE (low-density polyethylene, 813), PP (polypropylene, 765), PET (polyethylene terephthalate, 349), EPS (expanded polystyrene, 184), HDPE (high-density polyethylene, 157), PS (polystyrene, 111), other plastic (1,443). Counts refer to instance-level annotations across the full dataset. Mean normalized spectra for all classes are shown in the Appendix (see Figure 8). We treat ’other’ (Material) and ’other plastic’ (Plastic) as valid fore-ground classes and include them in training and evalua-tion (they count toward N). In both taxonomies, ’back-ground’ denotes the conveyor belt and non-object pix-els. For K3I-Plastic, ’no plastic’ is a foreground class for non-plastic objects (e.g., paper /cardboard, metal) and is distinct from background. The ’other plastic’ class is used for plastics which are none of the prede-fined classes or when a plastic item cannot be reliably assigned to one of the listed polymer types (e.g., heavy contamination or uncertain spectra). 
+
+Input resolutions for K3I-Cycling. K3I-Material /Plastic has native RGB resolution 4096 ×4096 and HSI resolution 512 ×512. We downsample HSI to 256 ×256 for all experiments. For RGB, we consider two regimes: 8RGB Material Plasti cFigure 3: Samples from the K3I-Cycling dataset. Rows (top to bottom): RGB image, labelled K3I-Material masks, labelled K3I-Plastic masks. 
+
+(i) Small-resolution regime (more pixels, same in-formation ): we first downsample the RGB image to 256 ×256, then upsample this low-resolution image to 256 ×256, 512 ×512, 1024 ×1024, and 2048 ×2048. This mirrors the SpectralWaste set-ting, increasing pixel count without adding spatial information. (ii) Native-resolution regime (more pixels, more in-formation ): we downsample directly from the na-tive 4096 ×4096 to 2048 ×2048, 1024 ×1024, and 512 ×512, allowing us to quantify the impact of re-taining higher spatial information on segmentation performance. 
+
+4.2. Training and Implementation Details 
+
+Training regime. Training proceeds in two phases with identical optimization hyperparameters: (i) uni-modal training of RGB and HSI models (trained inde-pendently), and (ii) multimodal fusion fine-tuning that initializes from the unimodal checkpoints and adds bidi-rectional cross-attention. Each phase runs for 1000 epochs on SpectralWaste and 300 epochs on K3I-Material /Plastic, yielding a comparable number of op-timization steps given the smaller size of K3I-Cycling. During fusion, all parameters (both backbones, cross-attention, fusion gates, and decoder) are unfrozen unless noted otherwise. 
+
+RGB backbone configuration. We adopt Swin Transformer Tiny (Swin-T) [8] as the RGB encoder with patch size 4, window size 7, shift 3, attention depths (2 , 2, 6, 2), and heads (3 , 6, 12 , 24). Embedding dimensions expand across stages (96 , 192 , 384 , 768). DropPath is linearly scheduled to 0 .3. We initialize from 
+
+swin_tiny_patch4_window7_224 [28]. 
+
+HSI backbone configuration. For the HSI backbone we adapt Swin-T as described in Section 3.3. We ini-tialize from swin_tiny_patch4_window7_224 [28] where shapes match and randomly initialize spectral-specific layers. For example, for adapted Swin-T atten-tion depths of (3 , 3, 9, 3), the first (2 , 2, 6, 2) blocks per stage are initialized from the pretrained Swin-T weights, while the additional blocks (1 , 1, 3, 1) are initialized ran-domly. 9To create the 3D tokenization, we group contigu-ous bands into K slices. When the raw band count 
+
+S ∈ {224 , 205 } is not divisible by K, we zero-pad to the nearest multiple and set the group size RG =
+
+S pad /K. We adopt a shared-kernel embedding: a sin-gle 4 ×4×RG → C convolution is applied to each spec-tral group with weights shared across groups, produc-ing ( H/4) × (W/4) × K tokens. For SpectralWaste (224 bands), this yields RG = {224 , 75 , 45 , 32 , 23 } for 
+
+K = {1, 3, 5, 7, 10 }, obtained by padding to S pad =
+
+225 for K ∈ {3, 5} and to 230 for K = 10. For K3I-Material /Plastic (205 bands), this yields RG =
+
+{205 , 69 , 41 , 30 , 21 } for K = {1, 3, 5, 7, 10 }, obtained by padding to S pad = 207 for K = 3 and to 210 for 
+
+K ∈ { 7, 10 }.
+
+BCAF fusion configuration. We use one cross-attention block per stage to limit computational over-head. The number of heads follows the backbones: (3 , 6, 12 , 24) across the four stages. Cross-attention and fusion parameters are randomly initialized. 
+
+Shared decoder configuration. For the three de-coder blocks with channel widths D = [256 , 128 , 64] we use dropout 0 .0 for RGB-only models and 0 .1 for HSI-only and fusion models. 
+
+Data augmentation (train only). We apply identical spatial augmentations to RGB and HSI: random rotation ([ −5◦, +5◦]), scale ([0 .8, 1.3]), random crop to the target input resolution, and horizontal /vertical flips (each with probability 0 .5). RGB photometric jitter is applied with probability 0 .8 (brightness /contrast /saturation 0 .2, hue 0.03). HSI spectral jitter uses additive U[−0.10 , 0.10] and multiplicative U[0 .90 , 1.10], applied only to non-zero elements. 
+
+Background masking for HSI. To prevent inter-polation bleed of non-zero foreground into the zero-valued HSI background, we construct a binary fore-ground mask directly from the HSI (non-zero spectrum 
+
+= 1, background = 0), apply the same geometric trans-forms to the mask using nearest-neighbor, and multi-ply the transformed mask with the transformed HSI to re-zero the background. This preserves a strictly zero background, avoids bias in downstream normalization, and does not rely on any label information. 
+
+Normalization. RGB uses ImageNet statis-tics (μRGB = [0 .485 , 0.456 , 0.406], σRGB =
+
+[0 .229 , 0.224 , 0.225]). HSI uses masked per-channel standardization computed over the training split, excluding background (zeros). For the train split, nor-malization is applied at the end of data augmentation pipeline. 
+
+Optimization and schedule. We use AdamW (weight decay 0 .01) with target learning rates by pa-rameter group: head 1 ×10 −4, backbone (pretrained) 1×10 −5, backbone (random init) 1 ×10 −4. The schedule uses a 5-epoch linear warm-up to the target learning rate (LR), then polynomial decay (power 0 .9) to the end of training. The e ff ective batch size is 8 via 4-step gradient accumulation (micro-batch 2 per step). We follow timm 
+
+defaults and do not apply weight decay to normalization and bias parameters. 
+
+Seeds and reproducibility. We train with five seeds (40-44) on SpectralWaste and three seeds (40-42) on K3I-Cycling, applied to PyTorch, NumPy, data loading, and CUDA. We report mean ± std over the correspond-ing seeds. We enable automatic mixed precision (AMP) and do not use gradient clipping. 
+
+4.3. Baselines 
+
+RGB encoder baselines. We compare against Seg-Former’s MiT (Mix Transformer) encoders MiT-B0 and MiT-B2 [14]. To equalize decoder capacity across back-bones, we replace SegFormer’s original MLP head with our shared U-Net-like decoder (Section 3.7). Initial-ization uses ImageNet pretrained MiT weights, and training follows exactly the same data preprocessing, augmentations, optimization, and schedules as for our Swin-T RGB backbone (Section 4.2). 
+
+Logit fusion (late-fusion baseline). As a simple modality-combination baseline, we fuse unimodal pre-dictions via logit fusion. We load unimodal RGB and HSI checkpoints, obtain their per-pixel logits, bilinearly resize the HSI logits to the RGB grid (align_corners=false ) if needed, concatenate the two along the channel dimension, and apply a learned 1×1 convolution to produce fused logits. A softmax yields the final probabilities. Training follows exactly the same data preprocessing, augmentations, optimiza-tion, and schedules as for our BCAF Section 4.2. For logit fusion, the unimodal RGB /HSI backbones and the 1×1 fusion layer are fine-tuned jointly. 
+
+4.4. Metrics and Evaluation Protocol 
+
+We report per-class Intersection-over-Union (IoU) and mean IoU (mIoU). For each class c,IoU n = T P n
+
+T P n + FP n + FN n
+
+, (1) where T P n, FP n, and FN n denote the number of true-positive, false-positive, and false-negative pixels for class n, accumulated over the evaluation split. The mIoU is the unweighted mean over the evaluated classes 
+
+N, excluding the background class: mIoU = 1
+
+|N|
+
+X
+
+> n∈N
+
+IoU n. (2) 10 On SpectralWaste (ground-truth masks 256 × 256), model outputs produced at 512 × 512, 1024 ×
+
+1024, and 2048 × 2048 are downsampled to 256 ×
+
+256 by bilinear interpolation of the raw logits (align_corners=false ), followed by arg max over classes, before computing IoU with the original labels to ensure comparability with prior work. We also assess e ffi ciency and complexity by re-porting throughput (images /s) and GFLOPs. Mea-surements use synthetically generated inputs at the specified resolutions: RGB 256 ×256 ×3, 512 ×512 ×3, 1024 ×1024 ×3, 2048 ×2048 ×3 and HSI 256 ×256 ×S
+
+with S ∈ {224 , 225 , 230 } depending on spectral padding. Throughput is measured on a single NVIDIA GeForce RTX 4090 with cuDNN autotuning enabled, 
+
+model.eval() , torch.no_grad() , batch size = 1, and FP16 (AMP) disabled (FP32 inference). For each of 20 runs, we perform 100 warm-up forward passes to stabilize kernels, followed by 1000 timed passes using CUDA events with explicit GPU synchronization. We report the median over runs. We measure GFLOPs with fvcore using matched dummy inputs for unimodal models. For fusion mod-els, encoder GFLOPs are measured with fvcore , while cross-attention, decoder, and adapter layers are com-puted analytically from feature map dimensions, token dimensions as well as the the number of spectral groups 
+
+S .
+
+5. Results 
+
+This section presents the empirical evaluation of our unimodal RGB and HSI pipelines and our multimodal BCAF. We first analyze unimodal performance to iso-late the e ff ects of RGB spatial input resolution and the number of HSI spectral slices K (Sections 5.1 and 5.2). We then compare BCAF against a late-fusion baseline using learned logit fusion (Section 5.3). We further assess computational e ffi ciency (Section 5.4), and con-duct ablations (Section 5.5) on key HSI backbone com-ponents (grouped embedding and spectral attention) as well as on fusion-stage placement within BCAF. As metrics we report class-wise Intersection-over-Union (IoU, %) and mean IoU (mIoU, %), alongside images per second (images /s), parameter counts (M), and GFLOPs. Higher is better for IoU /mIoU /images /s(↑), and lower is better for Params /GFLOPs ( ↓). Spec-tralWaste results are averaged over 5 seeds and K3I-Cycling results over 3 seeds (mean ± std), under a con-sistent training protocol for fair comparison. Qualitative results on SpectralWaste are shown in Figure 4, with detailed quantitative results in Table 2. For K3I-Cycling, material segmentation and plastic-type segmentation are reported in Table 3 and Ta-ble 4, respectively. Additional qualitative examples for plastic-type are shown in Figure 5. Material-segmentation examples are provided in the appendix. 
+
+5.1. RGB: e ff ect of input resolution 
+
+We analyze the RGB backbone under the two reso-lution protocols defined in Section 4.1: (i) scaling-only (inputs upsampled but evaluated at 256 ×256, no new scene detail), and (ii) information-preserving (down-sampling the native 4096 ×4096 acquisition to the target size, larger inputs retain more spatial detail). Trends are visualized in Figure 6 (left). 
+
+Scaling-only (SpectralWaste and K3I-Material /Plastic). Moderate upsampling (256 → 512 → 1024) improves segmentation by several percentage points, then degrades when pushed too far (2048). Because evaluation remains at 256 ×256, these gains reflect better optimization and more ef-fective receptive-field /window utilization rather than additional spatial information. Excessive upscaling eventually hurts generalization. See Tables 2 to 4. 
+
+Information-preserving (K3I-Material /Plastic). 
+
+When working with native resolution im-ages (4096 ×4096), increasing the input size 256 → 512 → 1024 → 2048 yielding consis-tent gains. At the same nominal input sizes, the information-preserving protocol outperforms scaling-only, indicating that improvements are driven by genuinely retained scene detail (finer edges, small instances, textures) rather than scaling alone. We do not report 4096 inputs due to computational constraints. See Tables 3 and 4. 
+
+Backbone comparison (MiT vs. Swin). At an input resolution of 256 MiT-B2 outperforms Swin-T. When increasing the input size, swin’s shifted-window design benefits more from, whereas MiT’s spatial-reduction at-tention saturates earlier. See Table 2. 
+
+5.2. HSI: e ff ect of spectral slices 
+
+We vary the number of spectral slices K by group-ing contiguous bands in the HSI backbone (Section 4.2). We find that optimal K selection is driven by task dif-ficulty. Increasing K exposes richer spectral structure, while decreasing K denoises /regularizes. 
+
+Texture-dominated (SpectralWaste, K3I-Material). Here we find that small to intermediate K
+
+is su ffi cient. Collapsing the spectrum ( K=1, 2D Swin without spectral attention) remains competitive for unimodal HSI. Large K can even degrade segmentation 11 Figure 4: Qualitative results on SpectralWaste. Shown are Swin-T RGB at 256 /1024 /2048, adapted Swin-T HSI with K=5 slices, and our best BCAF (RGB 1024 + HSI-5). Table 2: SpectralWaste: quantitative comparison of SegFormer (MiT-B0 /B2), Swin-T (RGB), adapted Swin-T (HSI-K), BCAF, and Logit fusion across RGB resolutions and HSI slice counts. Backbone Modality IoU (%) ↑ mIoU (%) ↑ Img. /s ↑ Params (M) ↓ GFLOPs ↓
+
+Film Basket Card. Tape Filam. Bag MiT-B0 RGB-256 74.8 76.3 76.7 31.0 52.0 62.0 62 .1 ± 1.6 226.3 7.739 2.983 MiT-B0 RGB-1024 70.1 80.0 73.8 43.0 74.2 60.5 66 .9 ± 1.1 77.1 7.739 63.325 MiT-B2 RGB-256 76.9 81.1 72.2 39.8 67.8 67.5 67 .6 ± 0.8 134.4 41.866 13.817 MiT-B2 RGB-1024 76.4 81.1 64.4 46.7 78.5 66.6 69 .0 ± 0.8 30.6 41.866 279.458 Swin-T RGB-256 76.1 77.9 76.1 38.1 59.2 67.4 65 .8 ± 1.2 141.0 32.176 9.862 Swin-T RGB-512 78.2 81.4 79.2 45.0 71.4 71.6 71 .1 ± 0.6 134.6 32.176 35.571 Swin-T RGB-1024 75.3 82.9 78.4 45.4 77.5 70.2 71 .6 ± 0.3 60.4 32.176 138.683 Swin-T RGB-2048 69.1 82.7 69.2 46.6 76.4 66.2 68 .4 ± 0.8 15.0 32.176 546.316 Swin-T HSI-1 67.4 71.5 84.9 26.8 56.9 57.7 60 .9 ± 0.2 141.0 32.176 9.906 Adapted Swin-T HSI-3 68.3 66.9 86.8 24.5 55.7 56.1 59 .7 ± 0.7 114.1 45.459 34.158 Adapted Swin-T HSI-5 68.2 67.6 86.4 23.8 56.4 59.6 60 .3 ± 0.9 118.8 45.417 54.343 Adapted Swin-T HSI-7 66.3 64.7 83.5 24.2 58.1 57.1 59 .0 ± 1.5 90.8 45.402 74.547 Adapted Swin-T HSI-10 67.2 64.4 85.5 21.0 54.5 54.3 57 .8 ± 1.2 67.9 45.394 104.902 Logit Fusion RGB-1024 + HSI-5 76.5 82.2 83.9 47.2 74.9 70.9 72 .6 ± 0.8 38.8 77.593 209.797 BCAF RGB-256 + HSI-5 78.3 80.1 88.2 40.0 70.3 69.7 71 .1 ± 0.4 54.4 101.296 78.284 BCAF RGB-512 + HSI-5 80.3 84.7 90.1 47.2 76.9 73.2 75 .4 ± 0.2 54.9 101.296 119.007 BCAF RGB-1024 + HSI-1 78.8 84.6 87.7 50.0 80.9 72.3 75 .7 ± 0.5 39.4 88.055 210.964 BCAF RGB-1024 + HSI-5 78.1 85.0 90.8 50.0 80.4 73.8 76 .4 ± 0.4 31.4 101.296 282.176 
+
+12 Table 3: K3I-Material (segmentation): quantitative comparison of Swin-T (RGB), adapted Swin-T (HSI-K), and BCAF across RGB resolutions and HSI slice counts. Backbone Modality RGB IoU (%) ↑ mIoU (%) ↑
+
+Origin Res Input Res other plastic paper metal Swin-T RGB 256 256 15.7 76.5 44.7 7.1 36 .0 ± 0.4Swin-T RGB 256 512 25.4 80.2 50.9 16.3 43 .3 ± 0.4Swin-T RGB 256 1024 24.6 81.2 53.4 18.6 44 .4 ± 0.4Swin-T RGB 256 2048 27.1 80.7 51.5 15.5 43 .7 ± 0.6Swin-T RGB 4096 512 27.2 80.2 51.5 23.8 45 .7 ± 0.5Swin-T RGB 4096 1024 33.8 85.3 61.5 33.4 53 .5 ± 0.6Swin-T RGB 4096 2048 33.7 87.8 70.1 38.6 57 .6 ± 0.4
+
+Adapted Swin-T HSI-1 10.1 83.9 72.7 28.9 48 .9 ± 0.6Adapted Swin-T HSI-3 18.2 82.5 73.3 26.3 50 .1 ± 0.9
+
+Adapted Swin-T HSI-5 21.4 82.4 73.4 19.8 49 .2 ± 0.8Adapted Swin-T HSI-7 19.9 79.5 71.8 18.0 47 .3 ± 1.3Adapted Swin-T HSI-10 16.1 79.5 70.2 15.8 45 .4 ± 0.8Logit Fusion RGB +HSI-3 4096 1024 33.9 89.7 78.1 29.9 57 .9 ± 1.8BCAF RGB +HSI-3 4096 1024 36.2 90.9 80.8 41.4 62 .3 ± 1.1
+
+Figure 5: Qualitative results on K3I-Plastic (segmentation). Shown are Swin-T RGB at 1024 and 2048, adapted Swin-T HSI with K=7 slices, and our best BCAF (RGB 1024 + HSI-7). 
+
+performance due to amplified noise and limited need for fine spectral detail. The unimodal HSI-RGB gap is modest in these settings, indicating that texture /shape cues already carry most of the discriminative signal. See Tables 2 and 3. 
+
+Visually similar (K3I-Plastic). When material dis-tinction is impossible using only visual cues, explicit spectral modeling is essential. Performance increases 13 Table 4: K3I-Plastic (segmentation): quantitative comparison of Swin-T (RGB), adapted Swin-T (HSI-K), and BCAF across RGB resolutions and HSI slice counts. Backbone Modality RGB IoU (%) ↑ mIoU (%) ↑                                                                                                                                                                                                   
+
+> Origin Res Input Res no_plastic other_plastic HDPE LDPE PS PP PET EPS Swin-T RGB 256 256 41.4 22.9 13.8 33.4 6.7 18.1 19.1 55.5 26 .3±0.6Swin-T RGB 256 512 44.3 20.5 17.3 41.2 4.4 20.3 19.1 52.0 27 .4±1.1Swin-T RGB 256 1024 51.5 24.5 16.3 40.6 9.0 25.8 22.3 62.6 31 .6±0.8Swin-T RGB 256 2048 52.4 25.8 14.1 41.6 9.5 25.3 23.1 54.5 30 .8±0.5Swin-T RGB 4096 512 49.7 25.6 18.5 41.6 13.2 24.2 23.3 68.5 33 .1±0.6Swin-T RGB 4096 1024 56.3 26.4 19.8 46.3 9.7 32.6 30.8 82.2 38 .0±0.1Swin-T RGB 4096 2048 63.2 27.6 15.0 47.1 11.5 32.0 28.6 90.5 39 .4±0.2
+> Adapted Swin-T HSI-1 65.0 31.3 26.6 41.2 26.6 36.9 50.6 71.6 43 .7±1.1Adapted Swin-T HSI-3 68.2 34.1 47.0 65.5 67.3 60.8 71.0 85.3 62 .4±2.3Adapted Swin-T HSI-5 69.7 31.9 46.7 65.6 61.3 63.6 73.8 79.6 61 .5±1.7Adapted Swin-T HSI-7 69.5 35.8 56.6 68.0 65.0 62.9 74.9 82.6 64 .4±1.7
+> Adapted Swin-T HSI-10 68.4 36.9 54.0 66.3 65.8 63.6 74.3 85.1 64 .3±0.8Logit Fusion RGB +HSI-7 4096 1024 69.7 31.6 45.6 65.6 46.8 63.5 55.3 85.8 58 .0±4.5BCAF RGB +HSI-7 4096 1024 77.8 39.8 39.9 71.9 63.7 67.0 75.9 93.8 66 .2±1.7
+
+steadily with K and peaks at moderate-to-large K
+
+(around 7, with 10 close). Here, unimodal HSI with multi-slice spectral attention yields substantial mIoU gains over both unimodal RGB and HSI-1 (2D-only), confirming that polymer separation is governed by spec-tral signatures rather than texture or color. This shows the value of our HSI-adapted Swin, in contrast to ap-proaches that rely on early spectral collapse (e.g., PCA into 2D processing), which underutilize HSI. Trends are visualized in Figure 6 (right), quantitative references ap-pear in Table 4. 
+
+5.3. Fusion Results 
+
+We compare BCAF against unimodal RGB /HSI base-lines and a learned late-fusion baseline (logit fusion), all trained with identical backbones and schedules. 
+
+Overall. Across datasets, BCAF consistently im-proves mIoU and per-class IoU over the strongest uni-modal RGB /HSI baselines and over the learned late-fusion baseline. On SpectralWaste, BCAF achieves state-of-the-art mIoU under the o ffi cial split (see Ta-ble 2). On K3I-Material /Plastic, BCAF improves both taxonomies. Gains are larger for K3I-Material, where BCAF really benefits from the complementary cues of RGB and HSI, and smaller but consistent for Plastic-type, where unimodal HSI is already strong (see Ta-bles 3 and 4). 
+
+Why BCAF beats logit fusion. Logit fusion ag-gregates decisions but lacks feature-level interactions. In contrast, BCAF performs bidirectional, local cross-attention between fine-grid RGB and coarse spectral slices, followed by gated fusion that modulates HSI con-tributions per channel and stage. This yields systemat-ically higher, more stable gains than decision-level fu-sion at the same input sizes. On K3I-Plastic, where the mIoU gap between RGB and HSI is large (25 percent-age points), logit fusion with unfrozen backbones al-lowed the weaker RGB stream to degrade strong HSI predictions, producing lower mIoU than HSI alone. 
+
+SpectralWaste: HSI-1 vs. HSI-5 in fusion. Acentral observation is that multi-slice HSI improves modality fusion even if the unimodal HSI-1 pipeline (spectral collapse, 2D processing) has a higher mIoU. With BCAF, RGB-1024 +HSI-5 outperforms RGB-1024 +HSI-1, because processing the k = 5 slices con-tribute more complementary information to RGB. This can also be seen in the Oracle fusion, selecting, at each pixel, the correct prediction from RGB or HSI us-ing ground truth (an upper bound on feature-level fu-sion without labels at test time). Here larger per-pixel lift over RGB can be seen HSI-5 than for HSI-1 (Fig-ure 7), indicating less redundancy and richer spectral cues. This complementarity yields the best semantic segmentation with RGB-1024 +HSI-5 (Table 2). 
+
+5.4. Computation Analysis 
+
+We assess inference e ffi ciency and complexity via throughput (images /s), parameters, and theoretical GFLOPs, using the protocol described in Section 4.4. Summary values appear in Table 2. 
+
+RGB scaling. As input size increases, GFLOPs grow quadratically while parameters remain constant. From 256 → 512, throughput is nearly unchanged (GPU underutilization at small sizes dominates). From 512 → 1024, throughput drops noticeably, and 2048 is compute-heavy with a further decrease. Combined with 14 I
+
+# I I
+
+# IFigure 6: E ff ect of input resolution (left, RGB) and spectral slice count K (right, HSI) on segmentation performance across SpectralWaste and K3I-Material /Plastic. Curves summarize the trends of Sections 5.1 and 5.2. Higher mIoU is better. 
+
+the accuracy trends, 512 yields an almost “free” boost in accuracy, and 1024 o ff ers a balanced operating point. 
+
+HSI scaling. Increasing the spectral slice count 
+
+K adds approximately linear compute due to spectral self-attention. Throughput remains nearly flat up to small /intermediate K (e.g., K≤5) and declines for larger 
+
+K (e.g., 7-10) as spectral attention begins to dominate latency. 
+
+Fusion overhead (BCAF). BCAF computes cross-attention locally at each coarse HSI location, so that r2
+
+fine-grid RGB “children” interact with K spectral slices. This leads to a score-computation cost per stage that scales as O HcWc r2 K, rather than O r2 K (HcWc)2 for global all-to-all attention. In practice, the RGB and HSI backbones run e ffi ciently in parallel, so the fusion over-head is modest. With RGB at 512 and K=5 HSI slices, BCAF maintains real-time throughput while improving accuracy. Increasing RGB to 1024 with K=5 reduces throughput as expected but remains viable for relaxed-latency settings. 
+
+5.5. Ablation Study 
+
+We ablate key components of the BCAF to validate design choices and quantify their impact under con-trolled settings. All runs share identical data prepro-cessing, augmentations, optimization as in Section 4.2. We first ablate the HSI backbone in a unimodal set-ting on SpectralWaste at 256 ×256 with K=5 slices to isolate spectral design choices. We probe three ques-tions: (i) how to embed raw bands into K spectral slices (embedding), (ii) how to model spectral relations in the backbone (attention vs. convolution), and (iii) how to re-duce the slice axis before the shared 2D decoder (spec-tral reduction). Results are in Table 5. We then ablate fusion stage activation and direc-tionality (RGB →HSI, HSI →RGB, bidirectional) and modality misalignment. We use RGB = 1024 and HSI-5 on SpectralWaste, and additionally report K3I-Material /Plastic results with RGB = 1024 and K=3 and 
+
+K=7 respectively. Results are shown in Tables 6 and 7. 
+
+HSI backbone: embedding. Our baseline (grouped shared-kernel) preserves spectral structure by grouping contiguous bands ( RG=45) and applying a single shared 4×4×RG → C convolution per group, yielding K-slices. We compare (1) a single large projection that uses one 4×4×S projection over all 224 bands to directly pro-duce K=5 tokens per location (no grouping, no weight sharing), (2) unshared per-group kernels with the same 15 Figure 7: SpectralWaste: comparison of HSI-1 (K =1, spectral collapse) and HSI-5 (K =5, multi-slice). Oracle fusion (per-pixel best-of-modality using ground truth) shows a larger lift over RGB-1024 for HSI-5, evidencing stronger complementarity to RGB. 
+
+grouping but separate 4 ×4×RG kernels per group (no sharing), (3) PCA-5 that collapses 224 → 5 components globally before a 4 ×4×1 patch-embed per component, and (4) SavGol + PCA-5 that applies Savitzky-Golay smoothing [29] prior to PCA. We find that preserving spectral locality with shared weights provides the best accuracy. In contrast, the sin-gle large projection and unshared per-group variants do not improve accuracy, while PCA-based variants con-sistently underperform, indicating that early spectral collapse discards discriminative narrowband structure needed downstream. 
+
+HSI backbone: spectral modeling. At each spa-tial location, the baseline applies position-wise spectral self-attention over the K slices with learnable spectral positional encodings (content-adaptive mixing). We re-place this with a 1D Conv along the slice axis (fixed local spectral receptive field) to test whether explicit at-tention is necessary. Replacing attention with 1D con-volution yields a mIoU drop, suggesting that fixed ker-nels underfit slice correlations and cannot adapt mixing to class- and instance-specific spectral patterns. 
+
+HSI backbone: spectral reducer (pre-decoder). 
+
+Before the shared 2D decoder, the baseline spectral SE performs input-adaptive per-slice and per-channel gat-ing followed by a weighted sum over K (Section 3.4). 16 Table 5: HSI (unimodal) ablations on SpectralWaste: embedding variants, spectral modeling, and spectral reducer. All use K=5 unless noted. ∆ is measured against the baseline row within each block. Block Variant mIoU (%) ↑ Img. /s ↑ Params (M) ↓ GFLOPs ↓                                                              
+
+> Embedding Grouped shared-kernel (baseline) 60 .3±0.9118.8 45.417 54.343
+> variants Single large projection 56 .7±1.5117.9 47.076 60.005 Unshared per-group kernels 56 .1±2.5120.4 45.694 54.343 PCA-5 57 .6±1.6123.1 45.356 52.959 SavGol +PCA-5 53 .9±1.5123.5 45.356 52.959
+> Spectral modeling Spectral attention (baseline) 60 .3±0.9118.8 45.417 54.343
+> in backbone 1D Conv 58 .1±1.1131.1 41.084 49.790
+> Spectral reducer Spectral SE (baseline) 60 .3±0.9118.8 45.417 54.343
+> before decoder Learnable Weighted Reducer 60 .0±0.8121.3 45.220 54.342
+
+We compare a learnable weighted reducer that uses a global, input-independent vector of K weights (shared across all channels). Spectral SE yields slightly higher mIoU, indicating that conditioning the spectral slice weights on features improves robustness to noise and class-dependent spectral variability at negligible over-head. 
+
+Fusion: BCAF stage-wise e ff ect. Table 6 ab-lates the fusion stage and directionality. All-stage, bidirectional cross-attention performs best, confirming the value of multi-scale, localized interactions between high-resolution RGB and coarser multi-slice HSI. Fus-ing only at the last stage (with RGB used via the head skip connection elsewhere) is close on SpectralWaste but lags on K3I-Cycling. Especially mIoU drops on K3I-Plastic, suggesting that early-stage cues aid align-ment in more diverse scenes. Fusing only at the first stage consistently reduces mIoU. Unidirectional vari-ants underperform bidirectional. 
+
+Fusion: Modality misalignment. We assess robust-ness to cross-modal registration errors by shifting HSI only while keeping RGB and labels fixed. All mod-els are trained on aligned data, results can be seen in Table 7). Across datasets, BCAF is more robust than late logit fusion for small-to-moderate shifts, indicating that localized, multi-scale cross-attention bu ff ers mod-est misregistrations. The degradation pattern mirrors modality information content: SpectralWaste changes little under HSI shifts (RGB-dominated), K3I-Material degrades moderately (balanced cues), and K3I-Plastic is most sensitive (HSI-dominated). At extreme shifts, when cross-modal overlap largely disappears, fusion benefits diminish and the gap to late fusion narrows. 
+
+Fusion: Training protocol. Initializing BCAF’s RGB and HSI backbones from the best unimodal check-points, then fine-tuning the full fusion model end-to-end, yields more stable convergence and higher mIoU than starting from ImageNet-initialized back-bones (55 .9 ± 1.8 on SpectralWaste), with no architec-tural changes. 
+
+6. Conclusion 
+
+We addressed pixel-accurate, real-time waste sorting by fusing high-resolution RGB with lower-resolution HSI without collapsing spectra or eroding spatial de-tail. We introduced Bidirectional Cross-Attention Fu-sion (BCAF), which (i) adapts Swin Transformer to HSI via grouped spectral tokenization and factorized spatial-spectral attention, (ii) aligns fine-grid RGB and coarse-grid HSI features through localized, bidirectional cross-attention across multiple scales, and (iii) employs spec-tral SE pooling and gated fusion to share a single, lightweight decoder across RGB, HSI, and fused inputs. Across SpectralWaste and our industrial K3I-Cycling datasets, three trends stand out. (1) Scaling the RGB input improves segmentation, and the biggest gains ap-pear when larger inputs preserve native high-resolution detail. (2) Preserving and attending along the spec-tral axis in our adapted HSI backbone provides gen-uinely complementary cues beyond 2D backbones and it clearly excels when spectral signatures dominate (e.g., plastic-type discrimination). (3) Building on these strengths, BCAF couples fine-grid RGB struc-ture with multi-slice HSI features via localized, bidirec-tional cross-attention, consistently surpassing unimodal baselines and learned logit-level fusion and achieving state-of-the-art performance on SpectralWaste at practi-cal throughput. A limitation is that the method assumes paired, well-registered acquisition: localized multi-scale cross-attention tolerates small shifts, but severe spa-tial /temporal misregistration degrades fusion. The dual-backbone design increases parameters and com-pute. Performance is sensitive to the HSI slice count 
+
+K: small K can underuse spectral detail on fine-grained 17 Table 6: Fusion ablations (RGB 1024). Bidirectional refers to both RGB →HSI and HSI →RGB within each fusion block. Config Stages Direction SpectralWaste mIoU (%) K3I-Material mIoU (%) K3I-Plastic mIoU (%) Img. /s ↑ Params (M) ↓ GFLOPs ↓                                                                                                                                                                                                              
+
+> Early only 1bidirectional 73 .2±0.359 .5±0.859 .1±1.135.4 82.477 228.937 Late only 4bidirectional 76 .3±0.558 .9±0.761 .9±1.538.6 96.579 225.979 All stages 1-4 bidirectional 76 .4±0.461 .8±1.266 .2±1.731.4 101.296 282.176 All stages 1-4 RGB →HSI 76 .0±0.660 .4±1.561 .5±0.732.6 98.156 228.908 All stages 1-4 HSI →RGB 76 .3±0.360 .4±0.860 .3±1.533.1 98.156 268.166 Table 7: Absolute mIoU (%) under HSI-only spatial shifts (pixels on the HSI grid). RGB and labels remain fixed, while HSI is shifted by ( dx ,dy )with zero padding. All models are trained on aligned data. Model /Dataset (0,0) mIoU (2,2) (4,4) (8,8) (16,16) (32,32) (64,64) Logit fusion (SpectralWaste) 72 .6±0.872 .7±0.872 .6±0.872 .2±0.669 .5±1.258 .8±2.736 .2±4.9BCAF (SpectralWaste) 76 .4±0.476 .3±0.576 .3±0.476 .0±0.375 .3±0.473 .4±0.669 .1±1.3Logit fusion (K3I-Material) 57 .9±0.257 .5±0.455 .8±0.850 .7±1.342 .7±1.237 .4±1.436 .6±1.1BCAF (K3I-Material) 62 .3±1.162 .2±1.261 .1±1.357 .9±1.250 .6±1.345 .0±1.41 44 .8±1.4Logit fusion (K3I-Plastic) 58 .0±4.557 .6±4.655 .6±4.249 .6±2.038 .3±1.326 .2±3.721 .2±4.2BCAF (K3I-Plastic) 66 .2±1.766 .0±1.863 .8±1.858 .0±2.045 .0±1.127 .0±1.018 .5±1.5
+
+tasks, whereas large K improves discrimination at added latency and potential noise ( K should be tuned per task). Finally, the approach presumes synchronized sensors and calibration, which may limit deployment where reliable pairing is unavailable. Future work includes extending BCAF to other co-registered RGB +X sensing modalities (e.g., mul-tispectral, NIR /SWIR, thermal, depth /ToF). We also plan to deploy it on a real conveyor system to assess end-to-end performance under realistic operating condi-tions. In addition, given the abundance of unlabeled HSI data and the lack of established hyperspectral founda-tion models, we plan to investigate self-supervised pre-training strategies for the HSI backbone, analogous to how ImageNet pretraining benefits the RGB backbone, with the aim of further improving robustness and seg-mentation accuracy. In summary, BCAF preserves hyperspectral structure and aligns it with high-resolution RGB through multi-scale, bidirectional cross-attention, delivering accurate and e ffi cient multimodal segmentation. 
+
+Acknowledgement 
+
+We would like to thank Ste ff en Rüger and his team of the Fraunhofer Institute for Integrated Circuits IIS for their support in dataset annotation. We also thank Lobbe RSW GmbH (Iserlohn, Germany) for providing samples of lightweight packaging waste. 
+
+Data availability 
+
+SpectralWaste: Publicly available at https: //github.com/ferpb/spectralwaste-dataset 
+
+[10]. We used the dataset under the terms of the original repository. K3I-Cycling: Proprietary dataset collected at Fraun-hofer IOSB with support from Lobbe RSW GmbH. Not fully publicly released yet. First subset already available at http://dx.doi.org/10.24406/fordatis/420 .
+
+Code availability 
+
+We will release the full source code for BCAF, in-cluding training and evaluation scripts, configuration files, and pretrained checkpoints, upon acceptance. 
+
+Funding 
+
+Funding was provided by the Federal Ministry of Research, Technology and Space (BMFTR) under the funding reference 033KI201. 
+
+Declaration of competing interest 
+
+The authors declare no competing financial or non-financial interests. 
+
+Declaration of generative AI and AI-assisted technolo-gies in the writing process 
+
+During the preparation of this work the authors used FhGenie (GPT5-based) in order to improve readability. After using this tool, the authors reviewed and edited the content as needed and take full responsibility for the content of the publication. 18 References 
+
+[1] G. Maier, R. Gruna, T. Längle, J. Beyerer, A sur-vey of the state of the art in sensor-based sorting technology and research, IEEE Access 12 (2024). [2] C. Chang, Hyperspectral Imaging: Techniques for Spectral Detection and Classification, Springer Science & Business Media, 2003. [3] D. A. Burns, E. W. Ciurczak (Eds.), Handbook of Near-Infrared Analysis, 3rd Edition, CRC Press, 2007. [4] J. Zhang, H. Liu, K. Yang, X. Hu, R. Liu, R. Stiefelhagen, Cmx: Cross-modal fusion for rgb-x semantic segmentation with transformers, IEEE Transactions on intelligent transportation systems 24 (12) (2023) 14679–14694. [5] H. Zhou, L. Qi, H. Huang, X. Yang, Z. Wan, X. Wen, Canet: Co-attention network for rgb-d semantic segmentation, Pattern Recognition 124 (2022) 108468. [6] Y. Li, X. Zhang, Hybrid long-range feature fusion network for multi-modal waste semantic segmen-tation, Information Fusion (2025) 103608. [7] M. Bihler, L. Roming, Y. Jiang, A. J. Afifi, J. Aderhold, D. ˇ Cibirait˙ e-Lukenskien˙ e, S. Lorenz, R. Gloaguen, R. Gruna, M. Heizmann, Multi-sensor data fusion using deep learning for bulky waste image classification, in: Automated Visual Inspection and Machine Vision V, Vol. 12623, SPIE, 2023, pp. 69–82. [8] Z. Liu, Y. Lin, Y. Cao, H. Hu, Y. Wei, Z. Zhang, S. Lin, B. Guo, Swin transformer: Hierarchical vision transformer using shifted windows, CoRR abs /2103.14030 (2021). [9] O. Ronneberger, P. Fischer, T. Brox, U-net: Con-volutional networks for biomedical image seg-mentation, in: Medical Image Computing and Computer-Assisted Intervention (MICCAI), Vol. 9351, 2015. [10] S. Casao, F. Peña, A. Sabater, R. Castillón, D. Suárez, E. Montijano, A. C. Murillo, Spectral-waste dataset: Multimodal data for waste sorting automation, in: 2024 IEEE /RSJ International Con-ference on Intelligent Robots and Systems (IROS), IEEE, 2024, pp. 5852–5858. [11] European Parliament, How to reduce plastic waste: Eu measures explained, 
+
+https://www.europarl.europa.eu/ topics/en/article/20180830STO11347/ how-to-reduce-plastic-waste-eu-measures-explained# plastic-packaging-waste-10 , accessed: 10 Dec 2025. [12] A. Paszke, A. Chaurasia, S. Kim, E. Culurciello, Enet: A deep neural network architecture for real-time semantic segmentation, arXiv preprint arXiv:1606.02147 (2016). [13] H. Zhao, X. Qi, X. Shen, J. Shi, J. Jia, Ic-net for real-time semantic segmentation on high-resolution images, in: Proceedings of the Eu-ropean conference on computer vision (ECCV), 2018, pp. 405–420. [14] E. Xie, W. Wang, Z. Yu, A. Anandkumar, J. M. Álvarez, P. Luo, Segformer: Simple and e ffi cient design for semantic segmentation with transform-ers, CoRR (2021). [15] A. Senanayake, M. Arashpour, Automated electro-construction waste sorting: Computer vision for part-level segmentation, Waste Management 203 (2025) 114883. [16] M. Ahmad, S. Distefano, A. M. Khan, M. Maz-zara, C. Li, H. Li, J. Aryal, Y. Ding, G. Vivone, D. Hong, A comprehensive survey for hyper-spectral image classification: The evolution from conventional to transformers and mamba models, Neurocomputing 644 (2025). [17] D. Hong, Z. Han, J. Yao, L. Gao, B. Zhang, A. Plaza, J. Chanussot, Spectralformer: Rethink-ing hyperspectral image classification with trans-formers, CoRR (2021). [18] A. Dosovitskiy, L. Beyer, A. Kolesnikov, D. Weis-senborn, X. Zhai, T. Unterthiner, M. Dehghani, M. Minderer, G. Heigold, S. Gelly, J. Uszkor-eit, N. Houlsby, An image is worth 16x16 words: Transformers for image recognition at scale, Inter-national Conference on Learning Representations (2021). [19] X. Yang, W. Cao, Y. Lu, Y. Zhou, Hyperspectral image transformer classification networks, IEEE Transactions on Geoscience and Remote Sensing 60 (2022). 19 [20] X. He, Y. Chen, Z. Lin, Spatial-spectral trans-former for hyperspectral image classification, Re-mote Sensing 13 (3) (2021). [21] L. Sun, G. Zhao, Y. Zheng, Z. Wu, Spec-tral–spatial feature tokenization transformer for hyperspectral image classification, IEEE Trans-actions on Geoscience and Remote Sensing 60 (2022). [22] J. Long, E. Shelhamer, T. Darrell, Fully convo-lutional networks for semantic segmentation, in: Proceedings of the IEEE conference on computer vision and pattern recognition, 2015, pp. 3431– 3440. [23] L.-C. Chen, G. Papandreou, I. Kokkinos, K. Mur-phy, A. L. Yuille, Deeplab: Semantic image seg-mentation with deep convolutional nets, atrous convolution, and fully connected crfs, IEEE trans-actions on pattern analysis and machine intelli-gence 40 (4) (2017) 834–848. [24] T. Ji, H. Fang, R. Zhang, J. Yang, Z. Wang, X. Wang, Plastic waste identification based on multimodal feature selection and cross-modal swin transformer, Waste Management 192 (2025). [25] M. Ali, O. A. AlSuwaidi, Fusionsort: Enhanced cluttered waste segmentation with advanced de-coding and comprehensive modality optimization, arXiv preprint arXiv:2508.19798 (2025). [26] J. Hu, L. Shen, G. Sun, Squeeze-and-excitation networks, in: Proceedings of the IEEE conference on computer vision and pattern recognition, 2018, pp. 7132–7141. [27] W. Shi, J. Caballero, F. Huszár, J. Totz, A. P. Aitken, R. Bishop, D. Rueckert, Z. Wang, Real-time single image and video super-resolution us-ing an e ffi cient sub-pixel convolutional neural net-work, in: Proceedings of the IEEE conference on computer vision and pattern recognition, 2016, pp. 1874–1883. [28] R. Wightman, Pytorch image mod-els, https://github.com/rwightman/ pytorch-image-models (2019). doi: 10.5281/zenodo.4414861 .[29] R. W. Schafer, What is a savitzky–golay filter?, IEEE Signal Processing Magazine 28 (4) (2011) 111–117. 
+
+Appendix 
+
+Dataset Class Spectra 
+
+We show the mean normalized spectra for each class in all datasets. First, the HSI data is normalized. Then, for each class, all corresponding pixels are aggregated and the mean spectrum over channels is computed and plotted (see Figure 8). 
+
+Semantic segmentation on K3I-Material 
+
+Additional qualitative segmentation results on K3I-Material. We compare Swin-T RGB at 1024 and 2048, adapted Swin-T HSI with K=3 spectral slices, and BCAF (RGB-1024 + HSI-3). Relative to Spectral-Waste (RGB at 256 ×256), the native-resolution regime on K3I-Material yields clear gains: downsampling from the 4096 ×4096 acquisition to 2048 improves perfor-mance, whereas pure upscaling from 256 ×256 de-grades. BCAF improvements are especially visible for the paper /cardboard class. These observations align with the quantitative gains in Section 5. 
+
+Visualization of Swin-T backbone feature activations 
+
+We visualize Swin-T backbone activations across stages for input resolutions 256 vs 1024 by comput-ing per-stage heatmaps. For each stage output Frgb ∈
+
+RH×W×C , we average over channels to obtain a single spatial map A = mean c(Frgb ) ∈ RH×W . We apply min-max normalization to [0,1] and render with a magma colormap. 20 a) 
+
+# b)
+
+# c) Figure 8: Mean normalized spectra per class for (a) SpectralWaste, (b) K3I-Material, and (c) K3I-Plastic. 
+
+21 Figure 9: K3I-Material qualitative results. Shown are Swin-T RGB at 1024 and 2048, adapted Swin-T HSI-3, and BCAF (RGB 1024 + HSI-3). 
+
+22 Stage 1 Stage 2 Stage 3 Stage 4 Figure 10: Swin-T feature activations across stages for input resolu-tions 256 vs 1024. Activations are mean over channels, normalized to [0,1]. 
+
+23
