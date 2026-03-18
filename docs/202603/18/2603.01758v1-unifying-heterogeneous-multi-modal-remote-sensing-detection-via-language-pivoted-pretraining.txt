@@ -1,0 +1,832 @@
+Title: Unifying Heterogeneous Multi-Modal Remote Sensing Detection Via Language-Pivoted Pretraining
+
+URL Source: https://arxiv.org/pdf/2603.01758v1
+
+Published Time: Tue, 03 Mar 2026 03:25:07 GMT
+
+Number of Pages: 18
+
+Markdown Content:
+# Unifying Heterogeneous Multi-Modal Remote Sensing Detection Via Language-Pivoted Pretraining 
+
+Yuxuan Li 1 Yuming Chen 1 Yunheng Li 1 Ming-Ming Cheng 1 2 Xiang Li † 1 2 Jian Yang † 1
+
+# Abstract 
+
+Heterogeneous multi-modal remote sensing ob-ject detection aims to accurately detect objects from diverse sensors (e.g., RGB, SAR, Infrared). Existing approaches largely adopt a late align-ment paradigm, in which modality alignment and task-specific optimization are entangled dur-ing downstream fine-tuning. This tight cou-pling complicates optimization and often results in unstable training and suboptimal generaliza-tion. To address these limitations, we propose 
+
+BabelRS , a unified language-pivoted pretrain-ing framework that explicitly decouples modality alignment from downstream task learning. Ba-belRS comprises two key components: Concept-Shared Instruction Aligning (CSIA) and Layer-wise Visual-Semantic Annealing (LVSA). CSIA aligns each sensor modality to a shared set of lin-guistic concepts, using language as a semantic pivot to bridge heterogeneous visual representa-tions. To further mitigate the granularity mis-match between high-level language representa-tions and dense detection objectives, LVSA pro-gressively aggregates multi-scale visual features to provide fine-grained semantic guidance. Ex-tensive experiments demonstrate that BabelRS stabilizes training and consistently outperforms state-of-the-art methods without bells and whis-tles. Code: github.com/zcablii/SM3Det. 
+
+# 1. Introduction 
+
+Heterogeneous multi-modal remote sensing (RS) object de-tection (Li et al., 2025a; Yang et al., 2021; Dai et al., 2024a; Li et al., 2024a; Dai et al., 2024b) relies on data acquired from diverse sensors operating under fundamentally dif-ferent imaging principles. These differences give rise to 
+
+> 1
+
+PCA Lab & VCIP, CS, Nankai University. yux-uan.li.17@alumni.ucl.ac.uk, yunhengli@mail.nankai.edu.cn. 
+
+> 2
+
+NKIARI, Shenzhen Futian. Correspondence to: Xiang Li and Jian Yang <{xiang.li.implus;csjyang }@nankai.edu.cn >.
+
+Preprint. March 3, 2026. Explosion /  
+
+> Degradation
+> Heterogeneous
+> Multi -Modal
+> Inputs
+> Downstream Task s
+> Modalities Alignment
+> Optimization
+> Conflict
+> Concept:
+> “Car ”
+
+ViT 
+
+ViT 
+
+> Modalities
+> Alignment
+
+Heads   
+
+> Downstream Task s
+> Alignment Pretraining Finetuning
+
+(a) 
+
+(b) 
+
+> Finetuning
+
+Figure 1. Conceptual comparison between (a) late alignment and (b) early, language-pivoted alignment paradigms for heterogeneous multi-modal remote sensing detection. Late alignment (a) entan-gles modality alignment with task optimization during fine-tuning, leading to gradient conflicts and unstable training. BabelRS (b) decouples these objectives via early semantic alignment, resulting in improved optimization stability and generalization. 
+
+distinct modalities whose representations vary substantially in structure and semantics. Recent research efforts (Li et al., 2026) aim to develop a unified model capable of processing all such modalities within a single model. Despite encourag-ing progress, current state-of-the-art models still encounter an intrinsic limitation in their underlying learning paradigm. Existing approaches, such as SM3Det (Li et al., 2026), typi-cally follow a “late alignment” strategy as shown in Figure 1. They initialize models using generic unimodal backbones, then attempt to align heterogeneous feature spaces while simultaneously optimizing detection objectives during fine-tuning. This joint optimization is particularly challenging when modalities exhibit intrinsically different physical char-acteristics, such as the contrast between scattering mech-anisms in SAR imagery and reflectance-based signals in RGB images. Both our empirical observations and theo-retical analysis (in the Appendix) suggest this paradigm causes unstable optimization dynamics. The issue becomes more pronounced as model capacity increases, for example when employing large-scale backbones such as ViT-Large or incorporating heavy dynamic components like Mixture-of-Experts (Jacobs et al., 1991). In practice, as illustrated in Figure 2, this instability often manifests as gradient explo-1       
+
+> arXiv:2603.01758v1 [cs.CV] 2 Mar 2026 BabelRS Finetuning Iterations
+> BabelRS (Ours) 33.5k
+> 4.3k ScaleMAE
+> BEiTv2 10.4k
+> DINOv2 17.1k
+> SM3Det + Heavy Experts 19.6k
+> Figure 2. Automatic Mixed Precision fine-tuning stability on SOI-Det dataset. Many existing models experience gradient explosion before completion, whereas BabelRS remains stable throughout fine-tuning.
+
+sions or numerical failures, including NaN values. Could these issues be alleviated by separating modality alignment from task learning altogether? Large-scale mul-timodal pretraining offers a natural direction, as it enables alignment to be learned before downstream optimization. However, existing pretraining frameworks (Cong et al., 2022; Guo et al., 2023; Bachmann et al., 2022) rely on strong assumptions about data availability. Most require spatially aligned multi-modal image pairs, such as paired optical–SAR images used in SkySense (Guo et al., 2023). In realistic RS scenarios, especially for more complex con-figurations involving RGB, SAR, and infrared sensors, col-lecting such spatially homogeneous data at scale is often infeasible. This scarcity of such data therefore constitutes a fundamental bottleneck for unified multimodal learning. To overcome this constraint, we introduce BabelRS , which reframes the RS multi-modal learning paradigm from “late alignment” to “early alignment” via language-pivoted pre-training. While pixel-level correspondence across modali-ties is difficult to obtain, semantic correspondence is natu-rally available through language. For example, a SAR image of a car and an RGB image of the same category object both correspond to the linguistic concept “Car”. Building on this fact, BabelRS leverages language as a semantic anchor to align heterogeneous modalities before task-specific training. Specifically, we introduce Concept-Shared Instruction Aligning, which treats the embedding space of a large lan-guage model as a shared semantic reference. During pre-training, images from different modalities are aligned to the same linguistic concepts through instruction-following objectives, guiding the unified visual encoder to produce consistent semantic representations in language space. Con-sequently, images depicting the same object are mapped to similar features regardless of whether they originate from RGB, SAR, or infrared sensors. Yet does semantic alignment alone suffice for dense detec-tion pretraining? Existing vision-language models, such as CLIP (Radford et al., 2021) and InternVL (Gao et al., 2024), typically align language only with the final layer of a Vision Transformer (ViT) (Dosovitskiy et al., 2020). While effective for global semantic reasoning, this design introduces a granularity mismatch when applied to object detection, which demands multi-scale and spatially resolved features. To address this limitation, we introduce Layerwise Visual-Semantic Annealing, which progressively integrates intermediate ViT representations into the language-aligned space. It allows the pretraining process preserve the joint calibration of low- and high-level visual features, enabling precise localization while retaining strong semantic guid-ance from LLMs. Our contributions are summarized as follows: 1. We identify optimization conflicts in late alignment as a key source of training instability in heterogeneous multi-modal remote sensing detection. 2. We propose BabelRS , a language-pivoted pretraining framework that achieves RS cross-modal representa-tion alignment, through Concept-Shared Instruction Aligning and Layerwise Visual-Semantic Annealing. 3. Experiments demonstrate that BabelRS yields stable optimization and achieves new SOTA performance. 
+
+# 2. Related Work 
+
+2.1. Multi-Modal Remote Sensing Object Detection 
+
+The rapid development of remote sensing platforms has led to the widespread availability of multi-modal data, in-cluding optical imagery, Synthetic Aperture Radar (SAR), and infrared observations. Each modality captures differ-ent physical properties of the Earth’s surface. For instance, optical sensors provide rich textural detail but depend on illumination, while SAR offers all-weather capability but lacks color information. These complementary character-istics have motivated extensive research into multi-modal object detection, with the goal of improving robustness and generalization beyond what single-modality systems can achieve. 2.1.1. P AIRED MULTI -M ODAL FUSION (S PATIALLY 
+
+HOMOGENEOUS )Early work on multi-modal remote sensing detection largely assumes access to spatially aligned image pairs (Sun et al., 2022; Guo et al., 2023). Under this setting, feature-level fusion becomes the dominant paradigm, as it enables flex-ible integration of heterogeneous information at different abstraction levels. Several studies introduce adaptive fu-sion strategies that dynamically weight modalities based on scene conditions. Illumination-aware models (Li et al., 2019; Guan et al., 2019) adjust RGB and infrared contribu-2BabelRS 
+
+tions according to lighting cues. Fusion CSPNet (Wolpert et al., 2020) focuses on improving detection for small or occluded pedestrians through specialized fusion blocks. To mitigate modality dominance, Differential Modality Aware Fusion (Zhou et al., 2020) explicitly calibrates modality-specific feature importance. Spatial misalignment presents another major obstacle in paired fusion. AR-CNN (Zhang et al., 2021) proposes region-level alignment to handle po-sitional shifts between modalities, while TSFADet (Yuan et al., 2022) introduces explicit translation modules to align misregistered feature maps. More recent architectures, such as C2Former (Yuan & Wei, 2024), leverage cross-attention and adaptive sampling to improve fusion precision under miscalibration. DMM (Zhou et al., 2025b) further explores efficient cross-modal fusion using a Mamba-based model. Despite strong performance, these methods fundamentally rely on spatially homogeneous data. Their assumptions break down when paired observations are unavailable or unreliable, which is often the case in real-world remote sensing scenarios. 2.1.2. U NIFIED MULTI -M ODAL LEARNING (S PATIALLY 
+
+HETEROGENEOUS )To relax the requirement for paired inputs, recent research has explored unified models capable of processing spatially heterogeneous data. The objective is to train a single detec-tor that generalizes across modalities, allowing inference on RGB, SAR, or infrared images independently. SM3Det (Li et al., 2026) represents an early attempt in this direction. While effective, it largely follows a late alignment strategy, where modality alignment is attempted only during super-vised fine-tuning. Backbones are typically initialized from generic RGB pretraining, and alignment emerges implicitly through the detection objective. This formulation introduces an optimization dilemma: the model must simultaneously reconcile heterogeneous feature distributions and learn task-specific representations. As modality divergence increases, this coupling often leads to unstable training and limited gen-eralization. In contrast, BabelRS explicitly decouples these objectives. By shifting alignment to a dedicated pretraining stage, the proposed framework alleviates the optimization conflict inherent in late alignment paradigms. 
+
+2.2. Multi-Modal Alignment 
+
+Vision–language alignment has demonstrated remarkable success in general domains. CLIP (Radford et al., 2021) establishes a shared embedding space through contrastive learning, enabling robust zero-shot transfer. Image-Bind (Girdhar et al., 2023) extends this idea by treating images as a binding interface to align diverse modalities. In contrast, LanguageBind (Zhu et al., 2023) places language at the center, aligning modalities such as infrared and video directly to a frozen LLM. Domain-specific extensions fur-ther illustrate the flexibility of language-pivoted alignment. MolBind (Xiao et al., 2024) aligns language with molec-ular and protein representations, while Babel (Dai et al., 2025) proposes an expandable framework for scalable sen-sor integration. UNIALIGN (Zhou et al., 2025a) introduced a unified architecture to scale alignment across massive multimodal datasets effectively. Most of these methods em-phasize global semantic alignment or rely on paired data (e.g., RGB-depth), which limits their applicability to het-erogeneous remote sensing modalities. BabelRS differs in two key aspects. It achieves implicit cross-modal alignment without multi-sensor paired data, and it explicitly addresses the granularity mismatch between language semantics and dense detection through a Layerwise Visual-Semantic An-nealing mechanism. 
+
+# 3. Method 
+
+Existing unified detection frameworks for spatially hetero-geneous remote sensing data typically entangle modality alignment with task learning. BabelRS departs from this de-sign by introducing a language-pivoted pretraining strategy that separates these objectives. As illustrated in Figure 3, the framework consists of Concept-Shared Instruction Aligning and Layerwise Visual-Semantic Annealing. Concept-Shared Instruction Aligning maps visual repre-sentations from different remote sensing modalities into a shared linguistic space, enabling implicit cross-modal alignment without requiring spatially heterogeneous data. Layerwise Visual-Semantic Annealing then bridges the gran-ularity gap between language-level semantics and dense detection requirements by progressively integrating multi-scale visual features. 
+
+3.1. Concept-Shared Instruction Aligning 
+
+Let M denote a set of K remote sensing modalities (e.g., RGB, SAR, infrared): 
+
+M = {m1, m 2, . . . , m K }.
+
+Unlike prior approaches that necessitate paired samples 
+
+(xrgb , x sar ), we consider a collection of disjoint multi-modal remote sensing datasets D:
+
+D = {D m1 , Dm2 , . . . , DmK },
+
+where each dataset Dmk = {(xmk 
+
+> i
+
+, q mk 
+
+> i
+
+, r mk 
+
+> i
+
+)} consists of image-text pairs. In this context, qi represents a natural-language question or instruction associated with image xi
+
+and ri is the corresponding text answer or response. These instruction-response data describe objects, spatial relations, or scene attributes visible in the image. The central hypothesis of this work is that while pixel distri-butions P (xm) and imaging mechanisms vary significantly 3BabelRS Layerwise Visual -Semantic Annealing  
+
+> 0
+
+τt
+
+SAR
+
+RGB
+
+Concept -Shared Instruction Aligning         
+
+> SAR: “A carat [728,701…] ”
+> RGB: “A carat [681,568…] ”
+> ··· ···
+
+ViT 
+
+> “Locate the vehicle
+> in the top right.”
+> “Locate the vehicle
+> in the top right.”
+> ···
+
+Language Modeling Loss 
+
+LLM  Concept:  
+
+> “Car ”
+> Implicit
+> Alignment Language Pivot
+> Tokenizer
+> Projector
+> ViT Pretraining Driven by Instruct Following
+
+# BabelRS 
+
+Figure 3. Overview of the BabelRS framework. BabelRS consists of two key components: Concept-Shared Instruction Aligning, which aligns heterogeneous remote sensing modalities into a shared linguistic semantic space using instruction-following objectives, and Layerwise Visual-Semantic Annealing, which progressively integrates multi-scale visual features into the language-aligned representation to support dense object detection. 
+
+across modalities, their semantic interpretations can be ex-pressed through shared linguistic concepts. Specifically, we assume the existence of modality-specific functions that map observations to a common linguistic concept C:
+
+f (xrgb ) → C, g(xsar ) → C. 
+
+Under this formulation, f (xrgb ) and g(xsar ) become implic-itly aligned within the induced feature space. We formalize this intuition by using a pretrained Large Language Model 
+
+Φ as a semantic pivot. For each modality, a modality-shared vision encoder EM extracts visual features, which are pro-jected into the input embedding space of Φ. Given an image 
+
+x from any modality within M and its associated text {q, r },we optimize a causal language modeling objective: 
+
+Lalign = −
+
+> |r|
+
+X
+
+> j=1
+
+log PΦ(rj | q, r <j , E M(x)) .
+
+By forcing heterogeneous modalities to produce consis-tent linguistic descriptions, the vision encoder is guided toward a shared semantic manifold. In practice, we adopt an instruction-following (Liu et al., 2023) paradigm by con-catenating visual tokens with textual tokens corresponding to the instruction and response. The language modeling loss is applied only to the response tokens. This design not only projects visual representations into a unified linguistic space but also leverages the compositional and reasoning demands of instruction-following tasks to encourage the vi-sion encoder to capture informative, semantically grounded features. Importantly, this alignment process is performed independently of downstream detection objectives, which leads to more stable optimization and improved generaliza-tion across modalities. 
+
+3.2. Layerwise Visual-Semantic Annealing Mechanism 
+
+While semantic alignment provides a strong foundation, dense object detection requires spatially resolved, multi-scale features extracted from multiple depths of the visual backbone. Most vision–language models align language only with the final ViT layer, which captures global seman-tics. Directly aggregating all intermediate layers can disrupt pre-trained feature distributions and introduce instability. To address these issues, we propose Layerwise Visual-Semantic Annealing (LVSA) mechanism. This mechanism effectively aggregates multi-scale information while miti-gating sudden distribution shifts, thereby maintaining the integrity of the pretrained backbone. Let V represent the set of feature maps from the L blocks of the ViT encoder: 
+
+V = {Fl}Ll=1 , Fl ∈ RH×W ×C .
+
+We define a subset of selected layers for fusion as S ⊆ {1, . . . , L }, where the final layer L ∈ S . To transition smoothly from single-scale to multi-scale representations, we introduce a time-dependent fusion coefficient α(t), gov-erned by the training step t and a annealing duration τ , to control the contribution of multi-scale features: 
+
+α(t) = min 
+
+ tτ , 1
+
+
+
+.
+
+The fused feature representation, ˜F , is calculated as a dy-namic interpolation between the final layer FL and the mean of all selected features: 
+
+˜F = (1 − α(t)) FL + α(t) 1
+
+|S| 
+
+X
+
+> l∈S
+
+Fl
+
+!
+
+.
+
+At early stages, the model relies primarily on the final layer, preserving the original pre-trained distribution. As train-ing progresses ( t → τ ), lower-level features are gradually incorporated, enabling precise localization while avoiding abrupt distribution shifts. By explicitly pretraining interme-diate layers under semantic guidance, multi-scale features required by downstream detectors are both spatially infor-mative and semantically consistent. 4BabelRS 
+
+3.3. Task-Specific Fine-tuning 
+
+After pretraining, the aligned encoder is fine-tuned for het-erogeneous multi-modal object detection. Unlike prior frameworks that introduce additional alignment modules during fine-tuning, BabelRS adopts a streamlined design. A shared backbone is combined with modality-specific detec-tion heads, and training proceeds using a random sampling strategy across datasets. The total loss is defined as the sum of task-specific losses n,
+
+Loss total = X
+
+> n
+
+Loss n.
+
+By removing auxiliary alignment objectives, fine-tuning focuses entirely on detection performance. 
+
+3.4. Harmonic Modality mAP (H-mAP) 
+
+Multi-modal remote sensing datasets often exhibit signifi-cant category imbalance across modalities. Let Cm represent the categories specific to modality m. In practice, |C RGB | is typically much larger than |C SAR | or |C IR | in open-source datasets such as SOI-Det (Li et al., 2026) dataset. Standard evaluation using Global Mean Average Precision ( mAP )calculates the mean over the union of all categories: 
+
+Ctotal = [
+
+> m∈M
+
+Cm ,mAP = 1
+
+|C total |
+
+X
+
+> c∈C total
+
+AP c .
+
+Due to the disparity in category counts, mAP is implicitly biased toward the RGB modality. A model may achieve a high global score while failing to generalize to SAR or IR domains. To address this, we propose the Harmonic Modal-ity mAP ( H-mAP ) to better reflect cross-modal reliability. We first compute the modality-specific mAP: 
+
+mAP m = 1
+
+|C m|
+
+X
+
+> c∈C m
+
+AP c, ∀m ∈ M 
+
+Then H-mAP is defined using the harmonic mean: 
+
+H-mAP = |M| 
+
+P 
+
+> m∈M 1
+> mAP m
+
+The choice of the Harmonic Mean is motivated by its sen-sitivity to outliers and minimum values. Unlike the Arith-metic Mean, which allows high performance in one do-main to compensate for failure in another, the Harmonic Mean enforces a “weakest link” constraint. Mathematically, if the performance in any single modality m approaches zero ( mAP m → 0), the overall score converges to zero (H-mAP → 0), regardless of the performance in other modalities. This formulation penalizes modality-specific failures and rewards balanced performance, ensuring that improvements are not driven by a single dominant modality. 
+
+# 4. Experiments 
+
+4.1. Pretraining Dataset 
+
+The composition of the pretraining corpus is summarized in Table 1. We integrate diverse large-scale remote sensing vision–language datasets to ensure broad semantic cover-age across modalities and tasks. Million-AID (Long et al., 2021), LevirCC (Liu et al., 2022), VHM (Pang et al., 2025), RSVQA (Lobry et al., 2020), and FIT RS (Luo et al., 2024) provide large-scale visual instruction data for scene under-standing, object recognition, and attribute reasoning, while GAIA (Zavras et al., 2025) further extends coverage with meteorological and multispectral imagery. Together, these datasets span diverse regions, resolutions, and semantic concepts. To enhance SAR-specific alignment, we incorpo-rate SARLang (Wei et al., 2025), a large-scale SAR-centric VQA dataset emphasizing location-aware queries and fine-grained target semantics. For infrared imagery, we use MMRS-1M (Zhang et al., 2024a), retaining only infrared samples to introduce thermal signatures. GeoChat (Kuckreja et al., 2024), DIOR-RSVG (Zhan et al., 2023), and VRS-Bench (Li et al., 2024b) further provide visual grounding annotations linking language to spatial regions and object extents. All datasets are reprocessed and standardized to en-sure consistent formats and unified naming conventions for shared concepts (e.g., “bridge”, “harbor”, “ship”). Finally, Mini-InternVL (Gao et al., 2024) is sampled at a low rate to preserve general vision–language understanding without overfitting to generic imagery. This curated corpus enables BabelRS to learn modality-agnostic, task-relevant represen-tations without requiring spatially aligned multi-modal data. 
+
+4.2. Finetuning Dataset 
+
+We evaluate heterogeneous multi-modal object detection on the SOI-Det (Li et al., 2026) benchmark, which com-bines datasets from three heterogeneous sensing modali-ties: SAR, optical, and infrared. The benchmark includes SARDet-100K (Li et al., 2024c) for SAR imagery, DOTA-v1.0 (Xia et al., 2018) for optical aerial images, and Dron-eVehicle (Sun et al., 2022) for infrared vehicle detection. To-gether, these datasets cover a diverse set of object categories, imaging resolutions, and annotation formats, including both horizontal and oriented bounding boxes. 
+
+4.3. Implementation Details 
+
+We conduct language-pivoted pretraining using a modern, well-engineered vision–language model (VLM) framework. Training a VLM from scratch typically requires multiple stages and substantial computational resources. To reduce this cost, we initialize BabelRS from InternVL-2.5 1B (Chen et al., 2024a), which employs a variant of ViT-Large (Chen et al., 2024b) visual backbone and a Qwen2 (Bai et al., 2023) 5BabelRS 
+
+Table 1. Composition of the language-pivoted pretraining dataset used in BabelRS, including dataset size, sampling rate, and task type (VQA: visual question answering; VG: visual grounding; CLS: classification). Dataset Size Sample Rate Tasks Mini-InternVL (2024) 1394k 0.01 VQA RSVQA (2020) 100k 1 VQA FIT RS (2024) 100k 0.2 VQA GeoChat (2024) 64k 1 VG VRSBench (2024b) 38k 1 VG DIOR-RSVG (2023) 27k 1 VG VHM (2025) 223k 1 VQA LevirCC (2022) 50k 0.2 Caption GAIA (2025) 33k 1 Caption Million-AID (2021) 920k 0.03 Caption,CLS MMRS-1M (2024a) 52k 1 VQA SARLang (2025) 1126k 0.6 VQA 
+
+language model. For the set of feature maps V in Layerwise Visual-Semantic Annealing, we leverage the 3rd, 9th, 18th and last layer of the ViT-Large, as suggested in (Li et al., 2025b; Bolya et al., 2025). All pretraining experiments are performed on 8× NVIDIA A40 (48 GB) GPUs with a global batch size of 128 and learning rate of 2e-5. Fine-tuning is conducted using the same hardware configuration and a unified training pipeline. Standard data augmentation, dataset sampling strategies, and normalization protocols follow prior work (Li et al., 2026). We use the AdamW optimizer with a learning rate of 5e-5, weight decay of 0.05, and a per-GPU batch size of 4. Evaluation follows standard object detection protocols. We report AP at IoU = 0.5 (AP@50), global mean AP averaged over IoU thresholds from 0.5 to 0.95 (mAP), and the proposed Harmonic Modality mAP (H-mAP) to assess balanced performance across modalities. 
+
+4.4. Main Results 4.5. Compare with SOTAs 
+
+Table 2 reports heterogeneous multi-modal object detec-tion performance on the SOI-Det benchmark. The com-pared methods predominantly focus on fine-tuning stage op-timization , introducing various alignment or regularization mechanisms during downstream training. In contrast, our proposed BabelRS emphasizes pretraining stage optimiza-tion through early, language-pivoted semantic alignment, and employs only a simple joint training strategy during fine-tuning. As shown in Table 2, BabelRS achieves the best performance across all evaluation metrics. Notably, the improvements are consistent across all three sensing modalities. In particular, BabelRS exhibits substantial gains on SAR and infrared datasets, where general-purpose vi-sual pretraining typically struggles due to limited modality coverage. 
+
+Table 2. Heterogeneous multi-modal object detection performance on the SOI-Det benchmark. All compared methods focu on fine-tuning stage optimization, whereas BabelRS emphasizes pretrain-ing stage optimization and uses a simple joint fine-tuning strategy. BabelRS achieves the best performance. Method Test on AP@50 mAP H-mAP 
+
+Fine-tuning stage optimization 
+
+Simple Joint Training (2020) Overall 77.56 47.05  
+
+> SARDet-100K
+
+84.11 53.46  
+
+> DOTA
+
+76.37 45.18 47.57  
+
+> DroneVehicle
+
+73.28 44.99 DA (2019) Overall 79.76 48.37  
+
+> SARDet-100K
+
+84.93 53.86  
+
+> DOTA
+
+78.47 46.23 49.23  
+
+> DroneVehicle
+
+77.43 48.21 UniDet (2022) Overall 79.55 48.47  
+
+> SARDet-100K
+
+84.70 53.81  
+
+> DOTA
+
+78.28 46.49 49.24  
+
+> DroneVehicle
+
+77.17 47.99 Uncertainty loss (2018) Overall 79.99 48.79  
+
+> SARDet-100K
+
+84.81 53.43  
+
+> DOTA
+
+78.73 46.94 49.57  
+
+> DroneVehicle
+
+77.96 48.78 SM3Det (2026) Overall 80.68 50.20  
+
+> SARDet-100K
+
+89.94 60.64  
+
+> DOTA
+
+77.88 46.47 51.31  
+
+> DroneVehicle
+
+77.99 48.87 
+
+Pretraining stage optimization 
+
+BabelRS (ours) Overall 81.32 51.57  
+
+> SARDet-100K
+
+91.70 63.30  
+
+> DOTA
+
+77.73 46.96 53.02  
+
+> DroneVehicle
+
+79.63 51.32 
+
+These results demonstrate that BabelRS learns a balanced and modality-agnostic representation that generalizes effec-tively across heterogeneous sensing domains. The strong H-mAP score further confirms that the gains are not driven by a single modality but reflect robustness across modalities. 
+
+4.6. Comparison with Other Pretraining Methods 
+
+We further compare BabelRS against a wide range of pre-training methods in Table 3. For a fair comparison, all meth-ods employ a ViT-Large backbone and are fine-tuned using the same simple joint training protocol. CLIP-style pretrain-ing methods, including CLIP (Radford et al., 2021) and Re-moteCLIP (Liu et al., 2024), perform poorly on dense object detection tasks. This is largely due to their reliance on global semantic alignment at the final layer, which is insufficient for spatially detection. General-purpose self-supervised backbones such as MAE (He et al., 2022), BEiT (Bao et al., 2021), BEiTv2 (Peng et al., 2022), and DINOv2 (Oquab et al., 2023) also struggle to generalize across heteroge-neous remote sensing modalities, particularly when exposed to SAR and infrared data during fine-tuning. Even remote sensing–specific pretraining methods, SatMAE (Cong et al., 6BabelRS 
+
+Table 3. Comparison of different pretraining strategies on SOI-Det. All models use a ViT-Large backbone and identical fine-tuning protocols. BabelRS achieves the best performance across all metrics. Method Test on AP@50 mAP H-mAP 
+
+Late Alignment (General Backbones) 
+
+CLIP (2021) Overall 65.21 36.12  
+
+> SARDet-100K
+
+72.70 42.00  
+
+> DOTA
+
+62.67 33.56 37.12  
+
+> DroneVehicle
+
+63.83 36.74 MAE (2022) Overall 72.36 42.84  
+
+> SARDet-100K
+
+70.64 39.48  
+
+> DOTA
+
+73.35 43.43 42.54  
+
+> DroneVehicle
+
+71.46 45.11 BEiT (2021) Overall 76.50 44.59  
+
+> SARDet-100K
+
+81.90 50.10  
+
+> DOTA
+
+76.39 43.14 44.94  
+
+> DroneVehicle
+
+70.34 42.35 BEiTv2 (2022) Overall 77.63 44.67  
+
+> SARDet-100K
+
+78.50 46.70  
+
+> DOTA
+
+78.01 43.36 45.35  
+
+> DroneVehicle
+
+75.48 46.14 DINOv2 (2023) Overall 74.79 45.02  
+
+> SARDet-100K
+
+72.74 41.38  
+
+> DOTA
+
+76.53 46.23 44.34  
+
+> DroneVehicle
+
+72.04 45.74 
+
+Late Alignment (Remote Sensing Backbones) 
+
+RemoteCLIP (2024) Overall 66.37 37.17  
+
+> SARDet-100K
+
+73.90 43.30  
+
+> DOTA
+
+63.57 34.36 38.30  
+
+> DroneVehicle
+
+65.74 38.27 SatMAE (2023) Overall 74.49 42.51  
+
+> SARDet-100K
+
+79.70 47.90  
+
+> DOTA
+
+73.86 40.84 43.03  
+
+> DroneVehicle
+
+70.12 41.07 ScaleMAE (2023) Overall 74.09 42.52  
+
+> SARDet-100K
+
+78.80 46.50  
+
+> DOTA
+
+73.22 41.01 43.15  
+
+> DroneVehicle
+
+71.07 42.30 
+
+Early Alignment 
+
+BabelRS 
+
+(ours) Overall 81.32 51.57  
+
+> SARDet-100K
+
+91.70 63.30  
+
+> DOTA
+
+77.73 46.96 53.02  
+
+> DroneVehicle
+
+79.63 51.32 
+
+2022) and ScaleMAE (Reed et al., 2023), fail to adequately address heterogeneous multi-modal detection. These meth-ods lack explicit cross-modal alignment priors during pre-training, forcing modality alignment to occur implicitly during fine-tuning. Such late alignment significantly com-plicates optimization and limits generalization. In contrast, BabelRS consistently and significantly out-BabelRS 
+
+> ScaleMAE
+> SatMAE
+> RemoteCLIP
+> MAE
+> DINOv2
+> CLIP
+> BEiTv2
+> BEiT
+> Training Loss
+> Training Iterations
+> 1
+> 2
+> 3
+> 4
+> 5
+
+Figure 4. Training loss curves under identical finetuning protocols. Late-alignment methods exhibit slow convergence, while BabelRS starts from a lower initial loss and converges smoothly. 
+
+Table 4. Detection performance under AMP training on SOI-Det. Several late-alignment methods suffer from numerical instability, whereas BabelRS remains stable and achieves strong performance. Pretrain Method AP@50 mAP H-mAP MAE (2022) NaN NaN NaN BEiTv2 (2022) NaN NaN NaN DINOv2 (2023) NaN NaN NaN ScaleMAE (2023) NaN NaN NaN CLIP (2021) 64.58 35.62 36.68 RemoteCLIP (2024) 65.97 36.82 37.72 SatMAE (2022) 70.49 39.45 40.00 BEiT (2021) 75.74 43.82 44.35 BabelRS (Ours) 79.13 50.17 51.52 
+
+performs all late-alignment approaches across all metrics. These results clearly demonstrate the effectiveness of early, language-pivoted semantic alignment and highlight the lim-itations of relying solely on fine-tuning stage alignment for heterogeneous multi-modal detection. 
+
+4.7. Optimization Stability and Training Dynamics 
+
+Beyond accuracy, we analyze optimization stability, which is a central motivation of this work. Figure 4 compares fine-tuning loss curves under identical optimization settings. Late-alignment methods exhibit unstable behavior, includ-ing slow convergence and, in some cases, divergence. In contrast, BabelRS starts from a significantly lower initial loss and maintains smooth and stable convergence through-out training. This empirical evidence supports our core claim: decoupling modality alignment from task learning via early semantic alignment leads to a better-conditioned optimization landscape and substantially reduces gradient interference across modalities. This stability advantage becomes even more pronounced un-der Automatic Mixed Precision (AMP) training. As shown in Table 4, several late-alignment methods including MAE, BEiTv2, DINOv2, and ScaleMAE, suffer from severe nu-7BabelRS P LLM          
+
+> PLLM
+> PLLM LVSA
+> P
+> LLM LVSA P
+> P
+> LVSA
+> (a) (c)
+> (b) (d)
+> Layerwise Visual -Semantic Annealing
+> PProjector Element -wise Sum Concatenation
+> LLM Large Language Model
+> ViT Feature
+
+Figure 5. Comparison of feature merge strategies: (a) feature con-catenation, (b) element-wise summation, (c) per-layer projectors with LVSA, and (d) the proposed LVSA-based merge with a shared projector. 
+
+merical instability and fail to converge, resulting in gradient explosion. Even methods that remain trainable under AMP experience substantial performance degradation. In contrast, BabelRS remains fully stable under AMP train-ing and achieves strong performance across all metrics. This robustness is particularly important for large-scale training, where AMP is widely adopted to reduce memory consump-tion and accelerate optimization. Figure 7 in the Appendix further illustrates this behavior. Several late-alignment methods exhibit sharp gradient norm spikes and erratic loss trajectories, indicative of gradient conflicts between modality alignment and detection objec-tives. BabelRS maintains well-controlled gradient norms and smooth loss decay, empirically confirming that early language-pivoted alignment substantially improves opti-mization robustness under aggressive training regimes. 
+
+4.8. Compare to other merge strategies 
+
+We evaluate different strategies for merging intermediate ViT features in Figure 5 and Table 5. The baseline follows the vanilla InternVL design, where only the final-layer fea-ture is passed to the projector. Na ¨ıve feature concatenation (Configuration (a)) or element-wise summation (Configu-ration (b)) of intermediate layers leads to limited improve-ments, while assigning independent projectors to each layer (Configuration (c)) introduces additional complexity and instability. In contrast, our proposed LVSA-based merge strategy (Configuration (d)), which gradually fuses multi-scale features followed by a shared projector, achieves the best performance across all metrics. These results confirm the effectiveness of controlled, progressive multi-scale inte-gration. 
+
+4.9. Pretraining Steps and Annealing Schedule 
+
+Figure 6 analyzes the effect of pretraining duration and the LVSA annealing schedule. As shown on the left, detection performance initially drops around 6k pretraining steps. We attribute this to the early involvement of intermediate-layer 
+
+Table 5. Detection performance of different intermediate feature merge strategies corresponding to Figure 5. 
+
+Configuration mAP H-mAP Baseline 49.33 50.67 (a) 50.25 51.60 (b) 50.31 51.55 (c) 49.88 50.92 (d) Ours 51.57 53.02 4k 12k  16k 8k 24k20k      
+
+> 0.530
+> 0.525
+> 0.520
+> 0.515
+> 0.510
+> 0.505
+> Pretraining Steps Annealing Duration
+> 04k6k 2k 10k8k
+> 0.495
+> 0.510
+> 0.505
+> 0.500
+> 0.490 mAP
+> H-mAP
+
+Figure 6. Effect of pretraining duration (left) and LVSA annealing schedule (right) on SOI-Det dataset performance. 
+
+features before they are sufficiently optimized. As pre-training continues, both mAP and H-mAP improve steadily, saturating at approximately 20k steps. A slight degradation beyond this point suggests mild overfitting. We further study the impact of the annealing parameter τ .For efficiency, all models are fine-tuned using AMP. As shown on the right of Figure 6, both mAP and H-mAP con-sistently improve as τ increases from 0 to 6k steps, demon-strating that longer and smoother language-pivoted align-ment yields stronger cross-modal representations. Perfor-mance peaks at τ = 6 k, indicating that a moderate and grad-ual incorporation of multi-scale features is crucial. Larger values of τ do not provide further gains, suggesting that overly slow annealing is unnecessary. Based on these obser-vations, we set τ = 6 k in all experiments. 
+
+# 5. Conclusion 
+
+This paper introduces BabelRS, a language-pivoted pre-training framework for heterogeneous multi-modal re-mote sensing object detection. By explicitly decoupling modality alignment from task-specific learning, BabelRS addresses the optimization instability inherent in late-alignment paradigms. Concept-Shared Instruction Aligning enables implicit cross-modal alignment without requiring spatially paired data, while Layerwise Visual-Semantic An-nealing bridges the granularity gap between language se-mantics and dense detection features. Extensive experiments demonstrate the superior effectiveness of BabelRS. 8BabelRS 
+
+# Impact Statement 
+
+This paper presents work whose goal is to advance the field of Machine Learning. There are many potential societal consequences of our work, none which we feel must be specifically highlighted here. 
+
+# References 
+
+Bachmann, R., Mizrahi, D., Atanov, A., and Zamir, A. Mul-timae: Multi-modal multi-task masked autoencoders. In 
+
+ECCV , 2022. Bai, J., Bai, S., Chu, Y., Cui, Z., Dang, K., Deng, X., Fan, Y., Ge, W., Han, Y., Huang, F., et al. Qwen technical report. arXiv preprint arXiv:2309.16609 , 2023. Bao, H., Dong, L., Piao, S., and Wei, F. Beit: Bert pre-training of image transformers. arXiv , 2021. Bolya, D., Huang, P.-Y., Sun, P., Cho, J. H., Madotto, A., Wei, C., Ma, T., Zhi, J., Rajasegaran, J., Rasheed, H., et al. Perception encoder: The best visual embeddings are not at the output of the network. arXiv preprint arXiv:2504.13181 , 2025. Chen, Z., Wang, W., Cao, Y., Liu, Y., Gao, Z., Cui, E., Zhu, J., Ye, S., Tian, H., Liu, Z., et al. Expanding per-formance boundaries of open-source multimodal models with model, data, and test-time scaling. arXiv , 2024a. Chen, Z., Wu, J., Wang, W., Su, W., Chen, G., Xing, S., Zhong, M., Zhang, Q., Zhu, X., Lu, L., et al. Internvl: Scaling up vision foundation models and aligning for generic visual-linguistic tasks. In CVPR , 2024b. Cong, Y., Khanna, S., Meng, C., Liu, P., Rozi, E., He, Y., Burke, M., Lobell, D., and Ermon, S. Satmae: Pre-training transformers for temporal and multi-spectral satellite imagery. NeurIPS , 2022. Dai, S., Jiang, S., Yang, Y., Cao, T., Li, M., Banerjee, S., and Qiu, L. Babel: A scalable pre-trained model for multi-modal sensing via expandable modality alignment. In ACM Conference on Embedded Networked Sensor Systems , 2025. Dai, Y., Pan, P., Qian, Y., Li, Y., Li, X., Yang, J., and Wang, H. Pick of the bunch: Detecting infrared small targets beyond hit-miss trade-offs via selective rank-aware atten-tion. TGRS , 2024a. Dai, Y., Zou, M., Li, Y., Li, X., Ni, K., and Yang, J. Denodet: Attention as deformable multi-subspace feature denoising for target detection in sar images. arXiv , 2024b. Dosovitskiy, A., Beyer, L., Kolesnikov, A., Weissenborn, D., Zhai, X., Unterthiner, T., Dehghani, M., Minderer, M., Heigold, G., Gelly, S., et al. An image is worth 16x16 words: Transformers for image recognition at scale. 
+
+arXiv , 2020. Gao, Z., Chen, Z., Cui, E., Ren, Y., Wang, W., Zhu, J., Tian, H., Ye, S., He, J., Zhu, X., et al. Mini-internvl: a flexible-transfer pocket multi-modal model with 5% parameters and 90% performance. Visual Intelligence , 2024. Girdhar, R., El-Nouby, A., Liu, Z., Singh, M., Alwala, K. V., Joulin, A., and Misra, I. Imagebind: One embedding space to bind them all. In CVPR , 2023. Guan, D., Cao, Y., Yang, J., Cao, Y., and Yang, M. Y. Fusion of multispectral data through illumination-aware deep neural networks for pedestrian detection. Information Fusion , 2019. Guo, X., Lao, J., Dang, B., Zhang, Y., Yu, L., Ru, L., Zhong, L., Huang, Z., Wu, K., Hu, D., et al. Skysense: A multi-modal remote sensing foundation model towards univer-sal interpretation for earth observation imagery. arXiv ,2023. Han, B., Zhang, S., Shi, X., and Reichstein, M. Bridging remote sensors with multisensor geospatial foundation models. In Proceedings of the ieee/cvf conference on com-puter vision and pattern recognition , pp. 27852–27862, 2024. He, K., Chen, X., Xie, S., Li, Y., Doll ´ar, P., and Girshick, R. Masked autoencoders are scalable vision learners. In 
+
+Proceedings of the IEEE/CVF conference on computer vision and pattern recognition , pp. 16000–16009, 2022. Jacobs, R. A., Jordan, M. I., Nowlan, S. J., and Hinton, G. E. Adaptive mixtures of local experts. Neural computation ,1991. Kendall, A., Gal, Y., and Cipolla, R. Multi-task learning using uncertainty to weigh losses for scene geometry and semantics. In CVPR , 2018. Kuckreja, K., Danish, M. S., Naseer, M., Das, A., Khan, S., and Khan, F. S. Geochat: Grounded large vision-language model for remote sensing. In CVPR , 2024. Li, C., Song, D., Tong, R., and Tang, M. Illumination-aware faster r-cnn for robust multispectral pedestrian detection. 
+
+Pattern Recognition , 2019. Li, W., Yang, W., Liu, T., Hou, Y., Li, Y., Liu, Z., Liu, Y., and Liu, L. Predicting gradient is better: Exploring self-supervised learning for sar atr with a joint-embedding predictive architecture. ISPRS Journal o , 2024a. Li, X., Ding, J., and Elhoseiny, M. Vrsbench: A versatile vision-language benchmark dataset for remote sensing image understanding. NeurIPS , 2024b. 9BabelRS 
+
+Li, Y., Hou, Q., Zheng, Z., Cheng, M.-M., Yang, J., and Li, X. Large selective kernel network for remote sensing object detection. In ICCV , 2023. Li, Y., Li, X., Li, W., Hou, Q., Liu, L., Cheng, M.-M., and Yang, J. Sardet-100k: Towards open-source bench-mark and toolkit for large-scale sar object detection. In 
+
+NeurIPS , 2024c. Li, Y., Li, X., Dai, Y., Hou, Q., Liu, L., Liu, Y., Cheng, M.-M., and Yang, J. Lsknet: A foundation lightweight backbone for remote sensing. IJCV , 2025a. Li, Y., Zhang, Y., Tang, W., Dai, Y., Cheng, M.-M., Li, X., and Yang, J. Visual instruction pretraining for domain-specific foundation models. arXiv , 2025b. Li, Y., Li, X., Li, Y., Yicheng, Z., Dai, Y., Hou, Q., Cheng, M.-M., and Yang, J. Sm3det: A unified model for multi-modal remote sensing object detection. In AAAI , 2026. Liu, C., Zhao, R., Chen, H., Zou, Z., and Shi, Z. Remote sensing image change captioning with dual-branch trans-formers: A new method and a large scale dataset. TGRS ,2022. Liu, F., Chen, D., Guan, Z., Zhou, X., Zhu, J., Ye, Q., Fu, L., and Zhou, J. Remoteclip: A vision language foundation model for remote sensing. TGRS , 2024. Liu, H., Li, C., Wu, Q., and Lee, Y. J. Visual instruction tuning. NeurIPS , 2023. Lobry, S., Marcos, D., Murray, J., and Tuia, D. Rsvqa: Visual question answering for remote sensing data. TGRS ,2020. Long, Y., Xia, G.-S., Li, S., Yang, W., Yang, M. Y., Zhu, X. X., Zhang, L., and Li, D. On creating benchmark dataset for aerial image interpretation: Reviews, guid-ances, and million-aid. IEEE Journal of selected topics in applied earth observations and remote sensing , 2021. Luo, J., Pang, Z., Zhang, Y., Wang, T., Wang, L., Dang, B., Lao, J., Wang, J., Chen, J., Tan, Y., et al. Skysensegpt: A fine-grained instruction tuning dataset and model for remote sensing vision-language understanding. arXiv ,2024. Mendieta, M., Han, B., Shi, X., Zhu, Y., and Chen, C. Towards geospatial foundation models via continual pre-training. In ICCV , 2023. Muhtar, D., Zhang, X., Xiao, P., Li, Z., and Gu, F. Cmid: A unified self-supervised learning framework for remote sensing image understanding. TGRS , 2023. Oquab, M., Darcet, T., Moutakanni, T., Vo, H., Szafraniec, M., Khalidov, V., Fernandez, P., Haziza, D., Massa, F., El-Nouby, A., et al. Dinov2: Learning robust visual features without supervision. arXiv , 2023. Pang, C., Weng, X., Wu, J., Li, J., Liu, Y., Sun, J., Li, W., Wang, S., Feng, L., Xia, G.-S., et al. Vhm: Versatile and honest vision language model for remote sensing image analysis. In AAAI , 2025. Peng, Z., Dong, L., Bao, H., Ye, Q., and Wei, F. Beit v2: Masked image modeling with vector-quantized visual tokenizers. arXiv , 2022. Radford, A., Kim, J. W., Hallacy, C., Ramesh, A., Goh, G., Agarwal, S., Sastry, G., Askell, A., Mishkin, P., Clark, J., et al. Learning transferable visual models from natural language supervision. In ICML , 2021. Reed, C. J., Gupta, R., Li, S., Brockman, S., Funk, C., Clipp, B., Keutzer, K., Candido, S., Uyttendaele, M., and Darrell, T. Scale-mae: A scale-aware masked autoencoder for multiscale geospatial representation learning. In ICCV ,2023. Sun, X., Wang, P., Lu, W., Zhu, Z., Lu, X., He, Q., Li, J., Rong, X., Yang, Z., Chang, H., He, Q., Yang, G., Wang, R., Lu, J., and Fu, K. Ringmo: A remote sensing foundation model with masked image modeling. TGRS ,2023. Sun, Y., Cao, B., Zhu, P., and Hu, Q. Drone-based rgb-infrared cross-modality vehicle detection via uncertainty-aware learning. IEEE Transactions on Circuits and Systems for Video Technology , pp. 1–1, 2022. doi: 10.1109/TCSVT.2022.3168279. Tiwari, P. Sentinel-1&2 image pairs (sar & op-tical). sentinel12-image-pairs-segregated-by-terrain/code?datasetId=1201791, 2025. Accessed: 2025-08-22. Wang, D., Zhang, J., Du, B., Xu, M., Liu, L., Tao, D., and Zhang, L. Samrs: Scaling-up remote sensing segmen-tation dataset with segment anything model. NeurIPS ,2023. Wang, X., Cai, Z., Gao, D., and Vasconcelos, N. Towards universal object detection by domain attention. In CVPR ,2019. Wei, Y., Xiao, A., Ren, Y., Zhu, Y., Chen, H., Xia, J., and Yokoya, N. Sarlang-1m: A benchmark for vision-language modeling in sar image understanding. arXiv preprint arXiv:2504.03254 , 2025. Wolpert, A., Teutsch, M., Sarfraz, M. S., and Stiefelha-gen, R. Anchor-free small-scale multispectral pedestrian detection. arXiv , 2020. 10 BabelRS 
+
+Xia, G.-S., Bai, X., Ding, J., Zhu, Z., Belongie, S., Luo, J., Datcu, M., Pelillo, M., and Zhang, L. DOTA: A large-scale dataset for object detection in aerial images. In 
+
+CVPR , 2018. Xiao, T., Cui, C., Zhu, H., and Honavar, V. G. Molbind: Multimodal alignment of language, molecules, and pro-teins. arXiv , 2024. Xiong, Z., Wang, Y., Zhang, F., and Zhu, X. X. One for all: Toward unified foundation models for earth vision. In 
+
+IGARSS , 2024. Xu, H., Fang, L., Liang, X., Kang, W., and Li, Z. Universal-rcnn: Universal object detector via transferable graph r-cnn. In AAAI , 2020. Yang, X., Yan, J., Feng, Z., and He, T. R3det: Refined single-stage detector with feature refinement for rotat-ing object. In Proceedings of the AAAI conference on artificial intelligence , 2021. Yuan, M. and Wei, X. C2former: Calibrated and com-plementary transformer for rgb-infrared object detection. 
+
+TGRS , 2024. Yuan, M., Wang, Y., and Wei, X. Translation, scale and ro-tation: Cross-modal alignment meets rgb-infrared vehicle detection. In ECCV . Springer, 2022. Zavras, A., Michail, D., Zhu, X. X., Demir, B., and Pa-poutsis, I. Gaia: A global, multi-modal, multi-scale vision-language dataset for remote sensing image analy-sis. arXiv , 2025. Zhan, Y., Xiong, Z., and Yuan, Y. Rsvg: Exploring data and models for visual grounding on remote sensing data. 
+
+TGRS , 2023. Zhang, L., Liu, Z., Zhu, X., Song, Z., Yang, X., Lei, Z., and Qiao, H. Weakly aligned feature fusion for multimodal object detection. IEEE Transactions on Neural Networks and Learning Systems , 2021. Zhang, W., Cai, M., Zhang, T., Zhuang, Y., and Mao, X. Earthgpt: A universal multimodal large language model for multisensor image comprehension in remote sensing domain. IEEE Transactions on Geoscience and Remote Sensing , 62:1–20, 2024a. Zhang, Y., Ru, L., Wu, K., Yu, L., Liang, L., Li, Y., and Chen, J. Skysense v2: A unified foundation model for multi-modal remote sensing. In ICCV , 2025. Zhang, Z., Zhao, T., Guo, Y., and Yin, J. Rs5m and georsclip: A large scale vision-language dataset and a large vision-language model for remote sensing. TGRS , 2024b. Zhou, B., Li, L., Wang, Y., Liu, H., Yao, Y., and Wang, W. Unialign: Scaling multimodal alignment within one unified model. In CVPR , 2025a. Zhou, K., Chen, L., and Cao, X. Improving multispectral pedestrian detection by addressing modality imbalance problems. In ECCV , 2020. Zhou, M., Li, T., Qiao, C., Xie, D., Wang, G., Ruan, N., Mei, L., Yang, Y., and Shen, H. T. Dmm: Disparity-guided multispectral mamba for oriented object detection in remote sensing. IEEE Transactions on Geoscience and Remote Sensing , 2025b. Zhou, X., Koltun, V., and Kr ¨ahenb ¨uhl, P. Simple multi-dataset detection. In CVPR , 2022. Zhu, B., Lin, B., Ning, M., Yan, Y., Cui, J., Wang, H., Pang, Y., Jiang, W., Zhang, J., Li, Z., et al. Languagebind: Extending video-language pretraining to n-modality by language-based semantic alignment. arXiv , 2023. 11 BabelRS 
+
+# A. Theoretical Analysis of Early- and Late-alignment 
+
+In this section, we provide a theoretical analysis to support the claim that late alignment strategies for heterogeneous multi-modal remote sensing detection induce unstable optimization dynamics, and that separating modality alignment from task learning yields improved stability. Our analysis focuses on gradient interference, loss geometry, and conditioning effects in joint optimization. 
+
+A.1. Problem Formulation 
+
+Let M = {m1, . . . , m K } denote a set of modalities, each associated with a data distribution Pm(x, y ) over images x and detection labels y. A unified detector consists of a shared visual backbone Eθ parameterized by θ, followed by a detection head Dψ .Late-alignment methods optimize the joint objective 
+
+min 
+
+> θ,ψ
+
+X
+
+> m∈M
+
+E(x,y )∼Pm [Ldet (Dψ (Eθ (x)) , y ) + λLalign (Eθ (x), m )] , (1) where Lalign enforces cross-modal feature consistency during fine-tuning. In contrast, BabelRS decomposes learning into two stages: 1. Pretraining (alignment only): 
+
+min 
+
+> θ
+
+X
+
+> m∈M
+
+E(x,q,r )∼Pm Llang (Eθ (x), q, r ), (2) 2. Fine-tuning (task only): 
+
+min 
+
+> θ,ψ
+
+X
+
+> m∈M
+
+E(x,y )∼Pm Ldet (Dψ (Eθ (x)) , y ). (3) We now analyze why the joint objective in Eq. (1) is intrinsically ill-conditioned. 
+
+A.2. Gradient Interference Across Modalities 
+
+Let gm(θ) denote the gradient of the detection loss for modality m:
+
+gm(θ) = ∇θ E(x,y )∼Pm Ldet (Dψ (Eθ (x)) , y ).
+
+In heterogeneous remote sensing scenarios, modalities arise from fundamentally different physical imaging mechanisms (e.g., SAR scattering vs. optical reflectance). As a result, their optimal representations occupy distinct subspaces. This induces large angular discrepancies between gradients: 
+
+cos( gmi , g mj ) = ⟨gmi , g mj ⟩∥gmi ∥∥ gmj ∥ ≪ 0, i̸ = j. 
+
+Proposition 1 (Gradient Conflict). If there exists a pair (mi, m j ) such that ⟨gmi , g mj ⟩ < 0, then the variance of the stochastic gradient estimator grows with model capacity, leading to unstable updates. The joint gradient g = P 
+
+> m
+
+gm has norm 
+
+∥g∥2 = X
+
+> m
+
+∥gm∥2 + X
+
+> i̸=j
+
+⟨gmi , g mj ⟩.
+
+Negative cross terms increase variance and amplify sensitivity to minibatch composition. As backbone dimensionality grows (e.g., ViT-Large), these effects scale superlinearly, resulting in gradient explosion or numerical instability. Late alignment exacerbates this issue by introducing an additional alignment gradient galign , whose optimal direction differs from modality-specific detection gradients. 12 BabelRS 
+
+A.3. Ill-Conditioned Joint Loss Geometry 
+
+Consider the Hessian of the joint objective in Eq. (1): 
+
+H = ∇2 
+
+> θ
+
+(Ldet + λLalign ) = Hdet + λH align .
+
+In heterogeneous settings, Hdet is highly anisotropic, as different modalities induce curvature along incompatible directions. Meanwhile, Halign enforces feature collapse across modalities, introducing sharp curvature along alignment dimensions. 
+
+Proposition 2 (Condition Number Explosion). If the principal eigenspaces of Hdet and Halign are misaligned, then the condition number 
+
+κ(H) = λmax (H)
+
+λmin (H)
+
+grows with λ and model depth, leading to unstable optimization under first-order methods. This explains empirical observations of NaNs and divergence when scaling late-alignment models or introducing dynamic routing components such as Mixture-of-Experts. 
+
+A.4. Benefits of Early Language-Pivoted Alignment 
+
+BabelRS avoids joint optimization instability by performing modality alignment implicitly through language-conditioned pretraining, rather than via explicit feature matching. Unlike contrastive or regression-based alignment objectives, BabelRS does not enforce direct geometric proximity between visual and linguistic embeddings. Let Eθ denote the shared visual encoder and Φ a pretrained large language model (LLM). Given an image x from any modality m, the encoder produces a sequence of visual tokens Z = Eθ (x), which are concatenated with textual instruction tokens Q and fed into the LLM. The model is trained to generate a response sequence R by minimizing a causal language modeling loss: 
+
+Llang = − log pΦ(R | Z, Q ). (4) Crucially, no explicit constraint is imposed on the distance between visual and textual representations. Instead, alignment arises from the requirement that visual tokens from different modalities must induce equivalent conditional distributions over language outputs for the same semantic instruction. 
+
+Implicit Semantic Equivalence via Conditional Generation. Consider two modalities mi and mj observing semantically equivalent scenes. Let Zi = Eθ (xi) and Zj = Eθ (xj ) be their visual token representations. Language-pivoted alignment enforces: 
+
+pΦ(R | Zi, Q ) ≈ pΦ(R | Zj , Q ), (5) for shared instructions Q and responses R.This induces semantic equivalence under the LLM’s decision boundary, rather than metric alignment in feature space. As a result, modality-specific visual features are encouraged to encode information that is functionally interchangeable with respect to semantic reasoning, while still preserving modality-dependent low-level structure. 
+
+Optimization Implications. This form of alignment has three important optimization consequences: 1. No feature collapse: Since alignment is enforced at the level of conditional likelihood rather than embedding distance, modality-specific representations are not forced into a single narrow subspace. 2. Smooth supervision signal: Gradients are mediated through the LLM’s pretrained language manifold, which exhibits a smooth loss geometry due to large-scale instruction tuning. 3. Decoupled curvature sources: Alignment gradients arise solely from the language modeling objective and are applied prior to detection fine-tuning, eliminating curvature interference between semantic alignment and dense prediction objectives. 13 BabelRS 
+
+Gradient Coherence After Language-Pivoted Pretraining. After pretraining, the shared encoder produces represen-tations that are semantically normalized across modalities. Consequently, downstream detection gradients become more coherent. 
+
+Proposition 3 (Improved Gradient Alignment). Let gm(θ) denote the detection gradient for modality m after language-pivoted pretraining. Then, 
+
+E⟨gmi , g mj ⟩ ≥ 0, (6) for most modality pairs (mi, m j ), up to higher-order residual terms. By enforcing semantic equivalence through conditional generation, early language-pivoted alignment reduces representa-tional discrepancy prior to task learning. This mitigates destructive gradient interference and yields a better-conditioned optimization landscape for downstream detection. 
+
+# B. Related Work on Remote Sensing Visual Encoder Pretraining 
+
+Early advances in remote sensing pre-training relied on supervised learning with curated datasets, such as LSKNet (Li et al., 2023), SAMRS (Wang et al., 2023) and MSFA (Li et al., 2024c). While effective, these approaches depend heavily on annotated data and struggle to scale across modalities. Masked Image Modeling (MIM) (He et al., 2022) has since become a standard approach for leveraging large volumes of unlabeled remote sensing imagery. SatMAE (Cong et al., 2022) adapts MAE to capture temporal dynamics, while RingMo (Sun et al., 2023) and ScaleMAE (Reed et al., 2023) address dense object distributions and resolution variability. Contrastive learning has also gained traction, primarily through image–text alignment for zero-shot learning (Zhang et al., 2024b; Liu et al., 2024) and image–image discrimination (Guo et al., 2023; Zhang et al., 2025). Hybrid frameworks, such as CMID (Muhtar et al., 2023) and GFM (Mendieta et al., 2023), combine MIM and contrastive objectives to improve robustness. More recently, foundation models for remote sensing have shifted toward large-scale unification. OFA-Net (Xiong et al., 2024) emphasizes architectural versatility across tasks, while msGFM (Han et al., 2024) targets multi-sensor alignment. SkySense (Guo et al., 2023) and SkySense V2 (Zhang et al., 2025) scale this paradigm using massive paired optical–SAR datasets. ViTP (Li et al., 2025b) introduces instruction-following objectives to enforce perception capabilities into the backbone from the high-level understanding supervision. Despite these advances, existing pre-training strategies remain constrained to single-modal data or strictly paired multi-modal inputs. To date, no framework has focused on pretraining visual encoders by aligning cross-modal semantics using spatially heterogeneous data. BabelRS addresses this gap by exploiting language as a universal semantic anchor. 
+
+# C. AMP Training Loss and Gradient Norm Trajectories 
+
+To further analyze the optimization stability of heterogeneous multi-modal detectors, we examine training dynamics under Automatic Mixed Precision (AMP), which is a standard setting for large-scale model training. AMP reduces numerical precision during forward and backward passes and therefore serves as a stress test for optimization robustness. Figure 7 compares the training loss and gradient norm trajectories of late-alignment baselines and the proposed BabelRS under identical AMP configurations. Some late-alignment methods (DINOv2, MAE, BEiTv2 and ScaleMAE) exhibit pronounced gradient norm spikes accompanied by unstable loss behavior, and in several cases diverge with NaN values. This instability arises from the tight coupling of cross-modal feature alignment and task-specific detection optimization, which induces severe gradient conflicts when learning from heterogeneous modalities. In contrast, BabelRS maintains smooth loss curves and well-controlled gradient norms throughout training. This stability is a direct consequence of early, language-pivoted semantic alignment during pretraining, which decouples modality alignment from downstream detection optimization. As a result, fine-tuning operates on semantically aligned feature distributions, yielding a better-conditioned optimization landscape that remains robust under reduced numerical precision. These results demonstrate that the improved AMP stability of BabelRS is not an implementation artifact, but rather reflects a fundamental advantage of early semantic alignment for large-scale heterogeneous multi-modal remote sensing detection. 
+
+# D. Examples of Visual–Language Instruction-Following Data 
+
+To illustrate the instruction-following data used during pretraining, we provide representative examples spanning different remote sensing modalities. Each sample consists of an input image, a natural-language instruction, and the corresponding 14 BabelRS BabelRS 
+
+> ScaleMAE
+> SatMAE
+> RemoteCLIP
+> MAE
+> DINOv2
+> CLIP
+> BEiTv2
+> BEiT
+> BabelRS
+> ScaleMAE
+> SatMAE
+> RemoteCLIP
+> MAE
+> DINOv2
+> CLIP
+> BEiTv2
+> BEiT
+> Training Loss
+
+Training Iterations 
+
+> 1
+> 2
+> 3
+> 4
+> 5
+> Gradient Norm
+> 40
+> 30
+> 20
+> 10
+> 0
+
+Training Iterations 
+
+Figure 7. Training loss and gradient norm trajectories under AMP training. Late-alignment methods exhibit sharp gradient norm spikes and unstable loss behavior, whereas BabelRS maintains controlled gradients and smooth convergence, demonstrating superior numerical stability. 
+
+model-generated response during pretraining. 
+
+Subdataset: Million-AID (Long et al., 2021) 
+
+Modality: Optical (RGB) 
+
+Task Type: Visual Question Answering 
+
+Instruction: Upon careful examination of the image, determine which category(s) it best fits from the provided list: industrial land |public service land |unutilized land |agriculture land |residential land |transportation land |commercial land |water area. 
+
+Response: The image is a top-down view of a four-way road intersection. The image is in color and has a high resolution. The road surface is asphalt and is in good condition. There is a small amount of traffic on the road. There are trees and shrubs on either side of the road. There is a building in the background. Based on the above reasoning, it is: “transportation land”. 15 BabelRS 
+
+Subdataset: DIOR RSVG (Zhan et al., 2023) 
+
+Modality: Optical (RGB) 
+
+Task Type: Visual Grounding 
+
+Instruction: Please provide the bounding box coordinate of the region this sentence describes: ⟨ref ⟩ The tennis court is on the lower right of the tennis court on the upper left ⟨/ref ⟩.
+
+Response: ⟨ref ⟩The tennis court is on the lower right of the tennis court on the upper left ⟨/ref ⟩⟨ box ⟩[[231, 587, 388, 922]] ⟨/box ⟩.
+
+Subdataset: SAR Sentinel (2025) 
+
+Modality: Synthetic Aperture Radar (SAR) 
+
+Task Type: Classification 
+
+Instruction: Select the correct category for this image: agriculture land |grass land |barren land |urban. Use one word or a short phrase to describe the category. 
+
+Response: Agriculture land. 16 BabelRS 
+
+Subdataset: SARLang (Wei et al., 2025) and SARDet-100K (Li et al., 2024c) 
+
+Modality: Synthetic Aperture Radar (SAR) 
+
+Task Type: Visual Refering 
+
+Instruction: What is the category visible in the area ⟨box ⟩[[294, 46, 35, 69]] ⟨/box ⟩? The classes are: tank, car, aircraft, harbor, bridge, ship. 
+
+Response: A ship. 
+
+Subdataset: MMRS-1M (Zhang et al., 2024a) 
+
+Modality: Infra-Red (IR) 
+
+Task Type: Visual Grounding and Counting 
+
+Instruction: Detect all objects shown in this infrared remote image and describle using horizontal bounding box. If an object category appears more than once, output the quantity only. 
+
+Response: There are ten objects shown in the image, including seven cars, a truck ⟨box ⟩[[550,340,750,530]] ⟨/box ⟩, and two people. 17 BabelRS 
+
+Subdataset: GAIA (Zavras et al., 2025) 
+
+Modality: Multi-Spectral 
+
+Task Type: Visual Grounding and Counting 
+
+Instruction: What is the main idea of this image? 
+
+Response: A vast burn scar in East Macedonia and Thrace, Greece, captured by the Sentinel-2 satellite. The high spatial resolution of the MultiSpectral Instrument (MSI) reveals the extensive damage caused by wildfires, with a distinct contrast between the charred areas and surrounding green vegetation. 
+
+# E. Limitation and Future Work 
+
+Despite its strong empirical performance, BabelRS has several limitations that warrant further investigation. The effectiveness of language-pivoted cross-modal alignment inherently depends on the coverage, granularity, and correctness of language supervision. Although instruction-following data provides rich and flexible semantic guidance, certain fine-grained, rare, or highly domain-specific targets (particularly in specialized SAR or thermal imaging scenarios) may not be adequately described by natural language alone. This limitation may restrict alignment quality for subtle structural patterns or sensor-specific physical phenomena that lack clear linguistic counterparts. Moreover, the current framework focuses primarily on static image-level object detection. Although LVSA enables multi-scale feature integration, BabelRS does not explicitly model temporal dependencies or long-range cross-frame correlations, which are critical for many real-world remote sensing applications involving time-series observations or multi-pass acquisitions. Future work will address these limitations along several directions. One promising avenue is to enhance language supervision through adaptive or hierarchical prompting strategies, potentially incorporating expert-defined vocabularies or physics-aware descriptions to better cover specialized remote sensing semantics. Another direction is the development of hybrid backbone architectures that combine a shared, language-aligned semantic core with lightweight modality-aware adaptation modules. Such designs may preserve cross-modal consistency while better capturing sensor-specific characteristics. In addition, extending language-pivoted alignment beyond object detection to support heterogeneous multi-modal and multi-task learning, including semantic segmentation, instance segmentation, and video-based detection, represents a natural and impactful progression. Integrating temporal modeling and multi-sensor time-series data into the BabelRS framework may further improve robustness and generalization, paving the way toward unified remote sensing foundation models capable of handling diverse modalities, tasks, and spatiotemporal scales. 18

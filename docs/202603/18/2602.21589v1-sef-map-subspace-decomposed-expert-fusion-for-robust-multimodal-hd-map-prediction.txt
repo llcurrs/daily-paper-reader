@@ -1,0 +1,683 @@
+Title: SEF-MAP: Subspace-Decomposed Expert Fusion for Robust Multimodal HD Map Prediction
+
+URL Source: https://arxiv.org/pdf/2602.21589v1
+
+Published Time: Thu, 26 Feb 2026 01:28:59 GMT
+
+Number of Pages: 9
+
+Markdown Content:
+# SEF-MAP: Subspace-Decomposed Expert Fusion for Robust Multimodal HD Map Prediction 
+
+Haoxiang Fu 1,∗, Lingfeng Zhang 2,3,∗, Hao Li 7,∗, Ruibing Hu 4, Zhengrong Li 5
+
+Guanjing Liu 6, Zimu Tan 7, Long Chen 3, Hangjun Ye 3, Xiaoshuai Hao 3,†,‡
+
+> 1
+
+National University of Singapore 
+
+> 2
+
+Shenzhen Tsinghua International Graduate School, Tsinghua Univeristy 
+
+> 3
+
+Xiaomi EV, 4Chinese University of Hong Kong 
+
+> 5
+
+The University of Manchester, 6Renmin University of China 
+
+> 7
+
+Independent Researcher 
+
+haoxiaoshuai714@163.com 
+
+Abstract — High-definition (HD) maps are essential for au-tonomous driving, yet multi-modal fusion often suffers from inconsistency between camera and LiDAR modalities, leading to performance degradation under low-light conditions, occlu-sions, or sparse point clouds. To address this, we propose SEF-MAP , a Subspace-Expert Fusion framework for robust multi-modal HD map prediction. The key idea is to explicitly disentan-gle BEV features into four semantic subspaces: LiDAR-private, Image-private, Shared, and Interaction. Each subspace is as-signed a dedicated expert, thereby preserving modality-specific cues while capturing cross-modal consensus. To adaptively com-bine expert outputs, we introduce an uncertainty-aware gating mechanism at the BEV-cell level, where unreliable experts are down-weighted based on predictive variance, complemented by a usage balance regularizer to prevent expert collapse. To enhance robustness in degraded conditions and promote role specialization, we further propose distribution-aware masking: during training, modality-drop scenarios are simulated using EMA-statistical surrogate features, and a specialization loss enforces distinct behaviors of private, shared, and interaction experts across complete and masked inputs. Experiments on nuScenes and Argoverse2 benchmarks demonstrate that SEF-MAP achieves state-of-the-art performance, surpassing prior methods by +4.2% and +4.8% in mAP, respectively. SEF-MAP 
+
+provides a robust and effective solution for multi-modal HD map prediction under diverse and degraded conditions. 
+
+I. INTRODUCTION High-definition (HD) maps are crucial for autonomous driving, providing precise semantic and geometric informa-tion for perception, planning, and navigation [1]–[7]. Unlike raw sensor data, HD maps offer structured road topology, lane geometry, and traffic elements, supporting reliable long-term autonomy [2], [8]. The rise of bird’s-eye-view (BEV) perception has enabled HD map construction directly from multi-view cameras and LiDAR. However, building robust and accurate maps remains challenging due to the het-erogeneity of modalities, sensor noise, and environmental uncertainties [1], [9]–[19]. Current methods for multi-modal HD map prediction often combine image and LiDAR features in BEV space using feature concatenation or attention-based aggregation. These   
+
+> ‡Project Leader.
+> †Corresponding Author.
+
+approaches overlook two key factors: (i) the complementary but modality-specific nature of image and LiDAR data, and (ii) the dynamic reliability of these modalities over space and time [20]. For example, while camera features excel at capturing lane markings, they fail under poor lighting, and LiDAR offers stable geometry but is limited by sparsity and occlusion. Without modeling these discrepancies, con-ventional fusion methods can lead to unreliable predictions when one modality is degraded [1]. To tackle the challenges of multimodal fusion and robust-ness under degraded conditions, we propose SEF-MAP , a Subspace-Expert Fusion framework. The central idea is to capture the unique strengths of each modality while reducing redundancy and enhancing complementarity. To this end, we explicitly decompose BEV features into four subspaces: LiDAR-private, Image-private, Shared, and Interaction. Each subspace is assigned to a specialized expert, which allows the model to retain modality-specific information while also learning cross-modal consensus. To integrate the outputs of these experts, we design an uncertainty-aware gating mechanism that dynamically adjusts expert contributions based on their estimated reliability, enabling more confident experts to play a greater role in the final prediction. To further improve robustness under degraded or missing modalities, we introduce distribution-aware masking during training: when a modality is dropped, its features are replaced by realistic surrogate samples derived from EMA statistics. This encourages each expert to specialize in its designated role and equips the framework to handle partial or corrupted observations. Finally, to stabilize the learning process and avoid expert collapse, we incorporate specialization losses that explicitly enforce the separation of modality-private, shared, and interaction knowledge. Together, these compo-nents make SEF-MAP a principled and effective solution for robust multimodal HD map prediction. Our main contributions are summarized as follows:  
+
+> •
+
+We develop a subspace-decomposed fusion framework that explicitly separates multimodal BEV features into LiDAR-private, Image-private, Shared, and Interac-tion streams, thereby mitigating semantic misalignment 
+
+> arXiv:2602.21589v1 [cs.CV] 25 Feb 2026
+
+across modalities.  
+
+> •
+
+We propose a distribution-aware masking strategy cou-pled with specialization losses to enforce expert roles and improve robustness under unimodal degradation, directly addressing the fragility of fused representations when one modality is unreliable.  
+
+> •
+
+We design an uncertainty-aware gating mechanism with balance regularizers, enabling adaptive expert selection while preventing redundancy and expert collapse, which alleviates the issue of redundancy and suppression be-tween modalities.  
+
+> •
+
+We validate our framework on nuScenes and Argoverse2 and report consistent improvements over state-of-the-art baselines, with +4.2% mAP on nuScenes and +4.8% on Argoverse2. II. RELATED WORK 
+
+A. HD Map Construction Techniques 
+
+HD maps provide crucial prior environmental information for autonomous driving systems. The core task of HD map construction is to predict a collection of vectorized and topology-preserving static map elements (e.g., lane dividers, road boundaries, pedestrian crossings) in BEV space [21]– [24]. HD map construction approaches can be categorized into three main types: Camera-based methods , LiDAR-based methods , and Fusion-based methods . Camera-based methods [25]–[28] leverage geometric priors to project image features into BEV space, often introducing spatial distortions. These methods typically rely on high-resolution imagery and large-scale pretrained models to improve accuracy [29]–[31], limiting their practical applicability [32], [33]. LiDAR-based methods [34]–[36] provide precise geometric measurements for unified BEV representations but are constrained by point sparsity and environmental interference, compromis-ing perception reliability [20], [37]. Fusion-based methods attempt to combine the complementary strengths of both modalities through feature concatenation or attention-based aggregation [38]. However, existing fusion approaches often suffer from modality misalignment and fail to adequately handle scenarios where one modality is degraded or unreli-able, leading to suboptimal performance under challenging conditions [37]. Our approach tackles these challenges by decomposing multimodal features into specialized subspaces that preserve modality-specific information while enabling robust cross-modal fusion under degraded conditions. 
+
+B. Multimodal Fusion Techniques 
+
+Multimodal fusion, which integrates heterogeneous sensor data such as cameras and LiDAR, has become central to autonomous driving perception [39]–[56]. Early approaches such as MV3D and AVOD [57], [58] relied on direct feature concatenation. While simple, these methods failed to capture meaningful cross-modal correlations and degraded severely under sensor failures [59], [60]. To overcome these shortcom-ings, more advanced designs emerged. Transformer-based methods like TransFusion [61] employ soft associations between modalities, enabling flexible alignment but with high computational cost. BEV-centric frameworks such as BEVFusion [62]–[64] project multi-modal features into a unified BEV space and adaptively combine them through gat-ing networks, improving robustness but incurring significant data and compute demands. Lightweight approaches, exem-plified by SparseFusion [65], attempt to balance accuracy and efficiency by leveraging sparse attention mechanisms. In the context of HD map construction, recent methods have further emphasized temporal reasoning and cross-modal interactions. MemFusionMap [33] introduces memory mod-ules to strengthen sequential modeling, while Interaction-Map [66] enhances fine-grained feature exchanges across modalities. Despite their improvements, these approaches remain computationally intensive and still lack explicit modeling of heterogeneous modality-specific cues. Overall, the development of multimodal fusion has evolved from naive concatenation to transformer-driven, BEV-aligned, and memory-augmented strategies, yet cross-modal misalignment remains insufficiently addressed. This gap motivates our subspace-expert fusion framework, which explicitly disen-tangles modality-private, shared, and interaction-specific sub-spaces to achieve more robust and interpretable multi-modal HD map prediction. III. METHODOLOGY 
+
+A. Problem Formulation and Method Overview 
+
+Problem Formulation. Given synchronized multi-view images I = {Ic}Ncam  
+
+> c=1
+
+and a LiDAR point cloud L, our goal is to predict an HD map ˆ Y in a BEV frame. Let modality encoders produce BEV features FI = EI (I) ∈ RH×W ×C and 
+
+FL = EL(L) ∈ RH×W ×C. Our method introduces a fusion module Fθ (detailed in Sec. III-B) that operates purely in BEV and is followed by task heads Dec to decode vectorized map elements. The learning objective on dataset 
+
+D = {(I(n), L(n), Y(n))}Nn=1 is min  
+
+> θ,φ
+
+1
+
+N
+
+> N
+
+# ∑
+
+> n=1
+
+Ltask 
+
+
+
+Dec φ
+
+ Fθ (F(n) 
+
+> I
+
+, F(n) 
+
+> L
+
+), Y(n)
+
+, (1) where Ltask is the standard set-based classification and geometric regression loss used for HD map elements. 
+
+Method Overview. The overall architecture of our method is shwon in Fig. 1. To enable precise and adaptive cross-modal fusion, we decompose BEV features into four sub-spaces: LiDAR-private, Image-private, Shared, and Interac-tion spaces. A cell-wise, uncertainty-aware gating module then reweights these experts to form the final prediction. During training, we clarify expert roles and improve single-modality behavior by replacing one modality with a surrogate sampled from its empirical BEV feature distribution, creating realistic masked variants without disrupting feature statistics. Learning is further stabilized by a lightweight balance regu-larizer that prevents expert starvation. At inference, a single intact forward aggregates expert outputs via uncertainty-aware gating, without masking or auxiliary regularizers. Multi-view Images                
+
+> LiDAR Point Cloud
+> Image Encoder
+> LiDAR Encoder
+> Masked feature �𝒗𝒗 𝑝𝑝
+> LiDAR BEV feature 𝑙𝑙 𝑝𝑝
+> 𝑃𝑃 𝐿𝐿 𝑃𝑃 𝐼𝐼
+> 𝑆𝑆 𝐿𝐿 𝑆𝑆 𝐼𝐼
+> 𝐴𝐴 𝐵𝐵 𝐶𝐶
+> Linear Transform
+> 𝐿𝐿 𝑝𝑝
+> 𝐼𝐼 𝑝𝑝
+> 𝑆𝑆 𝑝𝑝
+> 𝐼𝐼𝐼𝐼𝐼𝐼 𝑝𝑝
+> Fusion Model
+> Multi-modal
+> Fusion
+> Mixture of Experts
+> 𝑘𝑘 𝐿𝐿
+> 𝑘𝑘 𝐼𝐼
+> 𝑘𝑘 𝑆𝑆
+> 𝑘𝑘 𝐼𝐼𝐼𝐼𝐼𝐼
+> ...
+> Uncertainty -Aware Gating
+> Image BEV feature 𝒗𝒗 𝑝𝑝
+> Masked feature  ̃ 𝑙𝑙 𝑝𝑝
+
+𝒗𝒗 𝑝𝑝 , 𝑙𝑙 𝑝𝑝 
+
+�𝒗𝒗 𝑝𝑝 , 𝑙𝑙 𝑝𝑝 
+
+𝒗𝒗 𝑝𝑝 ,̃ 𝑙𝑙 𝑝𝑝 
+
+�𝑦𝑦 𝐼𝐼 𝐿𝐿 ,( 𝑘𝑘 )
+
+�𝑦𝑦 −𝐼𝐼 ,( 𝑘𝑘 )
+
+�𝑦𝑦 −𝐿𝐿 ,( 𝑘𝑘 )
+
+> Distribution-Aware Masking
+> EMA
+> EMA
+> HD map
+> 𝐿𝐿 𝑝𝑝
+> 𝐼𝐼 𝑝𝑝
+> 𝑆𝑆 𝑝𝑝
+> 𝐼𝐼𝐼𝐼𝐼𝐼 𝑝𝑝
+> Training
+> Losses
+> Training Specific
+> Inference
+
+�𝑦𝑦 Fig. 1: Overall architecture of SEF-MAP framework. The system takes multi-view images and LiDAR point clouds as inputs, which are encoded into BEV features through respective encoders. These features are then decomposed into four semantic subspaces (LiDAR-private, Image-private, Shared, and Interaction) via linear transformations. During training, distribution-aware masking creates surrogate features using EMA statistics to simulate modality degradation scenarios, with specialization losses enforcing expert roles. During inference, only the intact forward pass is performed without masking. A mixture of experts processes each subspace, and an uncertainty-aware gating mechanism dynamically weights expert outputs based on their predicted variance to generate the final HD map prediction. 
+
+B. Subspace-Decomposed Multimodal Fusion 
+
+For each BEV cell p ∈ P, we fuse the LiDAR BEV feature ℓp ∈ RC and the image BEV feature vp ∈ RC by projecting them into four semantically distinct subspaces: 
+
+LiDAR (Lp), Image (Ip), Shared (Sp), and Interaction (Int p). With learnable linear maps PL, PI , SL, SI ∈ RC×C and a low-rank bilinear form parameterized by A, B ∈ RR×C and C ∈
+
+RC×R with R ≪ C,where C is the BEV channel width, R is the interaction rank. we first compute modality-private and shared projections: 
+
+uLp = PL ℓp, uIp = PI vp,
+
+rLp = SL ℓp, rIp = SI vp, (2) where uLp preserves LiDAR-specific geometric cues such as range and 3D structure that remain stable under illu-mination changes or low-light conditions, while uIp retains image-specific semantic cues such as appearance and road markings. The features rLp and rIp represent modality-shared evidence that is consistently observable across both LiDAR and camera, such as lane continuity. To regulate subspace features, we introduce an auxiliary 
+
+space loss defined as 
+
+Lspace = 1
+
+|P| ∑
+
+> p∈P
+
+
+
+Luni + Lshr + Lint 
+
+
+
+, (3) where three components operate at each BEV cell p.The private decorrelation loss Luni enforces independence between private and opposite-modality features using HSIC: 
+
+Luni = HSIC (uLp, vp) + HSIC (uIp, ℓ p). (4) The shared alignment loss Lshr encourages consistency between the shared projections rLp and rIp via negative corre-lation: 
+
+Lshr = −corr (rLp, rIp). (5) The interactive contrastive loss Lint strengthens the cross-modal sensitivity of the interaction subspace Int p through InfoNCE: 
+
+Lint = − log exp φ (Int p, ℓ p, vp)
+
+∑p′ exp φ (Int p, ℓ p′ , vp′ ) . (6) Together, these regularizers disentangle private, shared, and interaction subspaces, thereby improving modality ro-bustness and cross-modal complementarity. Based on these projections, four subspaces can be con-structed as: 
+
+Lp = f L
+
+> fusion
+
+ [uLp ∥ rIp],
+
+Ip = f I
+
+> fusion
+
+ [rLp ∥ uIp],
+
+Sp = f S
+
+> fusion
+
+ [rLp ∥ rIp],
+
+Int p = C  Aℓp
+
+ ⊙  Bv p
+
+ .
+
+(7) where ⊙ denotes element-wise multiplication. In this formu-lation, Lp and Ip serve as the modality-inclined information, 
+
+Sp encodes common and modality-invariant information, and Int p captures complementary cross-modal interactions through multiplicative gating. The interaction space is partic-ularly useful for resolving ambiguities caused by occlusions or weak signals in a single modality. For convenience, we denote z(k) 
+
+> p
+
+∈ { Lp, Ip, Sp, Int p} as the subspace features assigned to each expert k ∈ K, where K = {kL, kI , kS, kInt }.All linear maps are implemented as 1 ×1 BEV convolutions and operate independently at each BEV cell p.C. Distribution-Aware Masking with Specialization Losses 
+
+Since either modality may be degraded by noise, occlu-sion, or sensor perturbations, we propose a distribution-aware masked forward strategy to encourage clear expert specialization and robustness to partial observations. To this end, we maintain per-channel means and variances of the BEV features, denoted as (μI , σ 2 
+
+> I
+
+) for images and (μL, σ 2
+
+> L
+
+)
+
+for LiDAR, which are updated as exponential moving av-erages (EMA) during training to provide stable distribution estimates. When masking occurs, the suppressed modality is replaced with a surrogate feature sampled from its empirical distribution: ˜vp ∼ N  μI , diag (σ 2 
+
+> I
+
+), ˜ℓp ∼ N  μL, diag (σ 2
+
+> L
+
+). (8) During training, three types of forward passes are per-formed. The intact pass ˆ yIL uses both modalities (ℓ, v), the image-masked pass ˆ y−I uses LiDAR together with surrogate image features (ℓ, ˜v), and the LiDAR-masked pass ˆ y−L uses camera features with surrogate LiDAR inputs (˜ℓ, v). These variants approximate unimodal conditions: private experts are encouraged to align with their respective modality, the shared expert is trained to remain consistent across both, and the interaction expert learns cues that weaken when either modality is missing. By sampling from empirical marginal distributions, the masked inputs preserve channel energy and normalization statistics, thereby avoiding out-of-distribution artifacts and providing informative gradients for optimization. At inference, only the intact forward pass is employed without masking. To translate the behavior of masked passes into explicit learning signals, we design specialization losses . Specifically, we define per-cell losses that contrast intact and masked predictions, thereby clarifying the role of each expert. We denote by ˆ yIL ,(k), ˆ y−I,(k), and ˆ y−L,(k) the outputs of expert k under intact, image-masked, and LiDAR-masked conditions, respectively. Here, d(·, ·) is a task-consistent dissimilarity, γ ∈ (0, 1] a balance coefficient, and m > 0 a margin. For the LiDAR-private expert: 
+
+L Lp = d ˆyIL ,(L) 
+
+> p
+
+, ˆy−I,(L)
+
+> p
+
+ − γ d ˆyIL ,(L) 
+
+> p
+
+, ˆy−L,(L)
+
+> p
+
+, (9) while for the Image-private expert: 
+
+L Ip = d ˆyIL ,(I) 
+
+> p
+
+, ˆy−L,(I)
+
+> p
+
+ − γ d ˆyIL ,(I) 
+
+> p
+
+, ˆy−I,(I)
+
+> p
+
+. (10) The Shared expert is optimized to remain consistent under both maskings: 
+
+L Sp = d ˆyIL ,(S) 
+
+> p
+
+, ˆy−I,(S)
+
+> p
+
+ + d ˆyIL ,(S) 
+
+> p
+
+, ˆy−L,(S)
+
+> p
+
+, (11) and the Interaction expert emphasizes cross-modal comple-mentarity: 
+
+L Int p = m − d ˆyIL ,(Int ) 
+
+> p
+
+, ˆy−I,(Int )
+
+> p
+
+ 
+
+> +
+
++ m − d ˆyIL ,(Int ) 
+
+> p
+
+, ˆy−L,(Int )
+
+> p
+
+ 
+
+> +
+
+. (12) Averaging across cells yields 
+
+Lspec = 1
+
+|P| ∑
+
+> p∈P
+
+
+
+L Lp + L Ip + L Sp + L Int p
+
+
+
+. (13) 
+
+Algorithm 1: Training and Inference for Subspace-Decomposed Fusion 
+
+Inputs : Batch {(I, L, Y)}; encoders EI , EL; lifts TI , TL;maps P⋆, S⋆, A, B, C; heads {Hk}k∈K ; gate g;EMA stats (μI , σ 2 
+
+> I
+
+), (μL, σ 2
+
+> L
+
+)
+
+Output : ˆy 
+
+> 1
+
+procedure TrainBatch  
+
+> 2
+
+FI ← TI (EI (I)) ; FL ← TL(EL(L))  
+
+> 3
+
+for p ∈ P do  
+
+> 4
+
+uLp, uIp, uSp, uInt p ← Eq. (7); set z(k) 
+
+> p
+> 5
+
+(μ(k) 
+
+> p
+
+, σ 2 (k) 
+
+> p
+
+) ← Hk(z(k) 
+
+> p
+
+) for k ∈ K 
+
+> 6
+
+{α(k) 
+
+> p
+
+} ← g({z(k) 
+
+> p
+
+}k) 
+
+> 7
+
+w(k) 
+
+> p
+
+← Eq. (14)  
+
+> 8
+
+ˆyIL ← Eq. (15)  
+
+> 9
+
+Sample ˜ vp, ˜ℓp via Eq. (8) ▷ compute ˆy−I , ˆy−L 
+
+> 10 11
+
+Compute L using Eqs. (3)–(6), (9)–(13),and (16)–(18) 
+
+▷ update model parameters and EMA stats  
+
+> 12 13
+
+procedure InferenceI , L 
+
+> 14
+
+FI ← TI (EI (I)) ; FL ← TL(EL(L))  
+
+> 15
+
+for p ∈ P do  
+
+> 16
+
+z(k) 
+
+> p
+
+← Eq. (7); μ(k) 
+
+> p
+
+← Hk(z(k) 
+
+> p
+
+) for k ∈ K 
+
+> 17
+
+w(k) 
+
+> p
+
+← Eq. (14);  
+
+> 18
+
+return ˆy = ∑k∈K w(k) 
+
+> p
+
+μ(k) 
+
+> p
+
+▷ Eq. (15) 
+
+> 19
+
+D. Uncertainty-Aware Gating and Stabilization 
+
+Subspace reliability varies across BEV cells, so the model should prefer the expert that is both informative and confident at each location. For cell p ∈ P and expert k ∈ K, the head Hk maps the subspace feature z(k) 
+
+> p
+
+to a mean prediction 
+
+μ(k) 
+
+> p
+
+∈ RD and a variance σ 2 (k) 
+
+> p
+
+∈ RD. Here the variance is parameterized as log σ 2 for stability. A lightweight gate g
+
+produces logits α(k) 
+
+> p
+
+∈ R. We down-weight uncertain experts by subtracting their average predicted variance from the logits: 
+
+w(k) 
+
+> p
+
+= softmax k
+
+
+
+α(k) 
+
+> p
+
+− β ¯σ 2 (k)
+
+> p
+
+
+
+, ¯σ 2 (k) 
+
+> p
+
+= 1
+
+> DD
+
+# ∑
+
+> d=1
+
+σ 2 (k) 
+
+> p,d
+
+,
+
+(14) where β > 0 controls the penalty strength and D is the head output dimension. The final per-cell prediction is ˆyp = ∑
+
+> k∈K
+
+w(k) 
+
+> p
+
+μ(k) 
+
+> p
+
+∈ RD. (15) Moreover, gating can collapse onto a single expert if left unconstrained, which is called expert starvation and harms specialization. Therefore, we regularize the average usage of each expert toward a uniform prior 1 /|K|,
+
+Ωbal = ∑
+
+> k∈K
+
+
+
+¯wk − 1
+
+> |K|
+
+2
+
+, ¯wk = 1
+
+|P| ∑
+
+> p∈P
+
+w(k) 
+
+> p
+
+. (16) Together, Eqs. (14)–(16) yield gates that are cell-wise adap-tive, variance-aware, and resistant to expert collapse. TABLE I: Comparisons with state-of-the-art methods on nuScenes val set. Our method outperforms all existing approaches in both single-class APs and overall mAP.                                                                              
+
+> Method Modality Backbone Epochs AP ped AP divider AP boundary mAP
+> HDMapNet [67] CE-B0 30 14.4 21.7 33.0 23.0 HDMapNet [67] LPointPillars 30 10.4 24.1 37.9 24.1 HDMapNet [67] C&L E-B0 & PointPillars 30 16.3 29.6 46.7 31.0 VectorMapNet [68] CR50 110 36.1 47.3 39.3 40.9 VectorMapNet [68] LPointPillars 110 25.7 37.6 38.6 34.0 VectorMapNet [68] C&L R50 & PointPillars 110 37.6 50.5 47.5 45.2 MapTR [69] CR50 24 46.3 51.5 53.1 50.3 MapTR [69] LSECOND 24 48.5 53.7 64.7 55.6 MapTR [69] C&L R50 & SECOND 24 55.9 62.3 69.3 62.5
+> SEF-Map (Ours) C&L R50 & SECOND 24 61.6 66.7 71.8 66.7(+4.2)
+
+TABLE II: Results on Argoverse2 dataset. † denotes our re-implementation following the setting in the paper. 
+
+Method Modality Backbone Epochs AP ped AP divider AP boundary mAP 
+
+HDMapNet [67] C E-B0 30 13.1 5.7 37.6 18.8 VectorMapNet [68] C R50 110 38.3 36.1 39.2 37.9 MapTR † [69] C R50 6 58.7 59.3 60.3 59.4 MapTR † [69] C&L R50 & SECOND 6 65.1 61.6 75.1 67.3 
+
+SEF-Map (Ours) C&L R50 & SECOND 6 70.7 66.7 78.8 72.1(+4.8) 
+
+E. Training and Inference Pipeline 
+
+Loss Definition. Aggregating per-cell predictions yields the set-level output ˆYIL . The task loss compares intact predictions against ground truth: 
+
+Ltask = Ltask 
+
+  ˆYIL , Y. (17) Finally, the complete training objective integrates all com-ponents: 
+
+L = Ltask + λspec Lspec + λspace Lspace + λbal Ωbal , (18) where λspec , λspace , λbal > 0 balance the contributions of dif-ferent terms. 
+
+Training. Each mini-batch mixes intact and masked con-ditions so the gate learns when to trust private, shared, or interaction evidence. Inputs are encoded and lifted to BEV. For each cell we compute the four subspace features using Eq. (7), and the expert heads return mean and vari-ance estimates. The gate produces logits and we apply the variance penalty in Eq. (14) to obtain weights; the intact prediction then follows from Eq. (15). Surrogate features are sampled with Eq. (8) to create two masked passes, and the same forward path yields their predictions. We evaluate the objective in Eq. (18) and finally update network parameters by backpropagation and refresh the exponential moving averages used for distribution-aware masking. 
+
+Inference. At test time, we perform a single intact forward pass without any masking or auxiliary objectives. For each BEV cell, the model first computes the corresponding sub-space features, which are then processed by the expert heads to produce both mean predictions and associated variances. The gating module subsequently generates weights according to Eq. (14), allowing reliable experts to contribute more strongly. The final output is obtained as a weighted mixture of expert predictions, as defined in Eq. (15). Since no additional masking or auxiliary losses are involved during inference, the runtime remains comparable to that of astandard BEV fusion network. IV. EXPERIMENTS 
+
+A. Experimental Setup 
+
+Dataset. We conducted experiments on the nuScenes and Argoverse2 datasets. The nuScenes dataset contains 1000 driving sequences, each with six camera streams and LiDAR sweeps annotated at 2Hz. We follow the preprocessing pipeline in MapTR [69] to ensure consistent data prepara-tion. In our experiments, we focus on three representative map elements: pedestrian crossings, lane dividers, and road boundaries. The Argoverse2 dataset also provides 1000 se-quences, partitioned into 700 for training, 150 for validation, and 150 for testing. Each sequence spans 15 seconds, with synchronized 20Hz camera images and 10Hz LiDAR sweeps. For both datasets, we apply spatial alignment, temporal synchronization, and feature normalization to enable reliable multi-modal fusion during training. Owing to their diverse urban and suburban scenes, these datasets serve as strong benchmarks for evaluating the generalization ability of our method. 
+
+Evaluation Metrics. We evaluate the quality of the pre-dicted HD maps using average precision (AP). To assess the alignment between predicted and ground-truth map elements, we compute the Chamfer distance (DChamfer) at multiple thresholds ( τ ∈ T , where T = {0.5, 1.0, 1.5} meters). The final AP score is averaged over all these thresholds, providing a comprehensive measure of the model’s performance across different levels of spatial accuracy. 
+
+Implementation Details. We train SEF-MAP on 8NVIDIA RTX 4090 GPUs using the AdamW optimizer. The learning rate is set to 6e-4 with step decay, and the mini-batch size is 16. The backbone uses ResNet50 for image features and SECOND for LiDAR features. The overall loss function consists of task loss, space loss, specialization loss, and balance regularization, with weights λtask = 1.0, 
+
+λspace = 0.1, λspec = 0.5, and λbal = 0.05. To ensure consis-tency, the sampled forward passes adopt exactly the same input configuration as the intact inputs, so that the gating mechanism learns under comparable conditions. 
+
+B. Comparison with SOTA Methods 
+
+We compare SEF-MAP with several state-of-the-art mod-els, including HDMapNet [67], VectorMapNet [68], and MapTR [69], on the nuScenes and Argoverse2 datasets, as shown in Tab. I and Tab. II. SEF-MAP consistently outper-forms all baselines across both datasets and all map element categories: on nuScenes, the most notable improvement is a +5.7% gain in AP ped compared to MapTR, along with substantial improvements of +4.4% in AP divider and +2.5% in AP boundary , resulting in an overall mAP improvement of +4.2%. On Argoverse2, SEF-MAP achieves even more significant gains, with the largest boost in overall mAP of +4.8%, demonstrating strong generalization capability across different datasets and driving scenarios. Notably, the consis-tent improvements across all three map element types (pedes-trian crossings, lane dividers, and road boundaries) indicate that our framework effectively captures both fine-grained semantic details and geometric structures. These results highlight the effectiveness of our subspace decomposition and uncertainty-aware gating modules in handling diverse environmental conditions and sensor configurations. The sub-stantial performance gains further indicate that the superior-ity of multi-modal designs over single-modality counterparts is systematic rather than incidental, underscoring the im-portance of fully exploiting modality-specific representations while maintaining robust cross-modal interactions to guide the learning process for reliable HD map construction. 
+
+C. Ablation Studies 
+
+Analysis on Different Modules. To systematically evalu-ate the effectiveness of each module in our proposed model, we train the model by removing each component one at a time, as presented in Tab. III. We design the following configurations: We design the following ablation models: (1) 
+
+w/o DAM + w/o UAG : we remove DAM and replace UAG with an MLP; (2) w/o SD + w/o UAG : we remove SD and replace UAG with an MLP; (3) w/o SD + w/o DAM :we remove both SD and DAM modules; (4) w/o UAG : we replace uncertainty-aware gating (UAG) with an MLP for computing expert weights; (5) w/o DAM : we remove the TABLE III: Ablation on subspace decomposition (SD), distribution-aware masking (DAM), and uncertainty-aware gating (UAG). The full model combining all three components achieves the state-of-the-art performance, out-performing individual modules and pairwise combinations on nuScenes val (24 epochs).                                                                
+
+> SD DAM UAG Mod. AP ped AP divider AP boundary mAP
+> ×××C&L 55.9 62.3 69.3 62.5
+> ✓××C&L 56.8 63.1 70.2 63.4
+> ×✓×C&L 57.7 64.6 71.0 64.4
+> ××✓C&L 56.1 62.8 69.7 62.9
+> ✓✓×C&L 59.1 66.7 72.0 65.9
+> ✓×✓C&L 59.2 64.9 70.7 64.9
+> ×✓✓C&L 57.8 65.3 72.2 65.1
+> ✓✓✓C&L 61.6 66.7 71.8 66.7
+
+TABLE IV: Expert group ablation configurations and results . The full model achieves the best performance, significantly outperforming configurations with only private experts (L+I) or only cross-modal experts (S+Int).                     
+
+> Expert Setting AP ped AP divider AP boundary mAP
+> MapTR [69] (baseline) 55.9 62.3 69.3 62.5 Only L+I (Private) 57.7 64.2 69.4 63.8 Only S+Int (Cross-modal) 54.6 60.5 66.7 60.6
+> SEF-Map (Full) 61.6 66.7 71.8 66.7
+
+distribution-aware masking (DAM) module; (6) w/o SD : we remove the subspace decomposition (SD) module from the model; The results show that introducing SD and DAM brings the most substantial gains, with mAP improving by about 3.4% compared to the baseline. UAG alone yields only a marginal +0.4% gain, but when combined with SD and DAM it provides an additional +0.8% improvement, showing that UAG is most effective when enhancing their complementary features. These findings confirm the complementary roles of the three modules, with SD and DAM providing the strongest improvements and UAG refining the fusion process. 
+
+Analysis on Expert Group Ablation. Additionally, we perform an expert group ablation to evaluate the importance of different expert configurations, as shown in Tab. IV. We design the following configurations: (1) Private Experts Only (L+I) : using only the private experts from LiDAR and Image ; (2) Cross-Modal Experts Only (S+Int) : us-ing only the cross-modal experts . The results show that using only private experts (L+I) achieves slightly better performance than the baseline MapTR (+1.3% mAP), with improvements particularly evident in AP ped (+1.8%) and 
+
+AP divider (+1.9%), suggesting that modality-specific features are valuable for capturing fine-grained semantic and geo-metric details. Using only cross-modal experts (S+Int) leads to even weaker performance (-1.9% compared to baseline), with notable drops in AP boundary (-2.6%) and AP ped (-1.2%), LiDAR BEV feature            
+
+> Multi -view Images Image BEV feature
+> LiDAR Point Cloud (a) GT (b) Baseline
+> (MapTR )
+> (c) SEF -MAP
+> (SD and DAM)
+> (d) SEF -MAP
+> (full)
+> LiDAR BEV feature
+> Multi -view Images Image BEV feature
+> LiDAR Point Cloud (a) GT (b) Baseline
+> (MapTR )
+> (c) SEF -MAP
+> (SD and DAM)
+> (d) SEF -MAP
+> (full)
+
+Fig. 2: Qualitative results on nuScenes. We present two sample scenes from nuScenes: (a) Ground Truth. (b) Baseline (MapTR). (c) SEF-MAP (SD and DAM). (d) SEF-MAP (full). The red boxes highlight challenging regions where our method demonstrates significant improvements over the baseline. In these highlighted areas, the baseline MapTR produces noticeable errors and incomplete map predictions. The full SEF-MAP model with uncertainty-aware gating (d) achieves the most precise vectorized map reconstruction, particularly in the challenging regions marked by red boxes, demonstrating the effectiveness of our subspace decomposition and adaptive fusion strategy. confirming that cross-modal experts alone cannot capture all the necessary modality-specific cues for accurate HD map construction, such as LiDAR’s precise depth information or camera’s rich texture details. The SEF-MAP , combining SD, DAM, and UAG, achieves the highest performance (+4.2% mAP), with consistent improvements across all map elements, demonstrating that the synergy between private and cross-modal experts is crucial for leveraging both modality-specific strengths and cross-modal interactions to achieve robust multimodal fusion. 
+
+D. Qualitative Results 
+
+In Fig 2, we show qualitative results on two sample scenes from the nuScenes dataset with both LiDAR and camera inputs. We compare the predicted vectorized HD map results of different models, including the baseline MapTR [69], our model with SD and DAM, and the full model (with SD, DAM, and UAG). The baseline model produces significant errors in map prediction, particularly evident in the red-boxed regions where lane boundaries are misaligned or completely missing. Our progressive model variants show in-creasingly better performance, with the SD and DAM combi-nation providing substantial improvements in lane detection and road topology preservation. The full SEF-MAP model achieves the best results, demonstrating superior alignment with ground truth and successful reconstruction of complex lane structures and road boundaries that were problematic for the baseline. These visual results confirm that the synergistic combination of SD, DAM, and UAG effectively enhances multi-modal fusion, ultimately producing more reliable and accurate HD map predictions. V. CONCLUSION In this work, we propose SEF-MAP , a Subspace-Expert Fusion framework for robust multi-modal HD map prediction. SEF-MAP decomposes BEV features into LiDAR-private, Image-private, Shared, and Interaction sub-spaces, each handled by dedicated experts to balance modality-specific information and cross-modal consensus. An uncertainty-aware gating mechanism adaptively regu-lates expert contributions, while distribution-aware masking with specialization constraints improves robustness under degraded conditions. Extensive experiments on nuScenes and Argoverse2 datasets demonstrate the effectiveness of our approach, achieving significant improvements of +4.2% and +4.8% mAP respectively over state-of-the-art baselines. The principled design of expert specialization and adaptive fusion not only enhances performance but also provides interpretable insights into modality contributions. Overall, 
+
+SEF-MAP offers an effective solution for reliable multi-modal HD map prediction under diverse and challenging real-world scenarios. REFERENCES [1] X. Hao, Y. Zhao, Y. Ji et al. , “What really matters for robust multi-sensor hd map construction?” arXiv preprint arXiv:2507.01484 , 2025. [2] G. Elghazaly, R. Frank, S. Harvey et al. , “High-definition maps: Comprehensive survey, challenges, and future perspectives,” IEEE Open Journal of Intelligent Transportation Systems , vol. 4, pp. 527– 550, 2023. [3] Q. Li, Y. Wang, Y. Wang, and H. Zhao, “Hdmapnet: An online hd map construction and evaluation framework,” in IEEE International Conference on Robotics and Automation , 2022, pp. 4628–4634. [4] B. Wijaya, K. Jiang, M. Yang et al. , “High definition map mapping and update: A general overview and future directions,” arXiv preprint arXiv:2409.09726 , 2024. [5] X. Hao, M. Wei, Y. Yang, H. Zhao, H. Zhang, Y. Zhou, Q. Wang, W. Li, L. Kong, and J. Zhang, “Is your hd map constructor reliable under sensor corruptions?” Advances in Neural Information Process-ing Systems , pp. 22 441–22 482, 2024. [6] X. Hao, Y. Diao, M. Wei, Y. Yang, P. Hao, R. Yin, H. Zhang, W. Li, S. Zhao, and Y. Liu, “Mapfusion: A novel bev feature fusion network for multi-modal map construction,” Information Fusion , p. 103018, 2025. [7] X. Hao, G. Liu, Y. Zhao, Y. Ji, M. Wei, H. Zhao, L. Kong, R. Yin, and Y. Liu, “Msc-bench: Benchmarking and analyzing multi-sensor corruption for driving perception,” arXiv preprint arXiv:2501.01037 ,2025. [8] Z. Bao, S. Hossain, H. Lang et al. , “High-definition map generation technologies for autonomous driving,” arXiv preprint arXiv:2206.05400 , 2022. [9] X. Tang, K. Jiang, M. Yang et al. , “High-definition maps construction based on visual sensor: A comprehensive survey,” IEEE Transactions on Intelligent Vehicles , 2023. [10] L. Zhang, X. Hao, Y. Tang, H. Fu, X. Zheng, P. Wang, Z. Wang, W. Ding, and S. Zhang, “ nava 3: Understanding any instruction, navi-gating anywhere, finding anything,” arXiv preprint arXiv:2508.04598 ,2025. [11] Y. Tang, L. Zhang, S. Zhang, Y. Zhao, and X. Hao, “Roboafford: A dataset and benchmark for enhancing object and spatial affordance learning in robot manipulation,” in Proceedings of the 33rd ACM International Conference on Multimedia , 2025, pp. 12 706–12 713. [12] E. Xiao, L. Zhang, Y. Tang, H. Cheng, R. Xu, W. Ding, L. Zhou, L. Chen, H. Ye, and X. Hao, “Team xiaomi ev-ad vla: Learning to navigate socially through proactive risk perception-technical report for iros 2025 robosense challenge social navigation track,” arXiv preprint arXiv:2510.07871 , 2025. [13] L. Zhang, E. Xiao, Y. Zhang, H. Fu, R. Hu, Y. Ma, W. Ding, L. Chen, H. Ye, and X. Hao, “Team xiaomi ev-ad vla: Caption-guided retrieval system for cross-modal drone navigation-technical report for iros 2025 robosense challenge track 4,” arXiv preprint arXiv:2510.02728 , 2025. [14] X. Hao, Y. Tang, L. Zhang, Y. Ma, Y. Diao, Z. Jia, W. Ding, H. Ye, and L. Chen, “Roboafford++: A generative ai-enhanced dataset for mul-timodal affordance learning in robotic manipulation and navigation,” 
+
+arXiv preprint arXiv:2511.12436 , 2025. [15] B. R. Team et al. , “Robobrain 2.0 technical report,” arXiv preprint arXiv:2507.02029 , 2025. [16] P. Liu, Q. Zhang, D. Peng, L. Zhang, Y. Qin, H. Zhou, J. Ma, R. Xu, and Y. Ji, “Toponav: Topological graphs as a key enabler for advanced object navigation,” arXiv preprint arXiv:2509.01364 , 2025. [17] X. Hao, L. Zhou, Z. Huang, Z. Hou, Y. Tang, L. Zhang, G. Li, Z. Lu, S. Ren, X. Meng et al. , “Mimo-embodied: X-embodied foundation model technical report,” arXiv preprint arXiv:2511.16518 , 2025. [18] L. Zhang, Y. Zhang, H. Li, H. Fu, Y. Tang, H. Ye, L. Chen, X. Liang, X. Hao, and W. Ding, “Is your vlm sky-ready? a comprehensive spatial intelligence benchmark for uav navigation,” arXiv preprint arXiv:2511.13269 , 2025. [19] L. Zhang, E. Xiao, X. Hao, H. Fu, Z. Gong, L. Chen, X. Liang, R. Xu, H. Ye, and W. Ding, “Socialnav-map: Dynamic mapping with human trajectory prediction for zero-shot social navigation,” arXiv preprint arXiv:2511.12232 , 2025. [20] H. Dong, W. Gu, X. Zhang et al. , “Superfusion: Multilevel lidar-camera fusion for long-range hd map generation,” in IEEE Inter-national Conference on Robotics and Automation (ICRA) , 2024, pp. 9056–9062. [21] M. E. Kalfaoglu, H. I. Ozturk, O. Kilinc, and A. Temizel, “Topo-maskv2: Enhanced instance-mask-based formulation for the road topology problem,” in CVPR , 2024, pp. 17 853–17 862. [22] C. Zhang, Q. Song, F. Li et al. , “Hybrimap: Hybrid clues utiliza-tion for effective vectorized hd map construction,” arXiv preprint arXiv:2404.11155 , 2024. [23] Y. Zhou, H. Zhang, J. Yu et al. , “Himap: Hybrid representation learning for end-to-end vectorized hd map construction,” in Proceed-ings of the IEEE/CVF Conference on Computer Vision and Pattern Recognition , 2024, pp. 15 396–15 406. [24] L. Qiao, Y. Zheng, P. Zhang et al. , “Machmap: End-to-end vec-torized solution for compact hd-map construction,” arXiv preprint arXiv:2306.10301 , 2023. [25] L. Qiao, W. Ding, X. Qiu, and C. Zhang, “End-to-end vectorized hd-map construction with piecewise bezier curve,” in Proceedings of the IEEE/CVF Conference on Computer Vision and Pattern Recognition ,2023, pp. 13 218–13 228. [26] L. Peng, Z. Chen, Z. Fu, P. Liang, and E. Cheng, “Bevsegformer: Bird’s eye view semantic segmentation from arbitrary camera rigs,” in IEEE/CVF Winter Conference on Applications of Computer Vision ,2023, pp. 5924–5932. [27] Z. Qin, J. Chen, C. Chen et al. , “Uniformer: Unified multi-view fusion transformer for spatial-temporal representation in birds-eye-view,” arXiv preprint arXiv:2207.08536 , 2022. [28] Y. Zhang, Z. Zhu, W. Zheng et al. , “Beverse: Unified perception and prediction in birds-eye-view for vision-centric autonomous driving,” 
+
+arXiv preprint arXiv:2205.09743 , 2022. [29] Z. Li, W. Wang, H. Li et al. , “Bevformer: Learning bird’s-eye-view representation from multi-camera images via spatiotemporal transformers,” in European Conference on Computer Vision , 2022, pp. 1–18. [30] C. Yang, Y. Chen, H. Tian et al. , “Bevformer v2: Adapting modern image backbones to bird’s-eye-view recognition via perspective super-vision,” arXiv preprint arXiv:2211.10439 , 2022. [31] R. Zhou, C. Dai, W. Jiang et al. , “Supermapnet for long-range and high-accuracy vectorized hd map construction,” arXiv preprint arXiv:2505.13856 , 2025. [32] X. Hao, R. Li, H. Zhang et al. , “Mapdistill: Boosting efficient camera-based hd map construction via camera-lidar fusion model distillation,” in European Conference on Computer Vision , 2024, pp. 166–183. [33] J. Song, X. Chen, L. Lu et al. , “Memfusionmap: Working memory fusion for online vectorized hd map construction,” in IEEE/CVF Winter Conference on Applications of Computer Vision (WACV) , 2025, pp. 9248–9257. [34] Y. Liu, T. Yuan, Y. Wang et al. , “Vectormapnet: End-to-end vectorized hd map learning,” in International Conference on Machine Learning ,2023, pp. 22 352–22 369. [35] Z. Zhou, X. Feng, S. Di et al. , “A lidar mapping system for robot navigation in dynamic environments,” IEEE Transactions on Intelli-gent Vehicles , 2023. [36] W. Ali, P. Jensfelt, and T. M. Nguyen, “Hd-maps as prior information for globally consistent mapping in gps-denied environments,” in IEEE 27th International Conference on Intelligent Transportation Systems (ITSC) , 2024, pp. 2145–2151. [37] X. Hao, L. Kong, R. Yin, P. Wang, J. Zhang, Y. Diao, and S. Zhao, “Safemap: Robust hd map construction from incomplete observations,” in Forty-second International Conference on Machine Learning .[38] X. Hao, H. Zhang, Y. Yang, and et al., “Mbfusion: A new multi-modal bev feature fusion method for hd map construction,” in IEEE IEEE International Conference on Robotics and Automation , 2024, pp. 15 922–15 928. [39] J. Chen and A. Zhang, “Hgmf: heterogeneous graph-based fusion for multimodal data with incompleteness,” in Proceedings of the 26th ACM SIGKDD International Conference on Knowledge Discovery & Data Mining , 2020, pp. 1295–1305. [40] Q. Zhang, Y. Wei, Z. Han et al. , “Multimodal fusion on low-quality data: A comprehensive survey,” arXiv preprint arXiv:2404.18947 ,2024. [41] L. Kong, S. Xie, Z. Gong, Y. Li, M. Chu, A. Liang, Y. Dong, T. Hu, R. Qiu, R. Li et al. , “The robosense challenge: Sense any-thing, navigate anywhere, adapt across platforms,” arXiv preprint arXiv:2601.05014 , 2026. [42] Q. Zhang, Z. Zhang, W. Cui, J. Sun, J. Cao, Y. Guo, G. Han, W. Zhao, J. Wang, C. Sun et al. , “Humanoidpano: Hybrid spherical panoramic-lidar cross-modal perception for humanoid robots,” arXiv preprint arXiv:2503.09010 , 2025. [43] S. Zhang, X. Hao, Y. Tang, L. Zhang, P. Wang, Z. Wang, H. Ma, and S. Zhang, “Video-cot: A comprehensive dataset for spatiotemporal understanding of videos based on chain-of-thought,” in Proceedings of the 33rd ACM International Conference on Multimedia , 2025, pp. 12 745–12 752. [44] X. Zheng, Y. He, Y. Luo, L. Zhang, J. Wang, T. Shi, and Y. Bai, “Railway side slope hazard detection system based on generative models,” IEEE Sensors Journal , 2025. [45] H. Cheng, E. Xiao, Y. Wang, L. Zhang, Q. Zhang, J. Cao, K. Xu, M. Sun, X. Hao, J. Gu et al. , “Exploring typographic visual prompts injection threats in cross-modality generation models,” arXiv preprint arXiv:2503.11519 , 2025. [46] D. Li, S. Ma, H. Hua, W. Li, J. Wang, C. W. Zhou, F. Guan, X. Li, Z. Yu, Y. Lu et al. , “Vquala 2025 challenge on engagement prediction for short videos: Methods and results,” in Proceedings of the IEEE/CVF International Conference on Computer Vision , 2025, pp. 3391–3401. [47] Q. Zhang, G. Han, J. Sun, W. Zhao, J. Cao, J. Wang, H. Cheng, L. Zhang, Y. Guo, and R. Xu, “Lips: Large-scale humanoid robot reinforcement learning with parallel-series structures,” arXiv preprint arXiv:2503.08349 , 2025. [48] X. Zheng, L. Zhang, Y. Luo, and T. Wang, “A generation-based defect detection system for rail transit infrastructure,” High-speed Railway ,2025. [49] H. Wang, E. Xiao, S. He, Z. Ni, L. Zhang, X. Zhan, Y. Cui, J. Liu, C. Wang, Z. Wang et al. , “Cim-based parallel fully ffnn surface code high-level decoder for quantum error correction,” in 2025 Design, Automation & Test in Europe Conference (DATE) . IEEE, 2025, pp. 1–2. [50] Z. Jiang, S. Zhang, J. Cao, Q. Zhang, S. Liu, Y. Fang, L. Zhang, R. Qing, and R. Xu, “Recursive cleaning for large-scale protein data via multimodal learning,” bioRxiv , pp. 2024–10, 2024. [51] L. Zhang, H. Fu, X. Hao, S. Zhang, Q. Zhang, R. Liu, L. Chen, and W. Ding, “What you see is what you reach: Towards spatial navigation with high-level human instructions,” 2026. [52] L. Zhang, H. Wang, E. Xiao, X. Zhang, Q. Zhang, Z. Jiang, and R. Xu, “Multi-floor zero-shot object navigation policy,” in IEEE International Conference on Robotics and Automation . IEEE, 2025. [53] L. Zhang, Q. Zhang, H. Wang, E. Xiao, Z. Jiang, H. Chen, and R. Xu, “Trihelper: Zero-shot object navigation with dynamic assistance,” in 
+
+IEEE/RSJ International Conference on Intelligent Robots and Systems .IEEE, 2024, pp. 10 035–10 042. [54] L. Zhang, X. Hao, Q. Xu, Q. Zhang, X. Zhang, P. Wang, J. Zhang, Z. Wang, S. Zhang, and R. Xu, “Mapnav: A novel memory rep-resentation via annotated semantic maps for vlm-based vision-and-language navigation,” in Proceedings of the 63rd Annual Meeting of the Association for Computational Linguistics (Volume 1: Long Papers) , 2025, pp. 13 032–13 056. [55] Y. Wu, H. Lyu, Y. Tang, L. Zhang, Z. Zhang, W. Zhou, and S. Hao, “Evaluating gpt-4o’s embodied intelligence: A comprehensive empir-ical study,” Authorea Preprints , 2025. [56] Z. Gong, R. Li, T. Hu, R. Qiu, L. Kong, L. Zhang, Y. Ding, L. Zhang, and J. Liang, “Stairway to success: Zero-shot floor-aware object-goal navigation via llm-driven coarse-to-fine exploration,” arXiv preprint arXiv:2505.23019 , 2025. [57] X. Chen, H. Ma, J. Wan et al. , “Multi-view 3d object detection network for autonomous driving,” in Proceedings of the IEEE Conference on Computer Vision and Pattern Recognition , 2017, pp. 1907–1915. [58] K. Zhao, L. Liu, Y. Meng et al. , “Feature deep continuous aggregation for 3d vehicle detection,” Applied Sciences , vol. 9, no. 24, p. 5397, 2019. [59] J. Xiao, S. Wang, J. Zhou et al. , “Mim: High-definition maps incorpo-rated multi-view 3d object detection,” IEEE Transactions on Intelligent Transportation Systems , 2024. [60] X. Han, S. Chen, Z. Fu et al. , “Multimodal fusion and vision-language models: A survey for robot vision,” arXiv preprint arXiv:2504.02477 ,2025. [61] X. Bai, Z. Hu, X. Zhu et al. , “Transfusion: Robust lidar-camera fusion for 3d object detection with transformers,” in Proceedings of the IEEE/CVF Conference on Computer Vision and Pattern Recognition ,2022, pp. 1090–1099. [62] Z. Liu, H. Tang, A. Amini et al. , “Bevfusion: Multi-task multi-sensor fusion with unified bird’s-eye view representation,” in IEEE International Conference on Robotics and Automation , 2023, pp. 2774–2781. [63] Q. Jiang and H. Sun, “Semanticbevfusion: Rethinking lidar-camera fusion in unified bird’s-eye view representation for 3d object detec-tion,” in IEEE/RSJ International Conference on Intelligent Robots and Systems (IROS) , 2023, pp. 5707–5714. [64] T. Liang, H. Xie, K. Yu et al. , “Bevfusion: A simple and robust lidar-camera fusion framework,” Advances in Neural Information Processing Systems , vol. 35, pp. 10 421–10 434, 2022. [65] Y. Xie, C. Xu, M. J. Rakotosaona et al. , “Sparsefusion: Fusing multi-modal sparse representations for multi-sensor 3d object detection,” in 
+
+Proceedings of the IEEE/CVF International Conference on Computer Vision , 2023, pp. 17 591–17 602. [66] K. Wu, C. Yang, and Z. Li, “Interactionmap: Improving online vectorized hdmap construction with interaction,” in Proceedings of the IEEE/CVF Conference on Computer Vision and Pattern Recognition ,2025, pp. 17 176–17 186. [67] Q. Li, Y. Wang, Y. Wang, and H. Zhao, “Hdmapnet: An online hd map construction and evaluation framework,” in IEEE ICRA , 2022, pp. 4628–4634. [68] Y. Liu, T. Yuan, Y. Wang, Y. Wang, and H. Zhao, “Vectormapnet: End-to-end vectorized hd map learning,” in ICML , 2023, pp. 22 352– 22 369. [69] B. Liao, S. Chen, X. Wang, T. Cheng, Q. Zhang, W. Liu, and C. Huang, “Maptr: Structured modeling and learning for online vectorized hd map construction,” in ICLR , 2023.

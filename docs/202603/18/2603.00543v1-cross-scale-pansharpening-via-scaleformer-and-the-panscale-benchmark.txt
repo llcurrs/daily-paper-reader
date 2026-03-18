@@ -1,0 +1,559 @@
+Title: Cross-Scale Pansharpening via ScaleFormer and the PanScale Benchmark
+
+URL Source: https://arxiv.org/pdf/2603.00543v1
+
+Published Time: Tue, 03 Mar 2026 01:46:31 GMT
+
+Number of Pages: 19
+
+Markdown Content:
+# Cross-Scale Pansharpening via ScaleFormer and the PanScale Benchmark 
+
+## Ke Cao 1,2,* , Xuanhua He 3,*,† , Xueheng Li 1,2 , Lingting Zhu 4, Yingying Wang 5,Ao Ma 6, Zhanjie Zhang 7, Man Zhou 2,‡ , Chengjun Xie 1,2 , Jie Zhang 1,2,‡ 1HFIPS, Chinese Academy of Sciences, 2University of Science and Technology of China, 
+
+3The Hong Kong University of Science and Technology, 4The University of Hong Kong, 
+
+5Xiamen University, 6JD.com, 7Zhejiang University 
+
+{caoke200820,hexuanhua,manman}@mail.ustc.edu.cn, zhangjie@iim.ac.cn 
+
+## Abstract 
+
+Pansharpening aims to generate high-resolution multi-spectral images by fusing the spatial detail of panchromatic images with the spectral richness of low-resolution MS data. However, most existing methods are evaluated under limited, low-resolution settings, limiting their generalization to real-world, high-resolution scenarios. To bridge this gap, we systematically investigate the data, algorithmic, and compu-tational challenges of cross-scale pansharpening. We first introduce PanScale, the first large-scale, cross-scale pan-sharpening dataset, accompanied by PanScale-Bench, a com-prehensive benchmark for evaluating generalization across varying resolutions and scales. To realize scale generaliza-tion, we propose ScaleFormer, a novel architecture designed for multi-scale pansharpening. ScaleFormer reframes gener-alization across image resolutions as generalization across sequence lengths: it tokenizes images into patch sequences of the same resolution but variable length proportional to image scale. A Scale-Aware Patchify module enables train-ing for such variations from fixed-size crops. ScaleFormer then decouples intra-patch spatial feature learning from inter-patch sequential dependency modeling, incorporating Rotary Positional Encoding to enhance extrapolation to un-seen scales. Extensive experiments show that our approach outperforms SOTA methods in fusion quality and cross-scale generalization. The datasets and source code are available upon acceptance. 
+
+## 1. Introduction 
+
+High-resolution multi-spectral (HRMS) imagery is in high demand across various fields such as environmental moni-toring and precision agriculture, due to its ability to provide  
+
+> *
+
+Equal contribution.  
+
+> †
+
+Project leader.  
+
+> ‡
+
+Corresponding author. 1600x1600 Images  
+
+> 256
+> ×
+> 256 Standard -sized Image
+> Direct Inference of High -Resolution Images: Excessive Memory Usage
+> Crop Inference of High -Resolution Images:  Serious  Block Effect
+> (C)
+> (A)
+> ARConv Crop 4 Inference
+> (D)
+> (B)
+> Up to 15.8x
+> OOM
+> 3.25x
+> Memory Usage
+> Input Resolution
+> Intensity (normalized)
+> Probability density
+> Distribution shift between training -scale
+> tiles and large -resolution inputs
+
+Figure 1. Challenges in cross-scale pansharpening. (a) Learn-ing/modeling at limited resolution while supporting inference on high-resolution images. (b) GPU memory increases rapidly with resolution, especially for Transformer-based models. (c) Tiled inference can introduce block artifacts in some methods. (d) A scale-induced distribution shift exists between training-scale inputs and large-scale inference. 
+
+fine spatial detail and rich spectral information. However, current remote sensing technologies face fundamental lim-itations of satellite sensor hardware, making it difficult to acquire HRMS images directly. As a result, existing systems typically capture high-resolution panchromatic (PAN) im-ages that contain fine spatial detail, alongside low-resolution multi-spectral (LRMS) images that preserve spectral char-acteristics. To overcome this constraint, pansharpening has been developed to utilize PAN and LRMS images to generate a fusion that combines the advantages of both. Essentially, 
+
+> arXiv:2603.00543v1 [cs.CV] 28 Feb 2026
+
+pansharpening can be viewed as a guided super-resolution process, where the fine-grained spatial details from the PAN are leveraged to enhance the LRMS while preserving its spectral fidelity. Despite recent advances in CNN- and Transformer-based pansharpening [ 38 , 44 , 53 , 56 , 57 ] have shown promising progress, they still face several challenges, particularly in handling images with high spatial resolutions and across varying scales. These limitations hinder their generalization and robustness in real-world applications in-volving multi-scale or high-resolution data. In practical remote-sensing deployments, inference is typ-ically performed at resolutions far exceeding the training crop size, which exposes two fundamental bottlenecks in existing approaches. First, computation and memory scale steeply with input size : when moving from common train-ing crops (200-256 pixels) to 800, 1600, or even 2000 pixels kernel coverage, feature-map dimensions, and attention se-quence length increase in lockstep, leading to a sharp rise in computational cost. Engineers are then forced to adopt tiled inference, which introduces boundary discontinuities and visible blocking artifacts. As illustrated in Fig. 1(a) and (b), panel (a) contrasts a typical training crop with our 1600-pixel inference image, while panel (b) shows the sharp rise in memory consumption with increasing resolution, partic-ularly for Transformer-based models, which often exceed consumer-grade GPU capacity already at 800-pixel inputs. Fig. 1(c) highlights severe block artifacts observed with AR-Conv [ 44 ] under tiled inference, leading to a marked drop in fusion quality. Second, cross-scale generalization is weak :because most models are trained on a single, low-resolution regime, upscaling at test time induces pronounced shifts in input statistics (means, variances, and spectral composi-tion) relative to the training distribution, degrading feature alignment and spectral fidelity and thus causing systematic performance decline [ 6]. To quantify this scale-induced shift, we compare pixel PDFs between training-scale tiles and large-scale inference. As resolution increases from 200 to 1600, the luminance distribution exhibits systematic shifts in shadows and highlights, which substantially impact fu-sion quality. Compounding these issues is the lack of standardized datasets and evaluation protocols targeting multi-scale and high-resolution pansharpening : existing resources [ 7 , 32 , 41 ] provide limited scale diversity and spatial resolution, falling short of real-world needs and con-straining the development and fair assessment of advanced methods under high-resolution, cross-scale conditions. To address these challenges, we introduce PanScale-Datasets, the first cross-scale remote sensing image fusion dataset specifically designed for pansharpening in multi-resolution and high-resolution scenarios. The dataset com-prises satellite imagery from three types of remote sensing platforms, with native spatial resolutions ranging from 0.5 meters to 15 meters, thereby covering a broad spectrum of (a) Conv (b) Transformer            
+
+> (c) ScaleFormer
+> quadratic complexity
+> for global modeling
+> controllable complexity for decoupled global modeling
+> linear complexity with k 2
+> for local modeling
+> Attn
+> SpaA
+> SpaA
+> SpaA
+> SpaA
+> 2.Intra -sequence
+> spatial modeling
+> 3.Inter -sequence
+> modeling
+> 1. Fixed patch size t
+> ⇒image as an
+> expandable sequence
+> SeqA
+
+Figure 2. Comparison of convolution, Transformer, and the pro-posed ScaleFormer. (a) Convolution: linear in image size but with a limited receptive field on high-resolution inputs; enlarging ker-nels helps but adds quadratic cost in kernel size. (b) Transformer: uniform patchification enables global context, yet self-attention scales quadratically with patch count, driving computation up on large images. (c) ScaleFormer (ours): introduces a sequence axis, factorizing global modeling into fixed-size spatial processing plus a scalable sequence dimension, yielding controllable complexity and mitigating scale-induced distribution shifts for robust performance across resolutions. 
+
+real-world sensing conditions. To simulate practical multi-scale processing demands, we construct a series of reduced-resolution and full-resolution test sets, ranging in size from 
+
+200 × 200 to 2000 × 2000 pixels, enabling rigorous evalu-ation under diverse input resolutions and spatial scales. In conjunction with the dataset, we propose a comprehensive evaluation suite, PanScale-Bench, which supports standard-ized and fair benchmarking across different methods. It inte-grates a variety of reference-based and no-reference metrics to comprehensively assess fusion quality at varying scales, offering a unified platform for performance comparison and analysis within the community. Building upon this, we introduce ScaleFormer, a frame-work designed for robust remote-sensing image fusion across diverse scales and resolutions. As outlined in Fig. 2, the core idea is to reinterpret resolution changes as sequence-length changes: local patches at a fixed spatial size serve as statisti-cally stable tokens, and only the sequence length grows lin-early with image size. Concretely, we propose Scale-Aware Patchify (SAP), which employs bucketed window sampling during training to expose the model to multiple effective se-quence lengths, thereby stabilizing per-token mean and vari-ance and narrowing the training-inference distribution gap. We further adopt decoupled intra-spatial and inter-sequence modeling, and incorporate RoPE [ 37 ] to enhance extrapo-lation to unseen sequence lengths corresponding to larger resolutions. This reformulation markedly reduces VRAM and GFLOPs at large scales and avoids the tiling artifacts common in blockwise inference. Extensive experiments on the PanScale dataset demonstrate that ScaleFormer achieves accurate and efficient fusion over a wide range of scales and resolutions, confirming its effectiveness and advantage for multi-scale pansharpening. Our contributions can be summarized as follows: • We present PanScale, the first cross-scale pansharpening dataset, together with PanScale-Bench, a comprehensive evaluation benchmark. This standardized platform enables systematic testing and assessment of pansharpening meth-ods in diverse multi-scale and high-resolution scenarios encountered in real-world applications. • We propose ScaleFormer, a framework designed for robust multi-scale pansharpening. It reframes the problem of generalizing to unseen image resolutions as generalizing to unseen sequence lengths. ScaleFormer achieves this by decoupling the modeling of fine-grained spatial structures within image patches and the scale-adaptive sequential dependencies between these patches, leading to stable performance across various input resolutions. • We incorporate bucket training strategy and rotary posi-tional encoding to promote better generalization to unseen scales. These techniques encourage the model to adapt to varying resolutions beyond those seen during training. • Extensive experiments across multiple datasets within the PanScale demonstrate that our method achieves accurate and efficient fusion at multiple scales and maintains high performance even when processing ultra-high-resolution inputs, highlighting its strong generalization ability and practical applicability in real-world multi-scale fusion. 
+
+## 2. Related Work 
+
+Please refer to the Appendix 8. 
+
+## 3. Proposed Datasets and Benchmark 
+
+3.1. Data Collection and Preprocessing 
+
+To construct the PanScale Datasets, we leveraged the capa-bilities of Google Earth Engine (GEE) [ 13 ] to systematically acquire and preprocess multi-source remote sensing data. The overall data preparation pipeline and detailed process are in the Appendix 9.1. 
+
+3.2. Dataset composition and benchmark design 
+
+Most existing pansharpening methods are evaluated on rela-tively small-scale datasets with fixed resolutions, which lim-its their applicability to real-world scenarios involving high-resolution satellite imagery. To comprehensively assess the generalization ability of fusion methods on multi-scale, high-resolution inputs, we designed the PanScale dataset, which consists of three sub-datasets. Each sub-dataset includes a training set, multi-scale reduced-resolution test sets, and multi-scale full-resolution test sets. The detailed configura-tions of these datasets are summarized in Fig. 3. A more com-prehensive description can be found in Appendix 9.2. Fur-thermore, the benchmark design is provided in Appendix 9.3. Table 1 presents a comparison between the PanScale dataset and several widely used pansharpening datasets, fo-cusing on the following aspects: data type, whether the data is real, the inclusion of a training set, and support for Multi-Resolution Testing (MRT) and Large Scale Testing (LST). It is evident that our dataset is unique in its simultaneous emphasis on both training data and large-scale testing, and is the only one that includes cross-scale evaluation.                          
+
+> Table 1. Comparison between the PanScale dataset and widely used pansharpening datasets, focusing on data type, whether the data is real, the inclusion of a training set, and support for Multi-Resolution Testing (MRT) and Large Scale Testing (LST). Datasets Type Real data Train MRT LST PanCollection[7] RR and FR ✓✓✗✗
+> NBU[32] FR ✓✓✗✗
+> PAirMax[41] RR and FR ✓✗✗✓
+> PanScale RR and FR ✓✓✓✓
+
+## 4. Proposed Methods 
+
+4.1. Overview 
+
+Fig. 4 illustrates the overall architecture of the proposed ScaleFormer, which is composed of three primary compo-nents: (1) the Scale-Aware Patchify module that incorporates a bucket-based training strategy to promote scale diversity and robustness; (2) Single-Transformer modules consist-ing of the Spatial-Transformer and Sequence-Transformer, each dedicated to modeling spatial and sequential depen-dencies independently; and (3) Cross-Transformer modules that include the Spatial-Cross Transformer and Sequence-Cross Transformer, which facilitate cross-modal interac-tions through cross-attention mechanisms along spatial and sequential dimensions, respectively. Given an input panchromatic image P ∈ RH×W ×1 and a correspond-ing low-resolution multi-spectral (LRMS) image Lin ∈
+
+R(H/r )×(W/r )×C , where r denotes the upsampling ratio be-tween the two modalities, we first apply bicubic interpo-lation to Lin to obtain an upsampled multi-spectral image 
+
+L ∈ RH×W ×C that matches the spatial dimensions of the PAN image. The Scale-Aware Patchify module performs randomized sliding window sampling at various patch sizes Ocean 
+
+Jilin 1055 102 
+
+484  
+
+> RR Test Datasets with different scale
+
+Landsat 
+
+2484 
+
+384 
+
+192 
+
+Skysat 
+
+2370 
+
+352 
+
+136 
+
+34 
+
+121 
+
+96 
+
+48 
+
+34 
+
+88      
+
+> Train Datasets RR Test Datasets FR Test Datasets
+
+PanScale Datasets   
+
+> FR Test Datasets with different scale
+> RR Test Datasets with different scale
+
+200 256 
+
+200 400 800 1600 
+
+800 1200 1600 2000 
+
+Resolution 
+
+Ocean -LRMS Ocean -PAN Valley -LRMS Valley -PAN Urban -LRMS Urban -PAN Forest -LRMS Forest -PAN 
+
+Representative Scenes 
+
+in PanScale 
+
+Geographic Distribution of 
+
+Dataset Locations Figure 3. PanScale dataset: composition and distribution, resolution range, geographic sampling locations, and representative scene visualizations. Ocean 
+
+> Rearr5 ->4  Rearr5 ->4
+> Encoder  Encoder
+> Spatial -ST
+> Sequence -ST
+> Spatial -ST
+> Sequence -ST
+> Spatial -CT
+> Sequence -CT
+> Spatial -CT
+> Sequence -CT
+> Spatial -CT
+> Spatial -CT
+> Spatial -CT
+> Rearr4 ->5
+> Unpatchify
+> X4
+> X4
+
+Output 
+
+Input 
+
+PAN        
+
+> MHA Multi -Head Attention
+> QQuery KKey VValue
+> LN Layer Normalization
+
+Input 
+
+LRMS 
+
+Output     
+
+> Scale -Aware Patchify
+> Intra -sequence Tokenizer
+> Random Bucket Sampler in Training
+> scalability to
+> higher -resolution
+> Fixed t
+> during Inference
+> Guide
+> Value
+> of t
+> Upsample
+> LN
+> Atten
+> FFN
+> QKV
+> LN
+> Spatial -Single Transformer  (ST)
+> Conv
+> DWConv
+> Norm
+> Proj
+> SpaSA for
+> LN
+> Attention
+> FFN
+> QKV
+> LN LN
+> Spatial -Cross Transformer (CT)
+> Norm
+> DWConv
+> Conv
+> DWConv
+> Conv
+> Proj
+> SpaCA for
+> LN
+> Atten
+> FFN
+> Q K V
+> LN
+> Rearr43
+> Rearr34
+> Sequence -Single Transformer (ST)
+> Linear
+> Linear
+> Linear
+> RoPE
+> Head Split
+> SeqSA for
+> LN
+> FFN
+> LN LN
+> Sequence -Cross Transformer (CT)
+> SeqCA for
+> Atten
+> V K Q
+> Rearr43
+> Rearr34
+> Linear
+> Linear
+> Linear
+> RoPE Head Split
+
+Figure 4. The overall architecture of ScaleFormer, which primarily consists of three key components: the Scale-Aware Patchify module implementing the bucket sampling strategy, the Single Transformer Modules for intra-modal feature modeling, and the Cross Transformer Modules for inter-modal feature interaction and fusion. 
+
+to enable multi-scale representation learning. The extracted patches are then concatenated along a newly introduced se-quence dimension, effectively converting spatially aligned inputs into a sequence of multi-scale tokens suitable for subsequent transformer-based modeling: 
+
+P5d, L5d = SAP (P), SAP (L) (1) where SAP represents the operation of Scale-Aware Patchify, P5d ∈ RB×T ×C×h×w,L5d ∈
+
+RB×T ×C×h×w,h = H/T ,w = W/T . To facilitate subsequent processing, we reshape P5d and L5d by merging the batch and sequence dimensions. These are then passed through a lightweight feature encoder to extract deep feature representations for each modality, denoted as f pan 
+
+4d and f ms 
+
+4d :
+
+f pan 
+
+4d , f ms 
+
+4d = Enc (R54 (P5d)) , Enc (R54 (L5d)) (2) Here, R54 denotes the tensor rearrangement operation that transforms a 5D representation into a 4D format. Following this, we employ a cascaded structure consisting of a Spatial Transformer and a Sequence Transformer to perform hier-archical feature extraction across both the spatial and the newly introduced scale dimensions within each modality. To enhance cross-modal interaction and facilitate more ef-fective feature fusion, we further introduce Spatial-Cross Transformer and Sequence-Cross Transformer modules. These modules enable bidirectional information exchange between the panchromatic and multi-spectral features along spatial and scale dimensions, respectively, yielding a fused representation denoted as Ff us  
+
+> 4d
+
+. To accurately reconstruct the high-resolution multi-spectral output, we apply an in-verse rearrangement operation to decompose the sequence dimension of Ff us  
+
+> 4d
+
+, followed by a patch reassembly pro-cess. This final step produces the desired high-resolution multi-spectral image, denoted as Hout .
+
+4.2. Scale-Aware Patchify 
+
+To mitigate the distribution shift that arises as input resolu-tion increases, we introduce a Scale-Aware Patchify (SAP) module that equips the model with explicit awareness of spatial scale. SAP rewrites local image evidence into an additional sequence axis, enabling subsequent components to perform spatial modeling within patches while conducting inter-sequence modeling along the sequence. This decou-pling preserves spatial granularity inside each window and delegates scale variation to the sequence length, improv-ing robustness when the input size changes. Inspired by recent progress in multi-resolution training for video gen-eration [ 5, 35 , 54 ], we further adopt bucketed sampling to expose the network to unseen sequence lengths during train-ing. Concretely, given co-registered panchromatic (PAN) and multispectral (MS) inputs, we randomly sample a bucket index t that determines a pre-defined window size w(t). A Patch-to-Sequence Tokenizer then partitions the inputs using 
+
+w(t), producing a token sequence whose length encodes the effective scale. This procedure increases the model’s cover-age of resolution variability, narrowing the gap between the training distribution and the test-time operating points. In inference, the system deterministically uses a fixed window size (probability 100%), so that higher spatial resolutions are handled simply by lengthening the sequence along the scale axis while keeping per-token statistics stable. In effect, SAP prevents the mean and variance drift that typically accom-panies scale changes and allows explicit and independent modeling of spatial and scale correlations. This design yields strong generalization across diverse and previously unseen input resolutions, aligning with the goals of cross-scale pan-sharpening in ScaleFormer and the evaluation protocols of the PanScale Benchmark. 
+
+4.3. Single Transformer Modules 
+
+Following the Scale-Aware Patchify, the input images are transformed into fixed-size spatial patches while introducing an additional sequence dimension that encodes scale-aware structural information. To facilitate effective learning across spatial and sequential representations, we introduce a Single-Transformer module consisting of a Spatial Transformer and a Sequence Transformer. These modules are specialized to independently capture dependencies within the spatial and sequential domains, respectively. The Spatial Transformer focuses on modeling local and global spatial relationships within each patch, enabling the network to extract rich spa-tial features. In parallel, the Sequence Transformer operates along the newly introduced sequence dimension, learning cross-patch correlations and capturing scale-aware contex-tual dependencies. This separation of concerns allows the model to decouple spatial encoding from scale modeling, thus improving both representation capacity and scalability across varying input resolutions. Specifically, given an input feature map fi, 1, the Single-Transformer module processes it sequentially along the spatial and sequence dimensions. This procedure can be formally described as follows: 
+
+fi, 1 = fi + SA spa (LN (fi)) (3) 
+
+fi+1 = fi, 1 + F F N (LN (fi, 1)) (4) 
+
+fi+1 ,1 = fi+1 + SA seq (LN (fi+1 )) (5) 
+
+fi+2 = fi+1 ,1 + F F N (LN (fi+1 ,1)) (6) where SA spa denotes the self-attention operation applied along the spatial dimensions, and LN represents the Layer Normalization. Subsequently, SA seq applies self-attention along the sequence dimension. To facilitate this, we perform a rearrangement operation that merges the batch and spatial dimensions into a single axis. Additionally, we incorporate Rotary Position Embedding (RoPE) [ 37 ] into the mapped queries and keys, which significantly enhances the model’s ability for scale extrapolation by encoding continuous rela-tive positional information. 
+
+4.4. Cross Transformer Modules 
+
+Similarly, the Cross Transformer module comprises a Spa-tial Cross Transformer and a Sequence Cross Transformer. Specifically, given the input feature maps f ms i and f pan ,the stacked Spatial-Cross Transformer and Sequence-Cross Transformer perform a series of cross-attention operations to facilitate effective interaction and information fusion be-tween the multi-spectral and panchromatic features. The computation can be expressed as: 
+
+f ms i, 1 = f ms i + CA spa (LN (f ms i ), LN (f pan )) (7) 
+
+f ms i+1 = f ms i, 1 + F F N (LN (f ms i )) (8) 
+
+f ms i+1 ,1 = f ms i+1 + CA seq (LN (f ms i+1 ), LN (f pan )) (9) 
+
+f ms i+2 ,1 = f ms i+1 ,1 + F F N (LN (f ms i+1 ,1)) (10) Here, LN denotes Layer Normalization. CA spa refers to the cross-attention mechanism along the spatial dimensions, while CA seq operates on the sequence dimension. Similar to the single-modality attention, we apply a rearrangement operation during CA seq to merge the batch and spatial di-mensions into a single axis. RoPE is also injected into the projected queries and keys, which enhances the model’s ca-pacity for generalizing across scales by encoding relative positional information. Table 2. Quantitative Results on PanScale Datasets. The best results are highlighted in bold . The second-best results are highlighted in underline . ↑ indicates that the larger the value, the better the performance, and ↓ indicates that the smaller the value, the better the performance. ARConv uses tiled inference due to OOM, and other methods are evaluated with train–inference scale misalignment. 
+
+Jilin-Ave Landsat-Ave Skysat-Ave Method PSNR ↑ SSIM ↑ ERGAS ↓ Q ↑ PSNR ↑ SSIM ↑ ERGAS ↓ Q ↑ PSNR ↑ SSIM ↑ ERGAS ↓ Q ↑
+
+GS 25.4386 0.7055 5.6091 0.5849 35.0781 0.8952 4.5954 0.5873 39.0558 0.9317 2.3673 0.6371 IHS 25.5950 0.7023 5.8071 0.5803 35.8777 0.8915 4.3234 0.5554 39.5900 0.9304 2.1756 0.6271 GFPCA 25.6134 0.7185 5.0460 0.4509 36.2597 0.8963 3.6041 0.4747 37.6663 0.9280 2.4973 0.4773 MSDCNN 36.5711 0.9574 1.4965 0.9092 38.8173 0.9592 2.6570 0.6737 42.5298 0.9696 2.5983 0.7261 SFINet 36.2845 0.9523 1.6129 0.8958 38.8276 0.9567 2.8075 0.6739 41.7457 0.9518 2.9933 0.6950 MSDDN 36.9407 0.9646 1.4326 0.9195 37.6899 0.9346 2.9023 0.6421 41.0392 0.9456 2.8546 0.6949 PanFlowNet 36.3326 0.9566 1.5554 0.9067 38.2158 0.9433 3.2700 0.6669 41.0219 0.9530 2.9228 0.6728 HFIN 38.0009 0.9698 1.2754 0.9284 40.2110 0.9666 2.3230 0.7216 43.9592 0.9658 2.2738 0.7707 Pan-mamba 35.5514 0.9480 1.6963 0.8966 36.7272 0.9206 3.2483 0.6437 41.3851 0.9493 2.7667 0.7129 ARConv 38.2340 0.9697 1.2462 0.9291 39.6646 0.9638 2.4441 0.6866 43.4037 0.9797 2.0629 0.7564 Ours 39.2932 0.9761 1.0991 0.9385 41.0360 0.9711 2.1354 0.7395 44.6546 0.9827 1.7293 0.7835 (d) Input Resolution  
+
+> Memory (G)
+> (c) Input Resolution
+> GFLOPs (G)
+> (b) Skysat Resolution
+> PSNR
+> (a) Landsat Resolution
+> PSNR
+
+Figure 5. Comparison results across increasing resolution scales. The four subplots respectively depict: (a) PSNR score on the Landsat dataset, (b) PSNR score on the Skysat dataset, (c) model computational complexity (measured in GFLOPs) as a function of input resolution, and (d) Memory variation concerning input resolution. 
+
+4.5. Loss Function 
+
+Following common practices in the field [ 3, 24 , 25 , 38 ], we employ the L1 norm as the loss function during training, which measures the pixel-wise discrepancy between the out-put image Hout and the ground truth G. The loss can be formally defined as: 
+
+L = ∥Hout − G∥1 (11) 
+
+## 5. Experiments 
+
+5.1. Implementation Details 
+
+In the comparative experiments, we selected a range of representative traditional methods as well as state-of-the-art deep learning techniques, including GS [ 22 ], IHS [ 15 ], GFPCA [ 26 ], MSDCNN [ 50 ], SFINet [ 57 ], MSDDN [ 16 ], PanFlowNet [ 49 ], HFIN [ 38 ], Pan-mamba [ 17 ], and AR-Conv [ 44 ]. These methods encompass a wide spectrum of approaches, ranging from classical image fusion techniques to the most recent deep learning-based models, thereby pro-viding a comprehensive comparison for evaluating the perfor-mance of our proposed method. To ensure consistency and fairness, all methods are trained separately on the three train-ing sets of the PanScale-Datasets and assessed on the corre-sponding RR and FR multi-resolution test sets. Additionally, the evaluation metrics are derived from the PanScale-Bench, providing a comprehensive and standardized basis for per-formance assessment. Our experimental framework is im-plemented using PyTorch, with all training performed on an NVIDIA 3090 GPU. The model is configured with 32 feature channels. We employed a cosine-annealed decay strategy for the learning rate, with an initial rate of 5 × 10 −4
+
+that gradually decays to 5 × 10 −8 over 500 epochs. We optimize the model using the Adam optimizer [ 21 ], with gradient clipping set to 4. 
+
+5.2. Comparison with the SOTA Methods 
+
+Quantitative Comparison As shown in the comparative analysis in Table 2, we evaluated our proposed method against several state-of-the-art pansharpening approaches. Table 3. Evaluation of our method on real-world full-resolution scenes from three datasets. Full-Jilin-Ave Full-Landsat-Ave Full-Skysat-Ave Method Dλ ↓ DS ↓ QNR ↑ Dλ ↓ DS ↓ QNR ↑ Dλ ↓ DS ↓ QNR ↑
+
+GS 0.0812 0.2021 0.7338 0.0568 0.1110 0.8393 0.0623 0.1112 0.8347 IHS 0.0971 0.2124 0.7116 0.0961 0.1233 0.7936 0.0974 0.1318 0.7852 GFPCA 0.0424 0.0985 0.8633 0.0649 0.0539 0.8850 0.0433 0.0624 0.8976 MSDCNN 0.0477 0.0420 0.9126 0.0488 0.0326 0.9214 0.0419 0.0222 0.9403 SFINet 0.0538 0.0439 0.9050 0.0425 0.0342 0.9255 0.1346 0.0334 0.8379 MSDDN 0.0415 0.0521 0.9097 0.0336 0.0236 0.9442 0.0412 0.0363 0.9264 PanFlowNet 0.0459 0.0382 0.9155 0.0482 0.0384 0.9159 0.0777 0.0332 0.8927 HFIN 0.0424 0.0471 0.9129 0.0240 0.0197 0.9562 0.0591 0.0590 0.8865 Pan-mamba 0.0465 0.0426 0.9132 0.0309 0.0736 0.8979 0.0533 0.0311 0.9182 ARConv 0.0417 0.0629 0.8980 0.0257 0.0201 0.9550 0.0387 0.0409 0.9225 Ours 0.0409 0.0418 0.9156 0.0234 0.0228 0.9569 0.0405 0.0269 0.9408 LRMS MSDCNN IHS GFPCA MSDDN 
+
+PanFlowNet HFIN Ours        
+
+> IHS GFPCA MSDCNN SFINet PanFlowNet HFIN Pan -mamba Ours
+
+SFINet 
+
+Pan -mamba ARConv  
+
+> MSDDN ARConv
+
+GT 
+
+Figure 6. Comparative visual experiments of several methods on Jilin datasets. Table 4. Evaluation of parameter count and GFLOPs. Methods MSDCNN SFINet MSDDN PanFlowNet HFIN Pan-mamba ARConv Ours Params(M) 0.2390 0.0484 0.3649 0.0873 1.9836 0.1828 4.4147 0.5151 GFLOPs(G) 9.5488 1.8785 7.6938 13.9469 46.2067 7.3459 38.3152 20.5679 Table 5. Ablation study of our method on the Landsat test set. The best are highlighted in bold , and the second are underlined. Landsat-200 Landsat-400 Landsat-800 Landsat-1600 Ablation PSNR ↑ SSIM ↑ PSNR ↑ SSIM ↑ PSNR ↑ SSIM ↑ PSNR ↑ SSIM ↑
+
+w/o RoPE 40.4625 0.9682 40.9542 0.9704 40.7619 0.9699 40.6924 0.9701 SeqT -> SpaT 40.9061 0.9700 41.2964 0.9724 40.7206 0.9714 40.5065 0.9716 w/o SAP 40.5279 0.9660 40.9325 0.9692 40.6186 0.9688 40.3895 0.9689 Baseline 40.6063 0.9677 41.3715 0.9725 41.1326 0.9719 41.0335 0.9722 For brevity, the reported results represent the average per-formance across multiple resolution settings within each dataset; the complete results for individual resolutions are provided in the appendix 10.2. Our method consistently and significantly outperforms all competing methods across all evaluation metrics, demonstrating its strong fusion qual-ity and robustness. To further assess the adaptability of our approach to varying input resolutions, we visualize the PSNR scores of different methods on the Landsat and Skysat datasets across a range of resolution scales, as illustrated in Fig. 5(a) and (b). While our method maintains stable perfor-mance as the input resolution increases, the other methods exhibit noticeable performance degradation to varying de-grees. These results highlight the superior scalability and generalization ability of ScaleFormer in handling diverse and high-resolution remote sensing data. To validate the proposed ScaleFormer’s real-world perfor-mance, we conducted experiments on three full-resolution datasets from the PanScale benchmark, each containing four test sets at varying spatial scales. Due to the lack of ground truth in these real-world scenarios, we employed three no-reference metrics from PanScale-Bench to assess model per-formance. For conciseness, the main text reports the average results across different resolutions within each dataset, while detailed per-scale results are provided in the appendix 10.2. As shown in Table 3, ScaleFormer consistently achieves com-petitive performance across all evaluation metrics, demon-strating its strong generalization ability and robustness in complex, real-world multi-resolution fusion tasks. To evaluate the efficiency of the proposed approach, we compare the model’s parameter count and computational complexity with those of several baseline methods. All experiments in Table 4 were conducted with input resolu-tions set to 200 × 200 . ScaleFormer demonstrates a com-parable parameter count to Pan-mamba [ 17 ], which is less than one-fourth of the state-of-the-art methods, HFIN [ 38 ]and ARConv [ 44 ]. This significant reduction in parameter count highlights the efficiency of ScaleFormer relative to these methods. Furthermore, the proposed method exhibits a clear advantage in computational complexity over these two advanced methods, underscoring its competitiveness in re-source usage and overall efficiency. As illustrated in Fig. 5(c) and (d), this advantage becomes even more prominent as the input resolution increases, with ScaleFormer maintaining significantly lower GFLOPs and memory consumption com-pared to SOTA methods. This showcases that ScaleFormer offers a compelling balance between performance and com-putational cost, making it an efficient solution for large-scale and multi-resolution data. 
+
+Qualitative Comparison The qualitative comparison re-sults are presented in Fig. 6, with more visualizations in the appendix 10.1. We visualize representative samples at the largest resolution scale from each dataset, and further mag-nify selected regions to facilitate detailed comparison. The final row of each qualitative figure shows the mean squared error (MSE) maps between the pansharpened and reference images, where brighter areas indicate larger discrepancies. As shown in these figures, the proposed method demon-strates clear advantages in preserving fine spatial details and spectral fidelity, yielding sharper textures and more visually coherent results. 
+
+5.3. Ablation Studies 
+
+To validate the effectiveness of the proposed method, we conduct a series of ablation studies on the Landsat dataset, focusing on key components of the ScaleFormer architecture. The corresponding PSNR and SSIM results are summarized in Table 5. Specifically, we examine the impact of the fol-lowing modifications: (1) removing the RoPE from the Se-quence Transformer (including the single and the cross); (2) replacing the Sequence Transformer with their correspond-ing Spatial Transformer counterparts, thereby discarding the scale dimension modeling; and (3) removing the SAP by fix-ing the training window size to a single static setting, aligned with the configuration used during inference. As shown in the results, all ablation variants exhibit a clear and consistent decline in performance as the test resolu-tion increases, compared to the full model. This degradation highlights the limitations of these configurations in gener-alizing across scales. In particular, the absence of RoPE hinders the model’s capacity to encode relative positional dependencies effectively across varying resolutions. Replac-ing sequence attention with purely spatial attention deprives the model of its ability to capture inter-patch relationships across sequence-like structures, which are critical for gen-eralizing to unseen scales. Additionally, removing the SAP module prevents the model from learning a diverse and adap-tive representation during training, making it less robust to scale shifts encountered at inference time. These findings highlight that the proposed component can enhance scale-awareness and extrapolate beyond the training distribution. 
+
+## 6. Conclusion 
+
+We propose ScaleFormer, a framework that decouples spatial information from scale-specific features and models them independently. By incorporating a bucketed training strat-egy and Rotary Position Embeddings (RoPE), ScaleFormer markedly improves scale extrapolation. To enable fair and comprehensive evaluation, we introduce PanScale, address-ing the lack of multi-scale inference in existing datasets; to our knowledge, it is the first pansharpening dataset to jointly cover multi-scale and multi-resolution characteris-tics, accompanied by a tailored evaluation suite, PanScale-Bench. Extensive experiments across PanScale demonstrate that ScaleFormer surpasses state-of-the-art methods in both fusion quality and computational efficiency. 7. Acknowledgments 
+
+We thank Lingting Zhu for the discussions on the method. 
+
+## References 
+
+[1] Luciano Alparone, Bruno Aiazzi, Stefano Baronti, Andrea Garzelli, Filippo Nencini, and Massimo Selva. Multispectral and panchromatic data fusion assessment without reference. 
+
+Photogrammetric Engineering & Remote Sensing , 74(2):193– 200, 2008. 2 [2] Lucas Beyer, Pavel Izmailov, Alexander Kolesnikov, Mathilde Caron, Simon Kornblith, Xiaohua Zhai, Matthias Min-derer, Michael Tschannen, Ibrahim Alabdulmohsin, and Filip Pavetic. Flexivit: One model for all patch sizes. In Proceed-ings of the IEEE/CVF Conference on Computer Vision and Pattern Recognition , pages 14496–14506, 2023. 1 [3] Ke Cao, Xuanhua He, Tao Hu, Chengjun Xie, Jie Zhang, Man Zhou, and Danfeng Hong. Shuffle mamba: State space models with random shuffle for multi-modal image fusion. 
+
+arXiv preprint arXiv:2409.01728 , 2024. 6 [4] Zihan Cao, Xiao Wu, Liang-Jian Deng, and Yu Zhong. A novel state space model with local enhancement and state sharing for image fusion. In Proceedings of the 32nd ACM International Conference on Multimedia , pages 1235–1244, 2024. 1 [5] Junsong Chen, Jincheng Yu, Chongjian Ge, Lewei Yao, Enze Xie, Yue Wu, Zhongdao Wang, James Kwok, Ping Luo, Huchuan Lu, et al. Pixart-α: Fast training of diffusion transformer for photorealistic text-to-image synthesis. arXiv preprint arXiv:2310.00426 , 2023. 5 [6] Xiaojie Chu, Liangyu Chen, Chengpeng Chen, and Xin Lu. Improving image restoration by revisiting global information aggregation. In European Conference on Computer Vision ,pages 53–71. Springer, 2022. 2 [7] Liang-Jian Deng, Gemine Vivone, Mercedes E Paoletti, Giuseppe Scarpa, Jiang He, Yongjun Zhang, Jocelyn Chanus-sot, and Antonio Plaza. Machine learning in pansharpening: A benchmark, from shallow to deep networks. IEEE Geo-science and Remote Sensing Magazine , 10(3):279–315, 2022. 2, 3 [8] Qihang Fan, Quanzeng You, Xiaotian Han, Yongfei Liu, Yun-zhe Tao, Huaibo Huang, Ran He, and Hongxia Yang. Vi-tar: Vision transformer with any resolution. arXiv preprint arXiv:2403.18361 , 2024. 1 [9] Jiabin Fang, Ke Cao, Xuanhua He, Jie Zhang, Man Zhou, and Liu Liu. Pandit: A few-step diffusion transformer for high-fidelity and efficient pansharpening. IEEE Transactions on Geoscience and Remote Sensing , 63:1–13, 2025. 1 [10] Dominique Fasbender, Julien Radoux, and Patrick Bogaert. Bayesian data fusion for adaptable image pansharpening. 
+
+IEEE Transactions on Geoscience and Remote Sensing , 46 (6):1847–1857, 2008. 1 [11] Morteza Ghahremani and Hassan Ghassemian. A compressed-sensing-based pan-sharpening method for spectral distortion reduction. IEEE Transactions on Geoscience and remote Sensing , 54(4):2194–2206, 2015. 1 [12] Alan R Gillespie, Anne B Kahle, and Richard E Walker. Color enhancement of highly correlated images. ii. channel ratio and “chromaticity” transformation techniques. Remote Sensing of Environment , 22(3):343–365, 1987. 1 [13] Noel Gorelick, Matt Hancher, Mike Dixon, Simon Ilyushchenko, David Thau, and Rebecca Moore. Google earth engine: Planetary-scale geospatial analysis for everyone. 
+
+Remote sensing of Environment , 202:18–27, 2017. 3 [14] R Haydn. Application of the ihs color transform to the pro-cessing of multisensor data and image enhancement. In Proc. of the International Symposium on Remote Sensing of Arid and Semi-Arid Lands, Cairo, Egypt, 1982 , 1982. 1 [15] R. Haydn, G. W. Dalke, J. Henkel, and J. E. Bare. Application of the ihs color transform to the processing of multisensor data and image enhancement. National Academy of Sciences of the United States of America , 79(13):571–577, 1982. 6 [16] Xuanhua He, Keyu Yan, Jie Zhang, Rui Li, Chengjun Xie, Man Zhou, and Danfeng Hong. Multi-scale dual-domain guidance network for pan-sharpening. IEEE Transactions on Geoscience and Remote Sensing , 2023. 6, 1 [17] Xuanhua He, Ke Cao, Jie Zhang, Keyu Yan, Yingying Wang, Rui Li, Chengjun Xie, Danfeng Hong, and Man Zhou. Pan-mamba: Effective pan-sharpening with state space model. 
+
+Information Fusion , 115:102779, 2025. 6, 8 [18] Quan Huynh-Thu and Mohammed Ghanbari. Scope of va-lidity of psnr in image/video quality assessment. Electronics letters , 44(13):800–801, 2008. 2 [19] Harry H Kelejian and Dennis P Robinson. Spatial correlation: a suggested alternative to the autoregressive model. In New directions in spatial econometrics , pages 75–95. Springer, 1995. 2 [20] Muhammad Murtaza Khan, Luciano Alparone, and Jocelyn Chanussot. Pansharpening quality assessment using the mod-ulation transfer functions of instruments. IEEE transactions on geoscience and remote sensing , 47(11):3880–3891, 2009. 2[21] Diederik P Kingma and Jimmy Ba. Adam: A method for stochastic optimization. arXiv preprint arXiv:1412.6980 ,2014. 6 [22] C.A. Laben and B.V. Brower. Process for enhancing the spa-tial resolution of multispectral imagery using pan-sharpening. 
+
+US Patent 6011875A , 2000. 6, 1 [23] Shutao Li and Bin Yang. A new pan-sharpening method using a compressed sensing technique. IEEE Transactions on Geoscience and Remote Sensing , 49(2):738–746, 2010. 1 [24] Xueheng Li, Xuanhua He, Ke Cao, Jie Zhang, Chengjun Xie, Man Zhou, Danfeng Hong, and Bo Huang. Exploring text-guided information fusion through chain-of-reasoning for pan-sharpening. IEEE Transactions on Geoscience and Remote Sensing , 2025. 6 [25] Xueheng Li, Tao Hu, Ke Cao, Jie Zhang, Chengjun Xie, Man Zhou, and Danfeng Hong. Pan-sharpening via causal-aware feature distribution calibration. IEEE Transactions on Geoscience and Remote Sensing , 2025. 6 [26] W. Liao, H. Xin, F. V. Coillie, G. Thoonen, and W. Philips. Two-stage fusion of thermal hyperspectral and visible rgb image by pca and guided filter. In Workshop on Hyperspectral Image and Signal Processing: Evolution in Remote Sensing ,2017. 6 [27] Yunlong Lin, Zhenqi Fu, Ge Meng, Yingying Wang, Yuhang Dong, Linyu Fan, Hedeng Yu, and Xinghao Ding. Domain-irrelevant feature learning for generalizable pan-sharpening. In Proceedings of the 31st ACM International Conference on Multimedia , pages 3287–3296, 2023. 1 [28] J. G. Liu. Smoothing filter-based intensity modulation: A spectral preserve image fusion technique for improving spatial details. International Journal of Remote Sensing , 21(18): 3461–3472, 2000. 1 [29] Wenzhuo Liu, Fei Zhu, Shijie Ma, and Cheng-Lin Liu. Mspe: Multi-scale patch embedding prompts vision transformers to any resolution. arXiv preprint arXiv:2405.18240 , 2024. 1 [30] Stephane G Mallat. A theory for multiresolution signal de-composition: the wavelet representation. IEEE transactions on pattern analysis and machine intelligence , 11(7):674–693, 1989. 1 [31] Giuseppe Masi, Davide Cozzolino, Luisa Verdoliva, and Giuseppe Scarpa. Pansharpening by convolutional neural networks. Remote Sensing , 8(7), 2016. 1 [32] Xiangchao Meng, Yiming Xiong, Feng Shao, Huanfeng Shen, Weiwei Sun, Gang Yang, Qiangqiang Yuan, Randi Fu, and Hongyan Zhang. A large-scale benchmark data set for evalu-ating pansharpening performance: Overview and implemen-tation. IEEE Geoscience and Remote Sensing Magazine , 9 (1):18–52, 2020. 2, 3 [33] Frosti Palsson, Johannes R Sveinsson, and Magnus O Ulfars-son. A new pansharpening algorithm based on total variation. 
+
+IEEE Geoscience and Remote Sensing Letters , 11(1):318– 322, 2013. 1 [34] Siran Peng, Xiangyu Zhu, Haoyu Deng, Liang-Jian Deng, and Zhen Lei. Fusionmamba: Efficient remote sensing im-age fusion with state space model. IEEE Transactions on Geoscience and Remote Sensing , 62:1–16, 2024. 1 [35] Dustin Podell, Zion English, Kyle Lacey, Andreas Blattmann, Tim Dockhorn, Jonas Müller, Joe Penna, and Robin Rombach. Sdxl: Improving latent diffusion models for high-resolution image synthesis. arXiv preprint arXiv:2307.01952 , 2023. 5 [36] Robert A Schowengerdt. Reconstruction of multispatial, mul-tispectral image data using spatial frequency content. Pho-togrammetric Engineering and Remote Sensing , 46(10):1325– 1334, 1980. 1 [37] Jianlin Su, Murtadha Ahmed, Yu Lu, Shengfeng Pan, Wen Bo, and Yunfeng Liu. Roformer: Enhanced transformer with rotary position embedding. Neurocomputing , 568:127063, 2024. 3, 5 [38] Jiangtong Tan, Jie Huang, Naishan Zheng, Man Zhou, Keyu Yan, Danfeng Hong, and Feng Zhao. Revisiting spatial-frequency information integration from a hierarchical per-spective for panchromatic and multi-spectral image fusion. In Proceedings of the IEEE/CVF Conference on Computer Vision and Pattern Recognition , pages 25922–25931, 2024. 2, 6, 8, 1 [39] Rui Tian, Zuxuan Wu, Qi Dai, Han Hu, Yu Qiao, and Yu-Gang Jiang. Resformer: Scaling vits with multi-resolution training. In Proceedings of the IEEE/CVF Conference on Computer Vision and Pattern Recognition , pages 22721–22731, 2023. 1 [40] Gemine Vivone, Luciano Alparone, Jocelyn Chanussot, Mauro Dalla Mura, Andrea Garzelli, Giorgio A Licciardi, Rocco Restaino, and Lucien Wald. A critical comparison among pansharpening algorithms. IEEE Transactions on Geoscience and Remote Sensing , 53(5):2565–2586, 2014. 1 [41] Gemine Vivone, Mauro Dalla Mura, Andrea Garzelli, and Fabio Pacifici. A benchmarking protocol for pansharpening: Dataset, preprocessing, and quality assessment. IEEE Journal of Selected Topics in Applied Earth Observations and Remote Sensing , 14:6102–6118, 2021. 2, 3 [42] Gemine Vivone, Mauro Dalla Mura, Andrea Garzelli, and Fabio Pacifici. A benchmarking protocol for pansharpening: Dataset, preprocessing, and quality assessment. IEEE Journal of Selected Topics in Applied Earth Observations and Remote Sensing , 14:6102–6118, 2021. 2 [43] Lucien Wald. Data fusion: definitions and architectures: fusion of images of different spatial resolutions . Presses des MINES, 2002. 2 [44] Xueyang Wang, Zhixin Zheng, Jiandong Shao, Yule Duan, and Liang-Jian Deng. Adaptive rectangular convolu-tion for remote sensing pansharpening. arXiv preprint arXiv:2503.00467 , 2025. 2, 6, 8, 1 [45] Yingying Wang, Hui Zheng, Feifei Li, Yunlong Lin, Linyu Fan, Xuanhua He, Yue Huang, and Xinghao Ding. Towards generalizable pan-sharpening: Conditional flow-based learn-ing guided by implicit high-frequency priors. IEEE Transac-tions on Geoscience and Remote Sensing , 2025. 1 [46] Yingying Wang, Rongjin Zhuang, Hui Zheng, Xuanhua He, Ke Cao, Xiaotong Tu, and Xinghao Ding. Self-supervised multiplex consensus mamba for general image fusion. arXiv preprint arXiv:2512.20921 , 2025. 1 [47] Zhou Wang, Alan C Bovik, Hamid R Sheikh, and Eero P Simoncelli. Image quality assessment: from error visibility to structural similarity. IEEE transactions on image processing ,13(4):600–612, 2004. 2 [48] Shuang Xu, Jiangshe Zhang, Zixiang Zhao, Kai Sun, Junmin Liu, and Chunxia Zhang. Deep gradient projection networks for pan-sharpening. In IEEE Conference on Computer Vision and Pattern Recognition , pages 1366–1375, 2021. 1 [49] Gang Yang, Xiangyong Cao, Wenzhe Xiao, Man Zhou, Aip-ing Liu, Xun Chen, and Deyu Meng. Panflownet: A flow-based deep network for pan-sharpening. In Proceedings of the IEEE/CVF International Conference on Computer Vision ,pages 16857–16867, 2023. 6, 1 [50] Q. Yuan, Y. Wei, X. Meng, H. Shen, and L. Zhang. A multi-scale and multidepth convolutional neural network for remote sensing imagery pan-sharpening. IEEE Journal of Selected Topics in Applied Earth Observations and Remote Sensing ,11(3):978–989, 2018. 6, 1 [51] Roberta H Yuhas, Alexander FH Goetz, and Joe W Board-man. Discrimination among semi-arid landscape endmem-bers using the spectral angle mapper (sam) algorithm. In JPL, Summaries of the Third Annual JPL Airborne Geoscience Workshop. Volume 1: AVIRIS Workshop , 1992. 2 [52] Jie Zhang, Ke Cao, Keyu Yan, Yunlong Lin, Xuanhua He, Yingying Wang, Rui Li, Chengjun Xie, Jun Zhang, and Man Zhou. Frequency decoupled domain-irrelevant feature learn-ing for pan-sharpening. IEEE Transactions on Circuits and Systems for Video Technology , 2024. 1 [53] Jie Zhang, Xuanhua He, Keyu Yan, Ke Cao, Rui Li, Chengjun Xie, Man Zhou, and Danfeng Hong. Pan-sharpening with wavelet-enhanced high-frequency information. IEEE Trans-actions on Geoscience and Remote Sensing , 62:1–14, 2024. 2[54] Zangwei Zheng, Xiangyu Peng, Tianji Yang, Chenhui Shen, Shenggui Li, Hongxin Liu, Yukun Zhou, Tianyi Li, and Yang You. Open-sora: Democratizing efficient video production for all. arXiv preprint arXiv:2412.20404 , 2024. 5 [55] Jie Zhou, Daniel L Civco, and John A Silander. A wavelet transform method to merge landsat tm and spot panchromatic data. International journal of remote sensing , 19(4):743–757, 1998. 1 [56] Man Zhou, Jie Huang, Yanchi Fang, Xueyang Fu, and Aiping Liu. Pan-sharpening with customized transformer and invert-ible neural network. In Proceedings of the AAAI Conference on Artificial Intelligence , pages 3553–3561, 2022. 2 [57] Man Zhou, Jie Huang, Keyu Yan, Hu Yu, Xueyang Fu, Aiping Liu, Xian Wei, and Feng Zhao. Spatial-frequency domain information integration for pan-sharpening. In European Conference on Computer Vision , pages 274–291. Springer, 2022. 2, 6, 1 [58] Man Zhou, Keyu Yan, Jie Huang, Zihe Yang, Xueyang Fu, and Feng Zhao. Mutual information-driven pan-sharpening. In Proceedings of the IEEE/CVF Conference on Computer Vision and Pattern Recognition , pages 1798–1808, 2022. 1 Cross-Scale Pansharpening via ScaleFormer and the PanScale Benchmark 
+
+# Supplementary Material 
+
+## 8. Related Work 
+
+8.1. Pansharpening 
+
+Pan-sharpening methods can generally be categorized into two major paradigms: traditional techniques and deep learning-based approaches. Traditional methods are further divided into three main categories: component substitution (CS) [ 22 , 28 ], multi-resolution analysis (MRA) [ 30 , 55 ], and variational optimization (VO) [ 10 , 23 ]. CS [ 12 , 14 ] tech-niques enhance spatial resolution by substituting the spatial textures of the LRMS image with high-frequency details extracted from the PAN image. MRA [ 36 , 40 ] approaches perform image information through multi-scale fusion, and VO [ 11 , 33 ] methods generate the HRMS by optimizing the loss function. However, traditional methods typically rely on hand-crafted features and lack robust priors, often resulting in suboptimal results. Driven by the success of deep neural networks, deep learning-based methods have subsequently emerged as the predominant approach in the pan-sharpening community [ 27 , 52 , 58 ]. The pioneering work of PNN [ 31 ] initiated the application of convolutional neural networks to pan-sharpening. Following this, research efforts have increasingly focused on devising more sophisti-cated network architectures (e.g., MSDCNN [ 50 ], GPPNN [ 48 ]), incorporating auxiliary information (e.g., frequency analysis in SFINet[ 57 ] and MSDDN[ 16 ]), and exploring innovative learning paradigms [ 9, 45 , 49 ]. Concurrently, pan-sharpening has witnessed a significant expansion in its richness and diversity. HFIN [ 38 ] introduces a hierar-chical frequency integration network. Mamba-based meth-ods [ 4 , 34 , 46 ] employ the state-space model to achieve ef-fective pan-sharpening. Furthermore, ARConv [ 44 ] presents an adaptive rectangular convolution, enabling the network to learn convolution kernel dimensions tailored to objects of varying scales within remote sensing imagery. 
+
+8.2. Scale Generalization in Perceptual Tasks 
+
+Scale generalization presents a critical challenge for visual models in perceptual tasks, particularly when dealing with inputs of varying sizes and resolutions. The Flexivit [ 2]was one of the first attempts to address this issue, enabling the model to adapt to inputs with different patch sizes dur-ing training, ensuring stable performance across changing scales. Similarly, Resformer [ 39 ] enhances Vision Trans-formers’ generalization ability in tasks with significant scale variations by employing a multi-resolution training strategy with a scale consistency loss function. Building on this, ViTAR [ 8] further improves scale generalization by incor-porating dynamic resolution adjustments. Additionally, it introduces fuzzy positional encoding to prevent overfitting to a single resolution. The MSPE [ 29 ] method optimizes the patch embedding process with multiple variable-sized patch kernels, pushing the performance of Vision Transform-ers to new heights, especially in tasks involving multi-scale images, where it demonstrates a substantial improvement in model performance. 
+
+## 9. PanScale Dataset and Benchmark 
+
+9.1. Dataset Preprocessing 
+
+As is shown in Fig. 7, we first selected 16 geographically diverse regions across the globe, covering a broad spectrum of terrains such as urban, mountainous, oceanic, and desert. This diversity ensures that the resulting dataset effectively captures the challenges of pansharpening under varying envi-ronmental conditions, thereby facilitating robust evaluation of model generalization across different geographic contexts. Based on this selection, we sourced imagery from three widely used satellites: Jilin-1, Landsat-9, and Skysat. Taking Landsat imagery as an example, each raw satellite image can be represented as I ∈ RH×W ×B , where H,W , and B
+
+denote the height, width, and number of spectral bands. To remove cloud-contaminated pixels, we utilize the quality assessment band Q, which provides metadata indicating the presence of clouds and cirrus. Using this metadata, a binary cloud mask M ask is generated, and the resulting cloud-free image is defined as: 
+
+I′ = I ⊙ M ask (12) Building upon the cloud-free images, we collect all available Landsat satellite observations covering a selected geographic region within a defined time interval [t0, t 1], resulting in an image set: 
+
+I = {I′1, I′2, ..., I′N } (13) For each spectral band b ∈ [1 , B ], we perform a pixel-wise median compositing across all cloud-free images in the set I
+
+to generate a temporally stable and noise-reduced composite band: 
+
+Imid b (i, j ) = median ({I1,b (i, j ), I2,b (i, j ), ..., IN,b (i, j )})
+
+(14) where (i, j ) denotes the spatial pixel location with i ∈ [1 , H ]
+
+and j ∈ [1 , W ]. By stacking the median composites of all spectral bands, we obtain the final multi-band synthesized image, denoted as Imed . Leveraging the band extraction and export capabilities of Google Earth Engine, we further derive the corresponding panchromatic (PAN) images and Select the    
+
+> geographic location
+> of your target area
+> Loading satellite
+> imagery data Cloud removal Median Composite Datasets Crop Figure 7. The construction pipeline of the PanScale dataset, which consists of three main stages: accessing satellite imagery via Google Earth Engine, data preprocessing, and data cropping.
+
+low-resolution multi-spectral (LRMS) images for subsequent use in pansharpening. 
+
+9.2. Dataset Construction 
+
+Table 6 presents the detailed configuration of the dataset construction. The training sets for the three constituent sources—Jilin-1, Landsat-9, and Skysat—are designed with distinct upsampling ratios of 4 ×, 2 ×, and 2.5 ×, respectively. This variation in scaling allows the models to be exposed to diverse resolution levels during training. For a comprehensive evaluation, we establish a multi-resolution testing framework to rigorously assess the cross-scale generalization ability of pansharpening models. Specif-ically, the reduced-resolution (RR) testing sets consist of images at resolutions of 1600 × 1600 , 800 × 800 , 400 × 400 ,and 200 × 200 pixels. Notably, for the Jilin dataset, the maximum available resolution is 800×800, and therefore, the 1600 × 1600 variant is not included. In addition to the RR evaluations, we provide full-resolution (FR) test sets at varying scales to further evaluate model robustness across real-world spatial variations. 
+
+9.3. Benchmark Design 
+
+To comprehensively evaluate diverse methods on the Pan-Scale benchmark, we employ a suite of image quality as-sessment (IQA) metrics. Specifically, we select six prevalent reference-based metrics: Peak Signal-to-Noise Ratio (PSNR) [18 ], Structural Similarity Index (SSIM) [ 47 ], Spectral Angle Mapper (SAM) [ 51 ], Relative Dimensionless Global Error in Synthesis (ERGAS) [43], Spatial Correlation Coefficient (SCC) [ 19 ] and Quality index (Q) [ 42 ]. PSNR and SSIM pri-marily quantify spatial fidelity, with higher values indicating superior preservation of spatial details. Conversely, SAM and ERGAS focus on assessing spectral accuracy, where lower values denote diminished spectral distortion and en-hanced consistency with the reference data. SCC assesses the spatial correlation between images, while Q provides a comprehensive measure of universal image quality for pan-sharpened MS images. Furthermore, to provide additional evaluation of model performance on PanScale, we also lever-age three reference-free IQA metrics that do not rely on ground truth data. These include the spectral distortion index 
+
+Dλ [ 20 ], the spatial distortion index DS , and the Quality with No Reference (QNR) [ 1]. Specifically, Dλ and DS
+
+quantify the extent of spectral and spatial distortion, respec-tively. QNR provides a holistic assessment of image quality without reference. 
+
+## 10. Additional experimental results 
+
+10.1. More Visual Comparison 
+
+Due to space constraints, we provide only the visualization results for the Jilin dataset in the main text. More visual com-parison results for the three datasets are shown in Fig. 8, 9, and 10. The zoomed-in comparison images and correspond-ing MSE maps demonstrate that the proposed method excels in preserving fine details and spectral fidelity. These results highlight its strong adaptability to large-scale pansharpening tasks, showcasing its ability to handle high-resolution image fusion effectively. 
+
+10.2. Comprehensive Quantitative Comparison 
+
+Due to space limitations, we report only the average multi-scale performance on the reduced resolution datasets in Ta-ble 2 of the main text. For completeness and reproducibility, the full quantitative results across all resolutions and datasets are provided in the following tables: Table 7 (Jilin dataset at 200 and 400 resolutions), Table 8 (Jilin dataset at 800 resolution), Table 9 (Landsat dataset at 200 and 400 reso-lutions), Table 10 (Landsat dataset at 800 and 1600 resolu-tions), Table 11 (Skysat dataset at 200 and 400 resolutions), and Table 12 (Skysat dataset at 800 and 1600 resolutions). These results offer a more detailed perspective on the per-formance of each method across different scales. Notably, Table 6. Detailed Information of the PanScale Datasets, where "samples" denotes the number of samples at each scale, "scale" represents the height or width of the square PAN image, and "res" indicates the image resolution used for dataset creation.                                      
+
+> Jilin (4 ×)Landsat (2 ×)Skysat (2.5 ×)Samples Scale Res(m) Samples Scale Res(m) Samples Scale Res(m)
+> Train 1055 200 22484 256 30 2370 200 2RR Test 34 800,400 200 296 1600,800 400,200 30 88 1600,800 400,200 2FR Test 121 2000,1600 1200,800 248 2000,1600 1200,800 30 34 2000,1600 1200,800 2
+
+LRMS MSDCNN IHS GFPCA MSDDN 
+
+PanFlowNet HFIN Ours        
+
+> IHS GFPCA MSDCNN SFINet PanFlowNet HFIN Pan -mamba Ours
+
+SFINet 
+
+Pan -mamba ARConv  
+
+> MSDDN ARConv
+
+GT 
+
+> Figure 8. Comparative visual experiments of several methods on Jilin datasets.
+
+our proposed method consistently outperforms existing ap-proaches across nearly all metrics, demonstrating its superior cross-scale generalization capability. Similarly, for the full-resolution experiments summarized in Table 3 of the main text, we report only the averaged results across multiple scales. To ensure completeness and facilitate further analysis, the detailed performance metrics for each resolution are presented in the following supple-mentary tables: Table 13 (Full Jilin dataset at 800, 1200, 1600, and 2000 resolutions), Table 14 (Full Landsat dataset at 800, 1200, 1600, and 2000 resolutions), and Table 15 (Full Skysat dataset at 800, 1200, 1600, and 2000 resolutions). These comprehensive results show that our method achieves performance on par with or superior to state-of-the-art tech-niques even under full-resolution settings, demonstrating strong generalization capability across scales in real-world scenarios. LRMS MSDCNN IHS GFPCA MSDDN 
+
+PanFlowNet HFIN Ours        
+
+> IHS GFPCA MSDCNN SFINet PanFlowNet HFIN Pan -mamba Ours
+
+SFINet 
+
+Pan -mamba ARConv  
+
+> MSDDN ARConv
+
+GT Figure 9. Comparative visual experiments of several methods on Landsat datasets. LRMS MSDCNN IHS GFPCA MSDDN 
+
+PanFlowNet HFIN Ours        
+
+> IHS GFPCA MSDCNN SFINet PanFlowNet HFIN Pan -mamba Ours
+
+SFINet 
+
+Pan -mamba ARConv  
+
+> MSDDN ARConv
+
+GT 
+
+Figure 10. Comparative visual experiments of several methods on Skysat datasets. Table 7. Multi-resolution results on the Jilin datasets (Part 1), with numbers indicating the size of the PAN image. The best are highlighted in bold .Jilin-200 Jilin-400 Method PSNR ↑ SSIM ↑ SAM ↓ ERGAS ↓ SCC ↑ Q ↑ PSNR ↑ SSIM ↑ SAM ↓ ERGAS ↓ SCC ↑ Q ↑
+
+GS 25.7681 0.7128 0.0573 5.3592 0.8592 0.6002 25.6914 0.7099 0.0570 5.5151 0.8683 0.5805 IHS 25.9327 0.7081 0.0590 5.6410 0.8488 0.5930 25.8671 0.7063 0.0588 5.7120 0.8618 0.5754 GFPCA 25.6482 0.7106 0.0761 5.1018 0.8730 0.4579 25.8554 0.7252 0.0733 4.9484 0.8882 0.4469 MSDCNN 36.5984 0.9555 0.0277 1.5336 0.9885 0.9146 37.0869 0.9588 0.0265 1.4275 0.9907 0.9056 SFINet 36.2407 0.9508 0.0306 1.6494 0.9872 0.9017 36.6916 0.9532 0.0301 1.5592 0.9895 0.8915 MSDDN 37.5748 0.9653 0.0242 1.3600 0.9910 0.9289 37.7031 0.9667 0.0244 1.3366 0.9922 0.9174 PanFlowNet 36.6522 0.9571 0.0277 1.5303 0.9886 0.9163 36.8303 0.9583 0.0272 1.4832 0.9903 0.9038 HFIN 38.0366 0.9686 0.0228 1.3103 0.9919 0.9343 38.2695 0.9693 0.0224 1.2464 0.9932 0.9223 Pan-mamba 36.1465 0.9517 0.0278 1.6057 0.9873 0.9092 36.3710 0.9534 0.0280 1.5434 0.9891 0.8985 ARConv 38.1115 0.9682 0.0233 1.2904 0.9919 0.9338 38.5962 0.9701 0.0225 1.2113 0.9934 0.9246 Ours 39.3300 0.9759 0.0202 1.1152 0.9941 0.9449 39.6334 0.9762 0.0197 1.0728 0.9950 0.9336                                                                             
+
+> Table 8. Multi-resolution results on the Jilin datasets (Part 2), with numbers indicating the size of the PAN image. The best are highlighted in bold .Jilin-800 Method PSNR ↑SSIM ↑SAM ↓ERGAS ↓SCC ↑Q↑
+> GS 24.8563 0.6939 0.0605 5.9530 0.8700 0.5739 IHS 24.9852 0.6926 0.0611 6.0682 0.8659 0.5726 GFPCA 25.3367 0.7198 0.0738 5.0877 0.8974 0.4479 MSDCNN 36.0279 0.9578 0.0263 1.5284 0.9907 0.9074 SFINet 35.9211 0.9528 0.0295 1.6301 0.9901 0.8942 MSDDN 35.5442 0.9617 0.0266 1.6012 0.9903 0.9122 PanFlowNet 35.5154 0.9543 0.0278 1.6527 0.9897 0.9001 HFIN 37.6967 0.9714 0.0219 1.2696 0.9940 0.9285 Pan-mamba 34.1367 0.9388 0.0311 1.9399 0.9858 0.8822 ARConv 37.9942 0.9708 0.0221 1.2368 0.9940 0.9288 Ours 38.9161 0.9762 0.0196 1.1093 0.9953 0.9369
+> Table 9. Multi-resolution results on the Landsat datasets (Part 1), with numbers indicating the size of the PAN image. The best are highlighted in bold .
+
+Landsat-200 Landsat-400 Method PSNR ↑ SSIM ↑ SAM ↓ ERGAS ↓ SCC ↑ Q ↑ PSNR ↑ SSIM ↑ SAM ↓ ERGAS ↓ SCC ↑ Q ↑
+
+GS 36.6649 0.9049 0.0413 4.1725 0.8227 0.5872 36.1124 0.8994 0.0481 4.0663 0.8504 0.5853 IHS 37.3551 0.9001 0.0364 4.1847 0.7969 0.5566 36.7972 0.8952 0.0398 4.0051 0.8263 0.5547 GFPCA 37.1018 0.8968 0.0432 3.7622 0.8255 0.4707 36.9330 0.8975 0.0431 3.3999 0.8967 0.4744 MSDCNN 38.8386 0.9590 0.0407 2.8789 0.8242 0.6667 38.6542 0.9597 0.0396 2.7907 0.8442 0.6678 SFINet 38.7072 0.9523 0.0486 3.3100 0.8428 0.6666 39.1371 0.9569 0.0484 2.7937 0.8649 0.6683 MSDDN 37.8541 0.9360 0.0609 3.2539 0.8212 0.6442 38.3405 0.9391 0.0524 2.7208 0.8213 0.6433 PanFlowNet 37.9274 0.9343 0.0721 3.8958 0.8263 0.6571 38.3768 0.9423 0.0627 3.3714 0.8470 0.6592 HFIN 39.9710 0.9635 0.0345 2.8424 0.8768 0.7165 40.6129 0.9698 0.0337 2.2585 0.9031 0.7208 Pan-mamba 39.505 0.9553 0.0530 3.0258 0.8701 0.7093 38.7678 0.9471 0.0487 2.6194 0.8512 0.6703 ARConv 39.6267 0.9624 0.0365 2.8184 0.8411 0.6770 39.8234 0.9645 0.0368 2.4587 0.8713 0.6812 Ours 40.6063 0.9677 0.0341 2.6561 0.8869 0.7317 41.3715 0.9725 0.0333 2.1051 0.9081 0.7367 Table 10. Multi-resolution results on the Landsat datasets (Part 2), with numbers indicating the size of the PAN image. The best are highlighted in bold .Landsat-800 Landsat-1600 Method PSNR ↑ SSIM ↑ SAM ↓ ERGAS ↓ SCC ↑ Q ↑ PSNR ↑ SSIM ↑ SAM ↓ ERGAS ↓ SCC ↑ Q ↑
+
+GS 34.9034 0.8949 0.0517 4.6372 0.8873 0.5911 32.6318 0.8817 0.0633 5.5056 0.9064 0.5857 IHS 35.6661 0.8915 0.0407 4.2507 0.8640 0.5616 33.6923 0.8791 0.0461 4.8532 0.8755 0.5486 GFPCA 36.1215 0.8963 0.0413 3.5643 0.9074 0.4790 34.8823 0.8946 0.0418 3.6901 0.9320 0.4748 MSDCNN 38.7256 0.9600 0.0388 2.6008 0.8973 0.6809 39.0508 0.9582 0.0430 2.3577 0.9553 0.6792 SFINet 39.1135 0.9575 0.0461 2.5864 0.9167 0.6804 38.3526 0.9600 0.0389 2.5399 0.9314 0.6803 MSDDN 37.7455 0.9364 0.0506 2.7781 0.8704 0.6480 36.8196 0.9269 0.0515 2.8563 0.9072 0.6329 PanFlowNet 38.2522 0.9438 0.0573 3.1225 0.8994 0.6735 38.3067 0.9527 0.0475 2.6904 0.9453 0.6777 HFIN 40.2656 0.9664 0.0343 2.1820 0.9429 0.7249 39.9946 0.9665 0.0349 2.0090 0.9701 0.7243 Pan-mamba 35.7809 0.9131 0.0579 3.2307 0.8508 0.6291 32.8549 0.8668 0.0744 4.1172 0.8376 0.5661 ARConv 39.7381 0.9642 0.0342 2.3293 0.9185 0.6943 39.4700 0.9642 0.0339 2.1698 0.9511 0.6939 Ours 41.1326 0.9719 0.0327 1.9870 0.9471 0.7438 41.0335 0.9722 0.0317 1.7934 0.9735 0.7458  
+
+> Table 11. Multi-resolution results on the Skysat datasets (Part 1), with numbers indicating the size of the PAN image. The best are highlighted in bold .
+
+Skysat-200 Skysat-400 Method PSNR ↑ SSIM ↑ SAM ↓ ERGAS ↓ SCC ↑ Q ↑ PSNR ↑ SSIM ↑ SAM ↓ ERGAS ↓ SCC ↑ Q ↑
+
+GS 39.4693 0.9354 0.0326 2.2604 0.9121 0.6343 39.2596 0.9346 0.0310 2.3096 0.9357 0.6478 IHS 40.1768 0.9354 0.0264 2.0909 0.8934 0.6259 39.7388 0.9326 0.0260 2.1468 0.9206 0.6362 GFPCA 38.0562 0.9289 0.0454 2.4658 0.8896 0.4720 37.8788 0.9275 0.0441 2.4482 0.9213 0.4867 MSDCNN 43.0041 0.9758 0.0406 2.8975 0.8886 0.7373 43.1001 0.9788 0.0399 2.2283 0.9259 0.7450 SFINet 41.6073 0.9417 0.1010 3.4414 0.8496 0.6763 41.3735 0.9418 0.0939 3.1682 0.8911 0.6829 MSDDN 42.3969 0.9462 0.0825 2.9244 0.8947 0.7115 41.7617 0.9489 0.0697 2.7420 0.9243 0.7096 PanFlowNet 41.0920 0.9484 0.0757 3.2361 0.8467 0.6674 40.9916 0.9508 0.0667 2.9674 0.9009 0.6703 HFIN 43.7949 0.9533 0.0749 2.6743 0.9073 0.7637 43.9910 0.9669 0.0561 2.2725 0.9443 0.7758 Pan-mamba 43.2983 0.9516 0.0908 2.8129 0.8955 0.7546 42.7551 0.9590 0.0679 2.5895 0.9298 0.7461 ARConv 43.5032 0.9785 0.0423 2.1815 0.8934 0.7475 43.4617 0.9795 0.0406 2.0500 0.9344 0.7596 Ours 44.9275 0.9826 0.0362 1.7945 0.9339 0.7837 44.6718 0.9824 0.0364 1.7266 0.9519 0.7874  
+
+> Table 12. Multi-resolution results on the Skysat datasets (Part 2), with numbers indicating the size of the PAN image. The best are highlighted in bold .
+
+Skysat-800 Skysat-1600 Method PSNR ↑ SSIM ↑ SAM ↓ ERGAS ↓ SCC ↑ Q ↑ PSNR ↑ SSIM ↑ SAM ↓ ERGAS ↓ SCC ↑ Q ↑
+
+GS 38.9661 0.9302 0.0322 2.4344 0.9474 0.6367 38.5282 0.9264 0.0328 2.4648 0.9555 0.6294 IHS 39.3872 0.9280 0.0275 2.2406 0.9361 0.6247 39.0572 0.9255 0.0269 2.2241 0.9468 0.6217 GFPCA 37.4581 0.9282 0.0457 2.5427 0.9345 0.4751 37.2721 0.9272 0.0446 2.5326 0.9442 0.4755 MSDCNN 43.0467 0.9792 0.0391 2.1924 0.9347 0.7424 40.9681 0.9444 0.0851 3.0750 0.9211 0.6798 SFINet 41.3829 0.9452 0.0813 2.9911 0.9136 0.6787 42.6192 0.9786 0.0391 2.3726 0.9423 0.7419 MSDDN 40.7615 0.9475 0.0652 2.7640 0.9327 0.6900 39.2365 0.9397 0.0691 2.9878 0.9323 0.6684 PanFlowNet 41.1307 0.9558 0.0609 2.7860 0.9215 0.6733 40.8734 0.9570 0.0598 2.7015 0.9393 0.6801 HFIN 44.2075 0.9714 0.0508 2.0866 0.9581 0.7725 43.8435 0.9716 0.0516 2.0618 0.9680 0.7709 Pan-mamba 40.9513 0.9527 0.0626 2.6565 0.9320 0.7017 38.5358 0.9340 0.0689 3.0077 0.9245 0.6491 ARConv 43.4413 0.9803 0.0398 2.0106 0.9470 0.7594 43.2087 0.9806 0.0391 2.0094 0.9529 0.7591 Ours 44.7328 0.9830 0.0356 1.6606 0.9613 0.7819 44.6416 0.9829 0.0347 1.7355 0.9686 0.7811 Table 13. Multi-resolution results on the Full-Jilin datasets, with numbers indicating the size of the PAN image. The best are highlighted in 
+
+> bold , and the second are underlined.
+
+Full-Jilin-800 Full-Jilin-1200 Full-Jilin-1600 Full-Jilin-2000 Method Dλ ↓ DS ↓ QNR ↑ Dλ ↓ DS ↓ QNR ↑ Dλ ↓ DS ↓ QNR ↑ Dλ ↓ DS ↓ QNR ↑
+
+GS 0.0795 0.1936 0.7433 0.0791 0.2012 0.7362 0.0814 0.2055 0.7304 0.0846 0.2081 0.7253 IHS 0.0955 0.2060 0.7191 0.0961 0.2121 0.7126 0.0972 0.2150 0.7092 0.0997 0.2165 0.7056 GFPCA 0.0464 0.1001 0.8584 0.0420 0.0980 0.8641 0.0405 0.0980 0.8654 0.0407 0.0979 0.8654 MSDCNN 0.0537 0.0499 0.8995 0.0460 0.0416 0.9144 0.0455 0.0394 0.9170 0.0454 0.0371 0.9194 SFINet 0.0596 0.0515 0.8925 0.0519 0.0430 0.9075 0.0517 0.0415 0.9092 0.0519 0.0395 0.9109 MSDDN 0.0481 0.0521 0.9046 0.0398 0.0509 0.9118 0.0387 0.0521 0.9116 0.0394 0.0533 0.9106 PanFlowNet 0.0502 0.0438 0.9044 0.0455 0.0384 0.9179 0.0441 0.0364 0.9201 0.0439 0.0340 0.9196 
+
+HFIN 0.0479 0.0522 0.9030 0.0414 0.0470 0.9138 0.0403 0.0453 0.9164 0.0398 0.0437 0.9182 Pan-mamba 0.0516 0.0501 0.9013 0.0446 0.0427 0.9148 0.0447 0.0402 0.9171 0.0450 0.0373 0.9195 ARConv 0.0468 0.0656 0.8907 0.0407 0.0629 0.8989 0.0398 0.0619 0.9007 0.0396 0.0611 0.9016 Ours 0.0454 0.0476 0.9077 0.0394 0.0428 0.9181 0.0394 0.0405 0.9177 0.0393 0.0363 0.9189 Table 14. Multi-resolution results on the Full-Landsat datasets, with numbers indicating the size of the PAN image. The best are highlighted in bold , and the second are underlined. Full-Landsat-800 Full-Landsat-1200 Full-Landsat-1600 Full-Landsat-2000 Method Dλ ↓ DS ↓ QNR ↑ Dλ ↓ DS ↓ QNR ↑ Dλ ↓ DS ↓ QNR ↑ Dλ ↓ DS ↓ QNR ↑
+
+GS 0.0519 0.1145 0.8405 0.0589 0.1155 0.8334 0.0567 0.1076 0.8425 0.0598 0.1064 0.8406 IHS 0.0862 0.1235 0.8012 0.0972 0.1286 0.7883 0.0982 0.1205 0.7945 0.1028 0.1205 0.7905 GFPCA 0.0731 0.0577 0.8737 0.0623 0.0543 0.8870 0.0627 0.0525 0.8883 0.0615 0.0510 0.8910 MSDCNN 0.0523 0.0378 0.9135 0.0476 0.0316 0.9234 0.0485 0.0307 0.9234 0.0468 0.0303 0.9254 SFINet 0.0493 0.0405 0.9137 0.0410 0.0331 0.9278 0.0404 0.0314 0.9299 0.0392 0.0317 0.9307 MSDDN 0.0402 0.0246 0.9372 0.0311 0.0224 0.9477 0.0317 0.0229 0.9466 0.0312 0.0246 0.9454 PanFlowNet 0.0570 0.0388 0.9077 0.0449 0.0379 0.9194 0.0458 0.0385 0.9178 0.0449 0.0384 0.9187 HFIN 0.0287 0.0200 0.9523 0.0228 0.0201 0.9543 0.0229 0.0188 0.9590 0.0217 0.0198 0.9591 Pan-mamba 0.0295 0.0525 0.9196 0.0297 0.0675 0.9049 0.0312 0.0816 0.8898 0.0330 0.0928 0.8773 ARConv 0.0278 0.0231 0.9501 0.0260 0.0200 0.9548 0.0251 0.0191 0.9566 0.0239 0.0183 0.9585 Ours 0.0272 0.0271 0.9537 0.0240 0.0225 0.9563 0.0217 0.0209 0.9580 0.0206 0.0206 0.9594 Table 15. Multi-resolution results on the Full-Skysat datasets, with numbers indicating the size of the PAN image. The best are highlighted in bold , and the second are underlined. Full-Skysat-800 Full-Skysat-1200 Full-Skysat-1600 Full-Skysat-2000 Method Dλ ↓ DS ↓ QNR ↑ Dλ ↓ DS ↓ QNR ↑ Dλ ↓ DS ↓ QNR ↑ Dλ ↓ DS ↓ QNR ↑
+
+GS 0.0533 0.1033 0.8499 0.0657 0.1163 0.8273 0.0653 0.1129 0.8304 0.0649 0.1123 0.8311 IHS 0.0937 0.1282 0.7916 0.0973 0.1343 0.7834 0.0993 0.1333 0.7822 0.0994 0.1314 0.7836 GFPCA 0.0427 0.0633 0.8974 0.0445 0.0633 0.8956 0.0428 0.0620 0.8983 0.0432 0.0610 0.8989 MSDCNN 0.0449 0.0262 0.9344 0.0407 0.0282 0.9422 0.0422 0.0187 0.9391 0.0398 0.0155 0.9455 
+
+SFINet 0.1357 0.0331 0.8373 0.1304 0.0343 0.8412 0.1363 0.0333 0.8362 0.1361 0.0327 0.8368 MSDDN 0.0424 0.0386 0.9217 0.0388 0.0382 0.9250 0.0426 0.0355 0.9294 0.0408 0.0327 0.9293 PanFlowNet 0.0883 0.0376 0.8787 0.0761 0.0339 0.8935 0.0738 0.0312 0.8981 0.0726 0.0301 0.9003 HFIN 0.0623 0.0634 0.8796 0.0583 0.0573 0.8888 0.0584 0.0588 0.8872 0.0572 0.0565 0.8904 Pan-mamba 0.0579 0.0383 0.9071 0.0546 0.0330 0.9152 0.0515 0.0284 0.9224 0.0491 0.0248 0.9279 ARConv 0.0405 0.0416 0.9201 0.0381 0.0402 0.9237 0.0380 0.0415 0.9225 0.0380 0.0404 0.9236 Ours 0.0451 0.0292 0.9365 0.0423 0.0248 0.9425 0.0407 0.0269 0.9426 0.0339 0.0268 0.9416
