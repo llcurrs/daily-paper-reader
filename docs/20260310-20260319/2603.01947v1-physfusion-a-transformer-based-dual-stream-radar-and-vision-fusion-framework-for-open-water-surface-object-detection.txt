@@ -1,0 +1,503 @@
+Title: physfusion: A Transformer-based Dual-Stream Radar and Vision Fusion Framework for Open Water Surface Object Detection
+
+URL Source: https://arxiv.org/pdf/2603.01947v1
+
+Published Time: Tue, 03 Mar 2026 04:10:29 GMT
+
+Number of Pages: 14
+
+Markdown Content:
+> JOURNAL OF L ATEX CLASS FILES, VOL. 14, NO. 8, AUGUST 2021 1
+
+# Physfusion: A Transformer-based Dual-Stream Radar and Vision Fusion Framework for Open Water Surface Object Detection 
+
+Yuting Wan, Liguo Sun, Jiuwu Hao, Zao Zhang, Pin LV Member, IEEE, 
+
+Abstract —Detecting water-surface targets for Unmanned Sur-face Vehicles (USVs) is challenging due to non-stationary wave clutter, specular reflections, and frequent long-range observations where small or low-profile objects exhibit weak appearance cues. Although 4D millimeter-wave radar can complement cameras under degraded illumination, maritime radar point clouds are typically sparse and intermittent, and reflectivity-related at-tributes often present heavy-tailed variations under scattering and multipath, making it difficult for conventional fusion designs to exploit radar cues effectively and maintain stable predictions across frames. We propose PhysFusion, a physics-informed radar–image de-tection framework tailored for water-surface perception. The framework integrates: (1) a Physics-Informed Radar Encoder (PIR Encoder) composed of an RCS Mapper and a Quality Gate, which transforms per-point radar attributes into a compact scattering prior and predicts point-wise reliability to support robust feature learning under clutter; (2) a Radar-guided Inter-active Fusion Module (RIFM) that performs query-level radar– image fusion between semantically enriched radar features and multi-scale visual features, with the radar branch modeled by a dual-stream backbone including a point-based local stream and a transformer-based global stream using Scattering-Aware Self-Attention (SASA); and (3) a Temporal Query Aggregation module (TQA) to aggregate frame-wise fused queries over a short temporal window and obtain temporally consistent representa-tions for the detection head. Experiments on WaterScenes and FLOW demonstrate that PhysFusion achieves 59.7% mAP 50:95 
+
+and 90.3% mAP 50 on WaterScenes (with T =5 radar history) using 5.6M parameters and 12.5G FLOPs, and reaches 94.8% mAP 50 and 46.2% mAP 50:95 on FLOW under the radar+camera setting. Ablation studies on WaterScenes further quantify the contributions of the PIR Encoder, SASA-based global radar reasoning, and RIFM under a consistent evaluation protocol. 
+
+Index Terms —Unmanned Surface Vehicles (USVs), Multi-Modal Sensor Fusion, Cross-Modal Attention, Transformer-based Fusion 
+
+I. I NTRODUCTION 
+
+# PERCEPTION for Unmanned Surface Vehicles (USVs) presents challenges distinct from terrestrial autonomous driving. In addition to dynamic water-surface reflections and wave-induced non-stationary backgrounds, USV environments often contain small, low-profile objects (e.g., buoys, kayaks, floating debris) and involve long-range observations where visual cues can be weak or ambiguous. These conditions can reduce the reliability of purely vision-based detection, particularly under adverse weather or lighting such as fog, rain, glare, or low-light situations [1]–[4]. 
+
+> Yuting Wan and Jiuwu Hao are with the School of Artificial Intelligence, University of Chinese Academy of Sciences, Beijing, China. Liguo Sun, Zao Zhang and Pin Lv are with the Institute of Automation, Chinese Academy of Sciences, Beijing, China.
+
+4D millimeter-wave radar provides complementary sensing information, offering range, velocity, and reflectivity-based intensity measurements that are less sensitive to illumina-tion and visibility changes [5]. However, effectively fusing radar with camera data in aquatic environments remains a challenge. Existing radar-camera fusion frameworks, primarily developed for road scenes, often treat radar as a secondary geometric input and employ fixed fusion strategies (e.g., early concatenation or late fusion). These approaches may not adequately address the inherent heterogeneities between sparse, physics-rich radar point clouds and dense, appearance-based image features [6], [7]. Specific limitations include: (i) underutilization of the semantic information embedded in radar intensity for material discrimination, (ii) lack of explicit, learnable mechanisms to align the two modalities and resolve spatial mismatches, and (iii) sensitivity to intermittent radar returns caused by wave occlusion and platform motion. To address these limitations, we propose PhysFusion, a radar-image fusion framework designed for water-surface ob-ject detection. The framework is built around a physics-informed radar encoder and a temporal query aggregation mechanism, aiming to achieve semantically guided and spa-tiotemporally aligned fusion. Our main contributions are three-fold:  
+
+> •
+
+PIR Encoder (Physics-Informed Radar Encoder). We in-troduce a physics-informed radar encoder that explicitly leverages reflectivity-related attributes together with ge-ometry. The PIR Encoder consists of an RCS Mapper that transforms per-point radar attributes into a compact scat-tering prior and a Quality Gate that predicts point-wise reliability, improving robustness to heavy-tailed intensity variations and intermittent returns in maritime radar.  
+
+> •
+
+RIFM (Radar-guided Interactive Fusion Module). We propose a radar-guided interactive fusion module that performs query-level radar–image fusion. Semantically enriched radar features are used to attend to and aggre-gate relevant multi-scale visual features, enabling adap-tive alignment between sparse radar evidence and dense image regions. In addition, the radar branch adopts a dual-stream backbone with a point-based local stream and a transformer-based global stream equipped with Scattering-Aware Self-Attention (SASA) for global rea-soning over sparse points.  
+
+> •
+
+TQA-GRU (Temporal Query Aggregation). We intro-duce temporal query aggregation to improve frame-to-frame continuity under platform motion and intermittent observations. TQA-GRU aggregates fused cross-modal queries over a short temporal window, implemented with  
+
+> arXiv:2603.01947v1 [cs.CV] 2 Mar 2026 JOURNAL OF L ATEX CLASS FILES, VOL. 14, NO. 8, AUGUST 2021 2
+
+a lightweight GRU, to obtain temporally consistent rep-resentations for set-prediction detection. Experiments on the WaterScenes [2] and FLOW [8] datasets indicate that PhysFusion can achieve competitive 2D detection accuracy while maintaining inference efficiency suitable for edge deployment. Ablation studies examine the contributions of the PIR Encoder, the RIFM-based fusion design, and TQA, as well as the role of SASA for global radar modeling under water-surface sensing conditions. II. R ELATED WORK 
+
+A. Multi-Modal Fusion for Object Detection 
+
+Multi-modal fusion is widely used in autonomous percep-tion to combine complementary cues from RGB cameras and active sensors such as LiDAR and millimeter-wave radar. Existing fusion pipelines are commonly categorized into early (sensor-level), middle (feature-level), and late (decision-level) fusion strategies [9]–[11]. Early fusion typically projects mea-surements into a shared representation (e.g., image plane or BEV) and then applies a unified backbone, while late fusion aggregates modality-specific predictions. Middle fusion has attracted increasing attention because it can preserve modality-specific inductive biases while enabling cross-modal interac-tion [11]–[13], and attention/Transformer-based designs are frequently adopted to model long-range dependencies and soft correspondence across modalities [10], [11], [14]. Most of these methods are developed for structured road scenes where sensor returns and background statistics are comparatively stable. In contrast, water-surface environments introduce non-stationary clutter (e.g., waves and reflections), long-range observation regimes with weak appearance cues, and modality-specific degradations, which can complicate cross-modal alignment and feature aggregation. 
+
+B. Radar-Based Perception and Radar–Camera Fusion 
+
+Compared with LiDAR, millimeter-wave radar provides range and Doppler velocity and is less affected by illumi-nation changes, making it a complementary modality under low visibility [5], [15], [16]. However, radar point clouds are typically sparse, and their reflectivity-related attributes (e.g., RCS or intensity proxies) can vary significantly due to scattering, multipath, and viewpoint effects. This often limits the effectiveness of directly treating reflectivity as a raw “intensity channel” and may introduce sensitivity to clutter and heavy-tailed distributions in practice [17]. Radar–camera fusion has therefore been explored to com-bine radar’s geometric/kinematic cues with image semantics. Representative approaches differ by how they align heteroge-neous measurements, e.g., projecting radar points to the image plane, performing feature concatenation, or applying attention to learn soft correspondences [18]–[21]. While these designs are effective under certain settings, their performance can be influenced by the stability of radar returns and the quality of cross-modal alignment, particularly when radar observations are sparse or contain substantial clutter. 
+
+C. Physics-Informed Modeling for Radar Features 
+
+A growing line of research incorporates domain knowledge or physically motivated priors into perception models to im-prove feature learning under sensor noise and environment-induced artifacts. This trend is particularly relevant to radar-based perception, where measurements encode not only ge-ometry but also motion and scattering characteristics, such as range, radial velocity, and reflectivity proxies (e.g., RCS) [5]. In contrast to LiDAR, radar observations are often sparse, spatially non-uniform, and subject to multipath and specular scattering, which can induce heavy-tailed statistics and frame-to-frame intermittency in reflectivity-related channels [15]. These properties make it suboptimal to treat reflectivity as a raw “intensity” feature without calibration or uncertainty awareness, especially in cluttered maritime scenes. A common strategy is therefore to encode radar attributes with representations that are more stable and semantically meaningful than raw channels. In road-scene radar–camera fusion, several works exploit Doppler and reflectivity cues to enhance detection and cross-modal association [19], [20], [22]. Related efforts also emphasize learned attribute mapping, normalization, or feature modulation to reduce sensitivity to sensor-dependent scaling and heavy-tailed distributions [23], [24]. In parallel, reliability-aware modeling has been explored to mitigate the influence of spurious returns: a point-wise con-fidence (or uncertainty) estimate can gate feature aggregation so that transient clutter points contribute less to neighborhood pooling or attention computation. Such designs are aligned with physics-informed encoders that introduce learned priors or gating mechanisms to suppress clutter/multipath effects while preserving informative scattering cues for targets [22]– [24]. In the context of water-surface perception, these ideas motivate mapping raw radar attributes to compact scattering descriptors and explicitly modeling point-level reliability be-fore downstream local/global aggregation. 
+
+D. Transformer Attention for Sparse Point Sets 
+
+Transformers have been widely adopted for point-based representations due to their capacity for long-range depen-dency modeling and flexible set processing [10]. In 3D per-ception, Transformer variants have demonstrated strong capa-bility in capturing contextual relations among points, voxels, or regions [25], [26]. However, directly applying standard global self-attention to sparse point sets can be problematic. When observations are sparse and noisy, attention weights driven primarily by feature similarity may overemphasize spatially distant but feature-similar points, leading to topology-inconsistent aggregation and susceptibility to clutter-induced correlations. To alleviate these issues, many 3D designs in-corporate inductive biases that encourage locality, such as restricted attention windows, sparse attention patterns, or distance-aware weighting, thereby promoting physically plau-sible interactions [25], [26]. A representative mechanism is distance-decayed attention, which modifies attention logits by penalizing pairs with large spatial separation. This formulation reduces the chance of forming spurious long-range associa-tions while retaining meaningful interactions among nearby JOURNAL OF L ATEX CLASS FILES, VOL. 14, NO. 8, AUGUST 2021 3
+
+Fig. 1: Overview of PhysFusion. The framework consists of three contribution-aligned modules: (i) PIR Encoder, where an RCS Mapper produces a compact scattering prior s and a Quality Gate predicts a point-wise reliability score g to modulate radar features under heavy-tailed reflectivity and intermittent returns; (ii) RIFM, which adopts a dual-stream radar backbone with a point-based local stream and a Transformer-based global stream equipped with SASA (Scattering-Aware Self-Attention), together with cross-stream interaction to exchange local details and global context, and performs query-level radar–image fusion; and (iii) TQA-GRU, which aggregates per-frame fused cross-modal queries over a temporal window using shared weights to obtain temporally consistent query representations. The aggregated queries are finally fed into a detection head to output 2D water-surface object detections. points. Related ideas also appear in deformable/sparse atten-tion paradigms that reduce computation and concentrate atten-tion on informative neighborhoods or sampled locations [27], [28]. For radar point sets, these considerations are especially important because sparsity and clutter similarity can other-wise dominate global reasoning. Consequently, introducing scattering-/distance-aware priors into attention is a principled way to stabilize Transformer-based global modeling under sparse radar returns. 
+
+E. Temporal Modeling for Intermittent Observations 
+
+Temporal aggregation is a common strategy to improve prediction stability when single-frame observations are in-complete or noisy. Prior work leverages recurrent models (e.g., GRU/LSTM), temporal attention, or multi-frame feature fusion to accumulate evidence across time for detection and tracking [12], [13], [29]. For transformer-based detection and tracking, query-centric temporal modeling has become an effective paradigm: instead of densely accumulating features, the model maintains a fixed set of object queries (or track queries) and updates them across frames, which provides a structured way to preserve identity and temporal continuity [1], [30]. This perspective is particularly suitable for radar and water-surface scenarios where the number of returns and their spatial distributions can vary substantially across frames due to wave motion, multipath, and intermittent target visibility. Query-based temporal modeling converts frame-wise features into a compact, fixed-size representation and then aggregates query states over time, making it less sensitive to variable point counts than direct feature stacking. Moreover, temporal modeling can be performed at different stages: (i) early fusion across raw measurements, (ii) feature-level temporal fusion, or (iii) query-level temporal aggregation for set prediction. For USV perception, the latter is attractive because it decouples temporal consistency from per-frame sparsity and enables temporally consistent predictions even when radar evidence is missing in some frames. These observations motivate tem-poral query aggregation designs (e.g., GRU-based updates with shared weights across queries) that maintain consistent query identities while improving frame-to-frame continuity of detection outputs. III. M ETHODOLOGY 
+
+Perception in water-surface environments is substantially more challenging than land-based autonomous driving due to dynamic clutter, adverse illumination, and frequent sensing degradation. In particular, 4D millimeter-wave radar returns on water are often sparse and intermittent under wave motion, water vapor, specular reflections, and long-range scattering, JOURNAL OF L ATEX CLASS FILES, VOL. 14, NO. 8, AUGUST 2021 4
+
+Fig. 2: Illustration of the PIR Encoder with the RCS Mapper and Quality Gate. Left: raw radar returns on the water-surface plane include target points and clutter/outliers. Middle: each point pi = ( xi, y i, z i, v i, RCS i) is mapped to a compact scattering prior si and a point-wise reliability score gi. Right: the scattering prior augments radar features, while the confidence gate down-weights unreliable returns (e.g., heavy-tailed or intermittent scattering), yielding a reliability-aware radar representation for subsequent encoding and fusion. producing noisy point clouds with unstable reflectivity patterns (RCS) and missing returns. These characteristics make robust detection difficult if the model relies on purely data-driven feature similarity or single-frame cues. To address these issues, we propose PhysFusion, As il-lustrated in Fig. 1, a physics-informed radar–image fusion framework designed for water-surface object detection. Phys-Fusion is organized around three components aligned with our contributions: (i) a Physics-Informed Radar Encoder (PIR Encoder) that stabilizes radar representations under clutter and heavy-tailed RCS, (ii) a Radar-guided Interactive Fusion Module (RIFM) that performs query-level radar–image fusion with radar-guided cross-modal interaction, and (iii) Temporal Query Aggregation (TQA) that aggregates fused cross-modal queries over a short temporal window to improve frame-to-frame continuity. Within the radar branch, we adopt a 
+
+dual-stream backbone comprising a point-based local stream 
+
+and a Transformer-based global stream . The global stream uses SASA (Scattering-Aware Self-Attention) to bias global reasoning toward physically plausible interactions over sparse radar points. 
+
+A. PIR Encoder: Physics-Informed Radar Encoding 
+
+Water-surface 4D radar returns are often sparse and in-termittent, and their reflectivity attributes (e.g., RCS) can exhibit heavy-tailed fluctuations due to scattering and clutter. As shown in Fig. 2, PIR Encoder learns a compact scattering prior with an RCS Mapper and predicts a point-wise reliability score with a Quality Gate to down-weight unreliable returns before feature aggregation. 
+
+a) Radar point representation.: Given the sparsity and intermittency of water-surface radar returns, we represent each frame as an unordered set of radar points and encode each point with both geometry and reflectivity-related attributes. Specifically, the input radar point cloud is 
+
+P = {pi}Ni=1 , pi = ( xi, y i, z i, v i, RCS i), (1) where (xi, y i, z i) denotes the 3D coordinates, vi is the Doppler radial velocity, and RCS i is the radar cross section. For convenience, we denote xi = (xi, y i, z i). Before feature learning, we apply a lightweight normalization to reduce scale mismatch across attributes and to stabilize optimization. We then construct a compact attribute vector 
+
+b) RCS Mapper: compact scattering prior.: Directly using raw RCS i can be sensitive to heavy-tailed variations induced by scattering and multipath. We introduce an RCS Mapper as illustrated in Fig. 2 that transforms per-point radar attributes into a compact scattering prior :
+
+si = M(ai; Θ) = MLP map (ai; Θ) ∈ RCs . (2) Compared with feeding RCS i directly, si serves as a learn-able bounded descriptor that is less sensitive to heavy-tailed reflectivity fluctuations while still retaining reflectivity-related cues. 
+
+c) Quality Gate: point-wise reliability.: In parallel, a 
+
+Quality Gate predicts point-wise reliability gi ∈ (0 , 1) :
+
+gi = σ(MLP gate ([ ai; si])) , (3) where σ(·) is the sigmoid function. The gate modulates the point embedding so that unreliable/intermittent returns con-tribute less: 
+
+f (0)  
+
+> i
+
+= MLP in ([ ai; si]) , ˜f (0)  
+
+> i
+
+= gi · f (0)  
+
+> i
+
+. (4) Together, the RCS Mapper and Quality Gate constitute the PIR Encoder, providing a physics-informed prior and reliability-aware filtering for maritime radar point clouds. JOURNAL OF L ATEX CLASS FILES, VOL. 14, NO. 8, AUGUST 2021 5
+
+Fig. 3: Dual-stream radar backbone for radar point encoding. (a) Point-based local stream performs local graph aggregation and injects global context via a pooled summary and alightweight context MLP, producing locality-preserving fea-tures with contextual cues. (b) Global Transformer block for radar modeling, where SASA incorporates a distance-decay prior from point coordinates to suppress spurious long-range interactions and improve global reasoning over sparse returns. 
+
+B. RIFM: Radar-guided Interactive Fusion Module 
+
+Water-surface radar point clouds are sparse and irregular, with weak target clusters mixed with clutter. Local-only aggre-gation may miss broader context, while global-only attention can introduce spurious long-range associations. To balance both, RIFM adopts a dual-stream radar backbone that com-bines local neighborhood modeling with global reasoning to produce semantically enriched radar tokens for query-level radar–image fusion, as shown in Fig. 3. 
+
+a) Dual-stream radar backbone overview.: Given PIR-modulated features { ˜f (0)  
+
+> i
+
+}, we extract radar representations with a dual-stream backbone, as shown in Fig. 3: (i) apoint-based local stream emphasizing neighborhood structure, and (ii) a Transformer-based global stream for long-range reasoning over sparse points. Let the resulting local/global features be {f loc  
+
+> i
+
+} and {f glo  
+
+> i
+
+}, which are fused into radar tokens 
+
+f ri = Proj  [f loc  
+
+> i
+
+; f glo  
+
+> i
+
+], F r = {f ri }Ni=1 . (5) 
+
+b) Point-based local stream (physics-aware kNN + dy-namic graph aggregation).: To emphasize locality, for each point pi we construct a neighborhood N (i) using kNN under a physics-aware metric: 
+
+d2 
+
+> ij
+
+= ∥xi − xj ∥22 + λv (vi − vj )2 + λr (RCS i − RCS j )2, (6) where λv , λ r control the contributions of Doppler and RCS similarity. We aggregate local edge features following dynamic graph convolution [31]:                     
+
+> e(s)
+> ij =ϕ(s)
+> h ˜f(s)
+> i,˜f(s)
+> j,(xj−xi),(vj−vi),(RCS j−RCS i)
+> i
+> ,j∈ N (i).
+
+(7) 
+
+˜f (s+1)  
+
+> i
+
+= max  
+
+> j∈N (i)
+
+
+
+e(s)
+
+> ij
+
+
+
+, (8) where ϕ(s)(·) is a shared MLP and ˜f (s) 
+
+> i
+
+denotes the point feature at layer s (with PIR gating applied before and/or within local aggregation). This local inductive bias helps preserve weak target clusters while suppressing isolated clutter outliers. 
+
+c) Transformer-based global stream with SASA.: The global stream models broader dependencies among scattered points. Applying standard self-attention to sparse radar points can introduce topology-inconsistent associations due to the lack of an explicit physical bias. We adopt SASA by adding a soft distance-decay prior to attention logits: 
+
+SASA( Q, K, V ) = Softmax 
+
+ QK ⊤
+
+√dk
+
+− βD 2
+
+
+
+V, (9) where Q, K, V are the query/key/value projections of radar tokens, dk is the key dimension, D is the Euclidean distance matrix between points, and β is a learnable decay parame-ter. SASA encourages attention to concentrate on physically plausible interactions under sparse and noisy returns. 
+
+d) Query-level radar–image fusion.: Let the image back-bone output multi-scale features {F img ℓ }Lℓ=1 , and define a flattened visual token set 
+
+F img = Flatten  {F img ℓ }Lℓ=1 
+
+. (10) RIFM performs fusion at the query level using M learnable object queries {qm}Mm=1 (set-prediction style). For each query, we extract modality-specific query features via cross-attention: 
+
+qrm = CrossAttn  LN( qm), LN( F r ),qimg m = CrossAttn  LN( qm), LN( F img ). (11) and fuse them with an MLP: 
+
+˜qm = MLP fuse 
+
+ [qrm; qimg m ]. (12) Intuitively, semantically enriched radar representations (sta-bilized by PIR and modeled by the dual-stream backbone) guide the aggregation of relevant multi-scale visual evidence, enabling adaptive alignment between sparse radar cues and dense image regions. 
+
+C. TQA: Temporal Query Aggregation 
+
+Water-surface observations are temporally unstable due to platform motion, wave-induced clutter, and intermittent radar returns, which can make per-frame fusion inconsistent. To im-prove frame-to-frame continuity, TQA-GRU aggregates fused radar–image queries over a short temporal window using a lightweight recurrent update, as shown in Fig. 4. 
+
+a) Temporal window and ego-motion compensation.: We consider a temporal window of T frames: 
+
+Pt = {Pt−T +1 , . . . , P t}, It = {It−T +1 , . . . , I t}. (13) When ego-motion estimates are available, we transform past radar frames into the current ego coordinate system: 
+
+˜xi,τ = Tτ →t xi,τ , τ ∈ [t − T + 1 , t ], (14) and re-encode each compensated frame so that temporal fusion is performed in a consistent reference frame. JOURNAL OF L ATEX CLASS FILES, VOL. 14, NO. 8, AUGUST 2021 6
+
+Fig. 4: Temporal Query Aggregation Module (TQA-GRU). (a) Query-level temporal aggregation over a window of radar and image features {Rt−k, I t−k}, where the GRU is shared across frames and query tokens to update the hidden state hm,k . (b) Per-query GRU cell detail: ego-motion cues (translation/velocity/rotation) are embedded and linearly projected to modulate the recurrent update (ConvGRU), enabling motion-aware temporal fusion of query representations. 
+
+b) Frame-wise encoding and fixed-size query representa-tion.: For each frame τ , we compute radar and image features 
+
+F rτ = RADAR BACKBONE ( ˜Pτ ), F img τ = IMAGE BACKBONE (Iτ )
+
+(15) where the radar backbone includes the PIR Encoder and dual-stream radar modeling. The specific backbone instantiations (PointNet++ for radar and ResNet101 for images) are de-scribed in the experimental settings. To obtain a fixed-size representation suitable for set prediction, we pool per-frame features into query features: 
+
+qrm,τ = CrossAttn( qm, F rτ ), qimg m,τ = CrossAttn( qm, F img τ )
+
+(16) 
+
+˜qm,τ = MLP fuse ([ qrm,τ ; qimg m,τ ]) . (17) This yields a temporal sequence for each query: 
+
+{˜qm,t −T +1 , . . . , ˜qm,t }.
+
+c) GRU-based temporal aggregation (TQA-GRU).: To improve frame-to-frame continuity under platform motion and intermittent observations, we aggregate each query sequence using a lightweight GRU with time encoding π(τ ):
+
+hm,τ = GRU(˜ qm,τ + π(τ ), h m,τ −1) , ¯qm,t = hm,t ,
+
+(18) where hm,τ is the hidden state for query m at time τ . The temporally aggregated query set is ¯Qt = {¯qm,t }Mm=1 .
+
+d) Detection head.: Given ¯qm,t , we predict target exis-tence/class and 2D state on the water surface: 
+
+ˆcm = hcls (¯ qm,t ), ˆbm = hbox (¯ qm,t ), (19) where ˆbm denotes the 2D water-surface state (e.g., center 
+
+(ˆ x, ˆy), size (ˆl, ˆw), heading ˆθ). 
+
+e) Set prediction and matching.: We adopt a set predic-tion formulation and match predictions to ground truth targets using bipartite matching (e.g., Hungarian algorithm) with cost 
+
+C = λcls Ccls + λbox Cbox , (20) where Ccls measures classification disagreement and Cbox mea-sures box distance (e.g., ℓ1 on center/size plus a heading term). The matching yields positive pairs M between queries and targets. 
+
+f) Training objectives and temporal regularization.: The overall loss is: 
+
+L = Lcls + λbLbox + λtLtemp . (21) 
+
+Classification loss Lcls can be focal loss; box regression loss 
+
+Lbox uses smooth-ℓ1 on the matched set M. To encourage sta-ble predictions across time, we impose a temporal smoothness loss on matched targets: 
+
+Ltemp = X
+
+> (m,k )∈M
+
+∥ˆxm,t − ˆxm,t −1∥1 , ˆxm,t = (ˆ xm,t , ˆym,t ).
+
+(22) 
+
+D. End-to-end forward pass. 
+
+Putting the above components together, PhysFusion pro-cesses each frame within a temporal window using the PIR Encoder and the dual-stream radar backbone, performs radar-guided query-level fusion via RIFM, and aggregates the fused queries with TQA to obtain the temporally consistent query set 
+
+¯Qt = {¯qm,t }Mm=1 at time t. The detection head then predicts 
+
+{(ˆ cm, ˆbm)}Mm=1 , and the whole framework is optimized end-to-end with set-prediction supervision. Algorithm 1 lists the complete forward pass. JOURNAL OF L ATEX CLASS FILES, VOL. 14, NO. 8, AUGUST 2021 7
+
+Fig. 5: Per-image object statistics on the training set. For each sampled image, we report the total number of labeled instances and the number of instances that satisfy a small-size criterion under the input resolution used for training. 
+
+Algorithm 1 PhysFusion Forward Pass  
+
+> 1:
+
+Input: Radar point clouds {Pτ }tτ =t−T +1 , images 
+
+{Iτ }tτ =t−T +1 , object queries {qm}Mm=1 , ego-motion trans-forms {Tτ →t} 
+
+> 2:
+
+Output: Detections {(ˆ cm, ˆbm)}Mm=1 at time t 
+
+> 3:
+
+Initialize query hidden states hm,t −T ← 0 for all m =1, . . . , M  
+
+> 4:
+
+for τ = t − T + 1 to t do  
+
+> 5:
+
+ego-motion compensation: ˜Pτ ←
+
+TRANSFORM (Pτ , Tτ →t) 
+
+> 6:
+
+Radar encoding (PIR + dual-stream): F rτ ←
+
+RADAR BACKBONE ( ˜Pτ ) 
+
+> 7:
+
+Image encoding: F img τ ← IMAGE BACKBONE (Iτ ) 
+
+> 8:
+
+for m = 1 to M do  
+
+> 9:
+
+RIFM query-level fusion:  
+
+> 10:
+
+qrm,τ ← CROSS ATTN (qm, F rτ ) 
+
+> 11:
+
+qimg m,τ ← CROSS ATTN (qm, F img τ ) 
+
+> 12:
+
+˜qm,τ ← MLP fuse ([ qrm,τ ; qimg m,τ ])  
+
+> 13:
+
+TQA-GRU: hm,τ ← GRU (hm,τ −1, ˜qm,τ + π(τ ))  
+
+> 14:
+
+end for  
+
+> 15:
+
+end for  
+
+> 16:
+
+for m = 1 to M do  
+
+> 17:
+
+ˆcm ← hcls (hm,t ), ˆbm ← hbox (hm,t ) 
+
+> 18:
+
+end for  
+
+> 19:
+
+return {(ˆ cm, ˆbm)}Mm=1 
+
+IV. E XPERIMENTS 
+
+This section presents the experimental evaluation of Phys-Fusion on 2D object detection tasks, along with ablation studies analyzing the impact of key components within the proposed framework. 
+
+A. Datasets and Evaluation Metrics 
+
+WaterScenes. We conduct the main evaluation on Wa-terScenes [2], a multi-modal benchmark for water-surface perception with synchronized RGB images and 4D millimeter-wave radar. Unless otherwise specified, we focus on 2D object detection and report mAP 50:95 and mAP 50 for accuracy, to-gether with model complexity (Params, FLOPs) and inference speed measured on an embedded device (FPS edge ) and a desktop GPU (FPS gpu ). Table I summarizes the main results. 
+
+Fig. 6: Statistics of radar attributes on WaterScenes. Joint dis-tribution of normalized range and normalized RCS, showing non-uniform range coverage and a skewed long-tail tendency in reflectivity-related measurements. 
+
+FLOW. We additionally evaluate on the FLOW dataset to examine the behavior under different sensor settings (camera-only, radar-only, and radar+camera). We report mAP 50 and mAP 50:95 in Table II. 
+
+Dataset characteristics. Beyond reporting benchmark met-rics, we summarize several dataset-level properties that are closely related to water-surface sensing. As shown in Fig. 5, the number of annotated instances varies notably across im-ages, and a non-trivial portion of instances appear at rela-tively small pixel scales under our training resolution. This is consistent with the prevalence of long-range observations and wide field-of-view settings during USV navigation, where appearance cues can be weak and background interference is common. We further visualize radar attribute statistics in Fig. 6. The joint distribution of normalized range and normalized RCS exhibits non-uniform range coverage and a skewed long-tail tendency in reflectivity-related measurements, suggesting that directly using raw reflectivity channels can be sensitive to scattering- and multipath-induced variations. This observation is consistent with the motivation of introducing a compact scat-tering prior and reliability-aware modulation in PhysFusion. 
+
+Metrics. Following common practice in 2D detection, mAP 50:95 averages AP over IoU thresholds from 0.50 to 0.95 with a step of 0.05, while mAP 50 reports AP at IoU=0.50. For efficiency, Params (M) and FLOPs (G) characterize model size and computation. FPS edge and FPS gpu are measured under a consistent runtime setting for each platform (see table footnotes). 
+
+B. Implementation Details 
+
+The overall pipeline follows Fig. 1 and comprises three components: the PIR Encoder, RIFM, and TQA-GRU. At each timestamp τ , the radar point cloud Pτ is first encoded by the PIR Encoder with an RCS Mapper (compact scattering JOURNAL OF L ATEX CLASS FILES, VOL. 14, NO. 8, AUGUST 2021 8
+
+TABLE I: Main comparison on WaterScenes. “C” denotes camera, “R” denotes radar. R1 and R3 indicate using 1-frame and 3-frame radar history, respectively. 
+
+Methods Sensors Hist. T a Model Complexity OD (2D Detection) Speed Params (M) ↓ FLOPs (G) ↓ mAP 50:95 ↑ mAP 50 ↑ FPS edge ↑b FPS gpu ↑c
+
+Camera-only baselines 
+
+YOLOv4-Tiny [32] C 1 5.89 4.04 13.1 36.3 116.3 342.7 
+
+YOLOv7-Tiny [33] C 1 6.03 33.3 37.3 65.9 28.9 120.1 YOLOX-Tiny [34] C 1 5.04 3.79 39.4 68.0 31.8 103.1 Deformable DETR [28] C 1 39.7 171.2 56.5 84.0 10.6 20.3 RT-DETR [27] C 1 19.8 57.0 57.0 85.8 9.4 23.7 YOLOv8-M [35] C 1 25.7 78.7 59.2 84.4 15.3 56.9 YOLOv10-M [36] C 1 24.4 120.2 57.8 85.1 16.5 54.7 YOLOv10-N [36] C 1 12.58 26.3 56.2 85.4 17.8 75.9 YOLOv11-L [37] C 1 23.2 85.9 57.3 86.1 23.1 78.5 
+
+Multi-modal baselines (C+R) 
+
+Achelous-MV-GDF-S0 [38] C+R 5 1.6 - 51.0 81.1 15.2 62.8 Achelous-MV-GDF-S1 [38] C+R 5 2.8 - 54.1 83.5 15.0 68.4 Achelous-MV-GDF-S2 [38] C+R 5 5.3 - 56.0 85.5 15.0 67.0 YOLOv8-M + R1 [35] C+R 1 26.7 84.6 61.5 88.0 14.7 54.2 YOLOv8-M + R3 [35] C+R 3 27.0 84.8 62.5 88.8 14.1 54.2 YOLOv10-M + R1 [36] C+R 1 24.7 121.9 59.5 86.1 13.3 51.2 YOLOv10-M + R3 [36] C+R 3 25.2 121.3 58.9 87.4 12.7 51.2 YOLOv11-L + R1 [37] C+R 1 25.7 87.3 59.2 86.2 19.7 60.4 YOLOv11-L + R3 [37] C+R 3 25.8 87.7 60.3 87.7 18.9 58.3 
+
+Ours 
+
+PhysFusion + R1 C+R 1 5.1 12.3 58.8 87.2 18.3 63.9 PhysFusion + R3 C+R 3 4.5 11.9 59.3 88.5 17.8 62.4 PhysFusion + R5 C+R 5 5.6 12.5 59.7 90.3 17.8 67.3       
+
+> aTindicates the radar history length used for temporal aggregation (for camera-only methods, T= 1 ).
+> bFPS edge : inference speed on an embedded device (Jetson AGX Orin 32GB).
+> cFPS gpu : inference speed on a desktop GPU (NVIDIA RTX 4090).
+
+prior) and a Quality Gate (point-wise reliability). The result-ing point embeddings are then processed by a dual-stream radar backbone built on PointNet++ [39] as the point-based local stream, together with a Transformer-based global stream equipped with SASA, producing frame-wise radar features F rτ .For the image branch, we employ ResNet-101 [40] as the backbone to extract multi-scale visual features from RGB images, which are then used by RIFM for query-level radar– image fusion. The fused cross-modal queries are further aggregated over a short temporal window by TQA-GRU to obtain temporally consistent representations for set-prediction detection. For training, we adopt the Class-Balanced Grouping and Sampling (CBGS) strategy [41], to alleviate class imbalance. Unless otherwise stated, all methods are trained under the same data splits and evaluation protocol. PhysFusion is trained end-to-end using AdamW [42] with a base learning rate of 
+
+1 × 10 −4, weight decay of 1 × 10 −2, and a batch size of 8. We use linear warmup followed by a cosine learning-rate schedule (decaying to a small minimum learning rate) for stable con-vergence, and enable automatic mixed-precision training with an exponential moving average (EMA) of model weights for evaluation. Data augmentations, including horizontal flipping, photometric distortion, and random scaling, are applied to RGB images. Radar points are augmented with Gaussian noise and random point dropout to improve robustness under sparse and intermittent returns. 
+
+C. Main Results 1) Results on WaterScenes.: Table I reports quantitative comparisons on WaterScenes under a unified evaluation pro-tocol. We summarize the observations from three aspects: (i) accuracy–efficiency trade-off among camera-only detectors, (ii) the effect of introducing radar history in multi-modal settings, and (iii) inference behavior on edge and desktop platforms. Camera-only methods show an accuracy–efficiency trade-off. Lightweight detectors (e.g., YOLOv4-Tiny and YOLOX-Tiny) achieve high throughput (up to 116.3 FPS edge / 342.7 FPS gpu for YOLOv4-Tiny), but their detection accuracy is substantially lower (13.1 mAP 50:95 for YOLOv4-Tiny). Transformer-based detectors provide stronger accuracy at higher computational cost and lower throughput: Deformable DETR reaches 56.5 mAP 50:95 with 171.2G FLOPs and 39.7M parameters, while RT-DETR attains the best camera-only mAP 50:95 of 57.0 with 57.0G FLOPs and 19.8M parameters, both running below 11 FPS edge . YOLO-style mid/large models offer a different balance: for example, YOLOv8-M achieves JOURNAL OF L ATEX CLASS FILES, VOL. 14, NO. 8, AUGUST 2021 9
+
+TABLE II: Performance comparison on the FLOW dataset under different sensor settings.                                                                
+
+> Performance Sensor mAP 50 mAP 50:95
+> Camera-only
+> YOLOv8-N [35] Camera 75.2 29.9 YOLOv8-S [35] Camera 79.1 32.9 YOLOv8-M [35] Camera 79.5 33.1 YOLOv8-L [35] Camera 75.6 34.0 YOLOv8-X [35] Camera 79.7 34.3 YOLOv10-L [36] Camera 80.7 44.1 YOLOv11-L [37] Camera 83.9 47.3 RT-DETR-R18 [27] Camera 81.7 45.2 RT-DETR-R50 [27] Camera 83.0 46.6 RT-DETR-R501 [27] Camera 84.4 48.2 USVRT-DETR [43] Camera 85.6 49.6
+> Radar-only
+> YOLOv8-N [35] Radar 72.5 39.4 YOLOv8-S [35] Radar 69.1 38.8 YOLOv8-M [35] Radar 74.4 42.1 YOLOv8-L [35] Radar 71.0 39.3 YOLOv8-X [35] Radar 70.9 39.7 YOLOv10-L [36] Radar 70.6 39.5 YOLOv11-L [37] Radar 73.5 41.2
+> Radar + Camera
+> RCFNet [44] Radar + Camera 93.2 44.7
+> PhysFusion (ours) Radar + Camera 94.8 46.2
+
+59.2 mAP 50:95 with 78.7G FLOPs, while YOLOv11-L reaches 57.3 mAP 50:95 and 86.1 mAP 50 with 23.1 FPS edge and 78.5 FPS gpu .
+
+2) Multi-modal baselines: effect of radar history and fusion design.: The multi-modal baselines (C+R) show that incorpo-rating radar can improve detection, while the magnitude of gains depends on the fusion strategy and the history length. For example, YOLOv8-M improves from 59.2/84.4 (camera-only) to 61.5/88.0 with R1 and further to 62.5/88.8 with R3,at a modest reduction in embedded speed (15.3 → 14.7 →
+
+14.1 FPS edge ). YOLOv11-L shows a similar trend in mAP 50:95 
+
+(57.3 → 59.2 → 60.3 for camera-only, R1, and R3), while its mAP 50 changes more moderately (86.1 → 86.2 → 87.7). These results suggest that radar history can be beneficial, but the effectiveness is coupled with how radar observations are represented and integrated. 
+
+3) PhysFusion.: PhysFusion achieves 58.8/87.2 (mAP 50:95 /mAP 50 ) with R1, 59.3/88.5 with R3, and 59.7/90.3 with R5, while keeping a compact computation profile (11.9–12.5G FLOPs and 4.5–5.6M parameters) and practical speed (17.8–18.3 FPS edge and 62.4–67.3 FPS gpu ). Compared with the strongest multi-modal baseline in terms of mAP 50:95 (YOLOv8-M+ R3: 62.5), PhysFusion provides a higher mAP 50 (90.3 vs. 88.8) with substantially lower FLOPs (12.5G vs. 84.8G) and fewer parameters (5.6M vs. 27.0M), indicating a favorable accuracy–efficiency balance under the radar+camera setting. 
+
+4) Impact of radar history length ( R1/R3/R5).: Increasing the radar history length consistently improves PhysFusion performance in Table I: mAP 50:95 increases from 58.8 ( R1) to 59.3 ( R3) and 59.7 ( R5), while mAP 50 increases from 87.2 to 88.5 and 90.3. The corresponding runtime change is small on the embedded device (18.3 → 17.8 FPS edge ), and the desktop speed remains within a similar range (63.9–67.3 FPS gpu ). This trend is consistent with the motivation of leveraging short-term 
+
+Fig. 7: Per-image object statistics on the training set. For each sampled image, we report the total number of labeled instances and the number of instances that satisfy a small-size criterion under the input resolution used for training. temporal context to mitigate intermittent radar returns. 
+
+5) Results on FLOW.: Table II evaluates camera-only, radar-only, and radar+camera settings on FLOW. Camera-only results show increasing accuracy with stronger backbones (e.g., 47.3 mAP 50:95 for YOLOv11-L and 49.6 for USVRT-DETR), establishing the upper range achievable with vision cues alone on this dataset. Radar-only baselines exhibit differ-ent behavior: their mAP 50:95 values are competitive for certain model sizes (e.g., YOLOv8-M Radar: 42.1), indicating that radar provides complementary detection cues despite sparsity. Under radar+camera fusion, PhysFusion achieves 94.8 mAP 50 
+
+and 46.2 mAP 50:95 , outperforming the radar+camera baseline RCFNet (93.2 mAP 50 and 44.7 mAP 50:95 ). The improvement is more pronounced on mAP 50:95 (+1.5), suggesting that the proposed fusion and temporal query aggregation contribute to more consistent localization across IoU thresholds rather than only boosting loose-match detection. 
+
+D. Ablation Study 1) Quality Gate behavior analysis (PIR Encoder).: To better interpret what the point-wise Quality Gate learns, we visualize the relationship between the gate output and radar reflectivity. Fig. 7 plots the predicted reliability score g ∈ [0 , 1] 
+
+against normalized RCS with marginal histograms. Two pat-terns are apparent: (i) points with similar RCS values can receive substantially different g scores, suggesting that the gate is not a simple monotonic rescaling or thresholding of reflectivity; and (ii) a subset of points with extreme RCS values tends to be assigned lower g, which is consistent with the presence of heavy-tailed reflectivity outliers in maritime radar returns (e.g., clutter, multipath, and water-surface scattering). Overall, the visualization supports the role of the Quality Gate as a reliability-aware filtering signal within the PIR Encoder, complementing the scattering prior produced by the RCS Mapper before subsequent feature aggregation. JOURNAL OF L ATEX CLASS FILES, VOL. 14, NO. 8, AUGUST 2021 10 
+
+TABLE III: Ablation study of PhysFusion components on WaterScenes. “ ✓” indicates that the corresponding module is enabled. Here the RCS prior module includes both the scattering prior s and the point-wise quality gate g. The reported values follow the same protocol as Table I. 
+
+Exp. PIR Encode ( s+g) RIFM TQA-GRU mAP 50 ↑ mAP 50:95 ↑ Params (M) ↓ FLOPs (G) ↓
+
+1 - - - 85.1 56.2 5.4 11.7 2 ✓ - - 85.3 57.6 5.5 10.2 3 - ✓ - 85.9 58.2 6.8 12.9 4 - - ✓ 86.5 58.6 6.1 14.3 5 ✓ ✓ - 87.9 59.1 6.1 14.8 6 ✓ - ✓ 88.7 58.5 5.8 13.0 7 - ✓ ✓ 88.2 58.0 5.9 12.7 8 ✓ ✓ ✓ 90.3 59.7 5.6 12.5     
+
+> Note: The “RCS Prior” module includes both sand the quality gate g. If you would like to keep the original ablation numbers exactly unchanged, simply replace the placeholder rows (Exp.#5–#7) with your measured values while keeping the same module toggles.
+
+Fig. 8: Qualitative detection results of the proposed PhysFusion framework on the WaterScenes dataset. The model successfully identifies water-surface objects under diverse conditions, including partial occlusion, background clutter, and varying illumination levels. 
+
+2) Component ablations on WaterScenes (PIR Encoder and global radar modeling).: We evaluate the contributions of key components under the same data split and evaluation protocol as the main experiments. Table III reports a progressive ablation where Exp. 1 serves as the baseline, and Exp. 2– 8 enable: (i) the PIR Encoder via the RCS prior ( s+g), (ii) SASA as the Scattering-Aware Self-Attention strategy for global radar modeling, and (iii) their combinations. Unless otherwise stated, all results are taken directly from Table III. 
+
+3) Baseline (Exp. 1).: Exp. 1 disables the PIR Encoder (i.e., no RCS prior) and SASA, yielding 56.2 mAP 50:95 and 85.1 mAP 50 with 5.4M parameters and 11.7G FLOPs. 
+
+4) Effect of the PIR Encoder (RCS prior s+g).: Enabling the PIR Encoder (Exp. 2) improves mAP 50:95 from 56.2 to 57.6 and mAP 50 from 85.1 to 85.3. This change also reduces FLOPs from 11.7G to 10.2G (Params: 5.4M → 5.5M), indicating that the scattering prior and point-wise reliability modulation can provide a more effective radar representation under the same evaluation protocol. 
+
+5) Effect of SASA for global radar modeling.: When SASA is enabled alone (Exp. 3), performance increases to 58.2 mAP 50:95 and 85.9 mAP 50 , with increased computation (Params: 5.4M → 6.8M; FLOPs: 11.7G → 12.9G). This is JOURNAL OF L ATEX CLASS FILES, VOL. 14, NO. 8, AUGUST 2021 11 
+
+TABLE IV: Ablation on the Quality Gate g and the Temporal Query Aggregation (TQA-GRU) on FLOW. R1/R3 indicate using 1/3-frame radar history for temporal aggregation.                                            
+
+> ID Gate gTQA-GRU Hist. TmAP 50:95 ↑mAP 50 ↑
+> (1) 144.1 89.5 (2) ✓144.2 90.8 (3) ✓144.6 91.3 (4) ✓345.0 92.1 (5) ✓✓145.7 93.4 (6) ✓✓346.2 94.8
+> ID-(1) disables both the point-wise gate and temporal aggregation (single-frame setting).
+> Gate g: point-wise reliability filtering is applied only to the local point-based stream.
+> w/o TQA-GRU : no temporal aggregation; inference is performed per-frame (unless otherwise specified).
+
+consistent with the role of SASA in introducing a scattering-aware distance-decayed bias for global reasoning over sparse radar points. 
+
+6) Module combinations and full configuration.: Combin-ing the PIR Encoder with SASA (Exp. 5) further improves accuracy to 59.1 mAP 50:95 and 87.9 mAP 50 (6.1M Params, 14.8G FLOPs), suggesting that a scattering prior with relia-bility modulation and scattering-aware global attention can be complementary. Adding both components together with the remaining design choices in the full configuration (Exp. 8) yields the strongest performance in Table III, achieving 59.7 mAP 50:95 and 90.3 mAP 50 with 5.6M parameters and 12.5G FLOPs. 
+
+7) Ablation on the Quality Gate g and temporal query aggregation (TQA-GRU) on FLOW.: In addition to the radar-encoder ablations above, Table IV isolates the effects of the point-wise gate g and the Temporal Query Aggregation module (TQA-GRU) on FLOW. Starting from the single-frame setting without g and TQA-GRU (ID-(1)), enabling only g (ID-(2)) improves mAP 50 from 89.5 to 90.8 and mAP 50:95 from 44.1 to 44.2. Enabling only TQA-GRU under 
+
+T =1 (ID-(3)) yields 91.3 mAP 50 and 44.6 mAP 50:95 , and increasing the temporal window to T =3 (ID-(4)) further improves to 92.1/45.0. Finally, combining g and TQA-GRU achieves the highest performance: 93.4/45.7 for T =1 (ID-(5)) and 94.8/46.2 for T =3 (ID-(6)). These results suggest that point-wise reliability filtering and query-level temporal aggregation provide complementary gains under intermittent radar observations. 
+
+E. Visualization Results 
+
+We provide qualitative results to complement the quantita-tive comparisons and to illustrate how the proposed PysFusion behave under challenging water-surface conditions. 
+
+1) Overall qualitative results.: Fig. 8 presents representa-tive detections produced by PhysFusion across diverse scenes, including open water, near-shore channels, bridge/riverbank structures, and night-time illumination. The examples cover multiple categories (e.g., Ship , Boat , Vessel , Pier , Buoy ,and Sailor ) and include cases with background reflections, shoreline clutter, and partial occlusion. These results indicate that fused radar–image queries can produce stable predictions across varying illumination conditions while maintaining in-stance separation in cluttered regions. 
+
+2) Vision-only vs. radar–image PhysFusion.: Fig. 9 com-pares the vision-only variant (PhysFusion-C, (a)–(c)) with the full radar–image PhysFusion ((d)–(f)). The red ellipses in (a)– (c) illustrate typical failure cases under vision-only inference, including missed detections and false positives caused by water-surface reflections or background structures. With the radar branch enabled, PhysFusion leverages radar evidence and the reliability gate to reduce the influence of unstable returns before fusion, recovering detections that are missed in the vision-only setting and yielding more consistent localization in cluttered or low-contrast regions. 
+
+3) Comparison to a multi-modal baseline under low vis-ibility.: Fig. 10 further compares PhysFusion with a multi-modal YOLOv10-L baseline under low-light and low-visibility conditions. The baseline results (a)–(c) show missed targets and less precise localization when appearance cues are weak and the background contains strong reflections and sensor noise. In contrast, PhysFusion (d)–(f) leverages: (i) RIFM, where semantically enriched radar features guide query-level fusion by attending to multi-scale image features, and (ii) TQA-GRU, which aggregates fused queries over a short temporal window to reduce frame-to-frame fluctuations under intermittent radar returns. In these examples, this combination helps retain detections for small or distant targets and improves localization consistency under degraded visibility. V. C ONCLUSIONS 
+
+In this paper, we presented PhysFusion, a physics-informed radar–image detection framework tailored for water-surface perception. The proposed approach targets practical challenges in USV scenarios, including non-stationary wave clutter, spec-ular reflections, long-range observations with weak visual cues, and sparse/intermittent radar returns. PhysFusion is built on three key components. First, we in-troduce a Physics-Informed Radar Encoder (PIR Encoder) that combines an RCS Mapper with a Quality Gate to construct a compact scattering prior and to estimate point-wise reliability, improving radar feature robustness under heavy-tailed reflec-tivity variations and unstable returns. Second, we propose a Radar-guided Interactive Fusion Module (RIFM) that performs query-level radar–image fusion, enabling adaptive cross-modal interaction between semantically enriched radar queries and multi-scale visual features; the radar branch further adopts SASA for global modeling of sparse radar points. Third, we employ Temporal Query Aggregation (TQA), implemented with a lightweight GRU (TQA-GRU), to aggregate frame-wise fused queries over a short temporal window and improve frame-to-frame consistency under intermittent observations. Experimental results on WaterScenes and FLOW show that PhysFusion attains favorable detection performance with moderate model complexity and practical inference speed. These results validate the effectiveness of PhysFusion for practical deployment in USV applications such as autonomous navigation, surface monitoring, and obstacle avoidance. JOURNAL OF L ATEX CLASS FILES, VOL. 14, NO. 8, AUGUST 2021 12 
+
+Fig. 9: Comparison between vision-only and radar-image fusion detection results under challenging water-surface conditions. Subfigures (a)–(c) show detection results from the vision-only variant PhysFusion-C, while (d)–(f) are results from the full multi-modal PhysFusion. Red ellipses in (a)–(c) indicate failure cases such as missed or false detections. Several directions remain for future work. First, more ex-plicit motion modeling (e.g., tracking-aware or state-space temporal aggregation) may further improve robustness un-der rapid platform dynamics and wave-induced occlusions. Second, extending the framework to incorporate additional sensing modalities (e.g., thermal imaging or sonar) could improve performance under extreme visibility degradation. Third, adapting PhysFusion to broader tasks such as multi-object tracking or instance segmentation may further expand its applicability for maritime autonomy. While PhysFusion shows promising results, several direc-tions remain open for further exploration: (1) Incorporating temporal cues from radar sequences could further enhance detection consistency in dynamic or wave-disturbed environ-ments; (2) Integrating additional sensing modalities, such as sonar or thermal imaging, may improve robustness under extreme weather or lighting conditions; (3) Extending Phys-Fusion to support broader perception tasks (e.g., semantic segmentation, tracking, or panoptic perception) may further strengthen its applicability in complex maritime environments. ACKNOWLEDGMENTS 
+
+This work was supported by the National Science and Tech-nology Major Project under grant number 2022ZD0116409. REFERENCES [1] S. Ma, Y. Zhang, L. Peng, C. Sun, B. Ding, and Y. Zhu, “Owrt-detr: A novel real-time transformer network for small-object detection in open-water search and rescue from uav aerial imagery,” IEEE Transactions on Geoscience and Remote Sensing , vol. 63, pp. 1–13, 2025. [2] S. Yao, R. Guan, Z. Wu, Y. Ni, Z. Huang, R. W. Liu, Y. Yue, W. Ding, E. G. Lim, H. Seo et al. , “Waterscenes: A multi-task 4d radar-camera fusion dataset and benchmarks for autonomous driving on water surfaces,” IEEE Transactions on Intelligent Transportation Systems , vol. 25, no. 11, pp. 16 584–16 598, 2024. [3] N. Wang, Y. Wang, Y. Feng, and Y. Wei, “Mdd-shipnet: Math-data inte-grated defogging for fog-occlusion ship detection,” IEEE Transactions on Intelligent Transportation Systems , vol. 25, no. 10, pp. 15 040–15 052, 2024. [4] J. Qu, R. W. Liu, Y. Gao, Y. Guo, F. Zhu, and F.-Y. Wang, “Double domain guided real-time low-light image enhancement for ultra-high-definition transportation surveillance,” IEEE Transactions on Intelligent Transportation Systems , vol. 25, no. 8, pp. 9550–9562, 2024. [5] I. Bilik, “Comparative analysis of radar and lidar technologies for auto-motive applications,” IEEE Intelligent Transportation Systems Magazine ,vol. 15, no. 1, pp. 244–269, 2022. [6] R. Guan, S. Yao, X. Zhu, K. L. Man, E. G. Lim, J. Smith, Y. Yue, and Y. Yue, “Achelous: A fast unified water-surface panoptic perception framework based on fusion of monocular camera and 4d mmwave radar,” in 2023 IEEE 26th International Conference on Intelligent Transportation Systems (ITSC) . IEEE, 2023, pp. 182–188. [7] J. Zhu, Y. Yang, and Y. Cheng, “A millimeter-wave radar-aided vision detection method for water surface small object detection,” Journal of Marine Science and Engineering , vol. 11, no. 9, p. 1794, 2023. [8] Y. Cheng, J. Zhu, M. Jiang, J. Fu, C. Pang, P. Wang, K. Sankaran, O. Onabola, Y. Liu, D. Liu, and Y. Bengio, “Flow: A dataset and benchmark for floating waste detection in inland waters,” in Proceedings of the IEEE/CVF International Conference on Computer Vision (ICCV) ,October 2021, pp. 10 953–10 962. [9] S. Vora, A. H. Lang, B. Helou, and O. Beijbom, “Pointpainting: Sequential fusion for 3d object detection,” 2020 IEEE/CVF Conference on Computer Vision and Pattern Recognition (CVPR) , pp. 4603–4611, 2019. [10] X. Bai, Z. Hu, X. Zhu, Q. Huang, Y. Chen, H. Fu, and C.-L. Tai, “Transfusion: Robust lidar-camera fusion for 3d object detection with JOURNAL OF L ATEX CLASS FILES, VOL. 14, NO. 8, AUGUST 2021 13 
+
+Fig. 10: Qualitative comparison between multi-modal YOLOv10-L (top row, a–c) and the proposed PhysFusion (bottom row, d–f) under low-light and low-visibility conditions. Subfigures (a)–(c) show detection results from the YOLOX-L-based multi-modal detector, while (d)–(f) present results from the full PhysFusion model. Red ellipses in (a)–(c) indicate missed or false detections. 
+
+transformers,” 2022 IEEE/CVF Conference on Computer Vision and Pattern Recognition (CVPR) , pp. 1080–1089, 2022. [11] Z. Liu, H. Tang, A. Amini, X. Yang, H. Mao, D. L. Rus, and S. Han, “Bevfusion: Multi-task multi-sensor fusion with unified bird’s-eye view representation,” in 2023 IEEE international conference on robotics and automation (ICRA) . IEEE, 2023, pp. 2774–2781. [12] H. Cai, Z. Zhang, Z. Zhou, Z. Li, W. Ding, and J. Zhao, “Bevfusion4d: Learning lidar-camera fusion under bird’s-eye-view via cross-modality guidance and temporal aggregation,” arXiv preprint arXiv:2303.17099 ,2023. [13] M. Chang, X. Zhang, R. Zhang, Z. Zhao, G. He, and S. Liu, “Re-currentbev: A long-term temporal fusion framework for multi-view 3d detection,” in European Conference on Computer Vision . Springer, 2025, pp. 131–147. [14] T. Liang, H. Xie, K. Yu, Z. Xia, Z. Lin, Y. Wang, T. Tang, B. Wang, and Z. Tang, “Bevfusion: A simple and robust lidar-camera fusion framework,” ArXiv , vol. abs/2205.13790, 2022. [15] A. Ouaknine, A. Newson, J. Rebut, F. Tupin, and P. P´ erez, “Carrada dataset: Camera and automotive radar with range-angle-doppler anno-tations,” in 2020 25th International Conference on Pattern Recognition (ICPR) . IEEE, 2021, pp. 5068–5075. [16] M. Bijelic, T. Gruber, F. Mannan, F. Kraus, W. Ritter, K. Dietmayer, and F. Heide, “Seeing through fog without seeing fog: Deep multi-modal sensor fusion in unseen adverse weather,” in Proceedings of the IEEE/CVF Conference on Computer Vision and Pattern Recognition ,2020, pp. 11 682–11 692. [17] Y. Cheng, J. Zhu, M. Jiang, J. Fu, C. Pang, P. Wang, K. Sankaran, O. Onabola, Y. Liu, D. Liu et al. , “Flow: A dataset and benchmark for floating waste detection in inland waters,” in Proceedings of the IEEE/CVF international conference on computer vision , 2021, pp. 10 953–10 962. [18] S. Chadwick, W. Maddern, and P. Newman, “Distant vehicle detection using radar and vision,” in 2019 International conference on robotics and automation (ICRA) . Ieee, 2019, pp. 8311–8317. [19] R. Nabati and H. Qi, “Centerfusion: Center-based radar and camera fusion for 3d object detection,” in Proceedings of the IEEE/CVF winter conference on applications of computer vision , 2021, pp. 1527–1536. [20] Y. Kim, S. Kim, J. W. Choi, and D. Kum, “Craft: Camera-radar 3d object detection with spatio-contextual fusion transformer,” in Proceedings of the AAAI Conference on Artificial Intelligence , vol. 37, no. 1, 2023, pp. 1160–1168. [21] J. Zhang, H. Liu, K. Yang, X. Hu, R. Liu, and R. Stiefelhagen, “Cmx: Cross-modal fusion for rgb-x semantic segmentation with transformers,” 
+
+IEEE Transactions on intelligent transportation systems , vol. 24, no. 12, pp. 14 679–14 694, 2023. [22] Z. Lin, Z. Liu, Z. Xia, X. Wang, Y. Wang, S. Qi, Y. Dong, N. Dong, L. Zhang, and C. Zhu, “Rcbevdet: Radar-camera fusion in bird’s eye view for 3d object detection,” in Proceedings of the IEEE/CVF Conference on Computer Vision and Pattern Recognition , 2024, pp. 14 928–14 937. [23] S. Yao, R. Guan, X. Huang, Z. Li, X. Sha, Y. Yue, E. G. Lim, H. Seo, K. L. Man, X. Zhu, and Y. Yue, “Radar-camera fusion for object detection and semantic segmentation in autonomous driving: A comprehensive review,” IEEE Transactions on Intelligent Vehicles ,vol. 9, no. 1, pp. 2094–2128, 2024. [24] K. Shi, S. He, Z. Shi, A. Chen, Z. Xiong, J. Chen, and J. Luo, “Radar and camera fusion for object detection and tracking: A comprehensive survey,” IEEE Communications Surveys & Tutorials , vol. 28, pp. 3478– 3520, 2026. [25] H. Zhao, L. Jiang, J. Jia, P. Torr, and V. Koltun, “Point transformer,” in Proceedings of the IEEE/CVF International Conference on Computer Vision (ICCV) , 2021. [26] J. Mao, Y. Xue, M. Niu, H. Bai, J. Feng, X. Liang, H. Xu, and C. Xu, “Voxel transformer for 3d object detection,” in Proceedings of the IEEE/CVF International Conference on Computer Vision (ICCV) ,2021. [27] Y. Zhao, W. Lv, S. Xu, J. Wei, G. Wang, Q. Dang, Y. Liu, and J. Chen, “Detrs beat yolos on real-time object detection,” in Proceedings of the IEEE/CVF Conference on Computer Vision and Pattern Recognition (CVPR) , June 2024, pp. 16 965–16 974. [28] X. Zhu, W. Su, L. Lu, B. Li, X. Wang, and J. Dai, “Deformable DETR: Deformable transformers for end-to-end object detection,” in 
+
+International Conference on Learning Representations (ICLR) , 2021. [Online]. Available: https://openreview.net/forum?id=gZ9hCDWe6ke [29] Y. Wan, L. Sun, J. Hao, and P. Lv, “Focalfusion: An object-centric temporal fusion framework for multi-modal 3d detection,” 
+
+Neurocomputing , vol. 664, p. 131914, 2026. [Online]. Available: https://www.sciencedirect.com/science/article/pii/S092523122502586X [30] Z. Li, W. Wang, H. Li, E. Xie, C. Sima, T. Lu, Q. Yu, and J. Dai, “Bevformer: Learning bird’s-eye-view representation from multi-camera images via spatiotemporal transformers,” ArXiv , vol. abs/2203.17270, 2022. JOURNAL OF L ATEX CLASS FILES, VOL. 14, NO. 8, AUGUST 2021 14 
+
+[31] Y. Wang, Y. Sun, Z. Liu, S. E. Sarma, M. M. Bronstein, and J. M. Solomon, “Dynamic graph cnn for learning on point clouds,” ACM Transactions on Graphics (TOG) , vol. 38, no. 5, 2019. [32] A. Bochkovskiy, C.-Y. Wang, and H.-Y. M. Liao, “Yolov4: Optimal speed and accuracy of object detection,” arXiv preprint arXiv:2004.10934 , 2020. [Online]. Available: https: //arxiv.org/abs/2004.10934 [33] C.-Y. Wang, A. Bochkovskiy, and H.-Y. M. Liao, “Yolov7: Trainable bag-of-freebies sets new state-of-the-art for real-time object detectors,” 
+
+arXiv preprint arXiv:2207.02696 , 2022. [Online]. Available: https: //arxiv.org/abs/2207.02696 [34] Z. Ge, S. Liu, F. Wang, Z. Li, and J. Sun, “Yolox: Exceeding yolo series in 2021,” arXiv preprint arXiv:2107.08430 , 2021. [Online]. Available: https://arxiv.org/abs/2107.08430 [35] R. Varghese and S. M., “Yolov8: A novel object detection algorithm with enhanced performance and robustness,” in 2024 International Conference on Advances in Data Engineering and Intelligent Computing Systems (ADICS) , 2024, pp. 1–6. [36] A. Wang, H. Chen, L. Liu, K. Chen, Z. Lin, J. Han, and G. Ding, “Yolov10: Real-time end-to-end object detection,” arXiv preprint arXiv:2405.14458 , 2024. [Online]. Available: https://arxiv.org/abs/2405. 14458 [37] G. Jocher and J. Qiu, “Ultralytics yolo11,” GitHub repository, 2024, accessed: 2026-01-16. [Online]. Available: https://github.com/ ultralytics/ultralytics [38] R. Guan, S. Yao, X. Zhu, K. L. Man, E. G. Lim, J. Smith, Y. Yue, and Y. Yue, “Achelous: A fast unified water-surface panoptic perception framework based on fusion of monocular camera and 4d mmwave radar,” in 2023 IEEE 26th International Conference on Intelligent Transportation Systems (ITSC) , 2023, pp. 182–188. [39] C. R. Qi, L. Yi, H. Su, and L. J. Guibas, “Pointnet++: Deep hierarchical feature learning on point sets in a metric space,” in Advances in Neural Information Processing Systems ,I. Guyon, U. V. Luxburg, S. Bengio, H. Wallach, R. Fergus, S. Vishwanathan, and R. Garnett, Eds., vol. 30. Curran Associates, Inc., 2017. [Online]. Available: https://proceedings.neurips.cc/paper files/paper/2017/file/d8bf84be3800d12f74d8b05e9b89836f-Paper.pdf [40] C. Szegedy, S. Ioffe, V. Vanhoucke, and A. Alemi, “Inception-v4, inception-resnet and the impact of residual connections on learning,” 
+
+Proceedings of the AAAI Conference on Artificial Intelligence , vol. 31, no. 1, Feb. 2017. [Online]. Available: https://ojs.aaai.org/index.php/ AAAI/article/view/11231 [41] B. Zhu, Z. Jiang, X. Zhou, Z. Li, and G. Yu, “Class-balanced grouping and sampling for point cloud 3d object detection,” arXiv preprint arXiv:1908.09492 , 2019. [42] I. Loshchilov and F. Hutter, “Decoupled weight decay regularization,” 
+
+arXiv preprint arXiv:1711.05101 , 2017. [43] Q. Zhang, X. Liu, M. Shao, T. Zhang, Y. Sun, and H. Yuan, “Usvrt-detr: A transformer-based detector with multi-scale feature fusion and intra-scale interaction for usv surface scenarios,” Ocean Engineering , vol. 342, p. 122926, 2025. [Online]. Available: https: //www.sciencedirect.com/science/article/pii/S0029801825026095 [44] Q. Wei, X. Jiang, Y. Liu, Q. Su, and M. Yu, “Small object detection on the water surface based on radar and camera fusion,” in ICASSP 2024 - 2024 IEEE International Conference on Acoustics, Speech and Signal Processing (ICASSP) , 2024, pp. 8381–8385.

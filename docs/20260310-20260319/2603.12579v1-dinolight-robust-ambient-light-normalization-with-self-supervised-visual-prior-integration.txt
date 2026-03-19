@@ -1,0 +1,328 @@
+Title: DINOLight: Robust Ambient Light Normalization with Self-supervised Visual Prior Integration
+
+URL Source: https://arxiv.org/pdf/2603.12579v1
+
+Published Time: Mon, 16 Mar 2026 00:23:31 GMT
+
+Number of Pages: 15
+
+Markdown Content:
+# DINOLight: Robust Ambient Light Normalization with Self-supervised Visual Prior Integration 
+
+Youngjin Oh 1[0009 −0003 −2932 −2417] , Junhyeong Kwon 1[0009 −0003 −6383 −8775] , and Nam Ik Cho 1[0000 −0001 −5297 −4649] 
+
+Department of ECE, INMC, Seoul National University, Seoul, Korea 
+
+{yjymoh0211,gjh8760,nicho}@snu.ac.kr 
+
+Abstract. This paper presents a new ambient light normalization frame-work, DINOLight, that integrates the self-supervised model DINOv2’s image understanding capability into the restoration process as a visual prior. Ambient light normalization aims to restore images degraded by non-uniform shadows and lighting caused by multiple light sources and complex scene geometries. We observe that DINOv2 can reliably extract both semantic and geometric information from a degraded image. Based on this observation, we develop a novel framework to utilize DINOv2 fea-tures for lighting normalization. First, we propose an adaptive feature fusion module that combines features from different DINOv2 layers using a point-wise softmax mask. Next, the fused features are integrated into our proposed restoration network in both spatial and frequency domains through an auxiliary cross-attention mechanism. Experiments show that DINOLight achieves superior performance on the Ambient6K dataset, and that DINOv2 features are effective for enhancing ambient light nor-malization. We also apply our method to shadow-removal benchmark datasets, achieving competitive results compared to methods that use mask priors. Codes will be released upon acceptance. 
+
+Keywords: Ambient light normalization · Image restoration. 
+
+1 Introduction 
+
+Ambient Light Normalization (ALN) [46] is an emerging challenge in image restoration, extending beyond conventional shadow removal. While most shadow removal techniques focus on eliminating shadows created by a single light source on a flat surface [26, 50], ALN addresses a more generalized and challenging scenario where images suffer from multiple shadows resulting from various light sources, complex scene geometries, and diverse surface materials [46]. ALN is particularly relevant to real-world applications, where environmental lighting conditions and scenes are rarely uniform or flat, and shadows can significantly degrade image quality. A major challenge in shadow removal is identifying the shadowed areas and estimating their extent of degradation. Shadow removal methods, for exam-ple, [6, 15, 18, 19, 26, 44, 45, 47, 50], address this problem by using shadow mask 
+
+> arXiv:2603.12579v1 [cs.CV] 13 Mar 2026
+
+2 Oh et al. Scene  Shallow   
+
+> features
+> Middle
+> features
+> Deep
+> features
+> DINOv2 DINOv2
+> Scene Shallow
+> features
+> Middle
+> features
+> Deep
+> features
+
+Fig. 1. Comparison of PCA-computed DINOv2 features of pairs of images from the Ambient6K dataset, which have the same content under different lighting conditions. We observe that DINOv2 features contain degradation-dependent and -independent information that varies with layer depth, motivating us to use them for restoration. More examples can be found in the Supplementary Material. 
+
+priors to guide the restoration process. However, these mask priors are not al-ways easy to obtain or accurately estimate in real-world scenarios, which limits the effectiveness of such methods. The reliance on shadow masks can hinder per-formance, especially in uncontrolled environments where light and shadow are irregular and constantly changing, such as in ALN. This highlights the need for a more reliable and robust approach that does not rely on ground-truth mask information. In this paper, we note that one potential solution lies in the utilization of visual foundation models. Specifically, we focus on DINOv2 [39], a self-supervised ViT [9] model, which has demonstrated impressive ability to extract rich and comprehensive features from images, such as geometric information and 3D-aware representations from a single scene [11,37], as well as semantic information. This is because the self-supervised nature of DINOv2 allows it to learn from large-scale uncurated datasets, making it a strong choice for tasks that require robust feature extraction. To utilize DINOv2 as a visual prior for ALN, we first examine its features of degraded images produced by different light sources [46] as shown in Fig. 1. Through observations with many different degraded image pairs, we have found that relatively fine-grained positional and geometric information is generally available in the shallow layers of the ViT-based [9] DINOv2, while deeper lay-ers tend to generate semantic-aware features [2, 39, 41, 42]. These characteristics are an ideal prior for ALN, as the extracted features can implicitly provide a deeper understanding of the scene geometry, structure, semantics, and underly-ing causes of degradation. However, the challenge of effectively integrating the rich information from DINOv2 features into restoration remains non-trivial. In this context, we propose DINOLight, a new framework that seamlessly em-beds the self-supervised visual priors, which are DINOv2 features, into the ALN process. Our approach begins by extracting DINOv2 features from several layers of the ViT DINOv2 model. We then combine these features with our proposed Adaptive Feature Fusion Module (AFFM) (Section 3.1). The AFFM is a simple yet effective module that generates point-wise fusion weight masks, which are applied to fuse the DINOv2 features. The blended features are further integrated DINOLight 3
+
+with the internal features of our proposed Transformer-based restoration network through a novel Auxiliary Cross-Attention (ACA) mechanism that operates in both the spatial and frequency domains (Section 3.2). This dual-domain atten-tion approach, which utilizes DINOv2 features, supplements the self-attention features derived from internal training data. This strategy enhances ALN by incorporating external knowledge learned from large-scale datasets. Experimental results on the ALN benchmark dataset Ambient6K demon-strate that DINOLight outperforms previous methods in ALN. Additionally, DINOLight achieves favorable results on shadow removal benchmarks when com-pared to methods that rely on shadow masks. These results suggest that a com-prehensive understanding of both geometric and semantic aspects of a scene is beneficial to ALN and shadow removal. The main contributions of this paper can be summarized as follows: 
+
+– We introduce DINOLight, a novel method that leverages the robust feature-extraction capabilities of DINOv2 for ALN. We believe this is a significant advancement in addressing the complexities of real-world lighting conditions. 
+
+– We present the Adaptive Feature Fusion Module (AFFM), which flexibly merges features extracted from different layers of DINOv2. These fused features are then used as prior information to aid the restoration process through the Auxiliary Cross-Attention (ACA) mechanism. 
+
+– We demonstrate the effectiveness of the proposed method in ALN and show its generalization capability by achieving competitive performance in the closely related task of shadow removal without using shadow masks, sug-gesting its potential as a unified solution for lighting restoration. 
+
+2 Related Work 
+
+2.1 Shadow Removal 
+
+Shadow removal has been extensively studied in computer vision, with early approaches relying on physical models of shadow formation and handcrafted priors [1,13,14,32,56]. Recent advances in deep learning-based image restoration have fostered significant developments in shadow removal as well, with methods ranging from generative models [6, 22, 23, 27, 50] and Transformers [8, 18, 53, 58] to learn shadow removal directly from paired shadow and shadow-free images, with only unpaired shadowed images [21, 33, 44], or even diffusion [19, 20, 38]. Among these, many are mask-prior methods [15, 18, 19, 26, 44, 45, 50], which utilize explicit shadow masks to guide the removal process. This leads to more ac-curate reconstructions, especially in well-defined shadow regions. However, these approaches often struggle with soft shadows and ambiguous mask boundaries, and accurately collecting shadow masks is a demanding and laborious task. On the other hand, mask-free methods [8, 22, 23, 58] aim to overcome the limitations of mask-prior approaches by removing shadows without explicitly re-lying on masks. Although these mask-free methods moderately remove shadows, they still underperform compared to mask-prior methods, as the masks explicitly guide the networks to focus on areas affected by shadows. 4 Oh et al. 
+
+2.2 Ambient Light Normalization 
+
+A more generalized scenario is ALN [46], which extends beyond shadow removal to address broader illumination inconsistencies. Unlike traditional shadow re-moval problems that focus solely on shadows cast by occluders, ALN aims to tackle complex interactions, including self-shadows and varying light sources. IFBlend [46] is a pioneering work in this domain, which defined the task it-self. They proposed a robust approach to normalizing lighting conditions across images with diverse lighting variations and a benchmark dataset, Ambient6K, to facilitate research on the topic. By maximizing the joint entropy of image frequencies, IFBlend selectively restores local areas without relying on explicit shadow masks. This scheme is applicable to a broader range of scenarios beyond conventional shadow removal, demonstrating its effectiveness in both structured and unstructured lighting conditions. Concurrent to our work, a challenge [43,48] was held to foster research on ALN. 
+
+2.3 DINOv2 on Low-Level Vision Tasks 
+
+DINOv2 [39] is a self-supervised learning framework designed to produce all-purpose visual features that generalize across diverse image distributions and tasks without fine-tuning. In contrast to CLIP [40], which is a vision-language model designed to learn visual concepts from natural language supervision that has been frequently utilized for image restoration [10,17,29,30,35,36], DINOv2’s application to low-level image restoration remains relatively unexplored, albeit its broad adoption for high-level vision tasks. Recently, promising works on image restoration utilizing DINOv2 [31, 59] have been proposed to tackle universal image restoration by exploiting the se-mantics and robustness of DINOv2 features on multiple degradations. Despite these studies, the application of vision foundation models, such as DINOv2, to other image restoration tasks remains a topic with significant research potential. While we acknowledge the findings of previous works, we aim to explore additional aspects of DINOv2 for our task. Notably, DINOv2 demonstrates a remarkable ability to capture geometric structures and 3D-aware representations of scenes [11, 37], as well as to understand semantics. These capabilities are particularly pertinent to ALN, where it is crucial to comprehend the interactions between objects, shadows, textures, and variations in lighting. To our knowledge, this is the first study to utilize DINOv2 features for ALN. 
+
+3 Method 
+
+Our primary objective is to develop a novel and effective end-to-end ALN frame-work that seamlessly integrates self-supervised DINOv2 features as a visual prior across different layers. Specifically, our method is composed of two stages: (a) 
+
+DINOv2 feature extraction and fusion, and (b) DINOv2 feature-integrated ALN, as illustrated in Fig. 2. For each stage, we propose important key components aimed at achieving its specific goal: Adaptive Feature Fusion module (AFFM) for (a) , and Auxiliary Cross Attention (ACA) for (b) .DINOLight 5DINOv2         
+
+> AFFM AFFM AFFM AFFM AFFM AFFM AFFM C
+> SFDINO
+> Block
+> 3x3 conv
+> 3x3 conv
+> Degraded
+> image 𝑰 𝑫
+> Restored
+> image 𝑰 𝑹
+
+(a) DINOv2 Feature Extraction and Fusion  (b) DINOv2 Feature -Integrated Ambient Light Normalization                                 
+
+> 𝑭 𝒅𝒆𝒆𝒑 𝑭 𝒎𝒊𝒅𝒅𝒍𝒆 𝑭 𝒔𝒉𝒂𝒍𝒍𝒐𝒘
+> C
+> SiLU
+> Softmax
+> LN
+> 1x1 1x1  1x1
+> 3x3
+> dconv
+> 3x3
+> dconv
+> 3x3
+> dconv
+> 1x1 1x1  1x1
+> 3x3
+> dconv
+> 3x3
+> dconv
+> 3x3
+> dconv
+> LN
+> Q
+> K
+> V
+> Q′
+> K′
+> V′
+> R
+> R
+> R
+> R
+> R
+> RR
+> R
+> ×𝜶
+> 1x1
+> LN
+> FFN
+> LN
+> 1x1 1x1  1x1
+> 3x3
+> dconv
+> 3x3
+> dconv
+> 3x3
+> dconv
+> 1x1 1x1  1x1
+> 3x3
+> dconv
+> 3x3
+> dconv
+> 3x3
+> dconv
+> LN
+> Q
+> K
+> V
+> Q′
+> K′
+> V′
+> ×𝜷
+> 1x1
+> LN
+> FFN
+> FFT FFT
+> IFFT
+> LN
+> IFFT
+> LN
+> FFT FFT
+> 𝑊 =Concat [𝑊 𝑠 ,𝑊 𝑚 ,𝑊 𝑑 ]
+> 1x1 conv
+> SiLU SiLU
+> 1x1 conv 1x1 conv
+> 𝑊 𝑠 𝑊 𝑚 𝑊 𝑑
+> 𝑭 𝒅𝒆𝒆𝒑 𝑭 𝒎𝒊𝒅𝒅𝒍𝒆 𝑭 𝒔𝒉𝒂𝒍𝒍𝒐𝒘
+> 𝐹 𝑝𝑟𝑒𝑣
+> 𝐹 𝑓𝑢𝑠𝑒 𝐹 𝑓𝑢𝑠𝑒 𝐹 𝑐𝑎
+> 𝐹 𝑠𝑎
+> 𝐹 𝑐𝑎
+> 𝐹 𝑠𝑎
+> 𝐹 𝑎𝑡𝑡𝑛 𝐹 𝑎𝑡𝑡𝑛
+> Adaptive Feature Fusion
+> Module (AFFM)
+> SFDINO (Spatial -Frequency auxiliary cross -attention with DINOv2 features)
+> Block
+> ×𝐿 1
+> SFDINO
+> Block
+> SFDINO
+> Block
+> SFDINO
+> Block
+> SFDINO
+> Block
+> SFDINO
+> Block
+> SFDINO
+> Block
+> SFDINO
+> Block
+> ×𝐿 2×𝐿 3×𝐿 4×𝐿 3×𝐿 2×𝐿 1×𝐿 𝑟
+> C
+> 1x1 conv
+> C
+> 1x1 conv
+> C
+> 1x1 conv
+> Spatial Auxiliary Cross -Attention Frequency Auxiliary Cross -Attention
+
+× 𝐿 𝑖      
+
+> R
+> C
+> Bilinear
+> interpolation
+> Element -wise
+> Addition
+> Matrix
+> Multiplication
+> Element -wise
+> Multiplication
+> Reshape
+> Concatenation
+> Up -sampling
+> Down -sampling
+> 1x1 conv 1x1 conv 1x1 conv 1x1 conv 1x1 conv 1x1 conv 1x1 conv
+> 𝑭 𝑨𝑭𝑭𝑴
+> FFN
+> 1x1
+> Simple
+> Gate
+> 1x1
+
+Fig. 2. Overview of DINOLight, and the two core elements: Adaptive Feature Fu-sion Module (AFFM), and Auxiliary Cross-Attention (ACA) of the proposed SFDINO block. (a) The first stage involves extracting features from various layers of DINOv2 and combining them using AFFM. (b) In the second stage, the fused features are in-tegrated into the ALN process at multiple resolutions using ACA in SFDINO blocks. 
+
+3.1 DINOv2 Feature Extraction and Fusion 
+
+The first stage of DINOLight extracts features from different layers of DINOv2 and combines them to prepare for the restoration stage, as shown in Fig. 2 (a) .We select features from multiple depths of the model as the hierarchical nature of the ViT architecture [9] allows each layer to progressively capture different types of information. This phenomenon is evident in the features obtained from degraded images. As illustrated in Fig. 1, shallow features capture positional details and geomet-ric structures, whereas deep features prioritize semantic understanding, focus-ing on object distinctions rather than fine details retention. Importantly, shal-low features reveal lighting-dependent information, while deep features highlight lighting-invariant characteristics. More examples of the features are available in the Supplementary Material. It is essential to fully utilize these various features to provide optimal infor-mation for ALN. In this context, given a degraded image ID ∈ RH× W ×3, we first extract DINOv2 features Fshallow , F middle , F deep ∈ R H
+
+14 × W
+
+14 ×768 from layers 
+
+1, 6, 12 of a distilled ViT-B/14 DINOv2 with registers [7, 9, 39], and concatenate them. The concatenated features are fused by our proposed AFFM, and the resulting fused features are subsequently passed to the restoration network to enhance its performance. 
+
+Adaptive Feature Fusion Module. We develop an efficient and effective strat-egy that retains the original DINOv2 features while emphasizing the most rele-vant information at each feature point. First, the concatenated DINOv2 features are used as an input to our AFFM, as illustrated in Fig. 2. The features are split 6 Oh et al. 
+
+into shallow, middle, and deep features ( Fshallow , Fmiddle , Fdeep ), and each feature is then processed by a SiLU activation [12] followed by a 1 × 1 convolu-tion layer. The outputs are concatenated, and a Softmax function is applied to produce weight maps Ws, W m, W d ∈ R H   
+
+> 14 ×W
+> 14 ×1
+
+. These point-wise fusion weight maps are multiplied to each feature from different layers to emphasize the impor-tant components from DINOv2 features containing diverse information that can help locate areas to restore, such as under- or over-lighted areas of a degraded image. The final output FAF F M of AFFM is: 
+
+FAF F M = Ws ⊙ Fshallow + Wm ⊙ Fmiddle + Wd ⊙ Fdeep , (1) where ⊙ denotes element-wise multiplication. A multi-scale hierarchical structure for an image restoration network [3, 28, 51, 54] enables processing of input images at different resolutions at each stage, thereby enhancing performance. To exploit the strengths of this design, we use the AFFM to combine DINOv2 features across the hierarchical stages of our restoration network. Each fused feature FAF F M is processed with a 1 × 1 point-wise convolution and bilinear upsampling to ensure consistent feature dimensions across stages. This approach enables us to provide optimal features needed at each stage of the restoration process. 
+
+3.2 DINOv2 Feature-Integrated ALN 
+
+In the second stage, DINOLight performs ALN by integrating the fused DINOv2 features generated by AFFM with the restoration network’s internal features. To incorporate external features into restoration, we design a Transformer block called “SFDINO.” The block is equipped with our proposed attention mecha-nism, ACA, which effectively utilizes spatial and frequency domains to merge external and internal information. With SFDINO blocks, DINOLight’s restora-tion network is structured to be hierarchical and multi-scale (Fig. 2 (b) ). 
+
+Auxiliary Cross-Attention. Self-attention [49] operates with key, query, and values generated from self-computed features, and Transformers are used in many restoration tasks [28, 54] for their excellent performance. We build upon this knowledge and reinforce self-attention with our proposed ACA. The detailed structure of our SFDINO block is depicted in Fig. 2. For sim-plicity, we denote the internal features from the previous Transformer block and the fused DINOv2 features for the corresponding stage as Fprev and Ff use ∈
+
+R ˆH× ˆW × ˆC , respectively. Our block first applies layer norm on Fprev and Ff use to obtain normalized tensors X and X′. Following linear transformations WQ, W K , W V , and WQ′ ,where each transformation consists of a 1 ×1 point-wise and a 3 ×3 depth-wise convolution, we generate query Q, key K, value V, and auxiliary query Q′ from 
+
+X. Likewise, we obtain auxiliary key and value K′ and V′ by applying linear transformations WK′ and WV ′ on X′. Next, using transposed attention [54], we compute self- and cross-attention using Q, K, V, Q′, K′, and V′. After a channel-wise multiplication with a learnable parameter α ∈ R1×1× ˆC normalized DINOLight 7
+
+Table 1. Quantitative evaluations on Ambient6K test set. We highlight the best , second , and third best results. † denotes MACs without additional models. Method Task Prior PSNR ↑ SSIM ↑ LPIPS ↓ MACs Degraded - - 13.403 0.652 0.250 -DCShadowNet [22] Shadow Removal RGB 17.731 0.711 0.187 13.15G SpA-Former [58] RGB+Freq. 19.850 0.810 0.143 16.82G DW-NET [16] Dehazing RGB+Freq. 20.969 0.805 0.137 7.54G NAFNet [3] Restoration RGB 20.580 0.808 0.142 15.92G MPRNet [55] RGB 20.947 0.820 0.129 37.21G SFNet [5] RGB+Freq. 20.519 0.812 0.141 31.27G SwinIR [28] RGB 20.528 0.817 0.131 37.81G Uformer [51] RGB 20.776 0.818 0.131 19.33G Restormer [54] RGB 21.141 0.817 0.132 35.31G HINet [4] RGB 20.856 0.821 0.129 42.68G IFBlend [46] Ambient Light Normalization RGB+Freq. 21.443 0.819 0.128 26.01G PromptNorm [43] RGB+Geom. 22.116 0.822 0.124 13.49G †          
+
+> DINOLight (ours) RGB+Freq.+DINO 22.788 0.838 0.107 7.89G †
+> DINOLight-L (ours) RGB+Freq.+DINO 23.059 0.839 0.107 17.48G †
+
+to [0 , 1] by a Sigmoid function, cross-attention features Fca are added with self-attention features Fsa to complement them, hence named as “Auxiliary Cross-Attention.” The added features are processed with a 1 ×1 point-wise convolution and a residual connection. The overall process can be formulated as: 
+
+X = LayerN orm (Fprev ), X′ = LayerN orm (Ff use ),
+
+Q = WQX, K = WK X, V = WV X,
+
+Q′ = WQ′ X, K′ = WK′ X′, V′ = WV ′ X′,Fsa = Attn (Q, K, V), F ca = Attn (Q′, K′, V′),Fattn = Conv 1×1(Fsa + αF ca ) + Fprev .
+
+(2) The final attention feature Fattn is passed to the feed-forward network for further enhancement. This design allows the ACA to inject complementary context from the fused DINOv2 features into each stage of the network, improving both detail preservation and lighting consistency. Additionally, inspired by the finding that a frequency-domain approach is ef-fective for ALN [46], we also compute attentions sequentially using a frequency-domain-based self-attention [25]. This proposed dual-domain approach comple-ments spatial attention by efficiently capturing long-range dependencies. Net-work details are provided in the Supplementary Material. 
+
+Training Loss. DINOLight is trained in an end-to-end manner using a combi-nation of L1 loss and LM S −SSIM loss [52]. Given a ground truth image I and the restored image IR, we minimize the loss defined as: 
+
+L(I, I R) = |I − IR| + λ(1 − L M S −SSIM (I, I R)) , (3) where λ is a balancing hyper-parameter, set as 0.25 .8 Oh et al.       
+
+> Input NAFNet [3] IFBlend [46] PromptNorm [43] Ours Ground Truth
+> Fig. 3. Qualitative comparison on Ambient6K test set. From left to right: input, restoration results on a versatile restoration network NAFNet [3], previous ALN meth-ods IFBlend [46] and PromptNorm [43], ours, and ground truth. Red boxes highlight regions where DINOLight effectively normalizes light in comparison.
+
+4 Experiments 
+
+Dataset. For training and evaluation of DINOLight, we use the ALN bench-mark dataset Ambient6K [46], which is publicly available and contains 5,000 high-resolution image pairs (2560 ×1920) for training, and 500 test image pairs (1280 ×960). The training data is cropped into 448 ×448-sized patches. At infer-ence, we adopt a sliding window inference strategy to process the high-resolution input in fixed-size patches identical to the training resolution. 
+
+Training. We implement DINOLight using PyTorch with NVIDIA GeForce RTX 3090 GPUs. We use the Adam optimizer [24] ( β1 = 0 .9, β 2 = 0 .999 ) and an initial learning rate of 2e − 4 that is gradually decayed to 1e − 6 using cosine an-nealing [34], with a batch size of 4 for 400K iterations unless specified otherwise. The training patches are augmented with random flipping or rotations. 
+
+Compared Methods. For a fair and reliable comparison, we focused on meth-ods with publicly accessible implementations and reproducible results, in align-ment with Vasluianu et al. [46]. Therefore, we compare our method with DC-ShadowNet [22], SpA-Former [58], DW-NET [16], NAFNet [3], MPRNet [55], SFNet [5], SwinIR [28], Uformer [51], Restormer [54], HINet [4], IFBlend [46], and PromptNorm [43]. DINOLight 9
+
+4.1 Results Quantitative Comparison. Table 1 shows the compared quantitative results on Ambient6K. The measured metrics are PSNR, SSIM, and LPIPS [57] to assess the restored image quality. Our proposed method achieves superior performance across all metrics compared to previous methods, demonstrating its strength in both fidelity (+0.67 dB in PSNR) and perceptual quality (0.124 →0.107 in LPIPS). Additionally, our method offers a more favorable trade-off between computa-tional efficiency and restoration quality compared to existing methods. In terms of MACs, the restoration network of DINOLight requires 7.89 GMACs (16.86 GMACs including ViT-B/14 DINOv2), which is efficient than most methods aside from DW-NET. DINOLight is also lightweight compared to ALN meth-ods IFBlend [46] and PromptNorm [43] (383.4M and 20M parameters), with 9.5M parameters (95.0M with DINOv2) while delivering superior performance. We also train a larger version of DINOLight, denoted as DINOLight-L, to ap-proximately match the computational resources of previous methods. Notably, it outperforms the prior state-of-the-art PromptNorm by +0.94 dB in PSNR. 
+
+Qualitative Comparison. We provide a visual comparison of various methods applied to the Ambient6K dataset in Fig. 3. Additional visual results are pre-sented in the Supplementary Material. As illustrated, ALN is not a straightfor-ward task; it requires a method to simultaneously understand the image locally and globally while applying adaptive light normalization to different regions, object relations, and lighting conditions. Consequently, general image restoration networks, such as NAFNet [3], and previous ALN approaches [43, 46] often struggle to distinguish between shad-ows and objects, particularly in ambiguous regions. This leads to artifacts and color inconsistencies in such areas of an image. In contrast, our method suc-cessfully identifies the regions that require normalization and restores the image accurately, with fewer artifacts and faithful color (first, second, and third rows). It is also evident that DINOLight fully leverages the rich 3D-aware and se-mantic priors provided by DINOv2 features. For instance, the fourth row illus-trates that DINOLight understands self-shadowed regions that do not require excessive light normalization. While PromptNorm [43] also benefits from incor-porating depth information, we observe that it still exhibits some visible artifacts. Furthermore, our method demonstrates robust lighting normalization results on a challenging sample compared to other methods (fifth row), where intricate geometry induces complicated shadings and lighting effects. 
+
+4.2 Ablation Studies 
+
+We conduct ablation studies on features from different layers of DINOv2 and on the two key components of DINOLight: AFFM and ACA. For the ablation experiments, we train DINOLight on the Ambient6K training set with a batch size of 2 for 200K iterations to streamline the process. 10 Oh et al. 
+
+Table 2. Ablation of DINOv2 features and proposed AFFM on Ambient6K dataset. Method Fshallow Fmiddle Fdeep AFFM PSNR ↑ SSIM ↑ LPIPS ↓                                          
+
+> Baseline ✗✗✗✗19.685 0.784 0.147 Model A ✓✗✗✗22.207 0.822 0.119 Model B ✗✓✗✗20.605 0.802 0.138 Model C ✗✗✓✗22.060 0.823 0.117 Model D ✓✓✓✗22.414 0.829 0.115 DINOLight ✓✓✓✓22.600 0.830 0.112
+
+Table 3. Ablation of proposed ACA on Ambient6K dataset. Method DINOv2 Feature Spat. Attn Freq. Attn PSNR ↑ SSIM ↑ LPIPS ↓                              
+
+> Baseline ✗✓✓19.685 0.784 0.147 Model 1 ✓✓✗22.289 0.828 0.114 Model 2 ✓✗✓22.487 0.829 0.113 DINOLight-p ✓✓✓22.337 0.827 0.115 DINOLight ✓✓✓22.600 0.830 0.112
+
+Impact of DINOv2 features and AFFM. Table 2 shows the ablation results of each shallow, middle, and deep feature of DINOv2, and AFFM. The Baseline refers to a modified DINOLight that does not incorporate DINOv2 features; instead, it uses the internal features Fprev to compute cross-attention. Models A, B, and C are models in which each shallow, middle, and deep features from DINOv2 were used independently without fusion with AFFM to compute ACA. Model D is a variant that combines the features using a simple addition. We observe that all features improve the performance compared to the Base-line, with the greatest gain from Fshallow , which contains geometrical and posi-tional cues closely related to the degradations caused by multiple light sources. However, using only Fshallow is suboptimal compared to Model D and DINO-Light, both of which use all three features. This suggests that ALN benefits from the complementary knowledge of degradation-dependent and -independent in-formation across the layers of DINOv2, which is consistent with our underlying motivation. The effectiveness of our proposed AFFM is further demonstrated by com-paring Model D with DINOLight. The results indicate that AFFM contributes to ALN by adaptively selecting and emphasizing relevant features according to the hierarchical stage of the restoration network. 
+
+Effect of ACA. Table 3 highlights the impact of ACA when utilizing DINOv2 features. The Baseline is the same version of DINOLight in Table 2. Model 1 relies solely on spatial attention, while Model 2 utilizes only frequency atten-tion. In contrast, DINOLight combines both types of attention in an alternating order, sequentially using SFDINO blocks. Furthermore, we train a variant of DI-NOLight called DINOLight-p, in which the dual-domain ACA is run in parallel to compare with the sequential setting. DINOLight 11 
+
+Table 4. Quantitative evaluations on ISTD [50] and ISTD+ [26] test dataset. RMSE in the LAB color space is measured as the metric. Best results are highlighted in bold for each mask-prior and mask-free method, and unavailable results are omitted. Method Mask Usage Evaluation Resolution ISTD ISTD+ Total ↓ Shadow ↓ Shadow-Free ↓ Total ↓ Shadow ↓ Shadow-Free ↓                                                                                                        
+
+> Degraded -640 ×480 6.80 15.07 3.86 7.15 17.53 1.82 ST-CGAN [50] Mask-Prior 256 ×256 4.05 4.83 3.44 ---SP-M Net [26] 512 ×512 ---4.37 4.79 4.27 DHAN [6] 640 ×480 3.43 4.65 3.13 3.19 4.04 2.97 PULSr [44] 512 ×512 3.33 4.48 3.03 2.82 4.12 2.39 DNSR [45] 640 ×480 2.84 4.39 2.47 2.24 3.92 1.80 AEF [15] 256 ×256 3.10 3.75 2.79 2.31 3.23 2.05 ShadowFormer [18] 640 ×480 2.43 3.25 2.38 1.93 2.93 1.66
+> DCShadowNet [22] Mask-Free 640 ×480 4.06 5.97 3.62 4.60 10.30 3.50 DeS3 [23] 640 ×480 ---2.80 4.90 2.70 SwinIR [28] 640 ×480 3.70 4.84 3.44 3.00 4.54 2.44 Uformer [51] 640 ×480 3.72 4.83 3.47 3.17 4.50 2.71 Restormer [54] 512 ×512 3.73 5.30 3.44 3.13 4.17 2.79 IFBlend [46] 640 ×480 3.52 4.02 3.38 2.40 3.18 2.14 DINOLight (ours) 640 ×480 3.00 3.63 2.84 2.34 3.41 1.99
+
+Leveraging DINOv2 features with our proposed module significantly en-hances ALN, with a minimum increase of 2.80 dB in PSNR. Additionally, our SFDINO block further enhances restoration fidelity, demonstrating the syner-gistic effect of the dual-domain approach (DINOLight), compared to a purely spatial (Model 1) or a purely frequency-based approach (Model 2). We provide the visual ablation results in the Supplementary Material for extensive analysis. In the parallel setting of ACA, DINOLight exhibits inferior performance rel-ative to its deeper sequential counterpart, supporting our design choice. We also report that the ordering of spatial and frequency attentions in a sequential con-figuration has a negligible influence on performance. 
+
+4.3 Application to Shadow Removal 
+
+To verify the strength of our method, we also train and evaluate DINOLight on shadow removal datasets ISTD [50] and ISTD+ [26]. Since shadow removal can be considered as a specific instance of ALN, DINOLight should also perform robustly for shadow removal. Following the approach in Vasluianu et al. [46], we report the RMSE in the LAB color space for ISTD/ISTD+ datasets, and com-pared methods for fair comparison. Provided binary shadow masks are applied to separately measure RMSE in the shadow and shadow-free regions, including the total RMSE. 
+
+Experimental Results. Table 4 shows that DINOLight performs competitively to most methods that rely on mask priors, which have the advantage of narrowing down the shadow-affected regions using the shadow masks. Compared to mask-free methods, DINOLight outperforms by a large margin on ISTD and performs favorably on ISTD+, demonstrating that it can generalize to shadow removal as well. Qualitative results for ISTD+ and additionally WSRD+ [45] are provided in the Supplementary Material. 12 Oh et al. 
+
+5 Conclusion 
+
+We have developed a novel solution for ALN based on the properties of DINOv2 features. Our proposed framework is two-stage: DINOv2 feature extraction and fusion, followed by ALN using the fused features. At each stage, we designed the AFFM to emphasize relevant features and the ACA mechanism to utilize both the spatial and frequency domains. Extensive experiments on benchmark ALN and shadow-removal datasets demonstrate the effectiveness and general-ization of our method in restoration tasks that require a more comprehensive understanding of scene structure, semantics, and lighting conditions. 
+
+References 
+
+1. Arbel, E., Hel-Or, H.: Shadow removal using intensity surfaces and texture an-chor points. IEEE transactions on pattern analysis and machine intelligence 33 (6), 1202–1216 (2010) 2. Caron, M., Touvron, H., Misra, I., Jégou, H., Mairal, J., Bojanowski, P., Joulin, A.: Emerging properties in self-supervised vision transformers. In: Proceedings of the IEEE/CVF international conference on computer vision. pp. 9650–9660 (2021) 3. Chen, L., Chu, X., Zhang, X., Sun, J.: Simple baselines for image restoration. In: European conference on computer vision. pp. 17–33. Springer (2022) 4. Chen, L., Lu, X., Zhang, J., Chu, X., Chen, C.: Hinet: Half instance normalization network for image restoration. In: Proceedings of the IEEE/CVF conference on computer vision and pattern recognition. pp. 182–192 (2021) 5. Cui, Y., Tao, Y., Bing, Z., Ren, W., Gao, X., Cao, X., Huang, K., Knoll, A.: Selective frequency network for image restoration. In: The eleventh international conference on learning representations (2023) 6. Cun, X., Pun, C.M., Shi, C.: Towards ghost-free shadow removal via dual hierar-chical aggregation network and shadow matting gan. In: Proceedings of the AAAI conference on artificial intelligence. vol. 34, pp. 10680–10687 (2020) 7. Darcet, T., Oquab, M., Mairal, J., Bojanowski, P.: Vision transformers need reg-isters. arXiv preprint arXiv:2309.16588 (2023) 8. Dong, W., Zhou, H., Tian, Y., Sun, J., Liu, X., Zhai, G., Chen, J.: Shadowrefiner: Towards mask-free shadow removal via fast fourier transformer. In: Proceedings of the IEEE/CVF Conference on Computer Vision and Pattern Recognition. pp. 6208–6217 (2024) 9. Dosovitskiy, A., Beyer, L., Kolesnikov, A., Weissenborn, D., Zhai, X., Unterthiner, T., Dehghani, M., Minderer, M., Heigold, G., Gelly, S., et al.: An image is worth 16x16 words: Transformers for image recognition at scale. arXiv preprint arXiv:2010.11929 (2020) 10. Duan, H., Min, X., Wu, S., Shen, W., Zhai, G.: Uniprocessor: a text-induced unified low-level image processor. In: European Conference on Computer Vision. pp. 180– 199. Springer (2024) 11. El Banani, M., Raj, A., Maninis, K.K., Kar, A., Li, Y., Rubinstein, M., Sun, D., Guibas, L., Johnson, J., Jampani, V.: Probing the 3d awareness of visual foundation models. In: Proceedings of the IEEE/CVF Conference on Computer Vision and Pattern Recognition. pp. 21795–21806 (2024) DINOLight 13 12. Elfwing, S., Uchibe, E., Doya, K.: Sigmoid-weighted linear units for neural net-work function approximation in reinforcement learning. Neural networks 107 , 3–11 (2018) 13. Finlayson, G.D., Drew, M.S., Lu, C.: Entropy minimization for shadow removal. International Journal of Computer Vision 85 (1), 35–57 (2009) 14. Finlayson, G.D., Hordley, S.D., Drew, M.S.: Removing shadows from images. In: Computer Vision—ECCV 2002: 7th European Conference on Computer Vision Copenhagen, Denmark, May 28–31, 2002 Proceedings, Part IV 7. pp. 823–836. Springer (2002) 15. Fu, L., Zhou, C., Guo, Q., Juefei-Xu, F., Yu, H., Feng, W., Liu, Y., Wang, S.: Auto-exposure fusion for single-image shadow removal. In: Proceedings of the IEEE/CVF conference on computer vision and pattern recognition. pp. 10571–10580 (2021) 16. Fu, M., Liu, H., Yu, Y., Chen, J., Wang, K.: Dw-gan: A discrete wavelet transform gan for nonhomogeneous dehazing. In: Proceedings of the IEEE/CVF conference on computer vision and pattern recognition. pp. 203–212 (2021) 17. Gaintseva, T., Benning, M., Slabaugh, G.: Rave: Residual vector embedding for clip-guided backlit image enhancement. In: European Conference on Computer Vision. pp. 412–428. Springer (2024) 18. Guo, L., Huang, S., Liu, D., Cheng, H., Wen, B.: Shadowformer: global context helps shadow removal. In: Proceedings of the AAAI conference on artificial intel-ligence. vol. 37, pp. 710–718 (2023) 19. Guo, L., Wang, C., Yang, W., Huang, S., Wang, Y., Pfister, H., Wen, B.: Shad-owdiffusion: When degradation prior meets diffusion model for shadow removal. In: Proceedings of the IEEE/CVF Conference on Computer Vision and Pattern Recognition. pp. 14049–14058 (2023) 20. Guo, L., Wang, C., Yang, W., Wang, Y., Wen, B.: Boundary-aware divide and con-quer: A diffusion-based solution for unsupervised shadow removal. In: Proceedings of the IEEE/CVF International Conference on Computer Vision. pp. 13045–13054 (2023) 21. Hu, X., Jiang, Y., Fu, C.W., Heng, P.A.: Mask-shadowgan: Learning to remove shadows from unpaired data. In: Proceedings of the IEEE/CVF international con-ference on computer vision. pp. 2472–2481 (2019) 22. Jin, Y., Sharma, A., Tan, R.T.: Dc-shadownet: Single-image hard and soft shadow removal using unsupervised domain-classifier guided network. In: Proceedings of the IEEE/CVF international conference on computer vision. pp. 5027–5036 (2021) 23. Jin, Y., Ye, W., Yang, W., Yuan, Y., Tan, R.T.: Des3: Adaptive attention-driven self and soft shadow removal using vit similarity. In: Proceedings of the AAAI Conference on Artificial Intelligence. vol. 38, pp. 2634–2642 (2024) 24. Kingma, D.P., Ba, J.: Adam: A method for stochastic optimization. arXiv preprint arXiv:1412.6980 (2014) 25. Kong, L., Dong, J., Ge, J., Li, M., Pan, J.: Efficient frequency domain-based trans-formers for high-quality image deblurring. In: Proceedings of the IEEE/CVF Con-ference on Computer Vision and Pattern Recognition. pp. 5886–5895 (2023) 26. Le, H., Samaras, D.: Shadow removal via shadow image decomposition. In: Pro-ceedings of the IEEE/CVF International Conference on Computer Vision. pp. 8578–8587 (2019) 27. Le, H., Samaras, D.: From shadow segmentation to shadow removal. In: Computer Vision–ECCV 2020: 16th European Conference, Glasgow, UK, August 23–28, 2020, Proceedings, Part XI 16. pp. 264–281. Springer (2020) 14 Oh et al. 28. Liang, J., Cao, J., Sun, G., Zhang, K., Van Gool, L., Timofte, R.: Swinir: Image restoration using swin transformer. In: Proceedings of the IEEE/CVF international conference on computer vision. pp. 1833–1844 (2021) 29. Liang, Z., Li, C., Zhou, S., Feng, R., Loy, C.C.: Iterative prompt learning for unsupervised backlit image enhancement. In: Proceedings of the IEEE/CVF In-ternational Conference on Computer Vision. pp. 8094–8103 (2023) 30. Lin, J., Zhang, Z., Wei, Y., Ren, D., Jiang, D., Tian, Q., Zuo, W.: Improving image restoration through removing degradations in textual representations. In: Proceed-ings of the IEEE/CVF Conference on Computer Vision and Pattern Recognition. pp. 2866–2878 (2024) 31. Lin, X., Yue, J., Chan, K.C., Qi, L., Ren, C., Pan, J., Yang, M.H.: Multi-task image restoration guided by robust dino features. arXiv preprint arXiv:2312.01677 (2023) 32. Liu, F., Gleicher, M.: Texture-consistent shadow removal. In: Computer Vision– ECCV 2008: 10th European Conference on Computer Vision, Marseille, France, October 12-18, 2008, Proceedings, Part IV 10. pp. 437–450. Springer (2008) 33. Liu, Z., Yin, H., Mi, Y., Pu, M., Wang, S.: Shadow removal by a lightness-guided network with training on unpaired data. IEEE Transactions on Image Processing 
+
+30 , 1853–1865 (2021) 34. Loshchilov, I., Hutter, F.: Sgdr: Stochastic gradient descent with warm restarts. arXiv preprint arXiv:1608.03983 (2016) 35. Luo, Z., Gustafsson, F.K., Zhao, Z., Sjölund, J., Schön, T.B.: Controlling vision-language models for universal image restoration. arXiv preprint arXiv:2310.01018 
+
+3(8) (2023) 36. Luo, Z., Gustafsson, F.K., Zhao, Z., Sjölund, J., Schön, T.B.: Photo-realistic image restoration in the wild with controlled vision-language models. In: Proceedings of the IEEE/CVF Conference on Computer Vision and Pattern Recognition. pp. 6641–6651 (2024) 37. Man, Y., Zheng, S., Bao, Z., Hebert, M., Gui, L., Wang, Y.X.: Lexicon3d: Probing visual foundation models for complex 3d scene understanding. Advances in Neural Information Processing Systems 37 , 76819–76847 (2025) 38. Mei, K., Figueroa, L., Lin, Z., Ding, Z., Cohen, S., Patel, V.M.: Latent feature-guided diffusion models for shadow removal. In: Proceedings of the IEEE/CVF Winter Conference on Applications of Computer Vision. pp. 4313–4322 (2024) 39. Oquab, M., Darcet, T., Moutakanni, T., Vo, H., Szafraniec, M., Khalidov, V., Fernandez, P., Haziza, D., Massa, F., El-Nouby, A., et al.: Dinov2: Learning robust visual features without supervision. arXiv preprint arXiv:2304.07193 (2023) 40. Radford, A., Kim, J.W., Hallacy, C., Ramesh, A., Goh, G., Agarwal, S., Sastry, G., Askell, A., Mishkin, P., Clark, J., et al.: Learning transferable visual models from natural language supervision. In: International conference on machine learning. pp. 8748–8763. PmLR (2021) 41. Raghu, M., Unterthiner, T., Kornblith, S., Zhang, C., Dosovitskiy, A.: Do vision transformers see like convolutional neural networks? Advances in neural informa-tion processing systems 34 , 12116–12128 (2021) 42. Ranftl, R., Bochkovskiy, A., Koltun, V.: Vision transformers for dense prediction. In: Proceedings of the IEEE/CVF international conference on computer vision. pp. 12179–12188 (2021) 43. Serrano-Lozano, D., Molina-Bakhos, F.A., Xue, D., Yang, Y., Pilligua, M., Baldrich, R., Vanrell, M., Vazquez-Corral, J.: Promptnorm: Image geometry guides ambient light normalization. In: Proceedings of the Computer Vision and Pattern Recognition Conference. pp. 905–916 (2025) DINOLight 15 44. Vasluianu, F.A., Romero, A., Van Gool, L., Timofte, R.: Shadow removal with paired and unpaired learning. In: Proceedings of the IEEE/CVF Conference on Computer Vision and Pattern Recognition. pp. 826–835 (2021) 45. Vasluianu, F.A., Seizinger, T., Timofte, R.: Wsrd: A novel benchmark for high resolution image shadow removal. In: Proceedings of the IEEE/CVF Conference on Computer Vision and Pattern Recognition. pp. 1826–1835 (2023) 46. Vasluianu, F.A., Seizinger, T., Wu, Z., Ranjan, R., Timofte, R.: Towards image ambient lighting normalization. In: European Conference on Computer Vision. pp. 385–404. Springer (2024) 47. Vasluianu, F.A., Seizinger, T., Zhou, Z., Wu, Z., Chen, C., Timofte, R., Dong, W., Zhou, H., Tian, Y., Chen, J., et al.: Ntire 2024 image shadow removal challenge report. In: Proceedings of the IEEE/CVF Conference on Computer Vision and Pattern Recognition. pp. 6547–6570 (2024) 48. Vasluianu, F.A., Seizinger, T., Zhou, Z., Wu, Z., Timofte, R., Bao, Y., Wang, X., Lu, X., Yang, J., Hu, A., et al.: Ntire 2025 ambient lighting normalization challenge report. In: Proceedings of the Computer Vision and Pattern Recognition Conference. pp. 1289–1300 (2025) 49. Vaswani, A., Shazeer, N., Parmar, N., Uszkoreit, J., Jones, L., Gomez, A.N., Kaiser, Ł., Polosukhin, I.: Attention is all you need. Advances in neural information pro-cessing systems 30 (2017) 50. Wang, J., Li, X., Yang, J.: Stacked conditional generative adversarial networks for jointly learning shadow detection and shadow removal. In: Proceedings of the IEEE conference on computer vision and pattern recognition. pp. 1788–1797 (2018) 51. Wang, Z., Cun, X., Bao, J., Zhou, W., Liu, J., Li, H.: Uformer: A general u-shaped transformer for image restoration. In: Proceedings of the IEEE/CVF conference on computer vision and pattern recognition. pp. 17683–17693 (2022) 52. Wang, Z., Simoncelli, E.P., Bovik, A.C.: Multiscale structural similarity for im-age quality assessment. In: The Thrity-Seventh Asilomar Conference on Signals, Systems & Computers, 2003. vol. 2, pp. 1398–1402. Ieee (2003) 53. Xiao, J., Fu, X., Zhu, Y., Li, D., Huang, J., Zhu, K., Zha, Z.J.: Homoformer: Homogenized transformer for image shadow removal. In: Proceedings of the IEEE/CVF Conference on Computer Vision and Pattern Recognition. pp. 25617– 25626 (2024) 54. Zamir, S.W., Arora, A., Khan, S., Hayat, M., Khan, F.S., Yang, M.H.: Restormer: Efficient transformer for high-resolution image restoration. In: Proceedings of the IEEE/CVF conference on computer vision and pattern recognition. pp. 5728–5739 (2022) 55. Zamir, S.W., Arora, A., Khan, S., Hayat, M., Khan, F.S., Yang, M.H., Shao, L.: Multi-stage progressive image restoration. In: Proceedings of the IEEE/CVF con-ference on computer vision and pattern recognition. pp. 14821–14831 (2021) 56. Zhang, L., Zhang, Q., Xiao, C.: Shadow remover: Image shadow removal based on illumination recovering optimization. IEEE Transactions on Image Processing 
+
+24 (11), 4623–4636 (2015) 57. Zhang, R., Isola, P., Efros, A.A., Shechtman, E., Wang, O.: The unreasonable effectiveness of deep features as a perceptual metric. In: Proceedings of the IEEE conference on computer vision and pattern recognition. pp. 586–595 (2018) 58. Zhang, X.F., Gu, C.C., Zhu, S.Y.: Spa-former: Transformer image shadow detection and removal via spatial attention. arXiv preprint arXiv:2206.10910 (2022) 59. Zhang, X., Ma, J., Wang, G., Zhang, Q., Zhang, H., Zhang, L.: Perceive-ir: Learning to perceive degradation better for all-in-one image restoration. IEEE Transactions on Image Processing (2025)

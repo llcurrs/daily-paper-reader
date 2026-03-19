@@ -6,73 +6,73 @@
 </div>
 
 ## 每次日报
-- 最新运行日期：2026-03-18
-- 运行时间：2026-03-18 20:05:21 UTC
+- 最新运行日期：2026-03-10 ~ 2026-03-19
+- 运行时间：2026-03-19 01:52:01 UTC
 - 运行状态：成功
 - 本次总论文数：17
 - 精读区：6
 - 速读区：11
 
 ### 今日简报（AI）
-今日精选17篇前沿论文，深度解析红外可见光融合与3D医疗配准等跨模态技术突破。
-重点推荐满分佳作EPOFusion的曝光感知渐进优化方案，以及DINO预训练在3D医疗影像配准中的高效应用。
-建议优先研读多模态融合与医疗影像基准，掌握复杂场景下特征对齐与鲁棒预测的最新范式。
-- 详情：[/202603/18/README](/202603/18/README)
+今日深度解析 17 篇多模态前沿进展，重点攻克水面目标检测与脑肿瘤精准分型等跨领域难题。
+核心推荐雷达视觉融合框架 physfusion 与首个放射-病理-文本脑肿瘤基准 CoRe-BT，展现了跨模态协作的巨大潜力。
+建议关注多模态专家混合模型（MoE）在复杂场景追踪与医疗影像分类中的高效应用。
+- 详情：[/20260310-20260319/README](/20260310-20260319/README)
 
 ### 精读区论文标签
-1. [EPOFusion: Exposure aware Progressive Optimization Method for Infrared and Visible Image Fusion](/202603/18/2603.16130v1-epofusion-exposure-aware-progressive-optimization-method-for-infrared-and-visible-image-fusion)  
-   标签：评分：10.0/10、query:mm-fus
-   evidence：针对过曝（信息缺失）场景的红外与可见光图像融合
-2. [Effective Feature Learning for 3D Medical Registration via Domain-Specialized DINO Pretraining](/202603/18/2603.14086v1-effective-feature-learning-for-3d-medical-registration-via-domain-specialized-dino-pretraining)  
-   标签：评分：9.0/10、query:mm-fus
-   evidence：用于MRI和CT配准的多模态数据融合
-3. [G-ZAP: A Generalizable Zero-Shot Framework for Arbitrary-Scale Pansharpening](/202603/18/2603.14412v1-g-zap-a-generalizable-zero-shot-framework-for-arbitrary-scale-pansharpening)  
-   标签：评分：9.0/10、query:mm-fus
-   evidence：全色与多光谱图像融合的全色锐化
-4. [$x^2$-Fusion: Cross-Modality and Cross-Dimension Flow Estimation in Event Edge Space](/202603/18/2603.16671v1-x2-fusion-cross-modality-and-cross-dimension-flow-estimation-in-event-edge-space)  
-   标签：评分：9.0/10、query:mm-fus
-   evidence：将多模态融合重新定义为共享潜空间中的表示统一
-5. [No Calibration, No Depth, No Problem: Cross-Sensor View Synthesis with 3D Consistency](/202603/18/2602.23559v1-no-calibration-no-depth-no-problem-cross-sensor-view-synthesis-with-3d-consistency)  
+1. [physfusion: A Transformer-based Dual-Stream Radar and Vision Fusion Framework for Open Water Surface Object Detection](/20260310-20260319/2603.01947v1-physfusion-a-transformer-based-dual-stream-radar-and-vision-fusion-framework-for-open-water-surface-object-detection)  
    标签：评分：8.0/10、query:mm-fus
-   evidence：跨不同模态传感器的视图合成
-6. [DriveXQA: Cross-modal Visual Question Answering for Adverse Driving Scene Understanding](/202603/18/2603.11380v1-drivexqa-cross-modal-visual-question-answering-for-adverse-driving-scene-understanding)  
+   evidence：双流雷达与视觉融合框架
+2. [CoRe-BT: A Multimodal Radiology-Pathology-Text Benchmark for Robust Brain Tumor Typing](/20260310-20260319/2603.03618v1-core-bt-a-multimodal-radiology-pathology-text-benchmark-for-robust-brain-tumor-typing)  
    标签：评分：8.0/10、query:mm-fus
-   evidence：融合包含传感器失效和恶劣环境的传感器数据
+   evidence：模态缺失条件下的多模态学习
+3. [Universal Pansharpening Foundation Model](/20260310-20260319/2603.03831v1-universal-pansharpening-foundation-model)  
+   标签：评分：8.0/10、query:mm-fus
+   evidence：卫星无关融合的全色锐化基础模型
+4. [Fusion and Grouping Strategies in Deep Learning for Local Climate Zone Classification of Multimodal Remote Sensing Data](/20260310-20260319/2603.04562v1-fusion-and-grouping-strategies-in-deep-learning-for-local-climate-zone-classification-of-multimodal-remote-sensing-data)  
+   标签：评分：8.0/10、query:mm-fus
+   evidence：多模态遥感数据融合策略分析
+5. [BiEvLight: Bi-level Learning of Task-Aware Event Refinement for Low-Light Image Enhancement](/20260310-20260319/2603.04975v1-bievlight-bi-level-learning-of-task-aware-event-refinement-for-low-light-image-enhancement)  
+   标签：评分：8.0/10、query:mm-fus
+   evidence：事件相机与低光图像的模态融合策略
+6. [AW-MoE: All-Weather Mixture of Experts for Robust Multi-Modal 3D Object Detection](/20260310-20260319/2603.16261v1-aw-moe-all-weather-mixture-of-experts-for-robust-multi-modal-3d-object-detection)  
+   标签：评分：8.0/10、query:mm-fus
+   evidence：恶劣天气下鲁棒的多模态 3D 目标检测
 
 ### 速读区论文标签
-1. [SEF-MAP: Subspace-Decomposed Expert Fusion for Robust Multimodal HD Map Prediction](/202603/18/2602.21589v1-sef-map-subspace-decomposed-expert-fusion-for-robust-multimodal-hd-map-prediction)  
-   标签：评分：8.0/10、query:mm-fus
-   evidence：低光照和稀疏点云下的鲁棒多模态融合
-2. [When Does Multimodal Learning Help in Healthcare? A Benchmark on EHR and Chest X-Ray Fusion](/202603/18/2602.23614v1-when-does-multimodal-learning-help-in-healthcare-a-benchmark-on-ehr-and-chest-x-ray-fusion)  
-   标签：评分：8.0/10、query:mm-fus
-   evidence：医疗场景下模态缺失的多模态融合
-3. [Cross-Scale Pansharpening via ScaleFormer and the PanScale Benchmark](/202603/18/2603.00543v1-cross-scale-pansharpening-via-scaleformer-and-the-panscale-benchmark)  
-   标签：评分：8.0/10、query:mm-fus
-   evidence：通过全色与多光谱图像融合进行全色锐化
-4. [Unifying Heterogeneous Multi-Modal Remote Sensing Detection Via Language-Pivoted Pretraining](/202603/18/2603.01758v1-unifying-heterogeneous-multi-modal-remote-sensing-detection-via-language-pivoted-pretraining)  
-   标签：评分：8.0/10、query:mm-fus
-   evidence：来自多种传感器的多模态遥感检测
-5. [CognitionCapturerPro: Towards High-Fidelity Visual Decoding from EEG/MEG via Multi-modal Information and Asymmetric Alignment](/202603/18/2603.12722v1-cognitioncapturerpro-towards-high-fidelity-visual-decoding-from-eegmeg-via-multi-modal-information-and-asymmetric-alignment)  
+1. [CMHANet: A Cross-Modal Hybrid Attention Network for Point Cloud Registration](/20260310-20260319/2603.12721v1-cmhanet-a-cross-modal-hybrid-attention-network-for-point-cloud-registration)  
    标签：评分：7.0/10、query:mm-fus
-   evidence：通过融合编码器整合多模态先验进行视觉解码
-6. [Panoramic Multimodal Semantic Occupancy Prediction for Quadruped Robots](/202603/18/2603.13108v1-panoramic-multimodal-semantic-occupancy-prediction-for-quadruped-robots)  
+   evidence：针对不完整数据和传感器噪声场景的跨模态融合
+2. [Sparse-Dense Mixture of Experts Adapter for Multi-Modal Tracking](/20260310-20260319/2603.13719v1-sparse-dense-mixture-of-experts-adapter-for-multi-modal-tracking)  
    标签：评分：7.0/10、query:mm-fus
-   evidence：全景多模态占据预测
-7. [BIT: Matching-based Bi-directional Interaction Transformation Network for Visible-Infrared Person Re-Identification](/202603/18/2603.14243v1-bit-matching-based-bi-directional-interaction-transformation-network-for-visible-infrared-person-re-identification)  
+   evidence：解决跨模态异构性的多模态跟踪框架
+3. [Vision-Language Model Based Multi-Expert Fusion for CT Image Classification](/20260310-20260319/2603.15154v1-vision-language-model-based-multi-expert-fusion-for-ct-image-classification)  
    标签：评分：7.0/10、query:mm-fus
-   evidence：可见光-红外模态差异与分布偏移
-8. [DC-ViT: Modulating Spatial and Channel Interactions for Multi-Channel Images](/202603/18/2603.14281v1-dc-vit-modulating-spatial-and-channel-interactions-for-multi-channel-images)  
-   标签：评分：7.0/10、query:mm-fus
-   evidence：针对异构多通道成像的灵活通道输入
-9. [LCAMV: High-Accuracy 3D Reconstruction of Color-Varying Objects Using LCA Correction and Minimum-Variance Fusion in Structured Light](/202603/18/2603.10456v1-lcamv-high-accuracy-3d-reconstruction-of-color-varying-objects-using-lca-correction-and-minimum-variance-fusion-in-structured-light)  
+   evidence：用于CT图像分类的多专家融合
+4. [VarSplat: Uncertainty-aware 3D Gaussian Splatting for Robust RGB-D SLAM](/20260310-20260319/2603.09673v1-varsplat-uncertainty-aware-3d-gaussian-splatting-for-robust-rgb-d-slam)  
    标签：评分：6.0/10、query:mm-fus
-   evidence：自适应融合多通道相位数据
-10. [Preliminary analysis of RGB-NIR Image Registration techniques for off-road forestry environments](/202603/18/2603.11952v1-preliminary-analysis-of-rgb-nir-image-registration-techniques-for-off-road-forestry-environments)  
+   evidence：基于不确定性感知3D高斯溅射的鲁棒RGB-D SLAM
+5. [Bioinspired CNNs for border completion in occluded images](/20260310-20260319/2603.10694v1-bioinspired-cnns-for-border-completion-in-occluded-images)  
    标签：评分：6.0/10、query:mm-fus
-   evidence：用于传感器融合的RGB-NIR图像配准
-11. [SCoCCA: Multi-modal Sparse Concept Decomposition via Canonical Correlation Analysis](/202603/18/2603.13884v1-scocca-multi-modal-sparse-concept-decomposition-via-canonical-correlation-analysis)  
+   evidence：对图像遮挡的鲁棒性和边界补全
+6. [IDRL: An Individual-Aware Multimodal Depression-Related Representation Learning Framework for Depression Diagnosis](/20260310-20260319/2603.11644v1-idrl-an-individual-aware-multimodal-depression-related-representation-learning-framework-for-depression-diagnosis)  
    标签：评分：6.0/10、query:mm-fus
-   evidence：对齐多模态模型中不同分布的特征
+   evidence：解决模态间不一致性和干扰的多模态学习
+7. [DINOLight: Robust Ambient Light Normalization with Self-supervised Visual Prior Integration](/20260310-20260319/2603.12579v1-dinolight-robust-ambient-light-normalization-with-self-supervised-visual-prior-integration)  
+   标签：评分：6.0/10、query:mm-fus
+   evidence：用于图像恢复的自适应特征融合模块
+8. [Bin~Wan,G2HFNet: GeoGran-Aware Hierarchical Feature Fusion Network for Salient Object Detection in Optical Remote Sensing Images](/20260310-20260319/2603.12680v1-binwang2hfnet-geogran-aware-hierarchical-feature-fusion-network-for-salient-object-detection-in-optical-remote-sensing-images)  
+   标签：评分：6.0/10、query:mm-fus
+   evidence：遥感图像的分层特征融合网络
+9. [Improving Channel Estimation via Multimodal Diffusion Models with Flow Matching](/20260310-20260319/2603.13440v1-improving-channel-estimation-via-multimodal-diffusion-models-with-flow-matching)  
+   标签：评分：6.0/10、query:mm-fus
+   evidence：用于融合的多模态感知模块
+10. [OAHuman: Occlusion-Aware 3D Human Reconstruction from Monocular Images](/20260310-20260319/2603.14249v1-oahuman-occlusion-aware-3d-human-reconstruction-from-monocular-images)  
+   标签：评分：6.0/10、query:mm-fus
+   evidence：在几何缺失和不可靠线索下的鲁棒重建
+11. [Fractal Autoregressive Depth Estimation with Continuous Token Diffusion](/20260310-20260319/2603.14702v1-fractal-autoregressive-depth-estimation-with-continuous-token-diffusion)  
+   标签：评分：6.0/10、query:mm-fus
+   evidence：融合多尺度图像特征与深度预测
 
 
 <div class="dpr-home-promo-card">
