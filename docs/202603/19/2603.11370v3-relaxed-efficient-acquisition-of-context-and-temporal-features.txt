@@ -1,0 +1,959 @@
+Title: Relaxed Efficient Acquisition of Context and Temporal Features
+
+URL Source: https://arxiv.org/pdf/2603.11370v3
+
+Published Time: Wed, 18 Mar 2026 00:42:08 GMT
+
+Number of Pages: 19
+
+Markdown Content:
+# Relaxed Efficient Acquisition of Context and Temporal Features 
+
+# Yunni Qu 1, Dzung Dinh 1, Grant King 2, Whitney Ringwald 3, Bing Cai Kok 1,Kathleen Gates 1, Aidan Wright 2, Junier Oliva 1
+
+> 1
+
+University of North Carolina at Chapel Hill, Chapel Hill, NC, USA 
+
+> 2
+
+University of Michigan, Ann Arbor, MI, USA 
+
+> 3
+
+University of Minnesota Twin Cities, Minneapolis, MN, USA 
+
+quyunni@cs.unc.edu ddinh@cs.unc.edu grking@umich.edu wringwal@umn.edu bingcai@unc.edu kmgates@unc.edu aidangcw@umich.edu joliva@cs.unc.edu 
+
+## Abstract 
+
+In many biomedical applications, measurements are not freely avail-able at inference time: each laboratory test, imaging modality, or assessment incurs financial cost, time burden, or patient risk. Lon-gitudinal active feature acquisition (LAFA) seeks to optimize pre-dictive performance under such constraints by adaptively select-ing measurements over time, yet the problem remains inherently challenging due to temporally coupled decisions (missed early mea-surements cannot be revisited, and acquisition choices influence all downstream predictions). Moreover, real-world clinical workflows typically begin with an initial onboarding phase, during which relatively stable contextual descriptors (e.g., demographics or base-line characteristics) are collected once and subsequently condition longitudinal decision-making. Despite its practical importance, the efficient selection of onboarding context has not been studied jointly with temporally adaptive acquisition. We therefore propose REACT (Relaxed Efficient Acquisition of Context and Temporal features), an end-to-end differentiable framework that simultaneously optimizes (i) selection of onboarding contextual descriptors and (ii) adaptive feature–time acquisition plans for longitudinal measurements un-der cost constraints. REACT employs a Gumbel–Sigmoid relaxation with straight-through estimation to enable gradient-based optimiza-tion over discrete acquisition masks, allowing direct backpropaga-tion from prediction loss and acquisition cost. Across real-world longitudinal health and behavioral datasets, REACT achieves im-proved predictive performance at lower acquisition costs compared to existing longitudinal acquisition baselines, demonstrating the benefit of modeling onboarding and temporally coupled acquisition within a unified optimization framework. 
+
+## 1 Introduction 
+
+Longitudinal data—from digital health monitoring to behavioral assessments—create new opportunities for early detection and per-sonalized decision-making [ 34 , 36 ]. In deployment, however, the challenge is not only prediction but also resource-constrained mea-surement at inference time : acquiring every variable at every time point is often costly, burdensome, and unnecessary. This motivates frameworks that adaptively decide what to measure under bud-get constraints , explicitly trading off predictive performance and ac-quisition cost rather than assuming fully observed inputs [ 32 , 33 , 39 ]. In practice, such methods better reflect real longitudinal workflows by prioritizing the most informative measurements at each occa-sion, deferring costly assessments until warranted, and stopping further collection when its expected value is low. Consider a mobile behavioral health application that provides just-in-time adaptive support for risk reduction. During onboarding ,users report contextual descriptors such as demographics, clini-cal history, and baseline psychometric assessments. After enroll-ment , the application administers ecological momentary assess-ments (EMAs) at scheduled intervals to capture time-varying sig-nals such as affect, cravings, stressors, and social context for short-term risk forecasting [ 34 ]. In both phases, however, exhaustive data collection is costly and burdensome: long onboarding surveys can 
+
+deter engagement and limit adoption [1, 30 ], while frequent or repetitive EMAs can induce fatigue , reduce adherence , and 
+
+degrade response quality [ 3 ]. Rather than collecting all onboard-ing descriptors and EMA measurements, our approach learns an adaptive acquisition policy that decides what to measure and when , explicitly balancing predictive accuracy against user burden and measurement cost over time. This same two-stage structure appears more broadly across healthcare onboarding and follow-up. Intake gathers contextual descriptors such as demographics, family history, comorbidities, medication lists, and baseline screening instruments, while subse-quent care relies on longitudinal data collection tailored to the evolv-ing clinical picture, including follow-up labs, imaging, symptom inventories, and specialist referrals. Exhaustive onboarding can in-crease administrative burden, prolong visits, raise costs, and reduce completion or response quality [ 1 , 30 ]. Likewise, repeatedly acquir-ing all possible follow-up measurements is costly, time-intensive, and strains limited clinical resources, including staff time, imaging capacity, and diagnostic equipment. More generally, many health-care and bioinformatic applications involve one-time acquisition of relatively stable contextual descriptors followed by longitudinal measurement decisions over time. These settings motivate methods that prioritize the most informative and cost-effective acquisitions across both phases. To address this problem, we propose REACT (Relaxed Efficient 
+
+Acquisition of Context and Temporal features), a relaxation-based framework for longitudinal active feature acquisition (LAFA) that makes cost-aware acquisition decisions for both a priori contextual descriptors and temporally acquired features . Our contributions are: 
+
+• Formalizing Onboarding + Longitudinal AFA. We intro-duce a practical LAFA formulation that explicitly distinguishes one-time contextual descriptors acquired at onboarding from se-quential, time-indexed measurements acquired during follow-up, better reflecting real-world clinical workflows.     
+
+> arXiv:2603.11370v3 [cs.LG] 17 Mar 2026 Prev Acq.
+> Cntx Desc
+> Features
+> …
+> Context Descriptors
+> Cntx Desc
+> Acquire (t=2)
+> Features
+> Acquire (t=8)
+> Features
+> Next Acquisition Next Acq.
+> Next Time Next Time
+> Next Acq.
+> Next Time
+> Planner Planner Planner Select
+> Onboarding (t=0)
+
+# …
+
+# …
+
+> ^y1
+> ^y2
+> ^y3
+> ^y4
+> ^y5
+> ^y6
+> ^y7
+> ^y8
+> ^y9
+> ^y10
+
+Figure 1: Overview of REACT. REACT first performs a one-time onboarding acquisition of contextual descriptors at 𝑡 = 0.Shaded feature entries denote acquired measurements. Using acquired context and prior longitudinal observations, the planner then adaptively decides both when to acquire next and which features to obtain. Between acquisition steps, the model predicts temporal labels without collecting additional measurements, yielding personalized, nonuniform acquisition trajectories. 
+
+• Joint Context–Temporal Acquisition Learning. We de-velop a unified policy that jointly learns (i) which contextual de-scriptors to acquire upfront and (ii) a structured feature × time ac-quisition plan over the longitudinal horizon, optimizing predictive performance under explicit cost constraints. 
+
+• Differentiable Discrete Acquisition via Relaxation. We enable end-to-end training of discrete acquisition decisions using Gumbel–Sigmoid relaxations [ 19 ] with straight-through gradients, allowing gradient-based optimization of both the acquisition policy and predictive model with a self-iterative training procedure. 
+
+• Empirical Accuracy–Cost Gains. Across real-world longi-tudinal datasets, we demonstrate consistent improvements in the accuracy–cost tradeoff relative to competitive baselines. 
+
+## 2 Related Work 
+
+Existing machine learning approaches address important aspects of cost-aware feature acquisition, but key gaps remain for longitudinal settings. Classical feature selection typically operates in a static regime, selecting a population-level subset of variables rather than learning subject-specific acquisition strategies that adapt to previ-ously observed temporal values [ 12 , 21 , 38 ]. Likewise, active learn-ing focuses primarily on acquiring labels during training, rather than acquiring features at inference time [ 8 , 14 , 18 ]. To position REACT, we review prior work on test-time feature acquisition and highlight limitations in handling the two-phase structure of con-textual onboarding followed by longitudinal monitoring. 
+
+## 2.1 Active Feature Acquisition 
+
+Active Feature Acquisition (AFA) [ 32 , 33 ] studies test-time predic-tion when features are not freely available and each measurement incurs a cost. The goal is to sequentially select which features to acquire for a given instance, adapting decisions to previously ob-served values. Many recent approaches cast AFA as a reinforcement learning problem [ 10 , 35 , 39 ], but RL-based training can be difficult to optimize due to the large action space and challenging credit assignment [ 16 , 37 ]. Some methods assuage issues with RL by using generative surrogates to impute missing features and score can-didate acquisitions [ 16 ], or by relying on greedy acquisition rules [ 4, 7, 17 ], which may fail to capture interactions among feature groups whose utility depends on joint acquisition. To address these limitations, Valancius et al . [37] propose a non-parametric oracle-based method, Norcliffe et al . [23] optimize feature acquisition in a stochastic latent space via an expected gradient-based objective, and Ghosh and Lan [6] use a differentiable policy for end-to-end training of both the acquisition policy and predictor. However, con-ventional AFA assumes that features are static once acquired and does not model measurements that evolve over time. 
+
+## 2.2 Longitudinal Active Feature Acquisition 
+
+Longitudinal active feature acquisition (LAFA) extends AFA by re-quiring the agent to decide not only what to acquire, but also when 
+
+to acquire it [ 15 , 32 ]. This introduces additional challenges, since missed measurements at earlier time points may become perma-nently unavailable. Several recent works cast LAFA as a Markov Decision Process (MDP) [ 15 , 27 ]. For example, ASAC [ 40 ] uses an actor–critic architecture to jointly learn acquisition and prediction, while Qin et al . [27] study continuous-time acquisition policies for timely prediction of adverse outcomes. Related approaches also optimize acquisition timing, but may assume that all measurements available at a selected time point are acquired together [22]. As in these sequential formulations, we consider a finite decision horizon with a bounded number of acquisition opportunities. Although the MDP formulation is natural, RL-based LAFA can be difficult to optimize in practice. The action space is combinatorial, since the policy must jointly determine which features to acquire and when . The state evolves as new measurements are collected, further complicating policy learning. In addition, supervision is typ-ically provided only through downstream predictive performance, creating a difficult credit-assignment problem for individual acqui-sitions and decision times [16]. Beyond these optimization challenges, prior LAFA formulations generally treat all features uniformly and do not explicitly model the common two-phase workflow in which relatively stable contextual descriptors are acquired once at onboarding and then inform subse-quent temporal acquisition decisions. In contrast, we study a practi-cal LAFA setting that separates a priori contextual descriptors from temporally acquired measurements. We then develop a relaxation-based framework, REACT, that avoids standard RL training by Relaxed Efficient Acquisition of Context and Temporal Features 
+
+using Gumbel-Sigmoid relaxations with straight-through gradients to enable end-to-end optimization of discrete acquisition decisions. 
+
+## 3 Method 
+
+In longitudinal active feature acquisition (LAFA), an agent must se-quentially choose which measurements to obtain over time, trading predictive accuracy against acquisition cost . We propose REACT, an end-to-end framework that jointly learns (i) a one-time selection of onboarding context and (ii) a policy for patient-personalized longitudinal acquisitions. Rather than relying on standard rein-forcement learning, REACT uses Gumbel-Sigmoid relaxation with straight-through gradients [ 19 ] to enable differentiable optimization of discrete acquisition decisions. The model comprises three jointly trained components—a global Context Selector , an adaptive Longitu-dinal Planner , and a Predictor —optimized under a unified objective that balances prediction loss and acquisition cost. We next formalize the LAFA setting and describe the optimization of each component. 
+
+## 3.1 Problem Formulation 
+
+We consider a training dataset D = {( 𝑠 (𝑖 ) , 𝑥 (𝑖 ) , 𝑦 (𝑖 ) )} 𝑁 𝑖 =1, where 
+
+𝑠 (𝑖 ) ∈ R𝑑 𝑠 denotes the onboarding contextual descriptors for in-stance 𝑖 , 𝑥 (𝑖 ) ∈ R𝑇 ×𝑑 denotes its temporal features across 𝑇 discrete timesteps, and 𝑦 (𝑖 ) = (𝑦 (𝑖 ) 
+
+> 1
+
+, . . . , 𝑦 (𝑖 ) 
+
+> 𝑇
+
+) denotes the corresponding tar-get sequence with 𝑦 (𝑖 ) 
+
+> 𝑡
+
+∈ { 1, . . . , 𝐶 }. For brevity, we omit the super-script (𝑖 ) when discussing a single instance. While alternative mask-ing schemes could be used—e.g., by passing acquisition masks ex-plicitly to downstream models—we adopt simple elementwise mask-ing for notational convenience. We now describe the iterative acqui-sition process, which begins with onboarding at 𝑡 = 0 and continues until the planner terminates, ∅, or the final timepoint is reached. 
+
+Onboarding and First Temporal Acquisition . At onboard-ing (see Fig. 1), REACT’s Context Selector outputs a static, non-personalized binary mask 𝑚 𝑠 ∈ { 0, 1}𝑑 𝑠 specifying which contex-tual descriptors to acquire at cost, yielding ˜𝑠 = 𝑚 𝑠 ⊙ 𝑠 , where ⊙
+
+denotes element-wise multiplication. Conditioned on the observed values in ˜𝑠 , the planner then selects both the next acquisition time-point, 𝑡 next , and the temporal feature mask 𝑚 next ∈ { 0, 1}𝑑 for the first temporal acquisition. Thus, the first temporal acquisition is personalized through the instance’s observed contextual descrip-tors. For any 𝑡 < 𝑡 next , predictions ˆ𝑦 𝑡 are made using only ˜𝑠 . When 
+
+𝑡 = 𝑡 next , the selected temporal features are acquired at cost, yield-ing ˜𝑥 𝑡 next = 𝑚 next ⊙ 𝑥 𝑡 next , and prediction proceeds using both ˜𝑠 and 
+
+˜𝑥 𝑡 next . The planner then repeats this process, iteratively selecting subsequent acquisition times and feature subsets as described below. 
+
+Iterative Acquisition Process . At each decision step, the plan-ner selects either the next acquisition (𝑡 next , 𝑚 next ) or termination 
+
+∅ in a dynamic, instance-specific manner based on the informa-tion acquired so far (see Fig. 1). Specifically, it conditions on the contextual descriptors ˜𝑠 and the masked temporal history 
+
+H𝑡 = ( ˜𝑥 1, . . . , ˜𝑥 𝑡 , 0, . . . , 0) ∈ R𝑇 ×𝑑 ,
+
+where unacquired or skipped timepoints remain zero. Thus, RE-ACT’s planner 𝜋 maps 
+
+𝜋 (H 𝑡 , ˜𝑠, 𝑡 ) → ( 𝑡 next , 𝑚 next ) or 𝜋 (H 𝑡 , ˜𝑠, 𝑡 ) → ∅ .
+
+As before, for all 𝑡 ′ < 𝑡 next (or all remaining 𝑡 ′ ≤ 𝑇 if the planner terminates), predictions ˆ𝑦 𝑡 ′ are made using only the information acquired so far, namely (H 𝑡 , ˜𝑠 ). If the planner does not terminate, time advances to 𝑡 ← 𝑡 next , the selected temporal features are acquired, yielding ˜𝑥 𝑡 next = 𝑚 next ⊙ 𝑥 𝑡 next , and ˆ𝑦 𝑡 next is predicted from the updated history 
+
+H𝑡 next = ( ˜𝑥 1, . . . , ˜𝑥 𝑡 next , 0, . . . , 0)
+
+together with ˜𝑠 . The process then repeats. 
+
+Prediction Model . At timestep 𝑡 , a predictor network 𝑓 𝜙 : R𝑇 ×𝑑 ×
+
+R𝑑 𝑠 × { 1, . . . ,𝑇 } → R𝐶 takes the temporal history H𝑡 , acquired context ˜𝑠 , and target timesteps 𝑡 ′ ≥ 𝑡 as input, and outputs class probabilities 
+
+ˆ𝑦 𝑡 ′ = 𝑓 𝜙 (H 𝑡 , ˜𝑠, 𝑡 ′). (1) 
+
+## 3.2 The REACT Objective 
+
+Our goal is to acquire contextual and temporal features cost-efficiently while maintaining predictive accuracy and improving the informa-tion available for future acquisition decisions. Thus, an acquisition is valuable not only for its immediate predictive benefit, but also for how it improves later planning and prediction. To this end, we directly train a context selector and planner to output binary acquisition masks that optimize the accuracy–cost tradeoff. We first define acquisition cost abstractly, allowing it to capture monetary cost, time, patient burden, risk, or combinations thereof. Let 𝑐 𝑠 ∈ R𝑑 𝑠  
+
+> +
+
+denote the one-time costs of the contextual descriptors, and 𝑐 𝑥 ∈ R𝑑  
+
+> +
+
+denote the per-timepoint costs of the temporal features. For an acquisition trajectory {𝑚 𝑡 }𝑇 𝑡 =1, the total cost is 
+
+Cost (𝑚 𝑠 , {𝑚 𝑡 }𝑇 𝑡 =1) = 𝑐 ⊤ 
+
+> 𝑠
+
+𝑚 𝑠 
+
+|{z} 
+
+> contextual
+
++
+
+> 𝑇
+
+∑︁ 
+
+> 𝑡 =1
+
+𝑐 ⊤ 
+
+> 𝑥
+
+𝑚 𝑡 
+
+| {z }
+
+> temporal
+
+. (2) Using the predictor in Eq. (1) , we obtain ˆ𝑦 𝑡 from the accrued his-tory up to time 𝑡 . This yields the following accuracy–cost tradeoff objective: 
+
+> 𝑇
+
+∑︁ 
+
+> 𝑡 =1
+
+Lpred ( ˆ𝑦 𝑡 , 𝑦 𝑡 ) + 𝜆 𝑐 ⊤ 
+
+> 𝑠
+
+𝑚 𝑠 +
+
+> 𝑇
+
+∑︁ 
+
+> 𝑡 =1
+
+𝑐 ⊤ 
+
+> 𝑥
+
+𝑚 𝑡 
+
+!
+
+, (3) where 𝜆 > 0 is an application-specific parameter controlling the tradeoff between supervised prediction loss Lpred (e.g., cross-entropy) and the cost of contextual and temporal acquisitions. 
+
+## 3.3 The REACT Model 
+
+REACT is an end-to-end framework that jointly learns a cost-effective subset of onboarding descriptors and personalized tempo-ral acquisition plans under the objective in Eq. (3) . The architecture consists of three interacting modules: 
+
+• Context Selector 𝛼 ∈ R𝑑 𝑠 : a learned vector 𝛼 that param-eterizes a binary context mask 𝑚 𝑠 ∈ { 0, 1}𝑑 𝑠 at 𝑡 = 0, specifying which onboarding descriptors to acquire for the best downstream accuracy–cost tradeoff. 
+
+• Longitudinal Planner 𝜋 𝜃 : a neural network that takes the temporal history up to 𝑡 , the current timestep 𝑡 , and the acquired onboarding context ˜𝑠 as input, and outputs logits that parameterize future temporal acquisition masks 𝑚 𝑡 ′ ∈ { 0, 1}𝑑 for 𝑡 ′ > 𝑡 .
+
+• Predictor 𝑓 𝜙 : a classification network as defined in subsec-tion 3.1. For a target timestep 𝑡 ′ ≥ 𝑡 , it maps the acquired context ˜𝑠 
+
+and temporal history H𝑡 to class probabilities ˆ𝑦 𝑡 ′ ∈ R𝐶 .
+
+The Challenge of Discrete Decisions . While this architecture intuitively models the two-phase acquisition process, jointly train-ing the parameters 𝛼 , 𝜃 , and 𝜙 presents a fundamental optimiza-tion challenge. The target masks 𝑚 𝑠 and 𝑚 𝑡 are discrete variables (i.e., binary masks). These discrete variables are not differentiable, making it impossible to route gradients from the downstream pre-diction loss and acquisition cost back to the planner 𝜋 𝜃 and context selector 𝛼 using standard backpropagation. Therefore, to enable end-to-end training of this framework, we employ Gumbel-Sigmoid relaxation [19] with a straight-through estimator (Sec. 3.4). 
+
+## 3.4 Differentiable Optimization via Relaxation 
+
+To handle discrete acquisition decisions, REACT replaces direct binary sampling with the Gumbel-Sigmoid relaxation [ 9, 19 ], en-abling gradients from the prediction loss and acquisition cost to flow through the acquisition masks. For any logit 𝑙 𝑗 produced by 𝛼 or 𝜋 𝜃 , we inject stochasticity by sampling Gumbel noise 
+
+𝑔 𝑗 = − log  − log 𝑢 𝑗 
+
+, 𝑢 𝑗 ∼ Uniform (0, 1). (4) Given temperature 𝜏 > 0, we then compute a continuous relaxation 
+
+˜𝑚 𝑗 ∈ ( 0, 1) as 
+
+˜𝑚 𝑗 = 𝜎 
+
+ 𝑙 𝑗 + 𝑔 𝑗 
+
+𝜏 
+
+
+
+. (5) During the forward pass, we discretize via thresholding, 
+
+ˆ𝑚 𝑗 = I[ ˜𝑚 𝑗 > 0.5]. (6) To retain differentiability during backpropagation, we use the straight-through estimator 
+
+G( 𝑙 𝑗 ) = ˜𝑚 𝑗 + sg ( ˆ𝑚 𝑗 − ˜𝑚 𝑗 ), (7) where sg (·) denotes the stop-gradient operator, so ˆ𝑚 𝑗 − ˜𝑚 𝑗 is treated as constant during backpropagation. Thus, G( 𝑙 𝑗 ) = ˆ𝑚 𝑗 in the for-ward pass, while gradients are taken with respect to the continuous proxy ˜𝑚 𝑗 in the backward pass. Applying G(·) element-wise to the 𝑑 𝑠 contextual logits yields the binary context mask ˆ𝑚 𝑠 ∈ { 0, 1}𝑑 𝑠 , and applying it to the 𝑑 temporal logits at timestep 𝑡 yields the binary temporal mask ˆ𝑚 𝑡 ∈ { 0, 1}𝑑 .
+
+Differentiable Loss . We train the context selector and planner (see Fig. 2) directly to produce future acquisition plans that optimize the accuracy–cost objective in Eq. (3) . Consider an instance with temporal features 𝑥 ∈ R𝑇 ×𝑑 , contextual descriptors 𝑠 ∈ R𝑑 𝑠 , labels 
+
+𝑦 ∈ { 1, . . . , 𝐶 }𝑇 , and a given temporal mask Mprev  
+
+> 𝑡
+
+∈ { 0, 1}𝑡 ×𝑑 
+
+representing an observation state at time 𝑡 .For notation, let EX 𝑇 (𝑣 ) denote zero-padding of 𝑣 ∈ R𝑡 ×𝑑 to length 𝑇 , let K>𝑡 (𝑣 ) set entries at times 1, . . . , 𝑡 to zero while keeping values after 𝑡 , and let K≤𝑡 (𝑣 ) set entries at times 𝑡 + 1, . . . ,𝑇 to zero while keeping values up to and including 𝑡 . We then define the relaxed future acquisition plan 
+
+𝑃 >𝑡 = K>𝑡 
+
+ G  𝜋 𝜃 (EX 𝑇 (Mprev  
+
+> 𝑡
+
+) ⊙ 𝑥, 𝑡, ˜𝑠 ) ,Future Plan     
+
+> Cntx Desc
+> Features Features
+> Observed (t=3) Planner
+> Features
+> Output Mask tnext =6
+> Prev
+> Features
+
+Figure 2: Longitudinal planner. Given the onboarding con-text and longitudinal measurements observed up to time 𝑡 ,the planner outputs a binary acquisition mask over future feature–time pairs. The left portion of the mask corresponds to previously acquired measurements (unused), while the right portion specifies the future acquisition plan, judged against the cost-benefit objective. The earliest selected future time defines the next acquisition time, 𝑡 next .
+
+the induced mask available up to time 𝑡 ′ > 𝑡 as 
+
+𝑀 ≤𝑡 ′ = EX 𝑇 (Mprev  
+
+> 𝑡
+
+) + K≤𝑡 ′ (𝑃 >𝑡 ),
+
+and the relaxed context mask as ˆ𝑚 𝑠 = G( 𝛼 ).The total relaxed loss for planning after time 𝑡 is 
+
+LREACT (𝛼, 𝜃, 𝜙 ; 𝑥, 𝑠, 𝑦, 𝑡, Mprev  
+
+> 𝑡
+
+)
+
+=
+
+> 𝑇
+
+∑︁   
+
+> 𝑡 ′=𝑡 +1
+
+Lpred 
+
+ Prediction at 𝑡 ′
+
+z }| {
+
+𝑓 𝜙 (𝑀 ≤𝑡 ′ ⊙ 𝑥, ˆ𝑚 𝑠 ⊙ 𝑠, 𝑡 ′), 𝑦 𝑡 ′
+
+| {z }
+
+> Prediction Loss for Plan
+
++ 𝜆 1⊤ 
+
+> 𝑇
+
+(𝑃 >𝑡 ) 𝑐 𝑥 
+
+| {z }
+
+> Temporal Acquisition Cost
+
++ 𝜆 𝑐 ⊤ 
+
+> 𝑠
+
+ˆ𝑚 𝑠 .
+
+| {z }
+
+> Context Acquisition Cost
+
+(8) This relaxed objective enables stable joint gradient updates of 
+
+𝛼 , 𝜃 , and 𝜙 . Notably, 𝛼 is trained not only to improve prediction directly, but also to select onboarding context that supports better future acquisition decisions by the planner 𝜋 𝜃 . Moreover, Eq. (8) corresponds to a relaxed form of the cost–benefit objective in Eq. (3) .Below, we describe the training procedure, which uses mini-batches and dynamic rollouts of the current planner to generate observation states for minimizing Eq. (8). 
+
+## 3.5 Training Procedure 
+
+Self-Iterative Training . The planner is trained via self-iterative training , where the current planner rolls out on-policy trajectories that are then reused as training states. This allows the planner to improve beyond the offline reference plans by training on states it induces itself—similar in spirit to DAgger-style iterative imi-tation learning [ 31 ], but driven by direct gradient optimization with ground-truth labels rather than imitation targets. Training alternates between the following steps (details in Algorithm 1): (1) 
+
+On-policy rollout: sample a batch B from Dtrain , and execute the current planner 𝜋 𝜃 and context selector 𝛼 to collect trajectories; (2) Joint gradient update: compute L from Eq. (8) and jointly update 𝛼 , 𝜃 , and 𝜙 by backpropagating through the ST-Gumbel-Sigmoid gates. Note that the rollouts in Algorithm 1 may contain Relaxed Efficient Acquisition of Context and Temporal Features 
+
+Algorithm 1 Self-Iterative Training of REACT 
+
+Require: Training data Dtrain , planner 𝜋 𝜃 , context logits 𝛼 , pre-dictor 𝑓 𝜙 , learning rate 𝜂 . 
+
+> 1:
+
+for iteration 𝑖 = 1 to 𝑁 do  
+
+> 2:
+
+Sample batch B ∼ D train  
+
+> 3:
+
+// Step 1: Forward pass to roll out current policy to collect on-policy states  
+
+> 4:
+
+for each (𝑥, 𝑠, 𝑦 ) ∈ B do  
+
+> 5:
+
+ˆ𝑚 𝑠 ← G( 𝛼 ); ˜𝑠 ← ˆ𝑚 𝑠 ⊙ 𝑠  
+
+> 6:
+
+Initialize ˆH0 ← 0 ∈ R𝑇 ×𝑑 , Mprev 0 ← 0 ∈ R𝑇 ×𝑑  
+
+> 7:
+
+for 𝑡 = 1 to 𝑇 do  
+
+> 8:
+
+ˆ𝑚 𝑡 ←G( 𝜋 𝜃 ( ˆH𝑡 −1; 𝑡 ; ˜𝑠 )) [ 𝑡 ] // query planner output for 𝑡 based on past history  
+
+> 9:
+
+ˆ𝑥 𝑡 ← ˆ𝑚 𝑡 ⊙ 𝑥 𝑡  
+
+> 10:
+
+ˆH𝑡 ← ˆH𝑡 −1; ˆH𝑡 [𝑡 ] ← ˆ𝑥 𝑡 // update history  
+
+> 11:
+
+Mprev  
+
+> 𝑡
+
+← Mprev   
+
+> 𝑡 −1
+
+; Mprev  
+
+> 𝑡
+
+[𝑡 ] ← ˆ𝑚 𝑡 // update history mask  
+
+> 12:
+
+end for  
+
+> 13:
+
+Store trajectory 𝜏 = {( 𝑥, 𝑠, 𝑦, 𝑡, Mprev  
+
+> 𝑡
+
+)} 𝑇 𝑡 =0 in Broll  
+
+> 14:
+
+end for  
+
+> 15:
+
+// Step 2: Compute loss over on-policy trajectories and the ground truth label y  
+
+> 16:
+
+L = 1
+
+|B roll |∑︁ (𝑥,𝑠,𝑦,𝑡, Mprev  
+
+> 𝑡 ) ∈ B roll
+
+LREACT (𝛼, 𝜃, 𝜙 ; 𝑥, 𝑠, 𝑦, 𝑡, Mprev  
+
+> 𝑡
+
+) 
+
+> 17:
+
+// Step 3: Update w/ gradient descent (or other gradient based optimizer ) 
+
+> 18:
+
+𝛼 ← 𝛼 − 𝜂 ∇𝛼 L; 𝜃 ← 𝜃 − 𝜂 ∇𝜃 L; 𝜙 ← 𝜙 − 𝜂 ∇𝜙 L 
+
+> 19:
+
+end for 
+
+skipped timepoints or early termination when the planner outputs zero-masks ( line 8 ). 
+
+## 3.6 Inference-Time Acquisition Algorithm 
+
+At inference time, REACT operates sequentially as summarized in Algorithm 2. Gumbel noise is removed, and all acquisition masks are obtained deterministically by hard-thresholding the learned logits. The process begins at onboarding ( 𝑡 = 0), where the learned context mask 𝑚 𝑠 = I[𝜎 (𝛼 ) > 0.5] determines which contextual features to acquire. The adaptive longitudinal phase then proceeds over 𝑡 ∈ { 1, . . . ,𝑇 }. At each step, the planner 𝜋 𝜃 evaluates the cur-rent history H𝑡 together with the acquired context ˜𝑠 to produce a future temporal acquisition plan 𝑀 . REACT acquires features only at the next selected timepoint, skipping acquisition at intermediate timesteps, and may terminate early if no further acquisitions are planned. Predictions ˆ𝑦 𝑡 are made at each timestep using the informa-tion available up to 𝑡 , and the process continues until termination or the horizon 𝑇 is reached. 
+
+## 4 Experiment 4.1 Datasets 
+
+We evaluate REACT on four real-world longitudinal datasets span-ning two application families: behavioral longitudinal datasets (CHEEARS, ILIADD) and clinical longitudinal datasets (OAI, ADNI). Full dataset and feature details can be found in Appx. E. 
+
+Algorithm 2 REACT Inference-Time Acquisition 
+
+Require: trained context selector 𝛼 ; trained planner 𝜋 𝜃 ; predictor 
+
+𝑓 𝜙 .
+
+Ensure: Predictions { ˆ𝑦 𝑡 }𝑇 𝑡 =1 
+
+> 1:
+
+Initialize: predictions ← [ ]  
+
+> 2:
+
+Initialize acquired history: H ← ( 0, . . . , 0) ∈ R𝑇 ×𝑑  
+
+> 3:
+
+// Stage 1: Contextual descriptor acquisition  
+
+> 4:
+
+𝑚 𝑠 ← I[𝜎 (𝛼 ) > 0.5] 
+
+> 5:
+
+˜𝑠 ← 0; Acquire s𝑗 for 𝑚 𝑠,𝑗 > 0 
+
+> 6:
+
+M ← I𝜎  𝜋 𝜃 (H , 0, ˜𝑠 ) > 0.5 
+
+> 7:
+
+𝑡 next ← min {𝑡 ′ | ∥ M[𝑡 ′] ∥ > 0} // next time with nonzero mask  
+
+> 8:
+
+𝑚 next ← M[𝑡 next ] // next acquisition mask  
+
+> 9:
+
+// Stage 2: Adaptive temporal acquisition and prediction  
+
+> 10:
+
+for 𝑡 = 1 to 𝑇 do  
+
+> 11:
+
+if 𝑡 == 𝑡 next then  
+
+> 12:
+
+// Acquire and replan  
+
+> 13:
+
+x ← 0 
+
+> 14:
+
+Acquire x𝑗 for 𝑚 next  
+
+> 𝑗
+
+> 0 
+
+> 15:
+
+H [ 𝑡 ] ← x 
+
+> 16:
+
+M ← K>𝑡 
+
+h
+
+I𝜎  𝜋 𝜃 (H , 𝑡, ˜𝑠 ) > 0.5 i
+
+// future mask plan  
+
+> 17:
+
+𝑡 next ← min {𝑡 ′ | ∥ M[𝑡 ′] ∥ > 0} // or ∅ for termination  
+
+> 18:
+
+𝑚 next ← M[𝑡 next ] 
+
+> 19:
+
+end if  
+
+> 20:
+
+// Predict  
+
+> 21:
+
+ˆ𝑦 𝑡 ← 𝑓 𝜙 (H , ˜𝑠, 𝑡 ) 
+
+> 22:
+
+append ˆ𝑦 𝑡 to predictions  
+
+> 23:
+
+end for  
+
+> 24:
+
+Return predictions 
+
+4.1.1 Behavioral Longitudinal Datasets. 
+
+CHEEARS . The CHEEARS dataset [ 28 ] comprises ecological momentary assessment (EMA) data from 204 college students. Each participant completed daily surveys assessing affect, drinking be-haviors, and social context. For this study, we divided the data into sliding windows of 10 consecutive days and set the target to be next-day drinking behavior prediction (binary classification). We split the data temporally by a fixed cutoff date, such that training instances correspond to observations before the cutoff and test instances correspond to observations after it. The onboarding data contains demographics, AUDIT alcohol screening scores, drinking motives (DMQ: social, coping, enhancement, conformity), alcohol consequences (YAACQ: 9 subscales), personality traits (NEO Big Five), and interpersonal functioning (IIP: dominance, affiliation, elevation). The temporal data contains daily affect (10 items: happy, stressed, anxious, etc.), drinking urges/plans/quantity expectations, and social experiences. We assigned an equal feature cost of 1 to all features. The dataset is split into train/val/test ( 60 .6% , 18 .9% , 20 .5% ). 
+
+ILIADD . The ILIADD (Intensive Longitudinal Investigation of Alternative Diagnostic Dimensions) [ 29 ] dataset is a fully remote ambulatory assessment study ( 𝑁 = 544 participants with ≥ 5 EMA surveys completed) for mental health treatment history (81% report-ing prior treatment). The contextual features consist of demograph-ics and scales derived from the HiTOP-SR, factor scales, symptom scales, and alcohol use scales. In the study, this set of questions was prompted to participants 8 times per day. Therefore, we used these collected answers throughout the day as temporal features; these assessed momentary positive affect, energy, stress, and impulsivity (4 items). We split the data temporally by a fixed cutoff date/time. For this study, we divided the data into consecutive sliding windows of 10 time steps, and the label negative affect is predicted for each timepoint. We assigned an equal feature cost of 1 to all features. The dataset is split into train/val/test ( 69 .5% , 15 .2% , 15 .2% ). 
+
+4.1.2 Clinical Longitudinal Datasets. 
+
+OAI . The Osteoarthritis Initiative (OAI) 1 is a longitudinal cohort that tracks knee osteoarthritis progression with annual follow-up up to 96 months for 4,796 patients using imaging and clinical assess-ments. We select 𝑑 𝑠 = 10 contextual features (e.g., sex, race, age) and 
+
+𝑑 = 17 temporal features (including clinical measurements and 10 
+
+joint space width - JSW - features extracted from knee radiography) over 𝑇 = 7 visits. Following Chen et al . [2] , Nguyen et al . [22] , we consider two prediction targets at each visit: (i) Kellgren–Lawrence grade (KLG [ 11 ]; range 0−4), where we merge grades 0 and 1, and (ii) WOMAC pain [ 20 ] (range 0−20 ), where we define WOMAC < 5
+
+as no pain and ≥ 5 as pain. We assigned lower costs to low-effort questionnaire/clinical variables (e.g., 0.3-0.5) and higher costs to JSW extracted from knee radiograph (e.g., 0.8-1.0). Following Chen et al . [2] , we split the dataset into train/val/test ( 50% , 12 .5% , 37 .5% ). 
+
+ADNI . The Alzheimer’s Disease Neuroimaging Initiative (ADNI) 2
+
+[26 ] is a longitudinal, multi-center, observational study for tracking Alzheimer’s disease progression. Following [ 27 ], we use a bench-mark of 𝑁 = 1,002 participants with regular follow-up every six months and consider the first 𝑇 = 12 visits. The onboarding context consists of 𝑑 𝑠 = 7 descriptors (e.g., age, gender, Functional Activities Questionnaire), while the temporal feature bank contains 𝑑 = 4
+
+imaging biomarkers: FDG and AV45 from PET, and Hippocampus and Entorhinal from MRI. At each visit, the goal is to predict the patient’s current disease status as normal cognition, mild cognitive impairment, or Alzheimer’s disease [ 24 , 25 ]. Context acquisition costs are set to 0.3, and higher costs are assigned to PET biomark-ers ( 1.0 each) and MRI biomarkers ( 0.5 each) to reflect the greater expense and burden of PET and MRI imaging. Following Qin et al .[27], we split the dataset into train/val/test ( 64% , 16% , 20% ). 
+
+## 4.2 Baselines 
+
+We compare our framework against several strong AFA baselines, fo-cusing on RL-based methods for longitudinal settings. These include 
+
+ASAC [40 ], an actor-critic approach that jointly optimizes feature selection and prediction; RAS [ 27 ], which dynamically determines acquisition timing and feature subsets over continuous time; and its variant AS [27], which enforces uniform acquisition intervals. We also include DIME [5], a representative non-longitudinal AFA framework. To adapt it to our setting, we restrict its action space to the current and future timesteps only. This gives DIME 
+
+> 1https://nda.nih.gov/oai/
+> 2https://adni.loni.usc.edu/
+
+an advantage, as it may acquire multiple features at the present timestep before advancing. Importantly, existing baselines do not natively distinguish the on-boarding context 𝑠 from the temporal measurements 𝑥 𝑡 . To evaluate them fairly, we modify their observation space at every timestep 𝑡 
+
+to include static features as 𝑥 ′ 
+
+> 𝑡
+
+= [𝑠, 𝑥 𝑡 ] ∈ R𝑑 𝑠 +𝑑 . Thus, the baselines can acquire the context at any time if they missed it earlier, giving them an advantage. However, the baselines must learn to acquire context early and avoid redundantly spending the acquisition cost 
+
+𝑐 𝑠 for the same unchanging features at future steps. To ensure a fair comparison, we started from the authors’ official implementations and applied the above adaptations. We tuned the hyperparameters for each method on the validation set and report the resulting test performance; exhaustive setup details are in Appx. B. 
+
+## 4.3 Implementation Details 
+
+4.3.1 Predictor Architecture & Training. For prediction at target timestep 𝑡 ′, the predictor takes as input the acquired temporal history H𝑡 ′ , acquired context ˜s, and normalized time indicator for 
+
+𝑡 ′. These are passed through a 3-layer MLP producing class logits (see details in Appx. C). The predictor is pre-trained with random masking, then jointly trained with the planner during acquisition policy learning. 
+
+4.3.2 Planner Architecture & Training. The planner 𝜋 𝜃 consists of 3 hidden layers with dimensions [512, 256, 128] and ReLU activa-tions. The planner maps the acquired data to a mask over future acquisitions (see Sec. 3.3). We trained the planner network with a total of 1K batches utilizing our self-iterative training procedure (Sec. 3.5). Additional details may be found in Appx. C. Please see timing results in Appx. Fig. 13, where REACT achieves training and inference times that are faster than or comparable to recent deep learning approaches, such as DIME, RAS, and AS. We will open-source the REACT code upon publication. 
+
+## 4.4 Performance-Cost Tradeoff 
+
+In Fig. 3, we evaluate REACT on five longitudinal prediction tasks and plot the AUROC vs. the total average acquisition cost (see AU-RPC figures, which mostly follow the same trends, in Appx. A). Here, the total cost includes both the one-time onboarding context costs and temporal feature acquisition costs. For REACT, one can learn the policy at different cost budget ranges by sweeping the cost coefficient 𝜆 in Eq. (3) , which controls the tradeoff between prediction loss and acquisition cost (see Appx. Tab. 1 for the val-ues we use for 𝜆 ). For the baselines, we analogously vary each method’s cost-sensitive hyperparameter to obtain different average costs (more details in Appx. B). Thus, each data point in the curve corresponds to a different performance-cost setting, and a method is preferred if it achieves higher performance at a lower total cost (higher toward the upper left). That is, y-axes show the predictive performance (e.g., AUROC or AUPRC) of the models (at various cost/benefit tradeoffs) over the test set. Correspondingly, we record the average cost incurred during inference (at various cost/benefit tradeoffs) from acquisitions. Since the total acquisition costs include the one-time onboard-ing context cost, part of REACT’s advantage comes from learning a selective subset of contextual descriptors rather than acquiring Relaxed Efficient Acquisition of Context and Temporal Features 
+
+Figure 3: AUROC/total cost of models across various average acquisition costs (budgets) on test data. The dashed line is evaluating the pretrained classifier from REACT with all features available. 
+
+Figure 4: Example feature acquisition rollouts using REACT for two distinct instances from the (a) CHEEARS and (b) WOMAC test sets. For visual clarity, only the selected features for these instances are displayed. 
+
+all onboarding variables. This learned context selector 𝛼 provides informative initialization for the downstream temporal planner 𝜋 𝜃 ;examples of dataset-level context selection are provided in Appx. F, and feature descriptions are given in Appx. E. 
+
+Behavioral Datasets. On CHEEARS and ILIADD, REACT con-sistently provides the best overall trade-off. The gains are particu-larly clear on ILIADD, where it outperforms DIME, RAS, and ASAC across all budgets, approaching the performance of the all-features baseline at a moderate cost. 
+
+Clinical Datasets . On KLG and WOMAC, REACT again yields the strongest performance across all budget constraints compared to the baselines. On ADNI, the performance gap narrows, with DIME also performing strongly; however, REACT remains highly com-petitive and achieves slightly better overall results. For additional results on the AUPRC metric, please see Appx. A. With AUPRC, REACT shows a similar trend, outperforming the baselines. 
+
+## 4.5 Analysis of Learned Acquisition Behavior 
+
+To better understand the acquisition policies learned by REACT, we provide additional analyses across datasets. Before discussing these analyses, we first detail the construction of these visualiza-tions. Fig. 5 and Fig. 6 show the learned acquisition trajectories across datasets. For each dataset, the top panel displays the average temporal acquisition cost incurred per timestep, while the middle panel shows the termination (i.e., stop acquiring) probability dis-tribution. The bottom panel illustrates the temporal acquisition plan as a directed graph across timesteps (y-axis). Nodes represent specific features acquired at a given timestep, with size and color in-tensity reflecting the overall acquisition frequency. Edges show the directed transitions between acquired nodes: if a sample acquires feature m at one timestep 𝑡 and feature n at a future acquisition step 
+
+𝑡 ′ > 𝑡 , a directed edge m@𝑡 → n@𝑡 ′ is added. The visual weight of the edge (thickness and darkness) corresponds to the fraction of samples exhibiting that transition. For visual clarity, we only show the features actually acquired across the trajectories. Fig. 5 shows that REACT learns markedly different longitudinal acquisition policies across datasets, rather than applying a uni-form sparsification strategy. Across tasks, acquisition is often front-loaded, with higher measurement cost in early steps followed by progressively sparser follow-up, suggesting that early observations are frequently most useful for routing later decisions. The stop-probability distributions further indicate adaptive termination be-havior: in CHEEARS and ADNI, stopping mass is spread across intermediate and later steps, consistent with selective early stopping once sufficient evidence is gathered, whereas in ILIADD, WOMAC, and KLG, termination under the policy shown here is concentrated closer to the end of the horizon, indicating that continued monitor-ing is often preferred at this operating point. The trajectory graphs reinforce this interpretation by showing structured transition pat-terns, where early acquisitions branch into different later feature sequences rather than repeatedly selecting the same variables in a fixed order. Fig. 4 further shows that REACT adapts feature acquisi-tion at the instance level: (a) For CHEEARS, only the first instance acquires the drink_expectancies and happy features, and (b) for WOMAC, only the second instance acquires JSW_3 , and the policy stops acquiring once predictions stabilize, when additional mea-surements are unlikely to change the predicted label to save the budget. We note that these visualizations correspond to REACT policies learned for a respective single acquisition cost tradeoff parameter, 𝜆 .The dataset-specific patterns are consistent with the underly-ing measurement types. In CHEEARS, REACT concentrates on a Figure 5: Qualitative visualization of longitudinal acquisition dynamics by REACT across datasets. Metrics are reported per dataset on the test set as (Total/Longitudinal Costs | AUROC/AUPRC): ILIADD (35.739/23.993 | 0.842/0.706), CHEEARS (13.275/11.275 | 0.673/0.540), ADNI (12.635/10.535 | 0.823/0.678), WOMAC (30.217/28.141 | 0.670/0.355), KLG (29.243/26.869 |
+
+0.812/0.621). For visual clarity, only the selected features are displayed, and the stop probabilities are rounded. 
+
+Figure 6: Qualitative comparison of acquisition of REACT, DIME, and RAS on the ADNI dataset. Metrics are reported per framework on the test set as (Total/Longitudinal Costs |
+
+AUROC/AUPRC): REACT (5.335/3.235 | 0.824/0.683), DIME (5.619/3.630 | 0.644/0.483), RAS (8.675/4.193 | 0.817/0.684) 
+
+relatively small subset of daily EMA variables, including affective states, drinking-related expectations, and social-context items, with acquisition frequency declining over time. This suggests that for next-day drinking prediction, a limited set of recent mood, motiva-tion, and context measurements often captures much of the useful signal, after which additional daily acquisitions provide diminishing value. In ILIADD, the learned policy repeatedly acquires the com-pact set of momentary EMA items—positive affect, energy, stress, and impulsivity—across the horizon. Because the target is negative affect at each timepoint and the temporal bank itself consists of re-peatedly sampled within-day EMA variables, this sustained reuse of a small dynamic feature set is behaviorally plausible and aligns with the strong predictive performance on this dataset. Notably, this com-paratively static acquisition pattern illustrates that REACT adapts the degree of temporal policy dynamicity to the dataset, rather than enforcing diverse trajectories when repeated measurement of the same small feature set is most useful. In ADNI, REACT focuses on the four longitudinal imaging biomarkers—Hippocampus, Entorhi-nal, FDG, and AV45—with a transition structure suggesting earlier use of lower-cost MRI markers and more selective progression to higher-cost PET biomarkers when needed. The spread of stopping mass across visits is likewise consistent with adaptive escalation when later acquisitions differ substantially in cost and burden. In OAI (WOMAC and KLG), the learned policies (under the choice for 𝜆 ) show broader early use of the available longitudinal clinical and radiographic variables, followed by gradual narrowing over later visits. These patterns suggest that, when allowed a less restric-tive budget, REACT can capitalize on that flexibility by acquiring a wider set of early clinical and radiographic measurements be-fore concentrating on a smaller follow-up subset. The denser early graphs likely reflect an increased budget of the selected cost–benefit trade-off 𝜆 rather than an inherent need for broader acquisition. Overall, these visualizations suggest that REACT allocates longitu-dinal acquisition effort in a task-dependent manner, adapting both feature choice and stopping behavior to the temporal structure, feature semantics, and relative acquisition costs of each dataset. 
+
+Acquisition Trajectories of REACT vs. Baselines . We com-pare against DIME and RAS baselines at a similar average cost in Fig. 6. REACT achieves better performance than DIME at a similar cost and comparable performance to RAS at a lower cost. More-over, one may see that REACT acquires informative biomarkers early and then terminates quickly ( 98% of trajectories terminate by Relaxed Efficient Acquisition of Context and Temporal Features 
+
+Figure 7: Ablation study of the self-iterative training we used for training REACT (Alg. 1). We compare AUROC/total cost when planner 𝜋 𝜃 trained with (i) self-iterative training from random initialization (Self Training) and (ii) trained using only offline reference states (Offline Reference). 
+
+Figure 8: Ablation study on how the learned context selector affects the temporal feature acquisition. AUROC of REACT with learned context descriptors compared to when context descriptors are all acquired (REACT-all) or not at all acquired (REACT-none) across datasets. 
+
+timestep two). This behavior suggests a time-aware strategy, where the policy invests early to reduce the chance of missing high-value signals, and stops once additional measurements are unlikely to change the prediction. In contrast, DIME and RAS spread the ac-quisition over time, showing later stopping distribution mass and extended acquisition chains. This suggests the baselines struggle to stop (even) when they have enough information. 
+
+## 4.6 Ablation of Context Selection 
+
+We ablate the onboarding context selector 𝛼 against two variants: (i) REACT-all, which acquires all context features, and (ii) REACT-none, which uses none. As shown in Fig. 8, the learned selector achieves higher AUROC at comparable cost on CHEEARS, ILIADD, and WOMAC. On KLG, all three variants perform similarly, suggest-ing context contributes little predictive value. On ADNI, removing context hurts performance, while REACT remains competitive with REACT-all — indicating the selector learns to acquire useful context without needing all of it. Overall, the benefit comes not from more context but from a learned selective subset that better supports downstream temporal acquisition. AUPRC results in Appx. Fig. 11 show a consistent pattern. 
+
+## 4.7 Ablation of Self-Iterative Training 
+
+To validate self-iterative training, we ablate it against a variant trained solely on static offline reference plans (see Appx. A.2). As shown in Fig. 7, self-iterative training consistently outperforms the offline reference across all datasets. The gap is most pronounced on clinical datasets (WOMAC, KLG, ADNI), where the offline variant produces unstable, non-monotonic curves at higher cost budgets — suggesting increasing misalignment between reference plans and the states the planner actually induces at test time. This confirms that exposing the planner to its own rollout states is critical for effec-tive policy learning. Additional AUPRC results are in Appx. Fig. 10. 
+
+## 5 Conclusion 
+
+We presented REACT, which formalizes a practical gap in the LAFA literature: the explicit separation of onboarding context from tem-poral features—a two-phase structure common to real clinical work-flows. REACT yields an end-to-end differentiable framework for LAFA that jointly optimizes onboarding context selection and adap-tive temporal acquisition planning under cost constraints. By re-placing discrete optimization with Gumbel-Sigmoid relaxation, RE-ACT trains a unified acquisition policy without the instability and credit-assignment difficulties of RL-based approaches. Importantly, the context selector is optimized not in isolation, but to select on-boarding descriptors that best support the downstream planner’s cost-benefit tradeoff—learning a population-level context strategy tailored to longitudinal acquisition efficiency. We provide both quantitative results, such as cost-performance curves, and qualitative analysis that shows feature acquisition pro-cesses on five real-world longitudinal tasks with context features spanning behavioral and clinical health domains. Across these datasets, REACT consistently achieves superior predictive perfor-mance at the same acquisition cost compared to existing LAFA baselines. Qualitative analysis reveals that REACT learns meaning-ful, dataset-specific acquisition strategies: acquiring informative features early and terminating once predictions stabilize. Ablation studies confirm that both the learned context selector and the self-iterative training procedure contribute meaningfully to the superior performance of REACT by identifying a selective subset of onboard-ing descriptors that best support downstream temporal decisions and exposing the planner to on-policy states that better reflect test-time conditions, respectively. We anticipate that this work serves as a foundation for future research on cost-aware longitudinal decision-making. In the longer term, approaches such as REACT may support more efficient, patient-centered care by reducing unnecessary measurement burden, low-ering costs, and improving the allocation of expensive diagnostic resources. 
+
+## References 
+
+[1] OL Aiyegbusi, J Roydhouse, SC Rivera, P Kamudoni, P Schache, R Wilson, R Stephens, and M Calvert. [n. d.]. Key considerations to reduce or address respon-dent burden in patient-reported outcome (PRO) data collection. Nat Commun. 2022; 13 (1): 6026. [2] Boqi Chen, Junier Oliva, and Marc Niethammer. 2024. A unified model for lon-gitudinal multi-modal multi-view prediction with missingness. In International Conference on Medical Image Computing and Computer-Assisted Intervention .410–420. [3] Diane Cook, Aiden Walker, Bryan Minor, Catherine Luna, Sarah Tomaszewski Farias, Lisa Wiese, Raven Weaver, Maureen Schmitter-Edgecombe, et al . 2025. Understanding the Relationship Between Ecological Momentary Assessment Methods, Sensed Behavior, and Responsiveness: Cross-Study Analysis. JMIR mHealth and uHealth 13, 1 (2025), e57018. [4] Ian Connick Covert, Wei Qiu, Mingyu Lu, Na Yoon Kim, Nathan J White, and Su-In Lee. 2023. Learning to maximize mutual information for dynamic feature selection. In International Conference on Machine Learning . PMLR, 6424–6447. [5] Soham Gadgil, Ian Connick Covert, and Su-In Lee. 2024. Estimating Conditional Mutual Information for Dynamic Feature Selection. In The Twelfth International Conference on Learning Representations .[6] Aritra Ghosh and Andrew Lan. 2023. Difa: Differentiable feature acquisition. In 
+
+Proceedings of the AAAI Conference on Artificial Intelligence , Vol. 37. 7705–7713. [7] Wenbo Gong, Sebastian Tschiatschek, Sebastian Nowozin, Richard E Turner, José Miguel Hernández-Lobato, and Cheng Zhang. 2019. Icebreaker: Element-wise efficient information acquisition with a bayesian deep latent gaussian model. 
+
+Advances in neural information processing systems 32 (2019). [8] Neil Houlsby, Ferenc Huszár, Zoubin Ghahramani, and Máté Lengyel. 2011. Bayesian active learning for classification and preference learning. arXiv preprint arXiv:1112.5745 (2011). [9] Eric Jang, Shixiang Shane Gu, and Ben Poole. 2016. Categorical Reparame-terization with Gumbel-Softmax. ArXiv abs/1611.01144 (2016). https://api. semanticscholar.org/CorpusID:2428314 [10] Jaromír Janisch, Tomáš Pevn `y, and Viliam Lis `y. 2020. Classification with costly features as a sequential decision-making problem. Machine Learning 109, 8 (2020), 1587–1615. [11] Jonas H Kellgren, JS Lawrence, et al . 1957. Radiological assessment of osteo-arthrosis. Ann Rheum Dis 16, 4 (1957), 494–502. [12] Utkarsh Mahadeo Khaire and R Dhanalakshmi. 2022. Stability of feature selection algorithm: A review. Journal of King Saud University-Computer and Information Sciences 34, 4 (2022), 1060–1073. [13] Patrick Kidger, James Morrill, James Foster, and Terry Lyons. 2020. Neural controlled differential equations for irregular time series. Advances in Neural Information Processing Systems 33 (2020), 6696–6707. [14] Ksenia Konyushkova, Raphael Sznitman, and Pascal Fua. 2017. Learning active learning from data. Advances in neural information processing systems 30 (2017). [15] Jannik Kossen, Cătălina Cangea, Eszter Vértes, Andrew Jaegle, Viorica Pa-traucean, Ira Ktena, Nenad Tomasev, and Danielle Belgrave. 2023. Active Ac-quisition for Multimodal Temporal Data: A Challenging Decision-Making Task. 
+
+Transactions on Machine Learning Research (2023). [16] Yang Li and Junier Oliva. 2021. Active feature acquisition with generative surrogate models. In International conference on machine learning . PMLR, 6450– 6459. [17] Chao Ma, Sebastian Tschiatschek, Konstantina Palla, Jose Miguel Hernandez-Lobato, Sebastian Nowozin, and Cheng Zhang. 2019. EDDI: Efficient Dynamic Discovery of High-Value Information with Partial VAE. In International Confer-ence on Machine Learning . PMLR, 4234–4243. [18] David JC MacKay. 1992. Information-based objective functions for active data selection. Neural computation 4, 4 (1992), 590–604. [19] Chris J. Maddison, Andriy Mnih, and Yee Whye Teh. 2016. The Concrete Distribution: A Continuous Relaxation of Discrete Random Variables. ArXiv 
+
+abs/1611.00712 (2016). https://api.semanticscholar.org/CorpusID:14307651 [20] Sara McConnell, Pamela Kolopack, and Aileen M Davis. 2001. The Western Ontario and McMaster Universities Osteoarthritis Index (WOMAC): a review of its utility and measurement properties. Arthritis Care & Research: Official Journal of the American College of Rheumatology 45, 5 (2001), 453–461. [21] Jianyu Miao and Lingfeng Niu. 2016. A survey on feature selection. Procedia computer science 91 (2016), 919–926. [22] Khanh Nguyen, Huy Hoang Nguyen, Egor Panfilov, and Aleksei Tiulpin. 2024. Active Sensing of Knee Osteoarthritis Progression with Reinforcement Learning. 
+
+arXiv preprint arXiv:2408.02349 (2024). [23] Alexander Norcliffe, Changhee Lee, Fergus Imrie, Mihaela Van Der Schaar, and Pietro Liò. 2025. Stochastic Encodings for Active Feature Acquisition. arXiv preprint arXiv:2508.01957 (2025). [24] Sid E O’Bryant, Laura H Lacritz, James Hall, Stephen C Waring, Wenyaw Chan, Zeina G Khodr, Paul J Massman, Valerie Hobson, and C Munro Cullum. 2010. Validation of the new interpretive guidelines for the clinical dementia rating scale sum of boxes score in the national Alzheimer’s coordinating center database. 
+
+Archives of neurology 67, 6 (2010), 746–749. [25] Sid E O’Bryant, Stephen C Waring, C Munro Cullum, James Hall, Laura Lacritz, Paul J Massman, Philip J Lupo, Joan S Reisch, Rachelle Doody, Texas Alzheimer’s Research Consortium, et al . 2008. Staging dementia using Clini-cal Dementia Rating Scale Sum of Boxes scores: a Texas Alzheimer’s research consortium study. Archives of neurology 65, 8 (2008), 1091–1095. [26] Ronald Carl Petersen, Paul S Aisen, Laurel A Beckett, Michael C Donohue, Anthony Collins Gamst, Danielle J Harvey, CR Jack Jr, William J Jagust, Leslie M Shaw, Arthur W Toga, et al . 2010. Alzheimer’s disease Neuroimaging Initiative (ADNI) clinical characterization. Neurology 74, 3 (2010), 201–209. [27] Yuchao Qin, Mihaela van der Schaar, and Changhee Lee. 2024. Risk-averse active sensing for timely outcome prediction under cost pressure. Advances in Neural Information Processing Systems 36 (2024). [28] Whitney R. Ringwald, Kasey G. Creswell, Carissa A. Low, Afsaneh Doryab, Tammy Chung, Junier Oliva, Zachary F Fisher, Kathleen M Gates, and Aidan G. C. Wright. 2025. Common and uncommon risky drinking patterns in young adulthood uncovered by person-specific computational modeling. Psychology of addictive behaviors : journal of the Society of Psychologists in Addictive Behaviors 
+
+(2025). https://api.semanticscholar.org/CorpusID:275442415 [29] Whitney R. Ringwald, Colin E. Vize, and Aidan G. C. Wright. 2025. Do you feel what I feel? The relation between congruence of perceived affect and self-reported empathy in daily life social situations. Emotion (2025). https://api. semanticscholar.org/CorpusID:278234840 [30] Sindre Rolstad, John Adler, and Anna Rydén. 2011. Response burden and ques-tionnaire length: is shorter better? A review and meta-analysis. Value in Health 
+
+14, 8 (2011), 1101–1108. [31] Stéphane Ross, Geoffrey Gordon, and Drew Bagnell. 2011. A reduction of imi-tation learning and structured prediction to no-regret online learning. In Pro-ceedings of the fourteenth international conference on artificial intelligence and statistics . JMLR Workshop and Conference Proceedings, 627–635. [32] Maytal Saar-Tsechansky, Prem Melville, and Foster Provost. 2009. Active feature-value acquisition. Management Science 55, 4 (2009), 664–684. [33] Victor S Sheng and Charles X Ling. 2006. Feature value acquisition in testing: a sequential batch test algorithm. In Proceedings of the 23rd international conference on Machine learning . 809–816. [34] Saul Shiffman, Arthur A Stone, and Michael R Hufford. 2008. Ecological momen-tary assessment. Annu. Rev. Clin. Psychol. 4, 1 (2008), 1–32. [35] Hajin Shim, Sung Ju Hwang, and Eunho Yang. 2018. Joint active feature ac-quisition and classification with variable-size set encoding. Advances in neural information processing systems 31 (2018). [36] Laura Swinckels, Frank C Bennis, Kirsten A Ziesemer, Janneke FM Scheerman, Harmen Bijwaard, Ander de Keijzer, and Josef Jan Bruers. 2024. The use of deep learning and machine learning on longitudinal electronic health records for the early detection and prevention of diseases: scoping review. Journal of medical Internet research 26 (2024), e48320. [37] Michael Valancius, Maxwell Lennon, and Junier Oliva. 2024. Acquisition Condi-tioned Oracle for Nongreedy Active Feature Acquisition. In International Confer-ence on Machine Learning . PMLR, 48957–48975. [38] B Venkatesh and J Anuradha. 2019. A review of feature selection and its methods. 
+
+Cybern. Inf. Technol 19, 1 (2019), 3–26. [39] Haiyan Yin, Yingzhen Li, Sinno Jialin Pan, Cheng Zhang, and Sebastian Tschi-atschek. 2020. Reinforcement learning with efficient active feature acquisition. 
+
+arXiv preprint arXiv:2011.00825 (2020). [40] Jinsung Yoon, James Jordon, and Mihaela Schaar. 2019. ASAC: Active sensing using Actor-Critic models. In Machine Learning for Healthcare Conference . PMLR, 451–473. Relaxed Efficient Acquisition of Context and Temporal Features 
+
+## Appendix A Additional Results for Experiments and Ablations A.1 AUPRC Results 
+
+We provide the additional AUPRC results for the cost/performance trade-off experiment presented in the main text. Fig. 9 is the exper-iment results, Fig. 11 is the context selector ablation results, and Fig. 10 is the oracle vs self-training ablation results. 
+
+## A.2 Warmup Ablation 
+
+Figure 12: Ablation on States Seen During Policy Training. 
+
+While offline references can provide states to train the planner network, they have a fundamental limitation: one trajectory per instance. Online refinement solves this via on-policy rollouts: exe-cuting 𝜋 𝜃 generates diverse acquisition, exposing the policy to more states. We ablate on the type of states seen during training to evalu-ate if training using states output by the planner network 𝜋 𝜃 helps generalization to test data. We ablate on three strategies: (1) Offline Reference (OR) Warmup (REACT), (2) No Warmup (pure online), and (3) Offline Reference Only. We will detail later in this section how to create the reference plan datasets for warmup. Fig. 12 shows OR Warmup achieves comparable cost-performance tradeoffs with No Warmup on most datasets and better on WOMAC. 
+
+Offline Reference Warmup . In this section, we detail how to create the dataset of reference plans, which is then used to warmup the planner 𝜋 𝜃 . On the high-level, because training trajectories are fully observed, we can evaluate candidate acquisition plans under the same accuracy–cost tradeoff used in our objective and select the best-scoring plan for each training instance. We then initialize training episodes with these instance-specific reference plans, rather than random states, to provide a stronger starting point for the planner before subsequent self-iterative refinement with on-policy rollouts. Let 𝑚 𝑠 ∈ { 0, 1}𝑑 𝑠 denote the contextual acquisition mask, and let 
+
+𝑀 ∈ { 0, 1}𝑇 ×𝑑 denote the temporal acquisition plan, with row 𝑚 𝑡 ∈{0, 1}𝑑 corresponding to the acquired temporal features at time 𝑡 .Given a training trajectory (𝑠, 𝑥, 𝑦 ) ∈ D train , where 𝑦 = (𝑦 1, . . . , 𝑦 𝑇 ),we define ˜𝑠 = 𝑚 𝑠 ⊙ 𝑠 and ˜𝑥 𝑡 = 𝑚 𝑡 ⊙ 𝑥 𝑡 for 𝑡 = 1, . . . ,𝑇 . Let 
+
+𝐻 𝑡 (𝑀 ) = ( ˜𝑥 1, . . . , ˜𝑥 𝑡 , 0, . . . , 0) (9) denote the masked temporal history available up to time 𝑡 . We then score a candidate plan (𝑚 𝑠 , 𝑀 ) using the plug-in objective                  
+
+> 𝐽 𝜆 (𝑚 𝑠 , 𝑀 ;𝑥, 𝑠, 𝑦 )=Í𝑇 𝑡 =1𝐿 pred
+>  𝑓 𝜙 (𝐻 𝑡 (𝑀 ),˜𝑠, 𝑡 ), 𝑦 𝑡
+> +𝜆
+> 
+> 𝑐 ⊤
+> 𝑠 𝑚 𝑠 +Í𝑇 𝑡 =1𝑐 ⊤
+> 𝑥 𝑚 𝑡
+> 
+
+(10) Because (𝑠, 𝑥, 𝑦 ) is fully observed during training, 𝐽 𝜆 is directly computable and can therefore be used to compare candidate discrete acquisition plans, as described below. For each training instance 𝑖 , we generate a set of candidate ac-quisition plans ( 𝐾 = 1000 in our experiments) 
+
+Candidate 𝑖 = {( 𝑚 (𝑘 ) 
+
+> 𝑠
+
+, 𝑀 (𝑘 ) )} 𝐾 𝑘 =1, (11) and select the best plan, referred to as the reference plan, by 
+
+(𝑚 ∗ 
+
+> 𝑠
+
+, 𝑀 ∗) ∈ argmin   
+
+> (𝑚 𝑠 ,𝑀 ) ∈ Candidate 𝑖
+
+𝐽 𝜆 (𝑚 𝑠 , 𝑀 ; 𝑥 𝑖 , 𝑠 𝑖 , 𝑦 𝑖 ). (12) In practice, rather than performing an exhaustive search over Candidate 𝑖 ,we construct the candidate set by sampling discrete plans, e.g., uni-formly at random. After obtaining reference plans for all training instances, we form a reference dataset 
+
+Dref =   (𝑠 𝑖 , 𝑥 𝑖 , 𝑦 𝑖 ), (𝑚 ∗ 
+
+> 𝑠
+
+, 𝑀 ∗) 𝑁 𝑖 =1 , (13) which maps each fully observed training trajectory to its best-scoring acquisition plan and is used to warm-start the planner 𝜋 .We use Dref to warm-start the policy parameters 𝛼 and 𝜃 of the planner 𝜋 𝜃 by minimizing the prediction loss from the classifier when the planner sees the states from reference masks. 
+
+## B Baseline Implementations 
+
+We evaluate our proposed framework against several strong base-line methods for traditional AFA and LAFA settings. Importantly, existing baselines do not natively distinguish the onboarding con-text 𝑠 from the temporal measurements 𝑥 𝑡 . To ensure a fair compari-son, we restructure the observation space for all baseline models by concatenating both feature types at every step, obtaining the new state vector 𝑥 ′ 
+
+> 𝑡
+
+= [𝑠, 𝑥 𝑡 ] ∈ R𝑑 𝑠 +𝑑 . Thus, this grants the baselines flexibility where they can acquire missed contextual descriptors earlier. Consequently, the baseline policies have to discover that Figure 9: AUPRC/total cost of models across various average acquisition costs (budgets) on test data. The dashed line is evaluating the pretrained classifier from REACT with all features available. 
+
+Figure 10: Ablation study of the self-iterative training for REACT (Alg. 1). We compare AUPRC/total cost when planner 𝜋 𝜃 
+
+trained with (i) self-iterative training from random initialization (Self Training) and (ii) trained using only offline reference states (Offline Reference). 
+
+Figure 11: Ablation study on how the learned context selector affects the temporal feature acquisition. AUPRC of REACT with learned context descriptors compared to when context descriptors are all acquired (REACT-all) or not at all acquired (REACT-none) across datasets. 
+
+context should be acquired early, while actively learning to avoid re-measuring (and cost penalty 𝑐 𝑠 ) the same context data in subsequent visits. To ensure a fair comparison, we evaluated all baselines by adapt-ing the authors’ official implementations. For ASAC, RAS, and AS, we use the implementation available at https://github.com/ yvchao/cvar_sensing, which is under the BSD-3-Clause license. For DIME, built on top of the official implementation available at https://github.com/suinleelab/DIME, we adapt the method to the longitudinal setting by restricting the acquisition to current or future timesteps. Following [ 27 ], ASAC, RAS, and AS share the same neural CDE predictor [ 13 ]. Following the released code, the drop rate 𝑝 ∈{0.0, 0.3, 0.5, 0.7} of the auxiliary observation strategy 𝜋 0 is treated as a hyperparameter and selected according to the outcome predic-tor’s average accuracy over multiple randomly masked evaluation sets generated by 𝜋 0. The selected drop rates are: 
+
+𝑝 =
+
+
+
+0.7 ILIADD ,
+
+0.7 CHEEARS ,
+
+0.3 ADNI ,
+
+0.3 WOMAC ,
+
+0.0 KLG .
+
+ASAC [ 40 ]. For ASAC, we tune the acquisition-cost coefficient 
+
+𝜇 on the validation set. The search grids are: 
+
+𝜇 ∈
+
+
+
+{0.02, 0.005, 0.002 } ILIADD ,
+
+{0.01, 0.005, 0.003, 0.002 } CHEEARS ,
+
+{0.02, 0.01, 0.001 } ADNI ,
+
+{0.1, 0.01, 0.005, 0.001 } WOMAC ,
+
+{0.00175, 0.00125 } KLG .
+
+Note that sweeping the 𝜇 parameter yields a diverse set of ASAC policies, each corresponding to a different average acquisition cost. Relaxed Efficient Acquisition of Context and Temporal Features 
+
+RAS [ 27 ]. For RAS, we specify the acquisition interval range 
+
+(Δmin , Δmax ) = (0.5, 1.5) to all datasets. We further tune the diagnostic-error coefficient 𝛾 RAS on the validation set via grid search: 
+
+𝛾 RAS ∈
+
+
+
+{5, 10, 15 } ILIADD ,
+
+{5, 10, 15 } CHEEARS ,
+
+{50, 75, 100, 175 } ADNI ,
+
+{500, 750, 1000, 1250 } WOMAC ,
+
+{500, 750, 1000, 1250 } KLG .
+
+The final selected values of 𝛾 RAS depend on the target acquisition budget. For all datasets, we use a tail-risk quantile of 0.1 , an invalid-visit penalty of 10 , and a discount factor of 0.99 , following the authors’ defaults. 
+
+AS [ 27 ]. For AS, we use the same minimum and maximum acquisition-interval constraints as in the RAS setting. In addition, we tune a fixed acquisition interval ˜Δ for each dataset: 
+
+˜Δ ∈
+
+
+
+{0.5, 1.0, 1.5 } ILIADD ,
+
+{1.0, 1.5, 2.0 } CHEEARS ,
+
+{0.2, 0.4, 0.5, 1.0, 1.5 } ADNI ,
+
+{1.0, 1.5, 2.0 } WOMAC ,
+
+{0.2, 0.4, 0.5, 1.0, 1.5 } KLG .
+
+As with RAS, different final values of ˜Δ may be reported for different acquisition budgets. 
+
+DIME [ 4 ]. We extend DIME to the longitudinal setting while preserving its original greedy acquisition mechanism. In our imple-mentation, DIME is restricted to selecting features from the current or future time points only. Since DIME acquires one feature at a time, it may make repeated selections within the same time step before moving forward in time. To keep the comparison controlled, both the prediction network and value network of DIME share the same architecture as REACT. 
+
+## C Additional Implementation and Training Details on REACT 
+
+Details architecture and training procedure for REACT are as fol-low: 
+
+• predictor: 3-layer MLP with ReLU activations; 64 for all hid-den layer size; pre-trained with cross entropy loss, dropout with 𝜌 =0.4, random masking of input where each subset size is equally likely, and early stopping on the validation set. 
+
+• contextual descriptor selector: logits of context descriptor size 
+
+• planner: 3-layer MLP with ReLU activations; hidden layer sizes are [512, 256,128]; input time indicator embedded with sinusoidal time embedding with dimension of 64. 
+
+• training procedure: For results in Fig. 3 and Fig. 9, we jointly trained the above 3 components for 1000 mini batches of size 64 on all datasets, optimizing using L𝑅𝐸𝐴𝐶𝑇 . The first 50 are warm-up batches using offline reference, and the remaining 950 are self-training. Hyperparameters we used for REACT are as follows: 
+
+• cost-benefit tradeoff hyperparameter 𝜆 : in Table 1, we re-port 𝜆 we used for each cost we have in our plots. 
+
+• learning rate for pretraining predictor: 0.001. 
+
+• learning rate for training the planner and context selector: 0.001. 
+
+• learning rate for training predictor jointly: 0.0001. 
+
+## D Training and Evaluation Wall-Clock Runtime 
+
+Hardware and Setup . We measured the wall-clock runtime for training and evaluation across the five longitudinal tasks (ILIADD, CHEEARS, ADNI, WOMAC, and KLG). To ensure a fair comparison, we ensured all methods had access to the same hardware: a single NVIDIA L40S GPU and an Intel Xeon Gold 6526Y CPU. To prevent timing mismatches caused by asynchronous CUDA executions, we synchronized the device before and after all timed regions and recorded the durations using time.perf_counter() .
+
+Training Runtime . We normalized the training runtime as seconds per full train-set pass and used the same batch size during both training and evaluation. We define one iteration as one full train-set pass. The specific iterations for each method are 2 classifier pretraining iterations and 2 policy (joint) training iterations. In Fig. 13(a), we can see REACT achieves training time that are faster than recent deep learning approaches (DIME, RAS, and AS). 
+
+> (a) Training wall-clock runtime
+> (b) Evaluation wall-clock runtime
+
+Figure 13: Comparison of training and evaluation runtimes. 
+
+Evaluation Runtime . For inference, all methods were timed on the full test sets using the same batch size of 128. We report Dataset 𝜆 Total Cost Temporal Cost Context Cost                                                                                       
+
+> ADNI 0.05 1.100 0.500 0.600 0.01 4.725 3.225 1.500 0.0001 5.585 3.485 2.100 CHEEARS 0.003 1.000 0.000 1.000 0.002 6.851 5.851 1.000 0.0015 13.275 11.275 2.000 0.0008 26.044 18.044 8.000 0.0006 35.571 25.571 10.000 0.0004 45.213 32.257 12.956 0.0002 65.754 45.798 19.956 0.0001 100.824 78.868 21.956 ILIADD 0.005 1.999 1.999 0.000 0.003 11.266 11.266 0.000 0.001 29.742 20.995 8.747 0.0005 35.739 23.993 11.747 0.0001 51.696 33.950 17.747 KLG 0.05 0.989 0.989 0.000 0.01 8.489 6.997 1.492 0.005 13.179 11.687 1.492 0.001 29.243 26.869 2.374 0.0005 37.613 34.941 2.672 0.0001 46.243 43.274 2.969 WOMAC 0.05 0.297 0.297 0.000 0.01 1.767 0.584 1.183 0.005 1.775 0.297 1.478 0.001 7.368 5.890 1.478 0.0005 12.037 10.559 1.478
+
+Table 1: REACT hyperparameter: acquisition costs and 𝜆 by dataset. 
+
+the end-to-end wall-clock runtime and the per-acquisition cost. In Fig. 13(b), we can see REACT achieves comparable inference time with the baselines. 
+
+## E Dataset Details E.1 CHEEARS 
+
+More details about features we used for the CHEEARS data can be found in Table 2 and Table 3, see [ 28 ] for information on the features and survey design. 
+
+## E.2 ILIADD 
+
+More details about features we used for the ILIADD data can be found in Table 4 and Table 5. 
+
+## E.3 ADNI 
+
+More details about the ADNI context descriptors and temporal features could be found in Table 6 and Table 7, respectively. Data access and the corresponding Data Use Agreement can be found at https://adni.loni.usc.edu and https://adni.loni.usc.edu/terms-of-use/, respectively. 
+
+## E.4 OAI 
+
+The OAI dataset involves two prediction tasks, WOMAC and KLG, which share the same set of input features. More details about the OAI context descriptors and temporal features can be found in Table 8 and Table 9, respectively. Access to the OAI data may be requested via https://nda.nih.gov/oai/. 
+
+## F Onboarding Context Selection 
+
+We show examples of the selected contexts in Fig. 14. These contexts correspond to the policies illustrated in Fig. 5. Relaxed Efficient Acquisition of Context and Temporal Features 
+
+Feature Name Acquisition Cost Description 
+
+sex 1.0 Participant sex. age 1.0 Participant age. race___4 1.0 Participant race (Black/African American indicator). hispanic 1.0 Hispanic/Latino ethnicity. education 1.0 Highest level of education attained. current_employed 1.0 Current employment status. family_income 1.0 Family income level. religious_affiliation 1.0 Religious affiliation. cigarette_use 1.0 Cigarette/tobacco use history. alcohol_use 1.0 Alcohol use history. drug_use 1.0 Drug use history. mentalhealth 1.0 Mental health status or diagnosis. audit_total 1.0 Total score on the Alcohol Use Disorders Identifica-tion Test (AUDIT). dmq_soc 1.0 Drinking Motives Questionnaire (DMQ) — Social mo-tives subscale. dmq_cop 1.0 DMQ — Coping motives subscale. dmq_enh 1.0 DMQ — Enhancement motives subscale. dmq_con 1.0 DMQ — Conformity motives subscale. yaacq_total 1.0 Young Adult Alcohol Consequences Questionnaire (YAACQ) — total score. yaacq_social 1.0 YAACQ — Social/interpersonal consequences sub-scale. yaacq_control 1.0 YAACQ — Loss of control subscale. yaacq_selfperc 1.0 YAACQ — Self-perception consequences subscale. yaacq_selfcare 1.0 YAACQ — Self-care consequences subscale. yaacq_risk 1.0 YAACQ — Risk/safety consequences subscale. yaacq_academic 1.0 YAACQ — Academic/occupational consequences sub-scale. yaacq_depend 1.0 YAACQ — Dependence symptoms subscale. yaacq_blackout 1.0 YAACQ — Blackout subscale. neo_n 1.0 NEO Personality Inventory — Neuroticism subscale. neo_e 1.0 NEO Personality Inventory — Extraversion subscale. neo_a 1.0 NEO Personality Inventory — Agreeableness subscale. neo_o 1.0 NEO Personality Inventory — Openness subscale. neo_c 1.0 NEO Personality Inventory — Conscientiousness sub-scale. iip_dom 1.0 Inventory of Interpersonal Problems (IIP) — Domi-nance subscale. iip_lov 1.0 IIP — Love/Affiliation subscale. iip_elev 1.0 IIP — Elevation (overall interpersonal distress). DoW 1.0 Day of the week for the first day of the sequence. 
+
+Table 2: CHEEARS contextual descriptors. 
+
+More details about features we used for the ILIADD dataset can be found in Table 4 and Table 5, see [28] for information on the features and survey design. Feature Name Acquisition Cost Description 
+
+happy 1.0 Self-reported happiness in the past 15 minutes (con-tinuous scale). nervous 1.0 Self-reported nervousness in the past 15 minutes (con-tinuous scale). angry 1.0 Self-reported anger in the past 15 minutes (continuous scale). sad 1.0 Self-reported sadness in the past 15 minutes (continu-ous scale). excited 1.0 Self-reported excitement in the past 15 minutes (con-tinuous scale). alert 1.0 Self-reported alertness in the past 15 minutes (contin-uous scale). ashamed 1.0 Self-reported shame in the past 15 minutes (continu-ous scale). relaxed 1.0 Self-reported relaxation in the past 15 minutes (con-tinuous scale). bored 1.0 Self-reported boredom in the past 15 minutes (contin-uous scale). content 1.0 Self-reported contentment in the past 15 minutes (con-tinuous scale). stress 1.0 Self-reported stress in the past 15 minutes (continuous scale). drink_plans 1.0 Whether participant has specific plans to drink tonight. substance 1.0 Whether participant used any substances besides al-cohol to get high or feel good. dom 1.0 Self-rated dominance of social behavior during inter-actions today (continuous scale). warm 1.0 Self-rated warmth of social behavior during interac-tions today (continuous scale). drink_likely 1.0 Likelihood of drinking tonight. drink_quantity 1.0 Anticipated number of drinks to consume tonight. drink_urge 1.0 Strength of urge to drink in the past 15 minutes. nondrink_likely 1.0 Likelihood of drinking tonight (non-drinking condi-tion branch). nondrink_quantity 1.0 Anticipated drink quantity (non-drinking condition branch). nondrink_urge 1.0 Urge to drink in the past 15 minutes (non-drinking condition branch). nondrink_plan_other 1.0 Free-text specification of other evening plans (non-drinking branch). daily_activities 1.0 Activities completed today (9 binary features). daily_experiences 1.0 Work-related experiences today (6 binary features). drink_expectancies 1.0 Expected outcomes if drinking tonight (29 binary fea-tures). drink_motives 1.0 Reasons for drinking tonight (13 binary features). general_experiences 1.0 General experiences that occurred today (4 binary features). nondrink_expectancies 1.0 Expected outcomes for tonight if not drinking (26 binary features). nondrink_motives 1.0 Drinking motives, non-drinking condition branch (13 binary features). nondrink_plans 1.0 Plans for the evening if not drinking (13 binary fea-tures). social_experiences 1.0 Social experiences that occurred today (7 binary fea-tures). 
+
+Table 3: CHEEARS temporal features. Relaxed Efficient Acquisition of Context and Temporal Features 
+
+Feature Name Acquisition Cost Description 
+
+age 1.0 Participant age. sex 1.0 Participant sex. handedness 1.0 Participant handedness (e.g., left, right, ambidex-trous). multiracial 1.0 Multiracial identity indicator. hispanic 1.0 Hispanic/Latino ethnicity. language 1.0 Primary language spoken. marital 1.0 Marital status. relationship 1.0 Current romantic relationship status. grade 1.0 Current academic grade level. degree 1.0 Degree program or highest degree attained. income 1.0 Family or personal income level. cigarette 1.0 Cigarette/tobacco use. substance 1.0 Use of substances other than alcohol to get high or feel good. treatment 1.0 History of mental health or substance use treatment. recentTreatment 1.0 Whether participant received treatment recently. whoTreatment 1.0 Type or provider of most recent treatment. HiTOP_Dishon 1.0 HiTOP — Disinhibition/Dishonesty spectrum score. HiTOP_DisDys 1.0 HiTOP — Disinhibited/Dysregulated spectrum score. HiTOP_Emot 1.0 HiTOP — Emotional Dysfunction spectrum score. HiTOP_Mistrust 1.0 HiTOP — Mistrust/Antagonism spectrum score. HiTOP_PhobInd 1.0 HiTOP — Phobic Internalizing spectrum score. BFI_E 1.0 Big Five Inventory — Extraversion subscale. BFI_A 1.0 Big Five Inventory — Agreeableness subscale. BFI_C 1.0 Big Five Inventory — Conscientiousness subscale. BFI_N 1.0 Big Five Inventory — Neuroticism subscale. BFI_O 1.0 Big Five Inventory — Openness to Experience sub-scale. 
+
+Table 4: ILIADD contextual descriptors. 
+
+Feature Name Acquisition Cost Description 
+
+interaction 1.0 Event-contingent report of a social interaction (trig-gered by participant). positiveaffEMA 1.0 Self-reported positive affect in the past 15 minutes (0 = Neutral, 10 = Very Positive). energyEMA 1.0 Self-reported energy/alertness in the past 15 minutes (0 = Not at all, 10 = Very Energetic/Awake). stressEMA 1.0 Self-reported stress in the past 15 minutes (0 = Not at all, 10 = Extremely). impulse1EMA 1.0 In the past hour, acted on impulse (0 = Not at all, 10 = Very Much). impulse2EMA 1.0 In the past hour, did things without worrying about consequences (0 = Not at all, 10 = Very Much). impulse3EMA 1.0 In the past hour, decided to put off something that needed to be done (0 = Not at all, 10 = Very Much). impulse4EMA 1.0 In the past hour, avoided doing something despite knowing the consequences (0 = Not at all, 10 = Very Much). 
+
+Table 5: ILIADD temporal (EMA) features. Feature Name Acquisition Cost Description 
+
+AGE 0.3 Participant age. PTGENDER 0.3 Participant gender. PTEDUCAT 0.3 Participant education. PTETHCAT 0.3 Participant ethnic category. PTRACCAT 0.3 Participant racial category. PTMARRY 0.3 Participant marital status. FAQ 0.3 Functional Activities Questionnaire total score. 
+
+Table 6: ADNI contextual descriptors. 
+
+Feature Name Acquisition Cost Description 
+
+FDG 1.0 FDG PET biomarker. AV45 1.0 AV45 PET biomarker. Hippocampus 0.5 Hippocampal MRI biomarker. Entorhinal 0.5 Entorhinal MRI biomarker. 
+
+Table 7: ADNI temporal features. 
+
+Feature Name Acquisition Cost Description 
+
+HISP 0.3 Hispanic/Latino ethnicity indicator. RACE 0.3 Self-reported race category. SEX 0.3 Participant sex. FAMHXKR 0.3 Mother, father, sister, or brother had knee repl surgery where all/part of knee replaced. EDCV 0.3 Highest grade or year of school completed. AGE 0.3 Age. SMOKE 0.3 Smoking history/status. INCOME2 0.3 Household income category. MARITST 0.3 Marital status. MEDINS 0.3 Medical / health insurance status. 
+
+Table 8: OAI contextual descriptors. 
+
+Feature Name Acquisition Cost Description 
+
+DRNKAMT 0.3 Current alcohol consumption amount. DRKMORE 0.3 Alcohol-use indicator capturing heavier or more fre-quent drinking pattern. BPSYS 0.5 Systolic blood pressure. BPDIAS 0.5 Diastolic blood pressure. BMI 0.5 Body mass index. CEMPLOY 0.3 Current employment. CUREMP 0.3 Currently work for pay. JSW_1 → JSW_10 0.8 Fixed-location radiographic knee joint space width (JSW) measurements. 
+
+Table 9: OAI temporal features. Relaxed Efficient Acquisition of Context and Temporal Features 
+
+(a) ILIADD 
+
+(b) CHEEARS 
+
+(c) ADNI 
+
+(d) WOMAC 
+
+(e) KLG 
+
+Figure 14: Selected contexts for the policies shown in Fig. 5. Bright cells indicate selected features, while dark cells indicate those that were not selected.
