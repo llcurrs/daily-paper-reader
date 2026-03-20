@@ -1,0 +1,692 @@
+Title: Structured SIR: Efficient and Expressive Importance-Weighted Inference for High-Dimensional Image Registration
+
+URL Source: https://arxiv.org/pdf/2603.17415v1
+
+Published Time: Thu, 19 Mar 2026 00:52:12 GMT
+
+Number of Pages: 18
+
+Markdown Content:
+# Structured SIR: Efficient and Expressive Importance-Weighted Inference for High-Dimensional Image Registration 
+
+Ivor J. A. Simpson 
+
+University of Sussex, UK 
+
+i.simpson@sussex.ac.uk 
+
+Neill D. F. Campbell 
+
+University College London, UK University of Bath, UK 
+
+neill.campbell@ucl.ac.uk 
+
+Abstract 
+
+Image registration is an ill-posed dense vision task, where multiple solutions achieve similar loss values, motivating probabilistic inference. Variational in-ference has previously been employed to capture these distributions, however restrictive assumptions about the posterior form can lead to poor characterisation, overconfidence and low-quality samples. More flexible posteriors are typically bottlenecked by the complexity of high-dimensional covariance matrices required for dense 3D image registration. In this work, we present a memory and computationally efficient inference method, Structured SIR, that enables expressive, multi-modal, characterisation of uncer-tainty with high quality samples. We propose the use of a Sampled Importance Resampling (SIR) algorithm with a novel memory-efficient high-dimensional covariance parameterisation as the sum of a low-rank covariance and a sparse, spatially structured Cholesky precision factor. This structure enables capturing complex spatial correlations while remaining computationally tractable. We evaluate the efficacy of this approach in 3D dense image registration of brain MRI data, which is a very high-dimensional problem. We demonstrate that our proposed methods produces uncertainty estimates that are significantly better cali-brated than those produced by variational methods, achieving equivalent or better accuracy. Crucially, we show that the model yields highly structured multi-modal posterior distributions, enable effective and efficient uncertainty quantification. 
+
+1 Introduction 
+
+Dense image registration, establishing pixel-, or voxel-wise geometric correspondences between images, is a fundamental task in computer vision and medical image analysis. There is intrinsic ambiguity in whether or not images are matched so this problem is fundamentally ill-posed; there will be multiple plausible registrations results possible. This has lead to the use of probabilistic inference approaches both without Le Folgoc et al. [2016], Risholm et al. [2011], Simpson et al. [2015] and with the assistance of neural networks Dalca et al. [2019], Grzech et al. [2021], Siegert et al. [2024]. The use of deep learning has provided some benefits for medical image registration, particularly with respect to computational efficiency via amortised inference Dalca et al. [2019]. Nonetheless, existing approaches offer limited expressivity in their posterior distributions limited by the memory scaling of high-dimensional covariance matrices. Moreover, many approaches follow a variational paradigm with the strong assumption that the posterior is an (often factorised) Gaussian, making it impossible to capture multi-modal outputs. In this work, we propose a framework that relaxes the limitations of variational inference and simplistic posterior distributions. Our contributions include: 
+
+Preprint. 
+
+> arXiv:2603.17415v1 [eess.IV] 18 Mar 2026
+
+1. Introducing an amortised Importance Sampling procedure, Sampled Importance Resampling (SIR), to produce a proposal distribution from which samples can be efficiently drawn and weighted to establish a more flexible posterior than variational inference, which matches the true posterior. 2. We propose an expressive Gaussian formulation for our proposal distribution, with a novel memory-efficient covariance parameterisation, consisting of a sum of a low-rank covari-ance and a spatially structured locally sparse Cholesky factor of the precision, with cross-directional correlations. 3. We demonstrate the superiority of our inferred importance weighted registration distributions, when compared to variational equivalents, in terms of: (i) segmentation accuracy; (ii) quality and coherence of samples; and, importantly, (iii) probabilistic calibration (i.e. the predicted uncertainty correlates with registration error) on a brain MRI dataset. 
+
+2 Background 
+
+2.1 Registration Notation 
+
+We denote the fixed and moving images as If and Im, defined over a common discrete spatial domain 
+
+Ω containing Nv voxels; that is, we are learning the deformation that takes Im to If . The dense displacement field is stacked in matrix Z ∈ R3×Nv , where any column z ∈ R3 is a 3D displacement. The warped image is given by Im(x + z(x)) , denoted as Im ◦ Z for brevity. 
+
+2.2 Probabilistic Registration 
+
+While traditional registration provides a single MAP (Maximum-A-Posteriori) estimate, e.g. Ash-burner [2007], full probabilistic frameworks aim to characterise the posterior distribution p(Z|If , Im).This is particularly critical for medical applications, where confidence intervals can guide clinical decision making. However, Uncertainty Quantification (UQ) has been challenging for registration, in general, and for many approaches the characterised uncertainty has been found to correlate poorly with the needs of downstream applications Luo et al. [2019]; we seek to rectify this situation with well calibrated uncertainty and coherent posterior samples. 
+
+2.2.1 Sampling and Approximate Inference 
+
+attempt to capture this distribution using either: sampling based methods Risholm et al. [2011], Zhang et al. [2013], which tend to be slow for dense 3D registration; or variational Le Folgoc et al. [2016], Simpson et al. [2015], or Laplace approximation Wang et al. [2018], approaches that are both computationally intensive and only provide a unimodal approximation of the posterior. More recently, Grzech et al. Grzech et al. [2021] bridged the gap between deep learning and classical inference by employing Stochastic Gradient MCMC. While this allows for more robust posterior coverage than standard variational methods, the requirement to draw multiple samples at inference time maintains a significant computational overhead compared to single-pass amortized models. 
+
+2.2.2 Amortised Variational Inference 
+
+was introduced to resolve the computational expense of estimating an approximate posterior dis-tribution Dalca et al. [2019]. In this framework, a neural network is trained to predict directly the parameters of an approximate posterior qθ (Z|If , Im); typically a multivariate Gaussian. This is achieved by maximizing the Evidence Lower Bound (ELBO): 
+
+Lelbo = Eqθ (Z|If ,Im) [log p(If |Im ◦ Z)] + KL (qθ (Z|If , Im)|| p(Z)) . (1) 
+
+2.2.3 Uncertainty Calibration 
+
+Although amortised variational methods are efficient, the resulting uncertainty estimates are often poorly calibrated, underestimating the posterior variance Cremer et al. [2018] and necessarily fail to capture multi-modal distributions. To address the multi-scale nature of registration uncertainty, 2PULPo Siegert et al. [2024] introduced a hierarchical Laplacian pyramid approach to capture uncer-tainty across multiple spatial scales. While PULPo improves UQ quality, its iterative/hierarchical nature add complexity to the sampling procedure. 
+
+2.3 Importance Sampling 
+
+Amortised importance sampling based inference was first introduced in the Importance Weighted Auto Encoder Burda et al. [2015]. A neural network is used to predict a “sample proposal distribution”, rather than an approximate posterior, where samples are weighted at test time based on their likelihood, prior and proposal probabilities. Importance distributions can be estimated in the same manner as variational methods, where we instead optimise the importance weighting: 
+
+Ez1: K
+
+"
+
+log 1
+
+K
+
+> K
+
+X
+
+> i=0
+
+p(If , Im ◦ Zi)
+
+qθ (Zi|If , Im)
+
+!# 
+
+= Ez1: K
+
+"
+
+log 1
+
+K
+
+> K
+
+X
+
+> i=0
+
+αi
+
+!# 
+
+, (2) where 
+
+αi = p(If |Im ◦ Zi)p(Zi)
+
+qθ (Zi|If , Im) (3) are our unnormalised weights using superscript ·i to denote a sample. The key distinction from variational inference is that we take the sum of the probabilities, rather than log probabilities allowing better samples zi to dominate in the loss (and therefore gradients). The importance log probabilities are therefore normalised by the other drawn samples, i.e. assigned importance weights. Where a single sample is used to calculate the expectation, this is equivalent to variational inference. Previous work demonstrated the multi-modality of the inferred distribu-tionCremer et al. [2017] but, to the best of our knowledge, it has not been directly applied to dense imaging problems. 
+
+2.4 Flexible Covariances 
+
+Structured Uncertainty Prediction Networks Dorta et al. [2018], demonstrated an efficient amortised inference approach to a full-rank covariance via a Gaussian Markov Random Field Rue and Held [2005] spatially-structured, but sparse precision distribution. Low-rank covariance approximations have also been shown to be effectively learned using amortised inference Monteiro et al. [2020]. In this work, we integrate these formulation together into a more flexible parameterisation. 
+
+3 Methods 
+
+3.1 Sampled Importance Resampling (SIR) 
+
+To approximate the complex posterior p(Z|If , Im), we employ the SIR framework Rubin [1987], Smith and Gelfand [1992], a form of importance weighted inference that approximates the objective in Eq. (2). While traditional approaches use all the samples from a proposal distribution to compute a weighted average, we draw inspiration from the resampling-based objectives in Maddison et al. [2017], which focuses the gradient computation on a subset of high-quality samples. Specifically, we use SIR to identify high-probability registration hypotheses from a large set of candidates drawn from the initial proposal distribution; these selected samples are then used to provide an informative supervisory signal for optimising the parameters of our proposal distribution network. This reduces the overhead of backpropagating through low-weight candidates, and permits a more expansive search of the proposal space. We draw NL samples from the learned proposal distribution q(Z) = N (μ, Σ) using the reparameterisation trick: 
+
+Zi = μ + RϵiR + L−⊤ ϵiL, (4) where ϵL and ϵR are are samples from a standard Normal distribution ( N (0, I)), and R and L are defined in Section 3.2 as part of our covariance parameterisation. 3True   
+
+> Distribution (a) Spherical Proposal Distribution
+> Good Sample Bad Sample (b) Structured
+> Gaussian
+> Proposal
+> Distribution
+> SIR
+> Chosen
+> Samples (c)
+
+Figure 1: Illustration of the distribution modelling problem, where the underlying probability distribution is illustrated in (a). (b) shows an attempt to model this variationally using a spherical Gaussian, which assigns probability mass to a lot of area that is unlikely, but simultaneously does not cover the whole distribution; if used as a proposal distribution then many poor samples are drawn and this is exacerbated as dimensionality increases. (c) illustrates how our SIR sampling framework allows selection of high probability samples at both learning/inference time, which avoids penalising a model for being more exploratory. Moreover, using a structured Gaussian allows assigning probability mass to higher density areas improving the efficiency of sampling. As we are modelling a high-dimensional correlated distribution Z ∈ R3×Nv , we might need to draw many samples to find effective ones, which would be computationally expensive and prohibitive in terms of memory to backpropagate through lots of low weighted samples. As such, we draw these samples without gradients but store the noise components for use in a subsequent backwards pass through selected samples. To identify the best samples to focus on, we compute our unnormalized importance weights without gradients, αi, based on the ratio between the target posterior and the proposal density: 
+
+αi = p(If |Im ◦ Zi)p(Zi)
+
+q(Zi) . (5) The normalized weights are then defined as wi = αi/ PNL 
+
+> j=1
+
+αj . These weights represent the relative “quality” of each registration hypothesis under the image evidence. To compute gradients for the network parameters, we form a weighted estimate of the posterior. Rather than backpropagating through all NL samples, many of which may have negligible weights, we perform multinomial resampling of these samples based on the normalised weight vector w. We draw Nk indices, and then use these selected sample random noise vectors ( ϵkR and ϵkL) to redraw the samples and compute αk, but this time enabling gradients to flow back through the network to update the model weights. As we have now selected samples based on importance weighting, our final loss is simply the expected negative log-likelihood over these samples, i.e.: 
+
+LSIR = − 1
+
+NkNkX
+
+> k=1
+
+ log p(If |Im ◦ Zk) + log p(Zk) . (6) 
+
+3.1.1 Likelihood Function 
+
+Similarly to Balakrishnan et al. [2019] we use normalised cross-correlation as our likelihood model, which provides robustness against global intensity fluctuations common in MRI acquisition. We treat it as the energy function of a Boltzmann distribution: 
+
+p(If |Im, Z) ∝ exp 
+
+ −NCC( If , Im ◦ Z)) 
+
+σ2
+
+
+
+, (7) where σ2 is a likelihood scaling function. 43.1.2 Prior Function 
+
+For simplicity we use a diffusion based prior, where we penalise the squared spatial gradients of the deformation field: 
+
+p(Z) ∝ exp 
+
+− λ
+
+2
+
+> Nv
+
+X
+
+> j=1
+
+∥∇ zj ∥2
+
+ +
+
+− λμ
+
+2
+
+> Nv
+
+X
+
+> j=1
+
+∥∇ μj ∥2
+
+ . (8) We employ a stronger regularisation weight λμ on μ than on the sampled field Z to allow the model to explore a wider range of the displacement manifold. This prevents the distribution becoming overly stiff, and enables the resulting samples to capture the multi-modal nature of the posterior. For fairness, we use the same prior in our variational experiments as well. 
+
+3.2 Covariance Parameterisation 
+
+We define the covariance matrix for our proposal, or variational, distribution as a sum of a low-rank and a sparse structured Cholesky factored matrix: Σ = RR ⊤ + ( LL ⊤)−1 where R ∈ RNv ×r and 
+
+L ∈ RNv ×Nv is a sparse lower triangular matrix with positive. In contrast to the 2D SUPN structure of Dorta et al. [2018], our sparsity structure for L runs over the 3D spatial structure of the voxel grid and over the three channels of the output displacement vector. Drawing samples from this is efficient, as we can draw from each covariance component indepen-dently, as noted in Eq. (4). We use the Cholespy solver Nicolet et al. [2021] for efficient sampling using L−⊤ .To enable importance weighting, we need to evaluate the log likelihood under the proposal distribution of any sample Z, which is expressed as: 
+
+log p(Z; μ, Σ) = − 12
+
+(vec (Z) − μ)⊤Σ−1(vec (Z) − μ)
+
+| {z } 
+
+> Σ−1quadratic prod
+
++ log det(2 πΣ)
+
+| {z }
+
+> logdet
+
+ , (9) where the displacement field is vectorised, vec (Z) ∈ R3Nv . The quadratic inverse covariance product can be evaluated, by applying the Woodbury Matrix Inversion Lemma, as: 
+
+(vec (Z) − μ)⊤Σ−1(vec (Z) − μ) = k⊤k − (S⊤k)⊤M−1(S⊤k) , (10) where k = L⊤(Z − μ), S = L⊤R and M = I−1 + S⊤S, and M ∈ Rr×r, which we invert using an eigenvalue decomposition (to avoid numerical instabilities). The log determinant term can be evaluated as: 
+
+log det Σ = log det(( LL ⊤)−1 + RR ⊤) = − log det( LL ⊤) + log det( M) . (11) A full derivation is given in Section A. 
+
+3.3 Network Architecture 
+
+We use a fully convolutional U-net style architecture, without bias terms. The model has 4 resolution levels, with 16 channels for the first resolution level of the encoder, and 24 channels thereafter. We have separate convolutional prediction heads for the mean, μ, the sparse Cholesky factor L, and the low-rank matrices R. The first two are calculated at half the voxel resolution and upsampled using a cubic spline, to improve efficiency, the low-rank matrices are produced at half that resolution level, and upsampled to match the Cholesky factor using bilinear interpolation. No activation functions are applied to μ or R; for L we use a soft-plus for the Cholesky diagonals, to ensure they are positive, and no activation for the off-diagonal terms. 
+
+4 Experiments 
+
+4.1 Implementation Details 
+
+All models were trained for 50,000 steps with a batch size of 1 on a single NVIDIA RTX A6000 (48 GB VRAM), with a peak memory requirement of 32 GB. We utilized the SOAP optimizer Vyas 5et al. [2024] via the Heavyball library HomebrewML [2026], which facilitates stable training at high learning rates; we set lr = 2 × 10 −3 with β1 = 0 .9 and β2 = 0 .95 . A cosine learning rate scheduler was employed, decaying to 2 × 10 −4 after 30,000 iterations. To improve model robustness, we applied data augmentation consisting of coherent voxel shifts (up to 8 voxels) and independent (to each image in the pair) voxel shifts (up to 2 voxels). 
+
+4.2 Hyperparameters 
+
+We fixed the number of low-rank components to 25. The Cholesky connectivity pattern L accounts for neighbors within a 3 × 3 × 3 kernel and cross-channel correlations between deformation directions. We apply L2 regularization with a coefficient of 0.05 to the off-diagonal elements of L to prevent overfitting and ensure numerical stability during inference. We use a ratio of λμ = 2 .5, λ = 1 .0 and tuned the likelihood scale parameter to σ = 0 .5 on the variational baseline for segmentation accuracy while maintaining less than 0.05% folding of the deformation field. For the SIR-based variants, we introduce a temperature scaling hyperparameter to prevent the importance weight distribution becoming too spiky (dominated by individual samples), or flat (uniform sampling). We adopt a dynamic temperature scaling approachNeal [2001], where the unnormalised weights α are scaled by a factor of Tσα . Here σα is an exponential moving average of standard deviation of the weights, i.e. σtα = γ σ t−1 
+
+> α
+
++ (1 − γ) std( α), where t indicates the optimisation step and γ = 0 .9. We select T = 3 .0 which empirically provides a trade-off between uniform, and highly selective weights. 
+
+4.3 Inference and Posterior Characterisation 
+
+At inference time, we draw Nl = 1 , 200 samples (in batches), and perform importance weighting on these. Through mutlinomial sampling, we then draw a total of Nk = 80 samples to characterise the posterior distribution. While we use the final EMA value of σα obtained from training for test-time scaling, we note that this could be optimised post-training to improve performance. 
+
+4.4 Model Variants 
+
+We evaluate the performance of our model in terms of propagated segmentation accuracy after registering pairs of images. We denote the baseline variational variants of our model with a leading 
+
+V, and SIR with S. Symbols after the + represent the covariance parameterisation: D is a diagonal Cholesky, C is a sparsely structured Cholesky and L indicates a low-rank component. 
+
+4.5 Data 
+
+We use a subset of the OASIS Marcus et al. [2007] as pre-processed and described in Balakrishnan et al. [2019]. Each image has 35 automatically segmented labels using Fischl [2012], 17 of which are bilateral, and is resampled to 1 mm 3 isotropic voxels with an image size of 160 × 192 × 224 . The resolution of the predicted grid, following cropping some of the background, is 96 × 72 × 80 , leading to Nv = 552 , 960 and considering a 3D displacements field leads to us estimating a multivariate distribution over 1.6 million dimensions. The data contains substantial anatomical variations and differences in brain shape. During both training and evaluation, we perform subject-to-subject registration, where each image is registered to others within its respective set. For the test set, this results in 50 × 49 = 2 , 450 unique registration pairs to ensure a rigorous assessment of model generalisation and uncertainty calibration. 
+
+5 Results 
+
+5.1 Accuracy 
+
+Figure 2 illustrates the improvements in the Dice Similarity Coefficient (DSC) for specific structures when using S+LC over V+LC. Most strikingly, we observe a substantial selection gap, which we define as the improvement in the Oracle (most accurate) segmentation performance, compared to 6Proposal Mean     
+
+> Variational Mean
+> SIR Mean
+> SIR Oracle
+> 0.65
+> 0.70
+> 0.75
+> 0.80
+> 0.85
+> 0.90
+> Dice Score ( DSC )
+> Inference Gain
+> Selection Gap
+> Anatomical Structure
+> Caudate Cerebral-Cortex Hippocampus Lateral-Ventricle Thalamus Caudate
+> Hippocampus
+> Thalamus
+> Lateral-Ventricle
+> Cerebral-Cortex
+> 0.00
+> 0.01
+> 0.02
+> 0.03
+> 0.04
+> 0.05
+> 0.06
+> 0.07
+> Selection Gap: Oracle - z (DSC)
+> Model
+> V+D
+> V+LD
+> V+C
+> V+LC
+> S+D
+> S+LD
+> S+C
+> S+LC
+
+Figure 2: Left, an illustration of the proposal mean ( μ in SIR), variational μ, SIR sample mean and Oracle (best-sample), and standard deviation of the segmentation accuracy for different model variants. Right, a boxplot exemplifying the quality of the Oracle sample drawn from the approximate posterior distribution. Larger Dice Similarity Coefficient (DSC) values indicated greater segmentation accuracy. Table 1: Registration performance and folding rates across OASIS test pairs. We report the Dice Similarity Coefficient (DSC) for the mean prediction ( μZ), the mean of resampled fields ( ¯Z), and the Oracle (the single sample from the posterior with the highest DSC). Fold % represents the percentage of voxels with a non-positive Jacobian determinant. Standard deviations are shown in parentheses. High DSC values and lower fold % are preferable. 
+
+μ (DSC) ¯Z (DSC) Oracle (DSC) μ fold % ¯Z fold % Oracle fold % Model V+D 0.800 (0.039) 0.800 (0.039) 0.805 (0.038) 0.046 (0.04) 0.059 (0.05) 0.059 (0.05) V+LD 0.799 (0.039) 0.798 (0.039) 0.805 (0.039) 0.046 (0.04) 0.059 (0.05) 0.059 (0.05) V+C 0.802 (0.038) 0.802 (0.038) 0.807 (0.038) 0.045 (0.05) 0.057 (0.06) 0.057 (0.06) V+LC 0.800 (0.038) 0.800 (0.038) 0.806 (0.038) 0.044 (0.03) 0.056 (0.04) 0.056 (0.04) S+D 0.801 (0.038) 0.801 (0.038) 0.805 (0.037) 0.048 (0.05) 0.062 (0.06) 0.062 (0.06) S+LD 0.798 (0.039) 0.800 (0.038) 0.809 (0.036) 0.032 (0.03) 0.085 (0.08) 0.096 (0.10) S+C 0.801 (0.038) 0.801 (0.038) 0.805 (0.038) 0.051 (0.03) 0.065 (0.04) 0.065 (0.04) S+LC 0.794 (0.040) 0.801 (0.037) 0.812 (0.034) 0.011 (0.01) 0.115 (0.07) 0.163 (0.13) the SIR or Variational mean. This is further examined in Table 1, where we summarise the average segmentation propagation accuracies and observe all approaches have similar average performance but S+LC and S+LD show the biggest gains. A complete set of boxplots for different structures is provided in Section B. The more complex posterior forms offer limited benefits in variational inference but confer a pronounced effect in SIR models. We note that the level of voxel folding increases with the more exploratory, high-variance deformations found by SIR, which are particularly noticeable in the Oracle samples. Further evaluation of the oracle samples is given in Section C. 
+
+5.2 Calibration of the Posterior 
+
+We evaluate calibration using both the Expected Calibration Error (ECE) and Area Under the Sparsification Error (AUSE) for each segmentation region. To focus our metric on relevant regions, we compute ECE within a 3-voxel dilated boundary of the anatomical labels, as registration ambiguity and label uncertainty are most pronounced at tissue interfaces. ECE quantifies the average discrepancy between a model’s predicted probability of a label and the actual observed frequency of that label; in the context of registration, a lower ECE indicates that the model’s confidence scores are more 70.65 0.70 0.75 0.80 0.85 0.90 0.95  
+
+> Dice (Accuracy )
+> 0.05
+> 0.10
+> 0.15
+> 0.20
+> 0.25
+> ECE (Reliability  )
+> Model
+> V+D
+> V+LD
+> V+C
+> V+LC
+> S+D
+> S+LD
+> S+C
+> S+LC
+> Structure
+> Caudate
+> Cerebral-Cortex
+> Hippocampus
+> Lateral-Ventricle
+> Thalamus
+
+Figure 3: Accuracy vs calibration for the different model variants for a set of structures, standard deviations plotted in gray. The best performance is in the bottom-right of the graph with a low ECE (better calibration) and a high DSC (better accuracy). The full version of the model (S+LC) offers improved calibration with equal or improved accuracy consistently over all structures. Table 2: Uncertainty Calibration Metrics: Area Under Sparse Error (AUSE) based on label entropy and Expected Calibration Error (ECE) calculated using a dilated (by 3 voxels) segmentation mask. The last column is the Spearman correlation of label entropy and Dice. All fields show the average and std-dev over structures. Model AU SE label ↓ ECE ↓ Label Entropy Mean Spearman r: Entropy & DSC V+D 0.0850 (0.021) 0.1285 (0.027) 0.0628 (0.002) 0.064 (0.169) V+LD 0.0818 (0.022) 0.1257 (0.027) 0.0705 (0.002) 0.085 (0.165) V+C 0.0854 (0.021) 0.1279 (0.026) 0.0595 (0.002) 0.046 (0.164) V+LC 0.0844 (0.021) 0.1274 (0.027) 0.0641 (0.002) 0.033 (0.167) S+D 0.0897 (0.021) 0.1312 (0.026) 0.0549 (0.007) 0.051 (0.123) S+LD 0.0736 (0.020) 0.1159 (0.026) 0.0901 (0.004) -0.137 (0.177) S+C 0.0907 (0.021) 0.1324 (0.027) 0.0531 (0.006) 0.007 (0.121) S+LC 0.0659 (0.019) 0.1064 (0.025) 0.1079 (0.006) -0.325 (0.218) reliable indicators of anatomical alignment. Whereas, AUSE evaluates uncertainty by measuring how registration error decreases as we progressively remove voxels with the highest uncertainty; a lower AUSE signifies that the uncertainty map is an effective proxy for localized registration errors We evaluate the calibration of our models in Table 2. We find that our SIR models with low-rank covariance parameterisations, particularly S+LC, are much better calibrated than the variational models in terms of both ECE and AUSE, with similar rankings. Furthermore, we examined the correlation between label entropy and accuracy (in terms of DSC) for each structure, and averaged these. We find that the poorly calibrated models exhibit small positive correlations, incorrectly indicating more uncertainty when they are most accurate. Whereas, our better calibrated models, 8Figure 4: Illustration of the structured nature of the samples, where we find the performance of the Oracle sample can lead to substantial structured gains over the average SIR deformation. On the left, we show an example where a lobe of the cerebral cortex is correctly aligned by the oracle sample, with a DSC improvement of 0.04. On the right, we observe substrantial structured changes in the lateral ventricle, with a DSC improvements of 0.03. such as S+LC, demonstrate strong negative correlations indicating the uncertainty is a much more reliable proxy for registration accuracy. We highlight the relationship between accuracy and calibration for the different model variants in Fig 3, which clearly illustrates that S+LC leads to improved calibration without any implications on accuracy. 
+
+5.3 Multi-Modality 
+
+The spatial coherence, and multi-modality, of the learned distribution is exemplified by examining the improvement in segmentation performance by the Oracle sample. As shown in Figure 4, we can see segmentation corrections in smooth groups of pixels, which is enabled through our learned spatial distribution. To inspect individual cases, we performed PCA on the SIR sample deformations, run clustering to identify groups (in our case the top two) and then picked examples nearest to those cluster means. Two examples of bimodality with equivalent DSC accuracy are given in Figure 5. 
+
+6 Discussion 
+
+Our results demonstrate that our proposed SIR approach, when coupled with structured covariance parameterisations, significantly improves the calibration of registration uncertainty without compro-mising accuracy. By moving beyond the restrictive assumptions of amortised variational inference, we demonstrate that registration uncertainty can be characterised in a manner that serves as a reliable proxy for anatomical alignment. 
+
+6.1 Calibration and Meaningful Uncertainty 
+
+A central finding in this work relates to the relationship between model uncertainty and segmentation error. Our proposed S+LC model significantly outperforms variational baselines in terms of calibration metrics, but also exhibits a strong negative correlation between label entropy and accuracy. The expanded entropy range of the proposed model, coupled with its superior registration accuracy, suggests that the captured uncertainty is highly structured within the high-dimensional deformation space, representing a coherent distribution of anatomically plausible hypotheses rather than stochastic noise. 9Figure 5: Illustration of the multi-modality of the posterior distribution, where disagreements between modes are marked in blue or orange. On the left, we find structured changes in the Thalamus where mode 1 has a DSC of 0.834 and mode 2 has a Dice of 0.824. On the right, we observe substantial differences in the left lateral ventricle, either on the interior or exterior border, with a DSC of 0.864 for mode 1 and 0.862 for mode 2. 
+
+6.2 The Accuracy of Oracle Samples 
+
+The selection gap between the SIR mean, and the Oracle provides an intuition into the complexity of the inferred posterior. It indicates that very good samples exist with high-probability in the proposal distribution, but perhaps due to multi-modality do not coincide with the mean. This finding supports the use of SIR for fitting complex posterior distributions. 
+
+6.3 Computational Efficiency 
+
+Despite the high dimension of the displacement field, our approach remains computationally efficient, requiring a single forward pass of the model to produce an effective proposal distribution. The entire process of proposal inference, sample drawing and weighting of 1,200 samples is completed in under 5 seconds on a single GPU. This represents a substantial computational benefit over hierarchical sampling approachesSiegert et al. [2024], which require forward passes through the model for each sample, or MCMC-based methods Grzech et al. [2021], which require multiple iterative passes. 
+
+6.4 Limitations and Future Directions 
+
+While our approach improves calibration, with good accuracy, there is a trade-off in terms of topological regularity and folding of voxels. Future work could investigate using stationary velocity fields, as in Dalca et al. [2019], to encourage diffeomorphic transformations. Furthermore, more complex regularisers Burger et al. [2013] may offer benefits in certain applications. Our architecture was chosen based on our existing code library, however the underlying SIR and covariance parameterisation are model-agnostic. Future directions could replace the convolutional backbone with a vision transformer architecture Chen et al. [2022]. In terms of improvement to segmentation calibration, we could investigate post-training optimisation of the temperature parameter. We could also include segmentation losses within the likelihood function; although these are inaccessible at test time, but they could contribute to learning the shape of the importance sampling distribution. Beyond medical image registration, our proposed integration of SIR with our structured sparsity and low-rank covariance model offers a versatile framework for high-dimensional spatial inference tasks 10 in inverse problems that suffer from ambiguity, such as optical flow Ilg et al. [2018], sparse-view CT or 3D image reconstruction and image super-resolution. 
+
+7 Conclusion 
+
+We have introduced Structured SIR, a framework for efficient and expressive approximate inference of posterior distributions in high-dimensional imaging tasks. We have demonstrated the application of this to probabilistic image registration, where we leverage SIR with a novel structured covariance parameterisation to characterise a 1.6 million dimensional posterior distribution of a 3D deformation field. Our proposed SIR algorithm makes use of a dual sampling pass: first evaluating a large set of candidates to weight based on their respective probabilities, then performing resampling of these to characterise the posterior. To the best of our knowledge, this is the first application of SIR to a dense vision task of this scale. Our results demonstrate that SIR with sufficiently complex covariance parameterisations, exhibits good calibration performance, substantially outperforming variational inference while maintaining accuracy. Moreover, the significance gap in the performance of the Oracle sample, confirms that our structured proposal distribution supports a diverse range of plausible deformations. This frameworks offers a scalable blueprint for uncertainty quantification in high-dimensional spatial tasks. While demonstrated here for registration, it could be extensible to other inverse problems where test-time evidence can guide the selection of solutions. 
+
+References 
+
+John Ashburner. A fast diffeomorphic image registration algorithm. Neuroimage , 38(1):95–113, 2007. Guha Balakrishnan, Amy Zhao, Mert R Sabuncu, John Guttag, and Adrian V Dalca. Voxelmorph: a learning framework for deformable medical image registration. IEEE transactions on medical imaging , 38(8):1788–1800, 2019. Yuri Burda, Roger Grosse, and Ruslan Salakhutdinov. Importance weighted autoencoders. arXiv preprint arXiv:1509.00519 , 2015. Martin Burger, Jan Modersitzki, and Lars Ruthotto. A hyperelastic regularization energy for image registration. SIAM Journal on Scientific Computing , 35(1):B132–B148, 2013. Junyu Chen, Eric C Frey, Yufan He, William P Segars, Ye Li, and Yong Du. Transmorph: Transformer for unsupervised medical image registration. Medical image analysis , 82:102615, 2022. Chris Cremer, Quaid Morris, and David Duvenaud. Reinterpreting importance-weighted autoencoders. 
+
+arXiv preprint arXiv:1704.02916 , 2017. Chris Cremer, Xuechen Li, and David Duvenaud. Inference suboptimality in variational autoencoders. In International conference on machine learning , pages 1078–1086. PMLR, 2018. Adrian V Dalca, Guha Balakrishnan, John Guttag, and Mert R Sabuncu. Unsupervised learning of probabilistic diffeomorphic registration for images and surfaces. Medical image analysis , 57: 226–236, 2019. Garoe Dorta, Sara Vicente, Lourdes Agapito, Neill DF Campbell, and Ivor Simpson. Structured uncertainty prediction networks. In Proceedings of the IEEE conference on computer vision and pattern recognition , pages 5477–5485, 2018. Bruce Fischl. Freesurfer. Neuroimage , 62(2):774–781, 2012. Daniel Grzech, Mohammad Farid Azampour, Huaqi Qiu, Ben Glocker, Bernhard Kainz, and Loïc Le Folgoc. Uncertainty quantification in non-rigid image registration via stochastic gradient markov chain monte carlo. arXiv preprint arXiv:2110.13289 , 2021. 11 HomebrewML. heavyball: High-performance, extensible, chainable optimizers for PyTorch. https: //github.com/HomebrewML/HeavyBall , 2026. Accessed: 2026-03-17. Eddy Ilg, Ozgun Cicek, Silvio Galesso, Aaron Klein, Osama Makansi, Frank Hutter, and Thomas Brox. Uncertainty estimates and multi-hypotheses networks for optical flow. In Proceedings of the European Conference on Computer Vision (ECCV) , pages 652–667, 2018. Loic Le Folgoc, Herve Delingette, Antonio Criminisi, and Nicholas Ayache. Quantifying registration uncertainty with sparse bayesian modelling. IEEE transactions on medical imaging , 36(2):607–617, 2016. Jie Luo, Alireza Sedghi, Karteek Popuri, Dana Cobzas, Miaomiao Zhang, Frank Preiswerk, Matthew Toews, Alexandra Golby, Masashi Sugiyama, William M Wells III, et al. On the applicability of registration uncertainty. In International Conference on Medical Image Computing and Computer-Assisted Intervention , pages 410–419. Springer, 2019. Chris J Maddison, John Lawson, George Tucker, Nicolas Heess, Mohammad Norouzi, Andriy Mnih, Arnaud Doucet, and Yee Teh. Filtering variational objectives. Advances in neural information processing systems , 30, 2017. Daniel S Marcus, Tracy H Wang, Jamie Parker, John G Csernansky, John C Morris, and Randy L Buckner. Open access series of imaging studies (oasis): cross-sectional mri data in young, middle aged, nondemented, and demented older adults. Journal of cognitive neuroscience , 19(9):1498– 1507, 2007. Miguel Monteiro, Loïc Le Folgoc, Daniel Coelho de Castro, Nick Pawlowski, Bernardo Marques, Konstantinos Kamnitsas, Mark Van der Wilk, and Ben Glocker. Stochastic segmentation networks: Modelling spatially correlated aleatoric uncertainty. Advances in neural information processing systems , 33:12756–12767, 2020. Radford M Neal. Annealed importance sampling. Statistics and computing , 11(2):125–139, 2001. Baptiste Nicolet, Alec Jacobson, and Wenzel Jakob. Large steps in inverse rendering of geometry. 
+
+ACM Transactions on Graphics (TOG) , 40(6):1–13, 2021. Petter Risholm, Alexandra J Golby, and William Wells. Multimodal image registration for preopera-tive planning and image-guided neurosurgical procedures. Neurosurgery Clinics , 22(2):197–206, 2011. Donald B Rubin. Comment: A noniterative sampling/importance resampling alternative to the data augmentation algorithm for creating a few imputations when fractions of missing information are modest: The sir algorithm. Journal of the American Statistical Association , 82(398):542–543, 1987. Havard Rue and Leonhard Held. Gaussian Markov random fields: theory and applications . Chapman and Hall/CRC, 2005. Leonard Siegert, Paul Fischer, Mattias P Heinrich, and Christian F Baumgartner. Pulpo: probabilistic unsupervised laplacian pyramid registration. In International Conference on Medical Image Computing and Computer-Assisted Intervention , pages 717–727. Springer, 2024. Ivor JA Simpson, Manuel Jorge Cardoso, Marc Modat, David M Cash, Mark W Woolrich, Jesper LR Andersson, Julia A Schnabel, Sébastien Ourselin, Alzheimer’s Disease Neuroimaging Initiative, et al. Probabilistic non-linear registration with spatially adaptive regularisation. Medical image analysis , 26(1):203–216, 2015. Adrian FM Smith and Alan E Gelfand. Bayesian statistics without tears: a sampling–resampling perspective. The American Statistician , 46(2):84–88, 1992. Nikhil Vyas, Depen Morwani, Rosie Zhao, Mujin Kwun, Itai Shapira, David Brandfonbrener, Lucas Janson, and Sham Kakade. Soap: Improving and stabilizing shampoo using adam. arXiv preprint arXiv:2409.11321 , 2024. 12 Jian Wang, William M Wells III, Polina Golland, and Miaomiao Zhang. Efficient laplace approxima-tion for bayesian registration uncertainty quantification. In International Conference on Medical Image Computing and Computer-Assisted Intervention , pages 880–888. Springer, 2018. Miaomiao Zhang, Nikhil Singh, and P Thomas Fletcher. Bayesian estimation of regularization and atlas building in diffeomorphic image registration. In International conference on information processing in medical imaging , pages 37–48. Springer, 2013. 13 A Covariance Formulation 
+
+We define our covariance matrix as: Σ = RR ⊤ + ( LL ⊤)−1 where R ∈ Rn×r and L ∈ Rn×n
+
+Samples are easy to obtain, as defined in equation Eq. (4), as a draw from each covariance component. Considering the log probability under this density 
+
+log p(vec (Z); μ, Σ) = − 12
+
+x⊤Σ−1x| {z }
+
+> Σ−1prod
+
++ log det(2 πΣ)
+
+| {z }
+
+> logdet
+
+ (12) where we define x = vec (Z) − μ for generalisation purposes, and to aid readability. We can derive a computational tractable form for each term individually: 
+
+A.1 Inverse covariance product 
+
+x⊤Σ−1x = x⊤  RR ⊤ + ( LL ⊤)−1−1 x (13) We can apply the Woodbury Matrix identity 
+
+(A + UCV )−1 = A−1 − A−1U(C−1 + VA −1U)−1VA −1
+
+where: A = ( LL ⊤)−1, so A−1 = LL ⊤, V = U⊤ = R⊤ and C = Id 
+
+we want to calculate: 
+
+x⊤Σ−1x = x⊤(A + UCV )−1x (14) 
+
+= x⊤A−1x − x⊤A−1U(C−1 + VA −1U)−1VA −1x (15) we denote k = L⊤x, which we can efficiently calculate via convolution Dorta et al. [2018], making the first term of the expression a simple quadratic product k⊤k.Turning our attention to the second term, if we denote: M = C−1 + R⊤A−1R, where M ∈ Rr×r
+
+and note that VA −1x = VLL ⊤x = VLk = S⊤k where S⊤ = VL and therefore S = L⊤U,which we can again calculate efficiently through convolving L⊤ with the low-rank images in R. We can then write M = C−1 + S⊤S
+
+Putting it all together we have 
+
+x⊤Σ−1x = x⊤(A + UCV )−1x (16) 
+
+= x⊤A−1x − x⊤A−1U(C−1 + VA −1U)−1VA −1x (17) 
+
+= k⊤k − x⊤LL ⊤UM −1VLL ⊤x (18) 
+
+= k⊤k − (k⊤S)⊤M−1(S⊤k) (19) 
+
+= k⊤k − (S⊤k)⊤M−1(S⊤k) (20) (21) As M is only of size r × r where r << n , and in this paper r = 25 , calculation of a Cholesky factorisation, or eigen decomposition, is computationally tractable. In practice, we opt for an eigen decomposition to avoid numerical issues that can arise with very small eigenvalues. 
+
+A.2 Log-determinant 
+
+Finally, we can apply the matrix determinant lemma using the definition of M above. log det Σ =log det(( LL ⊤)−1 + RR ⊤) = − log det( LL ⊤) + log det( M), where log det( M) falls out of our eigen value decomposition, which was required for the log probability above 14 B Segmentation 
+
+B.1 Label-wise Accuracy Brain-Stem 
+
+> Cerebellum-Cortex
+> Cerebellum-White-Matter
+> Lateral-Ventricle
+> 3rd-Ventricle
+> Cerebral-White-Matter
+> 4th-Ventricle
+> Cerebral-Cortex
+> Inf-Lat-Ventricle
+
+0.0 
+
+0.2 
+
+0.4 
+
+0.6 
+
+0.8 
+
+1.0 
+
+> Dice Score ( DSC )
+
+Model Type 
+
+V+D 
+
+V+LD 
+
+V+C 
+
+V+LC 
+
+S+D 
+
+S+LD 
+
+S+C 
+
+S+LC Thalamus 
+
+> Putamen
+> Pallidum
+> Amygdala
+> Caudate
+> Accumbens
+> Hippocampus
+
+0.6 
+
+0.7 
+
+0.8 
+
+0.9 
+
+> Dice Score ( DSC )
+
+Model Type 
+
+V+D 
+
+V+LD 
+
+V+C 
+
+V+LC 
+
+S+D 
+
+S+LD 
+
+S+C 
+
+S+LC 
+
+Figure 6: Boxplots of propagated segmentation accuracy for different labelled region for different model variants, when using the average of sampled fields ¯Z.15 C Selection Gap Inf-Lat-Ventricle 
+
+> 3rd-Ventricle
+> 4th-Ventricle
+> Lateral-Ventricle
+> Cerebellum-White-Matter
+> Brain-Stem
+> Cerebellum-Cortex
+> Cerebral-White-Matter
+> Cerebral-Cortex
+
+Structure 
+
+0.01 
+
+0.00 
+
+0.01 
+
+0.02 
+
+0.03 
+
+0.04 
+
+0.05 
+
+0.06 
+
+> Oracle - z (DSC)
+
+Model 
+
+V+D 
+
+V+LD 
+
+V+C 
+
+V+LC 
+
+S+D 
+
+S+LD 
+
+S+C 
+
+S+LC Accumbens 
+
+> Amygdala
+> Pallidum
+> Caudate
+> Hippocampus
+> Putamen
+> Thalamus
+
+Structure 
+
+0.01 
+
+0.00 
+
+0.01 
+
+0.02 
+
+0.03 
+
+0.04 
+
+0.05 
+
+0.06 
+
+0.07 
+
+> Oracle - z (DSC)
+
+Model 
+
+V+D 
+
+V+LD 
+
+V+C 
+
+V+LC 
+
+S+D 
+
+S+LD 
+
+S+C 
+
+S+LC 
+
+Figure 7: Boxplot highlighting the quality of the Oracle sample drawn from the approximate posterior distribution for the full set of segmentation regions. Larger Dice Similarity Coefficient (DSC) values indicated greater segmentation accuracy. 16 D Calibration 3rd-Ventricle 
+
+> 4th-Ventricle
+> Brain-Stem
+> Cerebellum-Cortex
+> Cerebellum-White-Matter
+> Cerebral-Cortex
+> Cerebral-White-Matter
+> Inf-Lat-Ventricle
+> Lateral-Ventricle
+> 0.05
+> 0.10
+> 0.15
+> 0.20
+> 0.25
+> 0.30
+> 0.35
+> Ribbon ECE
+> Model
+> V+D
+> V+LD
+> V+C
+> V+LC
+> S+D
+> S+LD
+> S+C
+> S+LC Accumbens
+> Amygdala
+> Caudate
+> Hippocampus
+> Pallidum
+> Putamen
+> Thalamus
+> 0.05
+> 0.10
+> 0.15
+> 0.20
+> 0.25
+> 0.30
+> Ribbon ECE
+> Model
+> V+D
+> V+LD
+> V+C
+> V+LC
+> S+D
+> S+LD
+> S+C
+> S+LC
+
+Figure 8: Expected calibration error (ECE) boxplots across all model variants and structures. ECE was calculated in a region defined by a 3 voxels dilated segmentation mask. We provide boxplots showing the calibration metrics across all model variance and structures in Figure 8 and Figure 9 In Table 3 shows a companion representation to Table 2 where we instead use displacement entropy for calculating AUSE, and correlating with the Dice score. Here we find that displacement entropy is negatively correlated with Dice for all structures, although the level of entropy is much lower for all except our best calibrated model variant. While displacement entropy quantifies the geometric variance of the deformation field, it captures invisible jitter in homogeneous regions that does not impact anatomical overlap; in contrast, label entropy directly measures the probabilistic risk of misclassification at structural boundaries, providing a more anatomically relevant measure of uncertainty. 17 3rd-Ventricle 
+
+> 4th-Ventricle
+> Brain-Stem
+> Cerebellum-Cortex
+> Cerebellum-White-Matter
+> Cerebral-Cortex
+> Cerebral-White-Matter
+> Inf-Lat-Ventricle
+> Lateral-Ventricle
+> 0.00
+> 0.05
+> 0.10
+> 0.15
+> 0.20
+> 0.25
+> Ribbon AUSE
+> Model
+> V+D
+> V+LD
+> V+C
+> V+LC
+> S+D
+> S+LD
+> S+C
+> S+LC Accumbens
+> Amygdala
+> Caudate
+> Hippocampus
+> Pallidum
+> Putamen
+> Thalamus
+> 0.00
+> 0.05
+> 0.10
+> 0.15
+> 0.20
+> 0.25
+> Ribbon AUSE
+> Model
+> V+D
+> V+LD
+> V+C
+> V+LC
+> S+D
+> S+LD
+> S+C
+> S+LC
+
+Figure 9: Area Under Sparse Error (AUSE) boxplots across all model variants and structures. AUSE was calculated in a region defined by a 3 voxels dilated segmentation mask using the label entropy. Table 3: Uncertainty Calibration Metrics: Area Under Sparse Error (AUSE) based on displacement entropy calculated using a dilated (by 3 voxels) segmentation mask. The last column is the Spearman correlation of label entropy and Dice. All fields show the average and std-dev over structures. 
+
+AUSE disp ↓ Displacement Entropy (mm 2) Spearman r: Entropy & DSC Model V+D 0.1351 (0.017) 0.0494 (0.001) -0.648 (0.121) V+LD 0.1343 (0.017) 0.0635 (0.002) -0.430 (0.168) V+C 0.1312 (0.015) 0.0449 (0.001) -0.628 (0.138) V+LC 0.1323 (0.015) 0.0571 (0.005) -0.530 (0.221) S+D 0.1366 (0.018) 0.0432 (0.006) -0.199 (0.059) S+LD 0.1272 (0.017) 0.1128 (0.014) -0.549 (0.166) S+C 0.1339 (0.017) 0.0403 (0.005) -0.311 (0.099) S+LC 0.1205 (0.016) 0.1808 (0.037) -0.595 (0.156) 18
