@@ -1,0 +1,589 @@
+Title: Follow the Clues, Frame the Truth: Hybrid-evidential Deductive Reasoning in Open-Vocabulary Multimodal Emotion Recognition
+
+URL Source: https://arxiv.org/pdf/2603.16463v1
+
+Published Time: Wed, 18 Mar 2026 01:38:44 GMT
+
+Number of Pages: 18
+
+Markdown Content:
+# Follow the Clues, Frame the Truth: Hybrid-evidential Deductive Reasoning in Open-Vocabulary Multimodal Emotion Recognition 
+
+Yu Liu * 1 Lei Zhang * 1 Haoxun Li 1 Hanlei Shi 1 Yuxuan Ding 1 Leyuan Qu 1 Taihao Li 1
+
+# Abstract 
+
+Open-Vocabulary Multimodal Emotion Recog-nition (OV-MER) is inherently challenging due to the ambiguity of equivocal multimodal cues, which often stem from distinct unobserved situa-tional dynamics. While Multimodal Large Lan-guage Models (MLLMs) offer extensive semantic coverage, their performance is often bottlenecked by premature commitment to dominant data pri-ors, resulting in suboptimal heuristics that over-look crucial, complementary affective cues across modalities. We argue that effective affective rea-soning requires more than surface-level associa-tion; it necessitates reconstructing nuanced emo-tional states by synthesizing multiple evidence-grounded rationales that reconcile these obser-vations from diverse latent perspectives. We in-troduce HyDRA , a Hy brid-evidential Deductive 
+
+Reasoning Architecture that formalizes inference as a Propose–Verify–Decide protocol. To internal-ize this abductive process, we employ reinforce-ment learning with hierarchical reward shaping, aligning the reasoning trajectories with final task performance to ensure they best reconcile the ob-served multimodal cues. Systematic evaluations validate our design choices, with HyDRA consis-tently outperforming strong baselines—especially in ambiguous or conflicting scenarios—while pro-viding interpretable, diagnostic evidence traces. 
+
+# 1. Introduction 
+
+A girl stands on a podium holding a silver medal, her eyes filled with tears. A standard multimodal classifier may quickly commit to a single dominant label such as sad-ness . Yet, these equivocal multimodal cues can support a plurality of co-occurring interpretations: for instance, sad-ness intertwined with pride (achievement), regret (missing 
+
+> 1
+
+Hangzhou Institute for Advanced Study, University of Chinese Academy of Sciences, Hangzhou, China. Correspondence to: Tai-hao Li <lith@ucas.ac.cn >, Leyuan Qu <leyuan.qu@ucas.ac.cn >.
+
+Preprint. March 18, 2026. 
+
+the gold), or relief (concluding a struggle). This is not an edge case; inferring affective states is inherently challeng-ing because emotion is often contextually underspecified by surface signals, requiring the inference of unobserved situational dynamics (Poria et al., 2017; Lian et al., 2023b). Conventional Multimodal Emotion Recognition (MER) models have been restricted to fixed label taxonomies, which struggle to reflect the open-ended and nuanced nature of human affect (Han et al., 2025b; Zhao et al., 2025c). Open-Vocabulary MER (OV-MER) relaxes this constraint and enables flexible predictions beyond fixed taxonomies (Lian et al., 2024c; 2023b). However, OV-MER introduces a key mismatch: evaluation stresses label cardinality and syn-onymy, while training often reduces to token-level likeli-hoods that ignore such semantic structure (Bhattacharyya & Wang, 2025). As a result, models exploit shortcut heuris-tics and become fragile under cross-modal conflict (Geirhos et al., 2020; Li et al., 2023; Zhu et al., 2025). This gap natu-rally motivates adopting stronger semantic priors to interpret open-ended labels and latent contexts. To supply such priors, recent work increasingly adopts Multimodal Large Language Models (MLLMs) as general-purpose multimodal reasoners (Liu et al., 2023; Lin et al., 2024; Ge et al., 2024). They offer broad semantic coverage, yet they often fail in the same way: premature commitment 
+
+to a dominant, prior-driven interpretation, with complemen-tary cues left unused (Bai et al., 2024; Leng et al., 2024; Lei et al., 2024). Standard grounding strategies therefore suppress generation to mitigate hallucinations (Dhuliawala et al., 2024). We argue this misses the point: the main issue is not generation itself, but biased singular interpreta-tion from incomplete evidence (Zhang et al., 2025). Under ambiguous or conflicting cues, models collapse to a sin-gle dominant narrative and ignore complementary affective evidence across modalities—a phenomenon mirroring the “System 1” thinking that lacks the rigors of deliberative verification (Kahneman, 2011). Our key idea is to treat the generative prior as structured intu-ition, not as a final decision. Instead of accepting a single ra-tionale, we generate multiple competing candidates and then 
+
+force them to be adjudicated by the observed multimodal evidence (Mistretta et al., 2025; Wu et al., 2025b; Chang 1
+
+> arXiv:2603.16463v1 [cs.AI] 17 Mar 2026 Follow the Clues, Frame the Truth: Hybrid-evidential Deductive Reasoning in OV-MER
+
+et al., 2026). We introduce HyDRA , a Hy brid-evidential 
+
+Deductive Reasoning Architecture that formalizes this pro-cess as a Propose–Verify–Decide protocol. HyDRA pro-poses a small set of diverse situational hypotheses to avoid early collapse to a single, prior-driven narrative. It then ver-ifies them through evidence-constrained comparison, elimi-nating candidates that conflict with salient multimodal ob-servations. Finally, it decides by selecting the hypothesis that best reconciles the observed cues, effectively retain-ing evidence-consistent affective descriptors while filtering shallow semantics and spurious priors. To make this behavior a learned capability rather than a prompting trick, we optimize HyDRA with reinforcement learning and hierarchical reward shaping. Using Group Rel-ative Policy Optimization (GRPO) (Shao et al., 2024; Guo et al., 2025), we align the policy to favor diverse proposal generation, rigorous evidence grounding, and accurate task-specific decisions. GRPO acts as a differential filter that rewards evidential closure, pushing the model away from plausible-sounding hallucinations and toward rationales ne-cessitated by the multimodal evidence (Li et al., 2025c). This also yields diagnostic reasoning traces for analyzing model behavior under ambiguity and conflict. 
+
+Contributions: 
+
+• A hypothesis-driven inference interface for OV-MER. We formalize OV-MER as a Pro-pose–Verify–Decide procedure that generates multiple latent-context hypotheses and performs evidence-constrained adjudication to avoid premature commitment under equivocal multimodal cues. • Learning to adjudicate, not prompting to look struc-tured. We couple the protocol with GRPO-based policy optimization and hierarchical rewards to inter-nalize comparative verification and evidence closure, outperforming prompt-only and alternative training paradigms under the same backbone. • Systematic evidence beyond aggregate scores. We provide controlled ablations on hypothesis cardinal-ity, reward components, and training paradigms, and demonstrate that the gains are driven by multi-path adjudication rather than model scale. 
+
+# 2. Related Work 
+
+2.1. From Closed-set to Open-Vocabulary MER 
+
+Conventional MER typically treats affect as a classification task within fixed taxonomies (Zadeh et al., 2016). While structured, these paradigms struggle to capture the fluid, overlapping, and context-dependent nature of human emo-tions in the wild (Guerdelli et al., 2023). To address this, OV-MER has emerged, leveraging unrestricted natural lan-guage to bridge discrete labels with continuous semantic spaces (Lian et al., 2024c). Despite this flexibility, OV-MER faces a persistent challenge in resolving situational dynamics under modal ambiguity or conflict (Han et al., 2025a). When visual and acoustic sig-nals contradict—such as a “tearful smile”—current models often lack the inferential depth to deduce the latent con-text, resulting in superficial mappings between signals and descriptors (Wei et al., 2023). While MLLMs like LLaVA-NeXT and InternVL3.5 offer vast world knowledge for af-fective interpretation (Li et al., 2024a; Wang et al., 2025), their performance is frequently bottlenecked by a “prema-ture commitment” to dominant linguistic priors (Zhou et al., 2023; Huang et al., 2024; Goyal et al., 2017). This leads to suboptimal heuristics that ignore subtle, complementary cues, necessitating a more rigorous, evidence-grounded rea-soning framework (Dhuliawala et al., 2024; Zelikman et al., 2024). 
+
+2.2. Heuristic Bias and Premature Commitment in MLLMs 
+
+The “premature commitment” observed in MLLMs is of-ten attributed to a reliance on strong internal priors over sparse external evidence (Qian et al., 2025; Poria et al., 2017; Lian et al., 2023b), a phenomenon widely documented in complex multimodal reasoning. In affective contexts, this manifests as a collapse into a single dominant narrative, disregarding the “long-tail” of nuanced emotional possibili-ties (Rha et al., 2025). Recent studies suggest that standard grounding techniques often fail to mitigate this bias because they focus on token-level alignment rather than higher-order semantic consistency (Wu et al., 2025a; Mohsin et al., 2025). We argue that robust affective reasoning requires an abductive process that transcends surface-level associa-tions (Chang et al., 2026). This perspective is motivated by recent findings that large language models often strug-gle with logical parsimony in abductive reasoning, fre-quently failing to reconcile evidence through the simplest or most consistent explanatory paths (Sun & Saparov, 2025; Zhang et al., 2025). Specifically, synthesizing mul-tiple evidence-grounded rationales—rather than pursuing a singular path—has been shown to reconcile conflicting observations across diverse latent perspectives in other reasoning-heavy tasks like video understanding and fact-checking (Dang et al., 2025; Zhao et al., 2023). By formal-izing this as a Propose–Verify–Decide protocol, HyDRA ensures that the final interpretation is not merely a reflection of model priors, but a conclusion necessitated by the totality of multimodal evidence. 2Follow the Clues, Frame the Truth: Hybrid-evidential Deductive Reasoning in OV-MER         
+
+> Figure 1. HyDRA overview. (A)Propose–Verify–Decide inference protocol: given multimodal input, HyDRA proposes multiple latent-context hypotheses, adjudicates them via evidence-constrained comparison with explicit citations, and outputs the most plausible emotion set. ( B) Learning HyDRA with GRPO and hierarchical reward shaping: for each input we sample a group of structured trajectories in the <hyp>--<think>--<ans> format, score them with six rewards, compute group-relative advantages, and update the policy to favor evidential closure and robust decisions under ambiguity. Textual rationales are grounded to human-verified textualized multimodal cues (ObsG) provided by the datasets, and enforced via semantic alignment to ground-truth cue descriptions.
+
+2.3. Evidence-Grounded Reasoning and Rationale Synthesis 
+
+We argue that effective affective reasoning necessitates mov-ing beyond surface-level associations, as emotions are often contextually underspecified by surface signals (Poria et al., 2017; Lian et al., 2023b). While MLLMs can generate descriptive labels, they frequently fall victim to shortcut learning, where the model bypasses deep situational analy-sis by mapping salient but equivocal features (e.g., “tears”) directly to high-frequency labels (e.g., “sadness”) based on statistical co-occurrences in training data (Sun et al., 2024; Geirhos et al., 2020; Li et al., 2023; Zhu et al., 2025). Such associations are often “hijacked” by dominant linguistic priors, leading to systematic failures in “emotion conflict” scenarios where surface signals contradict latent situational dynamics (Wu et al., 2025c). Consequently, simple asso-ciative mapping is insufficient for capturing evoked emo-tions—those deeply rooted in situational context rather than mere facial muscle movements (Barrett et al., 2019). To overcome these heuristic bottlenecks, robust reasoning requires reconstructing nuanced emotional states by synthe-sizing multiple evidence-grounded rationales that reconcile observations from diverse latent perspectives (Wang et al., 2022; Zhao et al., 2023; Dhuliawala et al., 2024). This per-spective is rooted in abductive reasoning, which requires the generation of “Explanatory Hypotheses” to account for in-complete or ambiguous visual evidence (Chang et al., 2026). Formulated as Propose–Verify–Decide, HyDRA makes af-fective prediction the outcome of comparative verification and elimination under multimodal constraints, yielding de-cisions that remain stable under ambiguity and cross-modal conflict. 
+
+# 3. Methodology 
+
+3.1. Overview 
+
+We introduce HyDRA, a framework that operational-izes multimodal emotion reasoning as a structured Pro-pose–Verify–Decide sequence. As shown in Fig. 1, HyDRA replaces the standard singular discriminative path with a multi-path reconstruction process, synthesizing rationales from divergent perspectives to mitigate prior-driven biases. The framework is optimized via a two-stage pipeline: (i) 
+
+Cold-start Multimodal Supervision to seed the structured reasoning protocol, and (ii) Policy Optimization via GRPO 
+
+to enforce multimodal grounding and deductive consistency through hierarchical reward shaping. 
+
+3.2. The HyDRA Protocol 
+
+Unlike standard MLLMs, HyDRA treats emotion recogni-tion as a reconstruction task over a latent situational space 
+
+S. Given multimodal observations X = {V, A, T }, we es-timate the optimal emotion set ˆY by adjudicating over K
+
+generated rationales H = {H1, . . . , H K }:
+
+ˆY = Decide 
+
+> K
+
+X
+
+> k=1
+
+Φ( Hk, X ) · Ψ( Hk, Y)
+
+!
+
+, (1) 3Follow the Clues, Frame the Truth: Hybrid-evidential Deductive Reasoning in OV-MER 
+
+where Φ( ·) measures the abductive grounding of rationale 
+
+Hk against X , and Ψ( ·) represents the deductive consis-tency between the rationale and label Y. This process is operationalized through a three-stage inference interface: • Proposal (Abductive Stage) : The model generates K
+
+competing hypotheses H, where each Hk encapsulates a latent context sk and predicted cue descriptions Ek =
+
+{ek, 1, e k, 2, . . . }.• Verification (Deductive Stage) : The model performs a “cross-examination” within a ⟨think ⟩ block, treating each Hk as a premise to verify its consistency with observations X .• Decision : In HyDRA, the Decide operation is opera-tionalized as the final synthesis in the ⟨think ⟩ block, where the model identifies the optimal rationale H∗
+
+that maximizes the joint grounding strength Φ and con-sistency Ψ, thereby yielding the final emotion set ˆY.While Eq. 1 provides a theoretical objective, HyDRA op-erationalizes it end-to-end: Φ is implicitly optimized via semantic alignment of predicted cues, and Ψ is enforced through task-level rewards during Reinforcement Learning (RL) stage. 
+
+3.3. Cold-Start Multimodal Supervision 
+
+To initialize the reasoning protocol πθ , we perform super-vised fine-tuning (SFT) on a corpus of structured reasoning traces. The model comprises a causal transformer backbone integrated with vision and audio encoders via projection lay-ers. Given multimodal inputs X , we minimize the negative log-likelihood over the expert trace Y:
+
+LSFT (θ) = −E(X ,Y)∼D SFT 
+
+> |Y|
+
+X
+
+> t=1
+
+log pθ (yt | X , y <t ), (2) where the loss is restricted to the assistant’s tokens, effec-tively ”seeding” the Propose–Verify–Decide schema into the policy. 
+
+3.4. Policy Optimization via GRPO 
+
+To internalize the abductive protocol, we employ GRPO (Shao et al., 2024). Unlike standard reinforcement learning, GRPO estimates advantage by comparing a group of G trajectories {y(1) , . . . , y (G)} sampled from the same prompt X . The advantage A(g) for each candidate is nor-malized against the group mean: 
+
+A(g) = R(y(g)) − mean (R(y(i))Gi=1 )
+
+std (R(y(i))Gi=1 ) + ϵ . (3) 
+
+GRPO as a Differential Filter. This mechanism provides a critical inductive bias for HyDRA: by comparing G di-vergent paths in a single step, the advantage A(g) serves as a differential filter that rewards evidential closure. Specif-ically, trajectories that successfully synthesize conflicting cues (higher Φ · Ψ in Eq. 1) are amplified, while those collapsing into biased priors are suppressed. The policy is updated by minimizing: 
+
+LGRPO (θ) = − 1
+
+G
+
+> G
+
+X
+
+> g=1
+
+
+
+Et
+
+h
+
+rg,t (θ) A(g)i
+
+−β KL( πθ ∥πref )
+
+
+
+.
+
+(4) where the policy - gradient term Et
+
+rg,t (θ) A(g) is a token-wise importance-weighted policy gradient without ratio clipping, KL( πθ ∥πref ) denotes the KL divergence to the reference policy, and rg,t (θ) = exp 
+
+
+
+log pθ (y(g) 
+
+> t
+
+|X ) −
+
+sg   log pθ (y(g) 
+
+> t
+
+|X )
+
+uses stop-gradient sg( ·). Through it-erative optimization, the model learns to prioritize evidence-grounded synthesis over surface-level association, as the latter consistently yields lower relative rewards within a group. 
+
+3.5. Hierarchical Reward Shaping 
+
+The core of HyDRA’s reliability is a hierarchical reward function R that jointly constrains structural adherence, evi-dence grounding, and task performance (detailed weights and mathematical formulations are provided in Appen-dices A.1 and A.2): 
+
+R =λacc racc + λfmt rfmt + λthink rthink 
+
++ λcite rcite + λevid revid + λsem rsem . (5) 
+
+Evidential closure has two complementary forms. (1) Intra-trace closure enforces that claims in ⟨think ⟩ can be traced back to the self-declared evidence pool extracted from ⟨hypotheses ⟩, preventing the model from introduc-ing unsupported cues ( revid , rcite ). (2) Annotation-grounded closure aligns the predicted cue descriptions with human-verified multimodal cue annotations provided by the datasets (rsem ), serving as an external grounding proxy for multi-modal faithfulness. We therefore use “grounded” to denote grounding to verified textualized multimodal cues, rather than pixel-level verification. 
+
+Accuracy Reward. racc is the mean F1-score across five Emotion-Wheel dimensions W, modulated by a length-penalty Pℓ to prevent reward hacking: racc = Pℓ ·
+
+> 1
+> |W|
+
+P 
+
+> w∈W
+
+F1 w(ˆ y, y ).
+
+Protocol Consistency. We enforce the structured sequence 
+
+⟨hypotheses ⟩ → ⟨ think ⟩ → ⟨ answer ⟩ through rfmt ,which provides partial credit for valid JSON extraction. To ensure the model performs comparative adjudication rather 4Follow the Clues, Frame the Truth: Hybrid-evidential Deductive Reasoning in OV-MER 
+
+Table 1. Main results on general and open-vocabulary emotion recognition. We compare HyDRA against several multimodal baselines (up to 7B). S1 and S2 denote coarse- and fine-grained F1-scores on the OV-FG task, respectively. Despite its smaller scale, HyDRA achieves the best average performance and significantly outperforms 7B models on open-vocabulary reasoning. Best results are bolded ;second-best are underlined. ∗: AffectGPT trained on OV-MERD (Lian et al., 2024a). MODEL #P ARAMS BASIC SENTIMENT OV-FG AVG 
+
+MER2023 MER2024 SIMS MOSI S1 S2
+
+OTTER 7B 16.41 14.65 60.57 54.27 14.64 4.46 27.50 VIDEO -LL AVA 7B 36.93 30.25 54.64 57.62 27.40 12.18 36.50 R1-O MNI 0.5B 59.61 70.92 58.42 30.17 32.80 18.85 45.13 VIDEO CHAT 2 7B 33.67 54.50 69.59 67.23 34.07 17.78 46.14 VIDEO -C HAT GPT 7B 44.86 46.80 64.43 57.77 35.29 19.77 44.82 LL AMA-VID 7B 50.72 57.60 68.81 62.65 40.89 21.60 50.38 CHAT -U NI VI 7B 57.62 65.67 67.78 57.62 43.33 23.90 52.65 PANDA GPT 7B 40.21 51.89 68.38 61.92 41.97 22.86 47.87 VIDEO CHAT 7B 48.73 57.30 69.33 65.09 43.48 24.30 51.37 
+
+> M
+
+PLUG-O WL 7B 56.86 59.89 71.65 72.26 46.28 27.32 55.71 AFFECT GPT ∗ 7B 55.23 59.96 65.65 76.83 44.98 28.65 55.22 BASELINE 0.5B 61.07 71.69 59.95 26.96 30.98 17.58 44.70 BASELINE 7B 67.39 76.47 72.90 71.93 34.09 18.49 56.88 OUR METHOD 0.5B 65.69 72.71 72.21 72.59 55.52 30.48 61.53 
+
+than singular judgment, we define rthink as a binary indicator for the presence of comparative ( Tcom ), differential ( Tdiff ), and decisive ( Tdec ) blocks: 
+
+rthink = I Tcom ̸ = ∅ ∧ T diff ̸ = ∅ ∧ T dec ̸ = ∅. (6) 
+
+Hierarchical Citation ( rcite ). To incentivize inter-rationale adjudication, we reward the explicit referencing of candidate hypotheses Hk and the selected rationale H∗ within the 
+
+⟨think ⟩ block: 
+
+rcite = αI(Hk ∈ T com )+ βI(Hk ∈ T diff )+ γI(H∗ ∈ T dec ).
+
+(7) 
+
+Intra-trace Evidence Consistency ( revid ). We ensure that verification-stage claims are derived from the self-declared evidence pool V = S Ek defined in the proposal stage. Let 
+
+C be the set of bracketed citations in ⟨think ⟩:
+
+revid = 1
+
+|C| 
+
+X
+
+> c∈C
+
+I match( c, V ) if |C| > 0 else 0. (8) The match( ·) operator employs fuzzy string matching to tolerate minor surface variations. 
+
+Semantic Grounding ( rsem ). To ensure rationales remain rooted in multimodal reality, we align predicted evidence descriptions P with ground-truth cue annotations G using sentence embedding similarity ϕ(·, ·):
+
+rsem = 1
+
+|P |
+
+X
+
+> pi∈P
+
+Q
+
+
+
+max  
+
+> g∈G
+
+ϕ(emb (pi), emb (g)) 
+
+
+
+, (9) where Q(·) discretizes continuous similarity into robust reward levels. 
+
+Table 2. Conflict robustness results on MER-FG. We evaluate HyDRA against HumanOmni (Baseline) and other models across High Conflict (HCS) and Low Conflict (LCS) subsets. HyDRA maintains superior performance even under significant modal con-flict. ‡: HumanOmni (7B); ∗: AffectGPT trained on OV-MERD. Best results are bolded , second-best underlined. MODEL HCS LCS 
+
+S1 S2 S1 S2
+
+BASELINE 30.85 17.24 31.33 18.50 BASELINE ‡ 33.05 17.80 34.56 19.17 PANDA GPT 41.15 22.15 45.43 25.59 AFFECT GPT ∗ 43.63 27.89 48.82 29.76 HYDRA 54.78 30.56 55.51 30.13 
+
+Synergistic Effect. While rsem and revid provide fact-based grounding, rthink and rcite facilitate logical synthesis. To-gether, this hierarchical reward system guides the policy to evolve from generating isolated “backstory seeds” to internalizing a comprehensive reasoning trajectory that re-constructs the true affective state through the triangulation of multimodal evidence. 
+
+# 4. Experiments 
+
+4.1. Datasets & Evaluation Metrics Cold-start Subset. To establish a robust initial capabil-ity for open-vocabulary reasoning, we utilize OV-MERD 
+
+(Lian et al., 2024a) and 242 expert-verified samples from 
+
+MERCaption+ (Lian et al., 2025a), ensuring high semantic density for the cold-start phase. 
+
+GRPO RL Subset. For the RL stage, we curate 12,000 sam-5Follow the Clues, Frame the Truth: Hybrid-evidential Deductive Reasoning in OV-MER    
+
+> Figure 2. Left : The original input (visual/audio/text). Visual priors contradict subtle audio/textual cues. Middle (Success) : HyDRA resolves the conflict via the Propose–Verify–Decide protocol. Right (Failure) : R1-omni commits prematurely to salient visual signals. Due to the presence of real individuals in the original videos, personal identifiable information has been removed and processed via visualization to address copyright and privacy concerns.
+
+ples from MERCaption+, manually filtered by audio-visual clarity and alignment accuracy. Both subsets are partitioned into a unified Observation Graph (ObsG) format; the full preparation process is detailed in Appendix B. We adopt HumanOmni-0.5B (Zhao et al., 2025b) as our backbone, noting its architectural differences from the 7B version in the Appendix D. 
+
+Benchmarks. We evaluate HyDRA across two primary di-mensions: (1) General Emotion Recognition : We assess the model’s performance on both sentiment-level intensity and discrete emotional categories. Specifically, we utilize CMU-MOSI (Zadeh et al., 2017) and CH-SIMS (Yu et al., 2020) to evaluate sentiment understanding, while MER2023 (Lian et al., 2023a) and MER2024 (Lian et al., 2024b) are em-ployed to test the recognition of basic emotional categories. (2) Open-Vocabulary Fine-Grained (OV-FG) : We adopt the 
+
+MER-FG benchmark (Lian et al., 2024c) (a curated sub-set of MERCaption+), which provides a high-density label space and serves as a rigorous stress test for open-set affec-tive reasoning and deductive precision. Crucially, although MERCaption+ is utilized across differ-ent stages, we ensure that the three subsets—the 200 SFT samples, the 12,000 RL samples, and the OV-FG evaluation set—are strictly disjoint . This isolation guarantees that the evaluation reflects true zero-shot or out-of-distribution performance without any overlap with the training data. 
+
+Evaluation Metrics. For the Sentiment and Basic emotion tasks, we strictly follow the protocols in (Lian et al., 2025a), adopting ACC. Following the MER-FG protocol (Lian et al., 2025b), we report the average F1-score across two granular-ities on OV-FG: S1 (coarse-grained) and S2 (fine-grained). To handle open-vocabulary synonyms and varying label den-sities, both metrics apply hierarchical grouping via multiple emotion wheels to map predictions into unified taxonomic levels before calculating the sample-wise F1-score. Unless otherwise noted, all experimental results are reported in percentages (%). Full details regarding benchmark statis-tics, baseline descriptions, metric specifications, and imple-mentation configurations are provided in Appendix C, D, E, and F, respectively. 
+
+4.2. Main Result 
+
+Table 1 shows our method achieves the best overall perfor-mance, despite using a 0.5B backbone, reaching an average score of 61.53 across all six evaluations. This indicates that the improvement is primarily driven by the proposed Propose–Verify–Decide inference, rather than model scale. 
+
+Strength on open-vocabulary fine-grained emotion. The largest gains appear on OV-FG, where our method ranks first on both granularities. In particular, it substantially im-proves the coarse-grained score and also sets a new best 6Follow the Clues, Frame the Truth: Hybrid-evidential Deductive Reasoning in OV-MER                                                              
+
+> Table 3. Ablation study of GRPO reward components on MER-FG. Symbols •and ◦indicate enabled and disabled rewards, respec-tively. For.: Format constraints; Acc.: Accuracy reward; Cit.: Hierarchical citation; Sem.: Semantic Grounding. Bold : Best; Underline: Second-best. FOR .ACC .CIT .SEM .OV-FG
+> S1S2AVG
+> •◦◦◦47.93 25.67 36.80
+> ◦•◦◦49.27 25.73 37.50
+> ◦◦•◦47.30 25.85 36.57
+> ◦◦◦•49.79 26.00 37.90 •◦••50.46 26.35 38.40 ••◦•52.65 27.88 40.26 •••◦52.42 26.08 39.25 ••••55.52 30.48 43.00
+
+fine-grained score. This aligns with our motivation: when label space is open and cues are underspecified, a single prior-driven interpretation is brittle, while multi-hypothesis proposal followed by evidence-constrained verification bet-ter reconciles complementary cues. 
+
+Robustness on basic emotion and sentiment. Beyond OV-FG, our method remains consistently strong on Basic and Sentiment tasks, achieving second-best performance across MER2023, MER2024, SIMS, and MOSI. Notably, it stays competitive with 7B baselines on sentiment while preserving strong basic-emotion recognition, suggesting that enforcing evidence-closed reasoning does not trade off general affect recognition capability for fine-grained gains. 
+
+Conflict robustness. Table 2 stratifies the test set by cross-modal conflict. All baselines drop noticeably on HCS com-pared to LCS, confirming their fragility under contradictory cues. HyDRA stays best on both subsets and degrades the least, indicating that multi-path adjudication mitigates premature commitment when modalities disagree. Com-pared to AffectGPT, HyDRA improves S1 by +11.15 on HCS versus +6.69 on LCS, showing larger relative gains in conflict-heavy cases. Figure 2 illustrates a representative scenario where HyDRA effectively resolves modality conflicts that mislead standard models. In this case, the subject maintains a “calm and focused” facial expression , while the audio and text cues signify intense internal distress. Unlike the R1-omni, which suffers from premature commitment to the salient visual signal, HyDRA avoids an immediate decision. Through the Propose–Verify–Decide protocol, it generates competing hypotheses and correctly adjudicates that the subtle audio cue is a more authentic indicator of affect than the controlled visual mask. By reconciling these contradictory signals, HyDRA successfully identifies the state as Genuine Anxiety, matching the ground truth while providing a transparent, evidence-grounded reasoning trace.                             
+
+> Table 4. Impact of hypothesis cardinality ( K) on MER-FG.
+> ”No-hypotheses” denotes the standard linear reasoning (R1-style) without the Propose–Verify–Decide protocol. K= 2 achieves the optimal balance between analytical diversity and evidential focus. All variants use the same 0.5B backbone. Bold : Best; Underline :Second-best. MODEL OV-FG
+> S1S2AVG
+> BASELINE 30.98 17.58 24.28 NO-HYPOTHESES 52.14 26.88 39.51 1-HYPOTHESIS 49.24 25.50 37.37 3-HYPOTHESES 54.48 26.05 40.26 4-HYPOTHESES 53.51 26.28 39.89 HYDRA 55.52 30.48 43.00
+
+A detailed discussion regarding the scope and limitations of our proposed method is provided in Appendix G. 
+
+# 5. Ablation Study 
+
+This section provides a systematic decomposition of Hy-DRA to evaluate the contribution of its core components: reward design, reasoning structure, and training paradigms. Unless otherwise specified, all variants are evaluated on the OV-FG using its standard metrics. In every ablation config-uration, the RL stage follows the same training schedule as the formal experiments. The results reported here reflect the alignment behavior across different design choices, provid-ing a direct comparison of the impact of each component on the model’s performance. 
+
+5.1. Ablating GRPO Rewards 
+
+We study how each reward component contributes to RL alignment under HyDRA. We evaluate three settings: en-abling all rewards (default), keep-one-only , and leave-one-out , as summarized in Table 3. 
+
+Keep-one-only. When only one reward is enabled, Ac-curacy reward and Evidence selection reward yield the strongest performance. This is expected because both pro-vide task-aligned content supervision: one targets the final prediction quality, while the other constrains evidence qual-ity via semantic matching. In contrast, Format rewards and Hierarchical evidence citation rewards offer limited gains in isolation, suggesting that structural compliance alone is insufficient to ensure correct open-vocabulary emotion inference. 
+
+Leave-one-out. In multi-reward RL, removing the Accu-racy reward causes a clear degradation, indicating that it remains the dominant task-aligned learning signal, which employs Pℓ to mitigate reward hacking (see Appendix H). Conversely, removing Hierarchical evidence citation re-7Follow the Clues, Frame the Truth: Hybrid-evidential Deductive Reasoning in OV-MER                         
+
+> Table 5. Comparison of training paradigms on MER-FG. Cold-start and GRPO RL Subsets are used for initial and RL stages. SFT full , PPO, and HyDRA share the same data budget. Results show that RL (especially our GRPO-based HyDRA) significantly outperforms SFT scaling. Bold : Best; Underline: Second-best. MODEL OV-FG
+> S1S2AVG
+> PROMPT -ONLY 23.26 12.34 17.80 BASELINE 30.98 17.58 24.28 SFT COLD 45.91 24.22 35.07 PPO T RAINING 51.09 26.93 39.01 SFT FULL 49.60 25.31 37.46 HYDRA 55.52 30.48 43.00
+
+wards yields the strongest performance among leave-one-out variants. In our final training configuration, Format re-wards are consistently enabled as a foundational constraint, rather than a primary variable in the leave-one-out analysis. This decision is made because removing format rewards in RL yields high numerical scores , yet it incurs the risk of long-term structural degradation. By fixing format rewards as a constant, we ensure the model maintains strict struc-tural integrity, while simultaneously isolating the impacts of content-driven rewards. 
+
+5.2. Impact of Hypothesis Cardinality on Reasoning 
+
+Table 4 evaluates hypothesis cardinality K. Every Propose– Verify–Decide variant significantly outperforms the base-line, confirming that the structural benefit of the Pro-pose–Verify–Decide protocol is fundamental. However, the “No-hypotheses” variant—representing a linear reasoning paradigm akin to the DeepSeek-R1 style—remains subopti-mal. While linear traces allow for logical depth, they lack the explicit divergent-then-convergent mechanism neces-sary to reconcile the ambiguous and often contradictory cues inherent in affective reasoning. We identify a performance “sweet spot” at K = 2 , which balances analytical diversity with token efficiency. Inter-estingly, the K = 1 variant performs worse than the linear “No-hypotheses” baseline, revealing a confirmation bias trap: forced upfront commitment causes the verification phase to anchor on justifying the initial guess rather than rather than performing the “cross-examination” described in Sec. 3.2. 
+
+K = 2 introduces sufficient “cognitive friction” to compel genuine adjudication without exceeding the informational capacity of typical 2–5 second video clips. Beyond K = 2 , returns diminish due to the sparse evi-dence in short-form content. K = 3 often leads to semantic redundancy where candidates overlap significantly, while 
+
+K = 4 triggers “over-interpretation.” When forced to gen-erate excessive diversity from limited cues, the model may hallucinate situational dynamics to satisfy the cardinality constraint, introducing noise. Notably, while S2 shows slight resilience at K = 4 by occasionally capturing rare fine-grained labels, the overall reliability and latency trade-offs favor the more robust K = 2 configuration. 
+
+5.3. Training Paradigm Boundary 
+
+Table 5 investigates whether HyDRA’s reasoning capability stems from parameter internalization or mere data scaling. 
+
+Necessity of Adaptation. The “Prompt-only” approach, which applies our Propose–Verify–Decide protocol to the frozen backbone, performs significantly worse than the base-line. This confirms that the multi-step reasoning logic is not a superficial prompting trick but a complex deductive behavior that must be internalized through systematic pa-rameter updates. RL vs. SFT Efficiency. While SFT cold 
+
+establishes a solid foundation for open-vocabulary tasks, ex-panding the supervised data to SFT full yields only marginal improvements. Notably, both RL-based paradigms—PPO and HyDRA—outperform SFT full using the same data bud-get. This gap demonstrates that for fine-grained affective reasoning, reinforcement learning is more sample-efficient than density-driven supervised learning, as it encourages the model to explore and self-correct reasoning paths. Su-periority of HyDRA. Among RL variants, HyDRA further surpasses PPO by 3.99% in average score, achieving the peak performance. This suggests that our GRPO framework, tailored with evidence-constrained rewards, more effectively stabilizes the “Propose–Verify–Decide” trajectory, prevent-ing the model from regressing to biased heuristics. 
+
+# 6. Conclusion 
+
+We introduced HyDRA , which operationalizes Open-Vocabulary MER as a Propose–Verify–Decide protocol. Hy-DRA repurposes MLLM generative priors to propose multi-ple competing latent-context hypotheses, and then performs evidence-constrained adjudication to select the emotion set that best reconciles equivocal and potentially conflicting multimodal cues. To make this protocol a learned capability rather than a prompting heuristic, we further optimized the model with GRPO and hierarchical reward shaping , explic-itly aligning intermediate reasoning trajectories with final task performance and enforcing evidential closure . Across systematic evaluations, HyDRA consistently outperformed strong baselines on diverse OV-MER benchmarks, with particularly pronounced gains under ambiguity and cross-modal conflict, and it notably surpassed the performance of an zero-shot 7B baseline. Beyond metric gains, HyDRA pro-duces interpretable and diagnostic evidence traces, enabling principled analysis of when and why the model commits to a prediction. We hope this work encourages the community to treat OV-MER as a hybrid abductive–deductive infer-8Follow the Clues, Frame the Truth: Hybrid-evidential Deductive Reasoning in OV-MER 
+
+ence problem and to build learning objectives that reward verifiable, evidence-grounded reasoning. 
+
+# Impact Statement 
+
+This work enhances the reliability and interpretability of Multimodal Emotion Recognition by mitigating model bias in ambiguous scenarios. While our framework enables more empathetic and transparent AI for applications in mental health and human-computer interaction, we recognize the inherent risks of emotional profiling and privacy infringe-ment associated with affective computing. We advocate for the deployment of these technologies exclusively within ethical frameworks that prioritize user consent and prohibit unauthorized surveillance. 
+
+# References 
+
+Bai, Z., Wang, P., Xiao, T., He, T., Han, Z., Zhang, Z., and Shou, M. Z. Hallucination of multimodal large language models: A survey. arXiv preprint arXiv:2404.18930 ,2024. Barrett, L. F., Adolphs, R., Marsella, S., Martinez, A. M., and Pollak, S. D. Emotional expressions reconsidered: Challenges to inferring emotion from human facial move-ments. Psychological Science in the Public Interest , 20 (1):1–68, 2019. doi: 10.1177/1529100619832930. PMID: 31313636. Bhattacharyya, S. and Wang, J. Z. Evaluating vision-language models for emotion recognition. In Chiruzzo, L., Ritter, A., and Wang, L. (eds.), Findings of the As-sociation for Computational Linguistics: NAACL 2025 ,pp. 1798–1820, Albuquerque, New Mexico, April 2025. Association for Computational Linguistics. ISBN 979-8-89176-195-7. doi: 10.18653/v1/2025.findings-naacl.97. Chang, B., Wang, Q., Guo, X., Nan, Z., Yao, Y., and Zhou, T. Abductivemllm: Boosting visual abductive reasoning within mllms, 2026. Dang, J., Song, H., Xiao, J., Wang, B., Peng, H., Li, H., Yang, X., Wang, M., and Chua, T.-S. Mupa: Towards multi-path agentic reasoning for grounded video question answering, 2025. Dhuliawala, S., Komeili, M., Xu, J., Raileanu, R., Li, X., Celikyilmaz, A., and Weston, J. Chain-of-verification reduces hallucination in large language models. In Find-ings of the association for computational linguistics: ACL 2024 , pp. 3563–3578, 2024. Ge, M., Tang, D., and Li, M. Video emotion open-vocabulary recognition based on multimodal large lan-guage model. arXiv preprint arXiv:2408.11286 , 2024. Geirhos, R., Jacobsen, J.-H., Michaelis, C., Zemel, R., Bren-del, W., Bethge, M., and Wichmann, F. A. Shortcut learn-ing in deep neural networks. Nature Machine Intelligence ,2(11):665–673, 2020. Goyal, Y., Khot, T., Summers-Stay, D., Batra, D., and Parikh, D. Making the v in vqa matter: Elevating the role of image understanding in visual question answer-ing. In Proceedings of the IEEE conference on computer vision and pattern recognition , pp. 6904–6913, 2017. Guerdelli, H., Ferrari, C., Cardia Neto, J. B., Berretti, S., Barhoumi, W., and Del Bimbo, A. Towards a better understanding of human emotions: Challenges of dataset labeling. In International Conference on Image Analysis and Processing , pp. 242–254. Springer, 2023. Guo, D., Yang, D., Zhang, H., Song, J., Wang, P., Zhu, Q., Xu, R., Zhang, R., Ma, S., Bi, X., et al. Deepseek-r1 incentivizes reasoning in llms through reinforcement learning. Nature , 645(8081):633–638, 2025. Han, Z., Zhu, B., Xu, Y., Song, P., and Yang, X. Bench-marking and bridging emotion conflicts for multimodal emotion reasoning. In Proceedings of the 33rd ACM International Conference on Multimedia , MM ’25, pp. 5528–5537, New York, NY, USA, 2025a. Association for Computing Machinery. ISBN 9798400720352. doi: 10.1145/3746027.3754856. Han, Z., Zhu, B., Xu, Y., Song, P., and Yang, X. Bench-marking and bridging emotion conflicts for multimodal emotion reasoning. In Proceedings of the 33rd ACM In-ternational Conference on Multimedia , pp. 5528–5537, 2025b. Huang, Q., Dong, X., Zhang, P., Wang, B., He, C., Wang, J., Lin, D., Zhang, W., and Yu, N. Opera: Alleviat-ing hallucination in multi-modal large language models via over-trust penalty and retrospection-allocation. In 
+
+Proceedings of the IEEE/CVF Conference on Computer Vision and Pattern Recognition , pp. 13418–13427, 2024. Jin, P., Takanobu, R., Zhang, W., Cao, X., and Yuan, L. Chat-univi: Unified visual representation empowers large language models with image and video understanding. In 
+
+Proceedings of the IEEE/CVF Conference on Computer Vision and Pattern Recognition , pp. 13700–13710, 2024. Kahneman, D. Thinking, Fast and Slow . Farrar, Straus and Giroux, New York, 2011. Lei, Y., Yang, D., Chen, Z., Chen, J., Zhai, P., and Zhang, L. Large vision-language models as emotion recognizers in context awareness. arXiv preprint arXiv:2407.11300 ,2024. 9Follow the Clues, Frame the Truth: Hybrid-evidential Deductive Reasoning in OV-MER 
+
+Leng, S., Zhang, H., Chen, G., Li, X., Lu, S., Miao, C., and Bing, L. Mitigating object hallucinations in large vision-language models through visual contrastive decoding. In 
+
+Proceedings of the IEEE/CVF Conference on Computer Vision and Pattern Recognition , pp. 13872–13882, 2024. Li, B., Zhang, Y., Chen, L., Wang, J., Pu, F., Cahyono, J. A., Yang, J., Li, C., and Liu, Z. Otter: A multi-modal model with in-context instruction tuning. IEEE Transactions on Pattern Analysis and Machine Intelligence , 2025a. Li, F., Zhang, R., Zhang, H., Zhang, Y., Li, B., Li, W., Ma, Z., and Li, C. Llava-next-interleave: Tackling multi-image, video, and 3d in large multimodal models, 2024a. Li, K., He, Y., Wang, Y., Li, Y., Wang, W., Luo, P., Wang, Y., Wang, L., and Qiao, Y. Videochat: Chat-centric video understanding. Science China Information Sciences , 68 (10):200102, 2025b. Li, Y., Du, Y., Zhou, K., Wang, J., Zhao, X., and Wen, J.-R. Evaluating object hallucination in large vision-language models. In Bouamor, H., Pino, J., and Bali, K. (eds.), Pro-ceedings of the 2023 Conference on Empirical Methods in Natural Language Processing , pp. 292–305, Singa-pore, December 2023. Association for Computational Linguistics. doi: 10.18653/v1/2023.emnlp-main.20. Li, Y., Wang, C., and Jia, J. Llama-vid: An image is worth 2 tokens in large language models. In European Conference on Computer Vision , pp. 323–340. Springer, 2024b. Li, Z., Wu, X., Shi, G., Qin, Y., Du, H., Liu, F., Zhou, T., Manocha, D., and Boyd-Graber, J. L. Video-hallu: Evaluating and mitigating multi-modal halluci-nations on synthetic video understanding. arXiv preprint arXiv:2505.01481 , 2025c. Lian, Z., Sun, H., Sun, L., Chen, K., Xu, M., Wang, K., Xu, K., He, Y., Li, Y., Zhao, J., Liu, Y., Liu, B., Yi, J., Wang, M., Cambria, E., Zhao, G., Schuller, B. W., and Tao, J. Mer 2023: Multi-label learning, modality robustness, and semi-supervised learning. In Proceedings of the 31st ACM International Conference on Multimedia , MM ’23, pp. 9610–9614, New York, NY, USA, 2023a. Association for Computing Machinery. ISBN 9798400701085. doi: 10.1145/3581783.3612836. Lian, Z., Sun, H., Sun, L., Gu, H., Wen, Z., Zhang, S., Chen, S., Xu, M., Xu, K., Chen, K., et al. Explain-able multimodal emotion recognition. arXiv preprint arXiv:2306.15401 , 2023b. Lian, Z., Sun, H., Sun, L., Chen, H., Chen, L., Gu, H., Wen, Z., Chen, S., Zhang, S., Yao, H., et al. Ov-mer: Towards open-vocabulary multimodal emotion recognition. arXiv preprint arXiv:2410.01495 , 2024a. Lian, Z., Sun, H., Sun, L., Wen, Z., Zhang, S., Chen, S., Gu, H., Zhao, J., Ma, Z., Chen, X., et al. Mer 2024: Semi-supervised learning, noise robustness, and open-vocabulary multimodal emotion recognition. In Proceed-ings of the 2nd International Workshop on Multimodal and Responsible Affective Computing , pp. 41–48, 2024b. Lian, Z., Chen, H., Chen, L., Sun, H., Sun, L., Ren, Y., Cheng, Z., Liu, B., Liu, R., Peng, X., Yi, J., and Tao, J. AffectGPT: A new dataset, model, and benchmark for emotion understanding with multimodal large language models. In Forty-second International Conference on Machine Learning , 2025a. Lian, Z., Liu, R., Xu, K., Liu, B., Liu, X., Zhang, Y., Liu, X., Li, Y., Cheng, Z., Zuo, H., et al. Mer 2025: When affective computing meets large language models. In 
+
+Proceedings of the 33rd ACM International Conference on Multimedia , pp. 13837–13842, 2025b. Lian, Z. et al. Ov-mer: Towards open-vocabulary multimodal emotion recognition. arXiv preprint arXiv:2410.01495 , 2024c. Lin, B., Ye, Y., Zhu, B., Cui, J., Ning, M., Jin, P., and Yuan, L. Video-llava: Learning united visual representation by alignment before projection. In Proceedings of the 2024 conference on empirical methods in natural language processing , pp. 5971–5984, 2024. Liu, H., Li, C., Wu, Q., and Lee, Y. J. Visual instruction tun-ing. Advances in neural information processing systems ,36:34892–34916, 2023. Maaz, M., Rasheed, H., Khan, S., and Khan, F. Video-chatgpt: Towards detailed video understanding via large vision and language models. In Proceedings of the 62nd Annual Meeting of the Association for Computational Linguistics (Volume 1: Long Papers) , pp. 12585–12602, 2024. Mistretta, M., Baldrati, A., Agnolucci, L., Bertini, M., and Bagdanov, A. D. Cross the gap: Exposing the intra-modal misalignment in clip via modality inversion. arXiv preprint arXiv:2502.04263 , 2025. Mohsin, M. A., Umer, M., Bilal, A., Memon, Z., Qadir, M. I., Bhattacharya, S., Rizwan, H., Gorle, A. R., Kazmi, M. Z., Mohsin, A., et al. On the fundamental limits of llms at scale. arXiv preprint arXiv:2511.12869 , 2025. Poria, S., Cambria, E., Bajpai, R., and Hussain, A. Areview of affective computing: From unimodal analysis to multimodal fusion. Information fusion , 37:98–125, 2017. Qian, Y., Wan, C., Jia, C., Yang, Y., Zhao, Q., and Gan, Z. Prism-bench: A benchmark of puzzle-based visual tasks with cot error detection, 2025. 10 Follow the Clues, Frame the Truth: Hybrid-evidential Deductive Reasoning in OV-MER 
+
+Rha, H., Yeo, J. H., Won, J., Park, S. J., and Ro, Y. M. Learn-ing what to attend first: Modality-importance-guided rea-soning for reliable multimodal emotion understanding, 2025. Shao, Z., Wang, P., Zhu, Q., Xu, R., Song, J., Bi, X., Zhang, H., Zhang, M., Li, Y. K., Wu, Y., and Guo, D. Deepseek-math: Pushing the limits of mathematical reasoning in open language models, 2024. Su, Y., Lan, T., Li, H., Xu, J., Wang, Y., and Cai, D. Pandagpt: One model to instruction-follow them all, 2023. Sun, Y. and Saparov, A. Language models do not follow occam’s razor: A benchmark for inductive and abductive reasoning, 2025. Sun, Z., Xiao, Y., Li, J., Ji, Y., Chen, W., and Zhang, M. Exploring and mitigating shortcut learning for genera-tive large language models. In Calzolari, N., Kan, M.-Y., Hoste, V., Lenci, A., Sakti, S., and Xue, N. (eds.), 
+
+Proceedings of the 2024 Joint International Confer-ence on Computational Linguistics, Language Resources and Evaluation (LREC-COLING 2024) , pp. 6883–6893, Torino, Italia, May 2024. ELRA and ICCL. Wang, W., Gao, Z., Gu, L., Pu, H., Cui, L., Wei, X., Liu, Z., Jing, L., Ye, S., Shao, J., et al. Internvl3.5: Advancing open-source multimodal models in versatility, reasoning, and efficiency. arXiv preprint arXiv:2508.18265 , 2025. Wang, X., Wei, J., Schuurmans, D., Le, Q., Chi, E., Narang, S., Chowdhery, A., and Zhou, D. Self-consistency im-proves chain of thought reasoning in language models. 
+
+arXiv preprint arXiv:2203.11171 , 2022. Wei, Y., Yuan, S., Yang, R., Shen, L., Li, Z., Wang, L., and Chen, M. Tackling modality heterogeneity with multi-view calibration network for multimodal sentiment de-tection. In Rogers, A., Boyd-Graber, J., and Okazaki, N. (eds.), Proceedings of the 61st Annual Meeting of the Association for Computational Linguistics (Volume 1: Long Papers) , pp. 5240–5252, Toronto, Canada, July 2023. Association for Computational Linguistics. doi: 10.18653/v1/2023.acl-long.287. Wu, Q., Yang, X., Zhou, Y., Fang, C., Song, B., Sun, X., and Ji, R. Grounded chain-of-thought for multimodal large language models. arXiv preprint arXiv:2503.12799 ,2025a. Wu, Y., Zhang, L., Yao, H., Du, J., Yan, K., Ding, S., Wu, Y., and Li, X. Antidote: A unified framework for mitigating lvlm hallucinations in counterfactual presupposition and object perception. In Proceedings of the Computer Vision and Pattern Recognition Conference , pp. 14646–14656, 2025b. Wu, Z., Huang, H.-Y., and Wu, Y. Beyond spurious signals: Debiasing multimodal large language models via coun-terfactual inference and adaptive expert routing, 2025c. Ye, Q., Xu, H., Xu, G., Ye, J., Yan, M., Zhou, Y., Wang, J., Hu, A., Shi, P., Shi, Y., et al. mplug-owl: Modulariza-tion empowers large language models with multimodality. 
+
+arXiv preprint arXiv:2304.14178 , 2023. Yu, W., Xu, H., Meng, F., Zhu, Y., Ma, Y., Wu, J., Zou, J., and Yang, K. Ch-sims: A chinese multimodal sentiment analysis dataset with fine-grained annotation of modal-ity. In Proceedings of the 58th annual meeting of the association for computational linguistics , pp. 3718–3727, 2020. Zadeh, A., Zellers, R., Pincus, E., and Morency, L.-P. Mosi: Multimodal corpus of sentiment intensity and subjectivity analysis in online opinion videos, 2016. Zadeh, A., Chen, M., Poria, S., Cambria, E., and Morency, L.-P. Tensor fusion network for multimodal sentiment analysis. arXiv preprint arXiv:1707.07250 , 2017. Zelikman, E., Harik, G., Shao, Y., Jayasiri, V., Haber, N., and Goodman, N. D. Quiet-star: Language models can teach themselves to think before speaking. arXiv preprint arXiv:2403.09629 , 2024. Zhang, X., Zeng, F., and Gu, C. Simignore: Exploring and enhancing multimodal large model complex reasoning via similarity computation. Neural Networks , 184:107059, 2025. Zhao, J., Wei, X., and Bo, L. R1-omni: Explainable omni-multimodal emotion recognition with reinforce-ment learning. arXiv preprint arXiv:2503.05379 , 2025a. Zhao, J., Yang, Q., Peng, Y., Bai, D., Yao, S., Sun, B., Chen, X., Fu, S., Wei, X., Bo, L., et al. Humanomni: A large vision-speech language model for human-centric video understanding. arXiv preprint arXiv:2501.15111 , 2025b. Zhao, K., Zheng, M., Li, Q., and Liu, J. Multimodal sen-timent analysis-a comprehensive survey from a fusion methods perspective. IEEE Access , 2025c. Zhao, R., Li, X., Joty, S., Qin, C., and Bing, L. Verify-and-edit: A knowledge-enhanced chain-of-thought frame-work. arXiv preprint arXiv:2305.03268 , 2023. Zhou, Y., Cui, C., Yoon, J., Zhang, L., Deng, Z., Finn, C., Bansal, M., and Yao, H. Analyzing and mitigating object hallucination in large vision-language models. arXiv preprint arXiv:2310.00754 , 2023. Zhu, Y., Tao, L., Dong, M., and Xu, C. Mitigating object hal-lucinations in large vision-language models via attention calibration. arXiv preprint arXiv:2502.01969 , 2025. 11 Follow the Clues, Frame the Truth: Hybrid-evidential Deductive Reasoning in OV-MER 
+
+# A. Implementation Details of Reward Mechanisms 
+
+A.1. Reward Composition and Weights 
+
+As introduced in Sec. 3.1, the total reward R is calculated as the weighted sum of individual task-specific rewards. All reward components rk are normalized to [0 , 1] before scaling. Table 6 lists the specific weights used during GRPO training. These weights were determined through a coarse grid search on a validation subset to balance logical rigour (citations/evidence) and task accuracy.  
+
+> Table 6. Hyperparameters for Hierarchical Reward Shaping.
+
+Category Component Weight λk Primary Optimization Goal 
+
+Performance Accuracy ( racc ) 4.0 Maximize F1-score with length penalty Pℓ.Protocol Consistency ( rfmt ) 0.5 Ensure JSON validly and tag ordering. Reasoning ( rthink ) 0.5 Enforce comparative/differential thinking blocks. Reliability Citation ( rcite ) 1.0 Encourage explicit hypothesis referencing. Evidence ( revid ) 2.0 Enforce intra-trace consistency via fuzzy matching. Grounding ( rsem ) 2.0 Align reasoning with multimodal cue anno-tations. 
+
+A.2. Detailed Formulations of Reward Components Accuracy with Length Penalty. To prevent reward hacking via verbosity, racc incorporates a penalty Pℓ:
+
+Pℓ = LLpre 
+
+(10) where L is the number of emotion words in the ground truth labels and Lpre is the number of emotion words in the model-predicted labels. 
+
+Fuzzy Matching for revid . The match( c, V ) operator (Eq. 4) handles surface variations by: (i) converting to lowercase, (ii) stripping punctuation, and (iii) verifying if the citation string c exists as a substring within the evidence pool V . For ambiguous cases, a Levenshtein similarity threshold of 0.85 is applied. 
+
+Discretization of Semantic Grounding ( rsem ). The function Q(·) in Eq. 5 maps continuous cosine similarity s to discrete rewards to stabilize the RL gradient: 
+
+Q(s) = 
+
+
+
+1.0, s ≥ 0.70.5, 0.5 ≤ s < 0.70, s < 0.5
+
+(11) We use all-MiniLM-L6-v2 as the backbone for emb (·).
+
+# B. Data Preparation 
+
+This section details the technical implementation of the automated generation pipeline used to construct data for cold-start SFT and GRPO RL. The overall procedure, illustrated in Figure 3 and formalized in Algorithm 1, is designed as a structured, sequential workflow that transforms raw multimodal descriptions and Ground Truth (GT) labels into standardized training samples following the HyDRA output interface, i.e., a structured response composed of <hypotheses> , <think> , and 
+
+<answer> .The pipeline begins with input preparation, followed by Phase 1: ObsG generation. In Phase 1, a general-purpose DeepSeek Chat model converts unstructured multimodal text into structured ObsG JSON objects that summarize objective, time-sliced evidence. The core of the pipeline is Phase 2, where a specialized DeepSeek Reasoner model instantiates HyDRA’s Propose–Verify–Decide protocol. Specifically, given a composite context consisting of the objective ObsG and the GT 12 Follow the Clues, Frame the Truth: Hybrid-evidential Deductive Reasoning in OV-MER  
+
+> Figure 3. Overview of the Generation stages of ObsG.
+
+labels, the reasoner is prompted to (i) generate multiple competing hypotheses in <hypotheses> , each grounded in modality-specific evidence candidates; (ii) perform evidence-constrained comparison in <think> by explicitly contrasting shared cues and conflicting cues across hypotheses and selecting the most coherent explanation; and (iii) output the final open-vocabulary emotion set in <answer> , consistent with the verified decision. In Phase 3, we apply deterministic post-processing and normalization to ensure interface stability and reduce spurious variance. Finally, we assemble the verified HyDRA reasoning modules, the original observation modules, and the formatted target answers into a single structurally standardized JSON training sample, completing the automated construction of high-quality cold-start data into a single standardized JSON training sample, as shown in the output of Step 5 in Figure 3. For completeness, we also reuse this pipeline to build GRPO training data. In this case, we only retain the Phase 1 outputs (ObsG JSON), and omit Phases 2–3, because GRPO requires objective observations as reward signals rather than fully instantiated HyDRA responses. System Prompt: Cold-Start Data Generation You are a structured reasoning assistant. Use ONLY the provided ObservationGraph (ObsG). • Input Context : Multimodal evidence (video/audio/text) and EVAL-ONLY affect profiles (Ground Truth hints). • Constraint : Do NOT quote EVAL-ONLY content directly. Rank evidence by cross-modality coverage. • Output Schema (JSON) :1. hypotheses : A list of 1–3 hypotheses. Each must contain an assumption and 
+
+evidence ids top5 (unique IDs). 2. think : A reasoning trace using **[Common]**, **[Differences]**, and **[Decision]** headers. **MANDATORY: Cite specific evidence like [v1][a2] and cross-reference hypotheses [H1]. [v1][a2] needed to be natural language descriptions in the raw data.** • Termination : Conclude the [Decision] section with ”leading to the conclusion for an emotional state of [DESCRIPTOR].” 13 Follow the Clues, Frame the Truth: Hybrid-evidential Deductive Reasoning in OV-MER 
+
+Algorithm 1 Cold-Start Data Generation Pipeline 
+
+Input: Multimodal Data (V, A, T ), Ground Truth GT labels , Prompt Templates 
+
+Output: Structured Training Sample Sfinal 
+
+// Phase 1: Observation Generation 
+
+Prompt ObsG ← ConstructObsGPrompt (V, A, T, Template )
+
+ObsG JSON ← LLM Chat (Prompt ObsG )
+
+// Phase 2: Reasoning & Hypotheses Generation 
+
+Context ← EmbedGT (ObsG JSON , GT labels )
+
+Prompt Reason ← ConstructReasonerPrompt (Context )
+
+Raw Output ← LLM Reasoner (Prompt Reason )
+
+Hypotheses, CoT ← Parse (Raw Output )
+
+// Phase 3: Post-Processing & Final Assembly 
+
+Hypotheses ′ ← EnforceEvidenceCap (Hypotheses , top k = 5) 
+
+Hypotheses ′′ ← DeriveModalities (Hypotheses ′)
+
+Payload Answer ← FormatGT (GT labels )
+
+Sfinal ← AssembleXML (. . . )
+
+return Sfinal 
+
+Table 7. Dataset card of the benchmarks used in our experiments. We group datasets by task type and report the official split adopted for evaluation. DATASET TYPE RAW DATASET SELECTED SUBSET # S AMPLES 
+
+SENTIMENT ANALYSIS CMU-MOSI (Z ADEH ET AL ., 2017) TEST 686 CH-SIMS (Y U ET AL ., 2020) TEST 457 BASIC EMOTION RECOGNITION MER2023 (L IAN ET AL ., 2023 A) MER-MULTI (T EST ) 411 MER2024 (L IAN ET AL ., 2024 B) MER-SEMI (T EST ) 1,169 FINE -GRAINED EMOTION DETECTION MER-FG (L IAN ET AL ., 2025 B) TEST 1,200 
+
+# C. Datasets Details 
+
+We evaluate our method on a diverse set of public multimodal affect benchmarks (Table 7). For Sentiment Analysis, we use the official test splits of CMU-MOSI and CH-SIMS. For Basic Emotion Recognition, we use the test sets of MER2023 (MER-MULTI) and MER2024 (MER-SEMI). For Fine-grained Emotion Detection, we use the MER-FG test set to assess open-vocabulary fine-grained emotion prediction. Dataset splits and sample counts are summarized in Table 7. 
+
+# D. Baseline Details 
+
+This section summarizes the backbone components of the MLLMs referenced in our experiments and comparisons. 
+
+HumanOmni. We adopt HumanOmni-0.5B (Zhao et al., 2025b) as our backbone, which is a large multimodal model tailored for human-centric tasks via a dual-path vision architecture. HumanOmni is offered in two scales: 0.5B and 7B. While both versions share the same fundamental design, they differ in component scales: HumanOmni-0.5B integrates a SigLip-400M vision tower, a HumanVision-Base encoder, and a Qwen2-0.5B LLM, whereas the 7B version scales these to SigLip-SO400M, HumanVision-Large, and Qwen2-7B, respectively. To maximize the demonstration of our method’s effectiveness under constrained computational resources, we employ the 0.5B variant, which provides high-fidelity human-centric features within a compact parameter space. 
+
+Otter. Otter is a Flamingo-style, instruction-tuned multimodal assistant that supports in-context multimodal instruction following, and we include it as a generic image-based MLLM baseline. (Li et al., 2025a) 14 Follow the Clues, Frame the Truth: Hybrid-evidential Deductive Reasoning in OV-MER 
+
+Video-LLaVA. Video-LLaVA extends LLaVA-style instruction tuning to jointly handle images and videos via a unified visual representation, serving as a strong video-chat baseline without explicit audio modeling. (Lin et al., 2024) 
+
+Video-ChatGPT. Video-ChatGPT is a video conversation model that pairs a video-adapted visual encoder with an LLM for detailed video dialogue, and we use it as a representative early video-chat baseline. (Maaz et al., 2024) 
+
+LLaMA-Vid. LLaMA-Vid targets long-context video understanding by reducing per-frame visual token length, and we adopt it to test whether improved temporal scalability benefits affect reasoning. (Li et al., 2024b) 
+
+Chat-UniVi. Chat-UniVi unifies image and video understanding with dynamic visual tokens under a unified visual representation, and we treat it as a competitive unified image-video MLLM baseline. (Jin et al., 2024) 
+
+PandaGPT. PandaGPT utilizes the multimodal joint representation space of ImageBind to align diverse inputs with the Vicuna language model, serving as a versatile baseline for general-purpose multimodal instruction following(Su et al., 2023). 
+
+VideoChat. VideoChat is a chat-centric video understanding framework that connects video foundation models with LLMs via a learnable interface, and we include it as a widely used video understanding baseline. (Li et al., 2025b) 
+
+mPLUG-Owl. mPLUG-Owl equips LLMs with multimodality via modularized training and multimodal instruction tuning, and we use it as a representative modular MLLM baseline. (Ye et al., 2023) 
+
+R1-Omni. R1-Omni applies reinforcement learning with verifiable rewards to improve omni-multimodal (audio-visual) emotion recognition and explainability, making it a key affect-specialized baseline. It is based on HumanOmni-0.5B. (Zhao et al., 2025a) 
+
+AffectGPT (OV-MERD). We use AffectGPT(OV-MERD) as specified in the MER2025 setting, i.e., the AffectGPT variant trained on OV-MERD for open-vocabulary/fine-grained emotion understanding comparisons. (Lian et al., 2025b;a) 
+
+# E. Emotion Wheel-based (EW) Metric 
+
+To provide a robust evaluation for open-vocabulary emotion prediction, we adopt the Emotion Wheel-based (EW) metric 
+
+proposed in prior literature (Lian et al., 2025a). The illustrations are Figure 4. This metric accounts for semantic redundancies and synonyms by employing a hierarchical clustering strategy and set-level evaluation. The computation process is objective and primarily consists of two components: neutralizing synonym influence and defining set-level metrics. 
+
+E.1. Handling Synonyms and Variations 
+
+To mitigate the impact of morphological variations and semantic overlaps, a three-level hierarchical grouping strategy is employed, represented by a composite clustering function Gwk (·):• (L1) Morphological Normalization ( Fl1 ): This function maps different forms of words to their base form. For instance, words like happier and happiness are normalized to happy .• (L2) Synonym Mapping ( Fl2 ): This mapping function unifies synonyms into a single representative word. For example, joyful and cheerful are mapped to happy .• (L3) Emotion Wheel Clustering ( F wk 
+
+> l3
+
+): This function maps outer, more specific labels to their corresponding inner fundamental labels. Following (Lian et al., 2025a), K = 5 different emotion wheels are adopted to ensure comprehensive coverage. The complete clustering operation for a specific wheel wk is summarized as: 
+
+Gwk (·) = F wk 
+
+> l3
+
+(Fl2 (Fl1 (·))) , k ∈ [1 , K ]. (12) 15 Follow the Clues, Frame the Truth: Hybrid-evidential Deductive Reasoning in OV-MER 
+
+E.2. Set-level Metric Calculation 
+
+Given that the number of predicted and annotated emotions may vary across samples, the evaluation is conducted using set-level metrics. Suppose the dataset contains N samples. For a sample xi, let Yi = {yji }ni 
+
+> j=1
+
+denote the set of true labels and ˆYi = {ˆyji } ˆni 
+
+> j=1
+
+denote the set of predicted labels. The metrics for each wheel k are defined as: Precision kS = 1
+
+N
+
+> N
+
+X
+
+> i=1
+
+|Gwk (Yi) ∩ Gwk ( ˆYi)||Gwk ( ˆYi)| , (13) Recall kS = 1
+
+N
+
+> N
+
+X
+
+> i=1
+
+|Gwk (Yi) ∩ Gwk ( ˆYi)||Gwk (Yi)| , (14) 
+
+F kS = 2 × Precision kS × Recall kS
+
+Precision kS + Recall kS
+
+. (15) In these set-wise operations, duplicate emotion words are automatically removed. 
+
+E.3. Final Score Computation 
+
+Finally, the comprehensive EW score is determined by calculating the average F1-score across all K emotion wheels: EW (Yi, ˆYi) = 1
+
+K
+
+> K
+
+X
+
+> k=1
+
+F kS . (16) 
+
+# F. Experimental Setup 
+
+Training Details. Our models were trained on a cluster of up to 8 NVIDIA L20 GPUs. To balance computational efficiency with memory constraints, we uniformly sampled 8 frames for video inputs during training. All experiments were conducted using BF16 precision and FlashAttention-2, with DeepSpeed ZeRO-3 employed for memory optimization.The training process consists of two stages: SFT followed by GRPO RL. • SFT Stage: We use BF16 training with gradient checkpointing and FlashAttention. The maximum sequence length is 2048, the per-device batch size is 2 with gradient accumulation to a global batch of 16. We train for 5 epochs using a cosine schedule, learning rate 2 × 10 −4, warmup ratio 0.01, and weight decay 0.0. The multimodal configuration uses a vision tower and an audio tower, a lightweight projector, and enables modality start/end wrappers; the number of video frames is 8. • GRPO RL Stage: We run BF16 training with gradient checkpointing and FlashAttention. The prompt and completion lengths are 1024/1024. We sample G = 8 completions per prompt, use a per-device batch size of 1 with gradient accumulation of 4, and train for 4.5k steps. This duration is empirically selected as the optimal convergence point; as shown in Figure 5, the evaluation scores (e.g., S1 and Mean) peak at approximately 4.5k steps and plateau thereafter. The learning rate is 1 × 10 −6 with warmup ratio 0.03. The maximum pixel budget for visual inputs is capped at 401408. 
+
+# G. Limitations 
+
+Model scale and compute. We train and evaluate HyDRA on a relatively small backbone (0.5B), and do not perform RL training on 7B-scale (or larger) MLLMs. This choice is primarily constrained by available compute, and it may limit the absolute performance ceiling as well as the generality of our conclusions across model sizes. Larger backbones could better absorb the Propose–Verify–Decide objective, support stronger perception and longer-context reasoning, and potentially change the optimal trade-offs (e.g., between diversity and verification strictness). With access to larger-scale training resources, we plan to scale HyDRA to 7B+ models and systematically study scaling behavior under the same evaluation protocol. 16 Follow the Clues, Frame the Truth: Hybrid-evidential Deductive Reasoning in OV-MER          
+
+> (a) w1 (b) w2 (c) w3
+> (d) w4 (e) w5
+> Figure 4. Emotion wheel. We use five emotion wheels, all of which are derived from previous research (Lian et al., 2025a).
+
+Sensitivity to cold-start formatting and fixed hypothesis budget. HyDRA is strongly shaped by the cold-start training format and the structured rationale schema (e.g., the explicit <hypotheses> field). In our current setting, generating two hypotheses is the best-performing configuration; however, this fixed budget may not be robust when the input has higher information density, more complex situational dynamics, or richer multi-label affective mixtures. In such cases, two candidates may fail to cover the space of plausible explanations, weakening the comparative verification stage and re-introducing premature commitment. Future work will explore elastic hypothesis generation—adapting the number (and granularity) of hypotheses to the uncertainty and cue diversity of each instance—while keeping verification efficient (e.g., early stopping, hypothesis pruning, or learned controllers). 
+
+Backbone perception as an upstream bottleneck. Our contribution targets the reasoning paradigm (how the model forms and adjudicates interpretations), but OV-MER performance can be fundamentally limited by the base MLLM’s perceptual competence. If the model fails to reliably encode fine-grained visual or acoustic cues (i.e., it cannot “see/hear” them), then richer reasoning may not recover the missing evidence, and verification may become brittle or under-informed. This is especially relevant for subtle facial micro-expressions, prosody, and cross-modal timing. An important next step is to re-evaluate HyDRA on stronger multimodal backbones and perception modules to disentangle gains from improved perception versus improved abductive adjudication. 
+
+Compatibility with emerging MLLM design directions. Recent MLLM research suggests two complementary directions for improving multimodal understanding: (i) decoupling the Perception–Cognition loop into explicit perception-first pipelines (often yielding large gains in recognition), and (ii) strengthening multimodal fusion directly in latent space to improve grounding and reduce reliance on language priors. Our current implementation does not explicitly incorporate either paradigm, and therefore may not realize the best achievable synergy between perception, fusion, and abductive reasoning. In future work, we will investigate combining HyDRA with perception-first/cognition-second workflows and with latent fusion architectures, to test whether stronger base representations further amplify the benefits of Propose–Verify–Decide training 17 Follow the Clues, Frame the Truth: Hybrid-evidential Deductive Reasoning in OV-MER  
+
+> Figure 5. Evaluation scores across various epochs on the MER-FG.
+
+and evidence-closed verification. 
+
+# H. Analysis of Emotional Label Cardinality Distribution 
+
+Figure 6 illustrates the distribution of emotion-word counts per sample for both ground truth (GT) and model predictions. A common risk in open-vocabulary reward design is ”label dumping,” where the model hacks the reward by over-predicting labels to increase recall. However, our distribution shows that while GT labels typically range between 5 and 8, model predictions remain highly concentrated at k = 2 . This significant difference demonstrates that the length-penalty Pℓ
+
+effectively constrains the model, ensuring that performance gains stem from semantic precision rather than cardinality-based reward hacking. Notably, this conciseness does not compromise accuracy; as detailed in Appendix E, our hierarchical metric maps predictions into unified taxonomic levels, allowing a few high-precision labels to effectively capture the primary emotional dimensions within the GT.  
+
+> Figure 6. Analysis of Emotional Label Cardinality Distribution
+
+18

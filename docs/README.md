@@ -6,35 +6,46 @@
 </div>
 
 ## 每次日报
-- 最新运行日期：2026-03-21
-- 运行时间：2026-03-21 19:53:34 UTC
+- 最新运行日期：2026-03-22
+- 运行时间：2026-03-22 19:45:45 UTC
 - 运行状态：成功
-- 本次总论文数：4
-- 精读区：0
-- 速读区：4
+- 本次总论文数：8
+- 精读区：1
+- 速读区：7
 
 ### 今日简报（AI）
-今日聚焦多模态融合前沿，涵盖飓风灾情评估与情感分析等实战场景。
-重点关注利用 CLIP 增强的街景灾损识别框架，以及基于 Mamba 架构的高效多模态情感分析模型。
-建议关注 Mamba 在多模态领域的跨界应用，以及如何利用结构化知识优化多源数据融合。
-- 详情：[/202603/21/README](/202603/21/README)
+今日精选 8 篇前沿论文，重点聚焦多模态大模型在无线通信波束预测及高质量 3D 纹理生成上的跨界突破。
+核心结论展示了 MLLM 在物理层通信预测中的巨大潜力，同时 MV2UV 等技术实现了多视图引导下更精细的 UV 贴图生成。
+建议关注大模型向垂直领域渗透的趋势，特别是其在科学图像修复与多模态目标追踪中的推理应用。
+- 详情：[/202603/22/README](/202603/22/README)
 
 ### 精读区论文标签
-- 本次无精读推荐。
+1. [Beam Prediction Based on Multimodal Large Language Models](/202603/22/2603.15093v1-beam-prediction-based-on-multimodal-large-language-models)  
+   标签：评分：8.0/10、query:mm-fus
+   evidence：融合异构模态以实现鲁棒的跨模态集成
 
 ### 速读区论文标签
-1. [DamageArbiter: A CLIP-Enhanced Multimodal Arbitration Framework for Hurricane Damage Assessment from Street-View Imagery](/202603/21/2603.14837v1-damagearbiter-a-clip-enhanced-multimodal-arbitration-framework-for-hurricane-damage-assessment-from-street-view-imagery)  
+1. [MV2UV: Generating High-quality UV Texture Maps with Multiview Prompts](/202603/22/2603.15436v1-mv2uv-generating-high-quality-uv-texture-maps-with-multiview-prompts)  
    标签：评分：7.0/10、query:mm-fus
-   evidence：利用单模态和多模态模型互补优势的多模态仲裁框架
-2. [AlignMamba-2: Enhancing Multimodal Fusion and Sentiment Analysis with Modality-Aware Mamba](/202603/21/2603.18462v1-alignmamba-2-enhancing-multimodal-fusion-and-sentiment-analysis-with-modality-aware-mamba)  
-   标签：评分：7.0/10、query:mm-fus
-   evidence：多模态融合与跨模态对齐
-3. [Overlapping Covariance Intersection: Fusion with Partial Structural Knowledge of Correlation from Multiple Sources](/202603/21/2603.16768v1-overlapping-covariance-intersection-fusion-with-partial-structural-knowledge-of-correlation-from-multiple-sources)  
+   evidence：对多视图图像中未见部分进行修复以解决不一致和纹理缺失问题
+2. [QTrack: Query-Driven Reasoning for Multi-modal MOT](/202603/22/2603.13759v1-qtrack-query-driven-reasoning-for-multi-modal-mot)  
    标签：评分：6.0/10、query:mm-fus
-   evidence：利用部分结构知识和未知相关性进行多源融合
-4. [Multimodal Model for Computational Pathology:Representation Learning and Image Compression](/202603/21/2603.18660v1-multimodal-model-for-computational-pathologyrepresentation-learning-and-image-compression)  
+   evidence：结合自然语言查询的多模态多目标跟踪
+3. [Seeing Through the PRISM: Compound & Controllable Restoration of Scientific Images](/202603/22/2603.14151v1-seeing-through-the-prism-compound--controllable-restoration-of-scientific-images)  
    标签：评分：6.0/10、query:mm-fus
-   evidence：病理学中多模态表示与集成的综述
+   evidence：复合退化和噪声图像的修复
+4. [Follow the Clues, Frame the Truth: Hybrid-evidential Deductive Reasoning in Open-Vocabulary Multimodal Emotion Recognition](/202603/22/2603.16463v1-follow-the-clues-frame-the-truth-hybrid-evidential-deductive-reasoning-in-open-vocabulary-multimodal-emotion-recognition)  
+   标签：评分：6.0/10、query:mm-fus
+   evidence：综合跨模态的互补情感线索
+5. [UniSem: Generalizable Semantic 3D Reconstruction from Sparse Unposed Images](/202603/22/2603.17519v1-unisem-generalizable-semantic-3d-reconstruction-from-sparse-unposed-images)  
+   标签：评分：6.0/10、query:mm-fus
+   evidence：从稀疏图像中进行语义重建，解决语义不完整问题
+6. [Grounded Multimodal Retrieval-Augmented Drafting of Radiology Impressions Using Case-Based Similarity Search](/202603/22/2603.17765v1-grounded-multimodal-retrieval-augmented-drafting-of-radiology-impressions-using-case-based-similarity-search)  
+   标签：评分：6.0/10、query:mm-fus
+   evidence：放射学中的多模态检索增强生成
+7. [T-QPM: Enabling Temporal Out-Of-Distribution Detection and Domain Generalization for Vision-Language Models in Open-World](/202603/22/2603.18481v1-t-qpm-enabling-temporal-out-of-distribution-detection-and-domain-generalization-for-vision-language-models-in-open-world)  
+   标签：评分：6.0/10、query:mm-fus
+   evidence：在时间漂移下具有鲁棒融合规则的多模态离群检测
 
 
 <div class="dpr-home-promo-card">
