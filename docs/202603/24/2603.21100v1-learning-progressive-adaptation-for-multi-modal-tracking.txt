@@ -1,0 +1,668 @@
+Title: Learning Progressive Adaptation for Multi-Modal Tracking
+
+URL Source: https://arxiv.org/pdf/2603.21100v1
+
+Published Time: Tue, 24 Mar 2026 01:08:40 GMT
+
+Number of Pages: 14
+
+Markdown Content:
+> JOURNAL OF L ATEX CLASS FILES, VOL. 14, NO. 8, AUGUST 2021 1
+
+# Learning Progressive Adaptation for Multi-Modal Tracking 
+
+He Wang, Tianyang Xu, Member, IEEE , Zhangyong Tang, Xiao-Jun Wu, Josef Kittler, Life Member, IEEE 
+
+Abstract —Due to the limited availability of paired multi-modal data, multi-modal trackers are typically built by adopting pre-trained RGB models with parameter-efficient fine-tuning modules. However, these fine-tuning methods overlook advanced adaptations for applying RGB pre-trained models and fail to modulate a single specific modality, cross-modal interactions, and the prediction head. To address the issues, we propose to perform Progressive Adaptation for Multi-Modal Tracking (PATrack). This innovative approach incorporates modality-dependent, modality-entangled, and task-level adapters, effec-tively bridging the gap in adapting RGB pre-trained networks to multi-modal data through a progressive strategy. Specif-ically, modality-specific information is enhanced through the modality-dependent adapter, decomposing the high- and low-frequency components, which ensures a more robust feature representation within each modality. The inter-modal interac-tions are introduced in the modality-entangled adapter, which implements a cross-attention operation guided by inter-modal shared information, ensuring the reliability of features conveyed between modalities. Additionally, recognising that the strong inductive bias of the prediction head does not adapt to the fused information, a task-level adapter specific to the prediction head is introduced. In summary, our design integrates intra-modal, inter-modal, and task-level adapters into a unified framework. Extensive experiments on RGB+Thermal, RGB+Depth, and RGB+Event tracking tasks demonstrate that our method shows impressive performance against state-of-the-art methods. Code is available at https://github.com/ouha1998/Learning-Progressive-Adaptation-for-Multi-Modal-Tracking. 
+
+Index Terms —Multi-modal object tracking, Progressive adap-tation, Complementary and shared features. 
+
+I. I NTRODUCTION 
+
+# THE advancement of RGB single object tracking (SOT) has been significantly driven by the ability of RGB im-ages to provide rich textural information about objects in typ-ical settings, supported by the economic feasibility of the nec-essary sensor technology. Recent RGB SOT trackers [1]–[9] have demonstrated strong tracking capabilities. However, when confronted with challenging visual environments like low illu-mination, occlusions, or fast-moving objects, the capability of 
+
+This work is supported in part by the National Natural Science Founda-tion of China (Grant NO. 62020106012, 62576152, 62332008), the Basic Research Program of Jiangsu (BK20250104), the Fundamental Research Funds for the Central Universities (JUSRP202504007), the 111 Project of Ministry ofEducation of China (Grant No.B12018), and the UK EPSRC (EP/N007743/1.MURI/EPSRC/DSTL, EP/RO18456/1). He Wang, Tianyang Xu, Zhangyong Tang, and Xiao-Jun Wu (Corresponding author) are with the School of Artificial Intelligence and Computer Science, Jiangnan University, Wuxi 214122, China (e-mail: 7243115005@stu.jiangnan.edu.cn; tianyang.xu@jiangnan.edu.cn; zhangyong_tang_jnu@163.com; wu_xiaojun@jiangnan.edu.cn). Josef Kittler is with the Centre for Vision, Speech and Signal Processing, University of Surrey, GU2 7XH Guildford, U.K. (e-mail: j.kittler@surrey.ac.uk). 
+
+RGB images to provide sufficient target information is limited. Therefore, enhancing model robustness through supplementary modalities that can compensate for degraded RGB image quality is essential for accurate object localization. Depth, thermal, and event modalities [10]–[12] have all demon-strated their effectiveness in multi-modal information fusion. Recently, several approaches [13]–[15] have been developed for multi-modal object tracking, incorporating various sensor combinations RGB+X, such as RGB+Thermal, RGB+Event, or RGB+Depth. To explore the supportive potential of ex-isting RGB trackers in RGB+X scenarios, our work only focuses on inputs comprising RGB+Thermal, RGB+Depth, or RGB+Event modalities. These approaches of combining multi-modal image information have garnered widespread attention in real-world applications, especially in safety-critical scenar-ios like autonomous driving [16]. Moreover, they have seen significant advancements in other domains, including semantic segmentation [17] and object detection [18]. Most previous studies [10], [19], [20] utilize a global fine-tuning strategy, adapting RGB-based trackers [21] into dual-branch symmetric multi-modal trackers. While this full fine-tuning approach enables cross-modal learning, it increases the burden of storing trainable parameters and raises computa-tional costs. It is essential to study multi-modal object tracking using approaches that avoid full fine-tuning, as this reduces computational overhead and enhances models’ adaptability to diverse modalities without compromising efficiency. Subsequently, a partial fine-tuning paradigm [22]–[26] ap-pears, addressing the previously mentioned challenges by freezing the foundation network and introducing only a min-imal set of trainable parameters. While deploying two dual camera sensors offers increased sensory data, balancing the substantial spatial differences between RGB and other modal-ities constitutes a significant challenge for researchers in multi-modal object tracking. Generally, multi-modal trackers uti-lizing adapter-based or prompt-based fine-tuning mechanisms are categorized into symmetric and asymmetric structures. The approach where one modality serves as the primary information and another modality as auxiliary information is termed an asymmetric tracker (see Fig. 1 (a)), such as [22], [25]. However, the tracking performance of the asymmetric structure network can be severely affected when images of the dominant modality are degraded or lose effective information. Conversely, symmetric trackers aim to integrate complemen-tary multi-modal information, minimizing dependency on a dominant modality. Recent symmetric methodologies [27] (Fig. 1 (b)) utilize a bi-directional adapter to facilitate specific feature extraction. Nevertheless, because this specific modality  
+
+> arXiv:2603.21100v1 [cs.CV] 22 Mar 2026 JOURNAL OF L ATEX CLASS FILES, VOL. 14, NO. 8, AUGUST 2021 2
+
+(c) 
+
+(a) 
+
+> Prompt
+
+(b)         
+
+> Encoder
+> Encoder
+> Encoder
+> RGB
+> X
+> …
+> RGB
+> X
+> Adapter
+> … CEA
+> MDA
+> MDA
+> Encoder
+> Head HA
+> Encoder
+> Encoder Encoder
+> … …
+> Head
+> RGB
+> X
+> … …
+> Adapter
+> Trained Frozen MD AModality Dependent Adaptation
+> CA ECross -modality Entangled Adaptation HAHead Adapter
+> Head
+> Fig. 1. A comparison between the original fusion mechanisms and our proposed fusion mechanism: (a) The asymmetric structure reliant on the dominant modality, employing the prompt fine-tuning paradigm; (b) The symmetric structure that considers the dominant and auxiliary modalities as equal, emphasizing the complementary information across modalities; and (c) our proposed method (PATrack) incorporates progressive adaptation learning at three levels: intra-modality, inter-modality, and task level. X represents thermal, event, or depth input.
+
+adapter does not facilitate cross-modality fusion, it overlooks inter-modality correlation information, increasing the potential for noise. To address these issues, we propose a progressive adapter-tuning paradigm that integrates joint training at the intra-modality, inter-modality, and task level for RGB+X tracking, as illustrated in Fig. 1 (c). Our method aims to enhance the utilization of modality-complementary information and the potential for shared representations between RGB and X data. Leveraging modality-complementary information can compen-sate for the deficiencies in specific modalities. By introducing Modality-Dependent Adaptation (MDA), a modality-specific adapter that incorporates both high- and low-frequency infor-mation, we aim to improve the modality-complementary repre-sentation. To extract reliable target information from the most discriminative features across modalities, we also introduce Cross-Modality Entangled Adaptation (CEA), which leverages cross-modal correlations to complement the MDA module. The combined application of CEA and MDA significantly enhances the network robustness and accuracy, as shown in Fig. 5. Furthermore, the strong inductive bias [28], [29] present in the prediction head hinders effective adaptation to multi-modal scenarios. Therefore, we introduce Head Adaptation to address the issue, a task-level adapter that modulates the prediction head, effectively filtering out noise and background information. Our method combines Modality-Dependent Adaptation, Cross-Modality Entangled Adaptation, and Head Adaptation to construct a progressively adapted RGB+X tracker, further en-hancing the adaptability of RGB pre-trained models for multi-modal data. In summary, our contributions can be summarised as follows:  
+
+> •
+
+A progressive adaptation strategy is proposed to refine multi-modal features, thereby enhancing the adaptability of the foundation model pre-trained in the RGB domain and providing robust feature enhancement for multi-modal tracking tasks.  
+
+> •
+
+The novel Modality-Dependent Adaptation and Cross-Modality Entangled Adaptation are proposed to enhance modality-complementary information and facilitate cross-modal shared information. We also develop a task-level adaptation for the prediction head to adapt further net-works pre-trained on RGB data to multi-modal tracking tasks.  
+
+> •
+
+Extensive experimental results demonstrate the superior performance of our method across the RGB-T, RGB-D, and RGB-E tracking fields. II. R ELATED WORK 
+
+In this section, we provide an overview of the technologies closely related to our work, including visual object tracking, multi-modal tracking and the application of Parameter-efficient Fine-tuning (PEFT) [30] techniques on multi-modal tracking tasks. 
+
+A. Visual Object Tracking 
+
+In recent years, substantial research efforts [1], [2], [4], [31], [32] have focused on visual object tracking, which has found wide-ranging applications across various fields. However, under extreme conditions, such as low lighting or fog, relying solely on RGB data greatly compromises tracking accuracy. This limitation has driven the exploration of alter-native sensing modalities, each offering unique advantages: thermal imaging [33]–[39] provides robustness in low-light conditions but suffers from thermal crossover and transparency challenges; event cameras [12] offer exceptional temporal res-olution for high-speed motion capture while lacking detailed texture information; and depth sensing effectively handles occlusion scenarios but cannot provide color cues [40], [41]. Since each thermal, event, depth modality provides unique complementary advantages to RGB data, this has led to the natural emergence of multi-modal tracking frameworks. 
+
+B. Multi-modal Tracking 
+
+Multi-modal learning [42], [43] is a rapidly advancing re-search area within machine learning and artificial intelligence, showing significant promise across diverse applications such as autonomous driving, mobile robotics, video surveillance, and human-robot interaction. An increasing number of re-search is now exploring multi-modal tracking to address the limitations of relying solely on RGB data. For instance, RGB-T tracking [13] overcomes the sensitivity of RGB images to illumination by incorporating thermal data. RGB-D tracking JOURNAL OF L ATEX CLASS FILES, VOL. 14, NO. 8, AUGUST 2021 3
+
+[10] enhances the visibility of occluded objects by incorpo-rating depth information, while RGB-E tracking [44], with its low-latency motion capture capabilities (1 μs) provided by event sensors, improves tracking performance in low-light and high-speed scenarios by utilizing event flows. Also, various datasets are constructed to advance the development of multi-modal tracking. Wang et al. propose high-resolution datasets, including CRSOT [45] with 1,030 unaligned RGB-E image pairs and EventVOT [46] with 1,141 aligned RGB-E image pairs, respectively. Effectively fusing diverse data is crucial for achieving accurate performance in multi-modal tracking. Early CNN-based models, like MFGNet [42], aim to improve modality interaction but are limited by the inherent constraints of CNN architectures. With the rapid advancement of deep neural networks, recent studies [22], [47] turn to Transformer-based architectures [48] for feature extraction, demonstrating sub-stantial improvements in both accuracy and robustness. The flexibility of the Transformer architecture allows for more complex fusion strategies, enabling better integration of multi-modal data [13], [26], [49]. Despite these advances, a major hurdle remains the scarcity of annotated multi-modal datasets, which limits the ability to train robust models. As a result, many current approaches [50], [51], [22], [25], [27] apply fine-tuning pre-trained networks based on RGB data for multi-modal tasks. However, these methods lack exploration of the adaptability of the RGB-based pre-trained model for multi-modal networks. Our approach employs an adapter fine-tuning paradigm to investigate the adaptability of pre-trained net-works to downstream tasks at a more granular level, effectively aligning multi-modal data with spaces pre-trained on RGB data. 
+
+C. Parameter-efficient Fine-tuning in Multi-Modal Tracking 
+
+Recent advances in large models [52] demonstrate remark-able generalization capabilities across various domains. These models typically employ complex architectures trained on extensive datasets, achieving great performance in numerous vision tasks. However, when applied to multi-modal object tracking, a fundamental challenge emerges. The primary challenge lies in modality adaptation, particu-larly when transferring knowledge from RGB-based models to other modalities. Thermal infrared tracking [53] faces signif-icant obstacles due to the modality’s inherent characteristics, particularly its sensitivity to temperature variations and lack of detailed texture information compared to RGB data. 1While domain adaptation approaches [54] can mitigate these issues, they remain constrained by the fundamental differences in data distribution between modalities. Recent works explore parameter-efficient fine-tuning to address modality adaptation. A common approach employs asymmetric architectures that treat RGB as the dominant modality while incorporating auxiliary data through prompt-tuning [22], [25]. However, these methods often struggle to fully leverage complementary modal information, particularly in capturing critical inter-modal relationships. The limitations become especially apparent in complex scenarios where robust multi-modal integration is crucial. Although subsequent symmetric architectures [26], [27] attempt to treat RGB and auxiliary modalities as equally important, thereby advancing effective modality fusion, these approaches still exhibit two fundamental limitations. First, they primarily focus on modality-specific information extraction while largely neglecting the critical inter-modal shared features that could enhance tracking robustness. Second, existing meth-ods fail to address the inherent challenge of adapting RGB-based pre-trained parameters to multi-modal tasks, particu-larly due to the significant distribution discrepancies between different modalities. To address these issues, we propose a progressive adaptation framework for multi-modal tracking. This framework incorporates modality-dependent, modality-entangled, and task-level adapters, providing a comprehensive solution to the aforementioned challenges. III. M ETHODOLOGY 
+
+In this section, we initially provide an overview of our foundation network, specifically the RGB Base Model devel-oped by OSTrack [1]. We extend this model by integrating an additional modality for RGB-X tracking tasks, where X can represent the thermal, depth, or event modality. Each task is trained independently using the dataset corresponding to its respective modality. Following this, we introduce our Modality-Dependent Adaptation and Cross-Modality Entan-gled Adaptation mechanisms in detail. We then describe the Head Adaptation at the task level, a process designed to further reduce the disparity between the pre-trained model and the multi-modal task, effectively filtering out noise during feature extraction. The overall pipeline is illustrated in Fig. 1 (c), with details of the network components presented in Fig. 2. 
+
+A. RGB Base Model 
+
+In the field of visual object tracking using only the RGB modality, the object tracker T racker is given the initial bound-ing box position Bo of the target from the template frame 
+
+TRGB ∈ RHT ×WT ×3. The T racker is then trained to locate this target in subsequent search frames SRGB ∈ RHS ×WS ×3.Typically, the T racker comprises a feature extraction function 
+
+F and a box head Head. The RGB template frame TRGB and the RGB search frame 
+
+SRGB are together processed by a foundation model based on a Transformer architecture. And then they are converted into tokens using the patch embedding layer and they com-bine with a position embedding. After concatenating template tokens and search tokens together, multi-modal features are fed into N -layer Transformer encoder blocks to jointly extract features. The search region features are disassembled from output tokens along the channel dimension and then fed into the prediction Head architecture to generate the target tracking result. The final location of the tracking target Bbox 
+
+is predicted as follows: 
+
+Bbox = Head( F (SRGB , T RGB , B o)) , (1) where F employs the powerful OSTrack [1] backbone trained on RGB data to extract features, whose architecture JOURNAL OF L ATEX CLASS FILES, VOL. 14, NO. 8, AUGUST 2021 4Method 
+
+> Linear
+> GELU
+> Linear
+> Maxpool
+> Dwconv
+> Linear
+> Up
+> Avgpool
+> C
+
+(a) Modality Dependent Adaptation  (b) Cross -modality Entangled Adaptation  (c) Head Adaptation 
+
+X feature RGB feature 
+
+split 
+
+RGB prompt  X prompt 
+
+RGB feature  X feature 
+
+split     
+
+> C
+> Conv Conv Conv Conv Conv
+> V
+> KK
+> V
+> Q
+
+share 
+
+RGB prompt  X prompt  RGB search/template token 
+
+> X search/template token
+> Matrix multiplication
+> Elementwise addition
+> Down/Up layer
+
+RGB -X Fused feature or  
+
+> Fig. 2. Illustration of the proposed PATrack. In the Modality Dependent Adaptation (MDA) module, only one modality can be sent to this architecture. The term “share” indicates that the RGB and X branches share parameters.
+
+includes multihead self-attention (MSA), layer normalization (LN), feedforward neural network (FFN), and residual con-nections. 
+
+B. Multi-modal Tracking 
+
+We propose Progressive Multi-modal Adaptation for Down-stream Multi-modal Tracking tasks (PATrack), a framework that effectively transfers RGB-based pre-trained networks to downstream multi-modal tasks with minimal training param-eters and computational load by leveraging adapter learning. Specifically, PATrack incorporates two mutually complemen-tary components: Modality-Dependent Adaptation (MDA) and Cross-modality Entangled Adaptation (CEA). These modules jointly extract and fuse multi-modal features, ensuring efficient and robust feature integration. Furthermore, recognizing the limited adaptability of the RGB-based pre-trained prediction head for processing multi-modal data and accurately predicting the target bounding box, we introduce a head-specific adapter structure to address this limitation effectively. Multi-modal object tracking expands the RGB-based frame-work by integrating multiple modalities through the intro-duction of an additional modality stream. This multi-modal approach collaboratively contributes to the final prediction of the target’s bounding box, denoted as Bbox . Given that the RGB modality and the auxiliary modality (X, e.g., Thermal, Depth, or Event) are generally spatially aligned and temporally synchronized, the target’s position in the first frame is identical across modalities and is denoted as Bo. Typically, the T racker 
+
+network comprises a feature extraction function F and a box head Head. During tracking, a pair of search and template frames consisting of search frames SRGB , SX ∈ RHS ×WS ×3
+
+and template frames TRGB , TX ∈ RHT ×WT ×3 are sent into the foundation network. The final location Bbox of the target is predicted as follows: 
+
+Bbox = Head (F (TRGB , T X, S RGB , S X, B 0)) , (2) As illustrated in Fig. 1 (c), PATrack adopts a dual-branch architecture that incorporates both the RGB modality and an auxiliary modality (Thermal, Depth, or Event). This design effectively addresses the limitations posed by the auxiliary modality’s dependence on pre-trained RGB data by enabling the auxiliary branch to leverage the strengths of the RGB-based pre-trained network. Furthermore, the parameters be-tween the RGB and auxiliary modality (X) branches are shared, significantly enhancing the model computational ef-ficiency and overall effectiveness. The PATrack framework begins by passing the input data, 
+
+SRGB , SX, TRGB , and TX, through the patch embedding layer. This step generates initial RGB tokens H0 
+
+> RGB
+
+and auxiliary modality tokens H0
+
+> X
+
+. Subsequently, tokens from both modali-ties are independently processed in their respective designated branches. During the layer-wise integration process, the l-th encoder layer receives RGB and X tokens generated by the previous (l − 1) -th layer, as shown below: 
+
+(Hl
+
+> RGB
+
+, H l
+
+> X
+
+) = FAl(Hl−1
+
+> RGB
+
+, H l−1 
+
+> X
+
+), l = 1 , 2, ..., N , (3) Here, F lA represents a dual-stream encoder layer im-plemented within our proposed adapter modules including Modality-Dependent Adaptation or Cross-modality Entangled Adaptation framework. This advanced layer is engineered to parallelize two encoder streams, facilitating the efficient capture and integration of complementary multi-modal infor-mation and shared data features. JOURNAL OF L ATEX CLASS FILES, VOL. 14, NO. 8, AUGUST 2021 5
+
+As illustrated in Fig. 1 (c), parallel adapter modules, in-cluding Modality-Dependent Adaptation or Cross-modality Entangled Adaptation, are inserted into the multi-head self-attention ( M SA ) and the multilayer perceptron ( M LP ) be-tween Encoder blocks. The processing of different layers, including the MDA and CEA modules, is distinctly designed to optimize their respec-tive functionalities. We begin by describing the layers that incorporate the MDA module. Using the auxiliary modality branch as an example, the computation process is defined as follows: 
+
+Hl′ 
+
+> X
+
+= Hl−1 
+
+> X
+
++ M SA (LN (Hl−1 
+
+> X
+
+)) + Ada l−1(Hl−1
+
+> RGB
+
+), (4) Here, Ada represents the adaptation module, which can be configured for either the MDA or CEA, depending on the layer’s requirements. The same presentation of Ada applies in subsequent contexts. The converse operation yields Hl′
+
+> RGB
+
+.Subsequently, Hl′ 
+
+> X
+
+is fed into the M LP layer, and combine with adapter feature Ada l−1(Hl′
+
+> RGB
+
+) to obtain the output Hl
+
+> X
+
+in the l -th layer. 
+
+Hl 
+
+> X
+
+= Hl′ 
+
+> X
+
++ M LP (LN (Hl′ 
+
+> X
+
+)) + Ada l−1(Hl′
+
+> RGB
+
+), (5) where l ∈ { 1, 2, 3, 5, 6, 8, 9, 11 , 12 }.The RGB branch acquires HlRGB in the opposite way. The processes including the CEA module are as follows: 
+
+Hl′ 
+
+> X
+
+= Hl−1 
+
+> X
+
++ M SA (LN (Hl−1 
+
+> X
+
+)) + Ada l−1(Hl−1 
+
+> X
+
+), (6) 
+
+Hl 
+
+> X
+
+= Hl′ 
+
+> X
+
++ M LP (LN (Hl′ 
+
+> X
+
+)) + Ada l−1(Hl′ 
+
+> X
+
+), (7) where l ∈ { 4, 7, 10 }.
+
+C. Modality-Dependent Adaptation 
+
+As shown in Fig. 2 (a), the Modality-Dependent Adaptation (MDA) module follows a bottleneck design. The MDA module only operates a single modality at a time, either the RGB modality or the X modality. The processing operations for the two modalities are identical, but do not share parameters. Initially, features are passed through a downsampling layer to reduce their dimensionality from C to C′. In our case, C is set to 768 and C′ is set to 8. Taking the X modality as an example, the low-dimensional feature map, HX, is split along the channel dimension into 
+
+HX−h ∈ Rn × Ch, and HX−l ∈ Rn × Cl. Ch = Cl = C′/2 =4. Then HX−h and HX−l are sent to extract high-frequency and low-frequency information, respectively. Inspired by [55], we employ a combination of operations to extract frequency-specific features. The max-pooling oper-ation ( M axpool ) and depthwise separable convolution layer (DwConv ) are used to extract high-frequency information, while the average pooling operation ( AV G ) is utilized to capture low-frequency information. 
+
+HX−h is also split into two halves, HX−hm and HX−hd ,along the channel dimension, where the channel transforma-tion Chm = Chd = Ch/2. Subsequently, HX−hm passes through a max-pooling operation ( M axpool ) and a linear layer (F C 1), as described below: 
+
+YX−hm = F C 1( M axpool (HX−hm )) , (8) where the M axpool applies a two-dimensional max pooling layer with a kernel size of 3, a stride of 1, and padding of 1. Following the M axpool , the feature dimensions remain unchanged. We employ a linear layer F C 1 implemented as a 1×1 convolution, doubling the original channel dimension. So finally the channel dimension of YX−hm is C′/2.
+
+HX−hd is processed through a linear layer ( F C 2) and a depth-wise convolutional layer ( DW Conv ) simultaneously. The DW Conv utilizes a kernel size of 3, with a stride of 1 and padding of 1, ensuring the number of channels remains un-changed. To address the absence of inter-channel interactions in DW Conv , a fully connected layer F C 2, implemented as a 1×1 convolution, is added before DW Conv to double the channel dimension: 
+
+YX−hd = DW Conv (F C 2( HX−hd )) , (9) where the channel dimension of YX−hd is C′/2.Meanwhile, YX−l is generated through an average pooling layer ( AV G ) and an up-sampling ( U p ) layer to capture low-frequency information: 
+
+YX−l = U p (AV G (HX−l))) , (10) where the channel dimension of YX−l is C′/2. The spatial resolution is first reduced to half of the input feature HX−l’s resolution and then restored to its original dimensions through upsampling. Subsequently, the high- and low-frequency components of a single modality are concatenated ( Concat ) and passed through an Up layer ( U ) to revert from 3C′/2 to the original feature space dimension C:
+
+Ada (HX ) = U (Concat (YX−hm , Y X−hd , Y X−l))) , (11) Conversely, the RGB branch undergoes a similar process to obtain Ada (HRGB ). Finally, the output of the MDA module from one modality is transferred to the other modality branch to achieve cross-modality fusion. 
+
+D. Cross-modality Entangled Adaptation 
+
+As previously discussed, bi-directional modality-dependent adaptation is designed to capitalize on the complementary information inherent across modalities. However, the im-portance of shared information within multi-modal features should be noticed in multi-modal object tracking. Modality-shared information can help networks learn universal features across modalities, aiding in better generalization across di-verse datasets and environments. The interaction of modality-specific and complementary modality information across var-ious hierarchical levels permits the network to adapt and synthesize information in a layered manner, thereby capturing the intrinsic attributes of the target more effectively. By intro-ducing Cross-modality Entangled Adaptation (CEA) guided JOURNAL OF L ATEX CLASS FILES, VOL. 14, NO. 8, AUGUST 2021 6
+
+by multi-modal fusion representations, modality correlations are effectively exploited. The joint training strategy of MDA and CEA enables the efficient utilization of both intra-modal and inter-modal features while preserving computational effi-ciency. Fig. 2 (b) illustrates the details of the Cross-modality Entangled Adapter. Initially, the downsampling layer Down 
+
+is conducted to perform dimension reduction on HRGB and 
+
+HX, resulting ˆHRGB and ˆHX:
+
+ˆHRGB , ˆHX = Down (HRGB ), Down (HX), (12) We concatenate ˆHRGB and ˆHX to get fusion information. Subsequently, a projection mechanism is implemented, en-compassing convolutions, Conv q , Conv k, and Conv v , with a 3 × 3 kernel size, to transform these multi-modal features into query, key and value components necessary for the cross-attention operation CA . These global features are subsequently integrated with the original features from an alternative branch. The operations can be formulated as follows: 
+
+f us = Conv q (Concat ( ˆHRGB , ˆHX)) , (13) 
+
+H′ 
+
+> RGB
+
+= HRGB + CA (Conv v ( ˆHX), Conv k( ˆHX), f us ), (14) 
+
+H′ 
+
+> X
+
+= HX + CA (Conv v ( ˆHRGB ), Conv k( ˆHRGB ), f us ), (15) Upsampling layer U scales H′ 
+
+> RGB
+
+and H′ 
+
+> X
+
+to the original channel dimension: 
+
+Ada (HRGB ), Ada (HX) = U (H′
+
+> RGB
+
+), U (H′
+
+> X
+
+), (16) 
+
+E. Head Adaptation 
+
+In the field of visual object tracking, the box head, including a neural network structure, is used for detecting and local-izing bounding boxes of targets in images. The pre-trained foundation network incorporates a specialized box head that only processes RGB data, excelling in handling monocular images composed of colour information. However, multi-modal tracking tasks, including RGB-D, RGB-E, and RGB-T, necessitate the handling of diverse data types that provide additional information beyond colour, such as depth, motion, or temperature. As illustrated in Fig. 2 (c), the Head Adaptation helps transfer knowledge from pre-trained RGB data to multi-modal space, thereby accelerating the learning process and enhancing performance. Specifically, the multi-modal fusion data extracted includes template tokens TRGBX and search tokens SRGBX . We need to filter out search tokens SRGBX and send them to the Head Adapter module. This is a simple bottleneck design module, but it is very effective. Firstly, SRGBX undergoes a dimensionality reduction linear layer Down , followed by an activation layer Act and an dimensionality enhancement linear layer U p :
+
+S′ 
+
+> RGBX
+
+= U p (Act (Down (SRGBX ))) . (17) Then S′ 
+
+> RGBX
+
+is sent to the prediction head to obtain a predicted position of the target. In summary, the primary role of the head adapter is to serve as a bridge, extending the capa-bilities of the box head, which is pre-trained on RGB data, to effectively process multi-modal data. This extension enhances the performance of downstream visual object tracking tasks. IV. E XPERIMENTS 
+
+A. Experimental Setups 
+
+In this section, we evaluate the advantages of our proposed method by comparing it against several of the latest multi-modal trackers. The selected trackers include BAT [27], MAT [50], PTrMA [56], APFNet [34], OSTrack [1], DeT [20], SPT [10], TBSI [19], and GMMT [13], which are designed for separate multi-modal tracking tasks. Additionally, we compare against M 3Track [57], EMTrack [51], SDSTrack [26], ViPT [25], and ProTrack [22], which are unified multi-modal track-ers capable of handling RGB-T, RGB-D, and RGB-E tracking. Our proposed methodology is implemented in PyTorch and executed on a system with an Intel(R) Core(TM) i9-9980XE CPU and an NVIDIA 3090Ti GPU. The PATrack is trained on subsets of the LasHeR, VisEvent, and DepthTrack benchmarks for different downstream tasks. The hyperparameters are finely tuned using the AdamW optimizer with a weight decay of 1e-4. The backbone OSTrack [1] is trained by an initial learning rate of 4e-4, subject to an exponential decay with a decay ratio of 0.8. The PATrack has accomplished the integration of a variety of downstream tracking tasks into a cohesive framework, including RGB-T tracking, RGB-E tracking, and RGB-D tracking. Each task is trained independently, and during in-ference, the framework employs its respective set of network parameters specific to the training process. 
+
+B. Datasets and Evaluation Metrics 
+
+Concerning RGB-D tracking, the tracker’s efficacy is eval-uated on Depthtrack [20] datasets. Moving on to RGB-T tracking, comparative evaluations are conducted on LasHeR [58], RGBT234 [59], and GTOT [60] benchmarks. Finally, for RGB-E tracking, the experimental results are presented using the extensive VisEvent [44] dataset. A comprehensive suite of metrics is employed to evaluate performance, including precision rate (PR), success rate (SR), normalized precision rate (NPR), recall (Re), and F-score. Across all tracking tasks, we uniformly apply three distinct adapter modules, ensuring consistency in experimental setups and facilitating fair comparisons. 
+
+C. Comparison with State-of-the-art Approaches 
+
+LasHeR . LasHeR [58] dataset consists of 979 training video sequences and 245 testing video sequences for RGB-T tracking, with evaluations conducted using metrics such as Precision Rate (PR) and Success Rate (SR). Table I presents JOURNAL OF L ATEX CLASS FILES, VOL. 14, NO. 8, AUGUST 2021 7            
+
+> TABLE I ACOMPARISON WITH STATE -OF -THE -ART METHODS ON LAS HER,DEPTH TRACK ,AND VIS EVENT BENCHMARKS . P ERFORMANCE IS DENOTED IN RED FOR THE BEST AND IN BLUE FOR THE SECOND -BEST ,CONSISTENTLY THROUGHOUT THE TABLE . T HE TRACKERS MARKED WITH AN ’*’ INDICATE THE RESULTS OBTAINED BY RETRAINING THE NETWORK ,CONSISTENTLY THROUGHOUT THE TABLE .
+
+Type Method Venue LasHeR DepthTrack VisEvent SR PR NPR Pr Re F-score SR PR Separated DeT [20] CVPR 2021 - - - 0.560 0.506 0.532 - -OSTrack [1] ECCV 2022 0.412 0.515 - 0.535 0.522 0.529 0.499 0.659 APFNet [34] AAAI 2022 0.362 0.500 0.439 - - - - -SPT [10] AAAI 2023 - - - 0.527 0.549 0.538 - -TBSI [19] CVPR 2023 0.549 0.688 0.657 - - - - -GMMT [13] AAAI 2024 0.566 0.707 0.670 - - - - -BAT* [27] AAAI 2024 0.563 0.702 - 0.583 0.578 0.580 0.592 0.758 EventVOT [46] CVPR 2024 - - - - - - 0.373 0.546 CRSOT [45] TMM 2025 - - - - - - 0.525 0.741 MAT [50] Information Fusion 2025 0.537 0.670 0.630 - - - - -PTrMA [56] TIM 2025 0.568 0.715 0.675 - - - - -Unified ProTrack [22] ACMMM 2022 0.420 0.538 - 0.583 0.573 0.578 0.459 0.655 ViPT [25] CVPR 2023 0.525 0.651 - 0.592 0.596 0.594 0.534 0.695 SDSTrack [26] CVPR 2024 0.531 0.665 - 0.619 0.609 0.614 0.597 0.767 
+
+EMTrack [51] TCSVT 2024 0.533 0.659 - 0.580 0.585 0.583 0.584 0.724 M3Track [57] SPL 2025 0.525 0.658 0.622 0.564 0.585 0.574 0.596 0.767 PATrack Our 0.578 0.718 0.683 0.603 0.597 0.600 0.605 0.770      
+
+> TABLE II ACOMPARISON WITH STATE -OF -THE -ART METHODS ON RGBT234 AND GTOT BENCHMARKS .
+
+Method MFGNet ProTrack ViPT TBSI SDSTrack BAT GMMT MAT PATrack Venue TMM ACMMM CVPR CVPR CVPR AAAI AAAI Information Fusion Our Year 2022 2022 2023 2023 2024 2024 2024 2025 RGBT234 SR 0.535 0.599 0.617 0.637 0.625 0.641 0.647 0.631 0.651 
+
+PR 0.783 0.795 0.835 0.871 0.848 0.868 0.879 0.847 0.879 
+
+GTOT SR 0.707 - - - 0.760 0.763 0.785 0.765 0.783 
+
+PR 0.889 - - - 0.887 0.909 0.936 0.910 0.925 
+
+the comparative analysis of our method against existing RGB-T trackers on the test dataset, highlighting the highest perfor-mance of our approach. The PATrack establishes impressive results, outperforming EMTrack [51] and PTrMA [56], with improvements of 4.5% and 1.0% in SR, as well as 5.9% and 0.3% in PR, respectively. 
+
+RGBT234. RGBT234 dataset [59], which integrates both RGB and thermal images, encompasses a total of 234 video sequences with nearly 116,700 frames. Table II presents the performance of various trackers on RGBT234 dataset. Our proposed method achieves impressive results, with a Success Rate (SR) of 65.1% and a Precision Rate (PR) of 87.9%. These results surpass the second-best tracker, GMMT [13], by 0.4% in SR, and the third-best tracker, BAT [27], by 1.0% in SR and 1.1% in PR. 
+
+GTOT. GTOT [60] dataset is designed to assess the ro-bustness of RGB-T tracking methodologies, consisting of 50 diverse sequences. As illustrated in Table II, our approach demonstrates significant performance improvements relative to existing trackers. The GMMT tracker with its fully fine-tuned network, achieves an impressive SR of 0.785 and PR of 0.936 on GTOT benchmark, surpassing the accuracy of PATrack. However, the adoption of generative techniques and a full fine-tuning mechanism significantly increases the network’s parameters and computational cost, reaching 962.2M parame-ters and 146.5G FLOPs, as shown in Table IV. In contrast, our proposed PATrack leverages an adapter-tuned mecha-nism, comprising 95.51M parameters and 58.24G FLOPs, which provides a significantly more efficient solution. When compared with the top-performing trackers, BAT [27] and SDSTrack [26], our proposed tracker presents the highest SR and PR by 2.0%, 2.3%, 1.6% and 3.8%. 
+
+DepthTrack. DepthTrack [20] dataset is a comprehensive RGB-D tracking benchmark including 150 sequences for training and 50 sequences for testing. Although our results on DepthTrack dataset do not surpass SDSTrack, our un-JOURNAL OF L ATEX CLASS FILES, VOL. 14, NO. 8, AUGUST 2021 8
+
+TABLE III THE ABLATION EXPERIMENT OF OUR COMPONENTS ON DIFFERENT RGB-X BENCHMARKS .MDA CEA HA Params (M) Flops (G) LasHeR VisEvent DepthTrack SR PR NPR SR PR Pr Re F-score 92.13 56.44 0.479 0.590 0.555 0.412 0.515 0.536 0.522 0.529 
+
+✓ 93.96 57.44 0.567 0.709 0.671 0.595 0.761 0.583 0.566 0.571 
+
+✓ 95.22 58.06 0.523 0.653 0.618 0.578 0.740 0.572 0.577 0.569 
+
+✓ 92.45 56.57 0.490 0.601 0.564 0.416 0.519 0.545 0.555 0.560 
+
+✓ ✓ 95.52 58.24 0.570 0.710 0.675 0.603 0.767 0.592 0.572 0.582 
+
+✓ ✓ 95.55 58.14 0.536 0.665 0.629 0.580 0.744 0.581 0.583 0.579 
+
+✓ ✓ 92.74 56.75 0.570 0.712 0.678 0.597 0.764 0.593 0.584 0.587 
+
+✓ ✓ ✓ 95.85 58.32 0.578 0.718 0.683 0.605 0.770 0.603 0.597 0.600 FL (0.642)    
+
+> OV (0.768)
+> FM (0.703)
+> SV (0.715)
+> ARC (0.645) Our
+> BAT
+> SDSTrack
+> ViPT
+> ProTrack
+> APFNet
+> mfDiMP
+> CAT++
+> CAT
+> TC (0.643)
+> CM(0.699)
+> SA(0.633)
+> BC(0.710)
+> DEF (0.732)
+> LR(0.632)
+> AIV (0.544)
+> HI (0.767)
+> LI (0.612)
+> MB (0.634)
+> HO (0.589)
+> TO (0.641)
+> PO (0.693)
+> NO (0.905) NO
+> (0.905)
+> ARC
+> (0.645) SV
+> (0.715) FM
+> (0.703)
+> OV
+> (0.768)
+> FL
+> (0.642)
+> TC
+> (0.643)
+> CM (0.699)
+> SA (0.633)
+> BC (0.710)
+> DEF
+> (0.732)
+> LR (0.632)
+> AIV (0.544)
+> LI
+> (0.612)
+> MB
+> (0.634)
+> HO
+> (0.589)
+> TO
+> (0.641)
+> HI
+> (0.767)
+> PO
+> (0.693)
+> Our
+> BA T
+> SDSTrack
+> ViPT
+> ProTrac k
+> APFNe t
+> mfDiMP
+> CAT++
+> CAT
+
+Fig. 3. Attribute-based Precision Rate on LasHeR dataset. TABLE IV A COMPARISON OF DIFFERENT TYPES OF MODELS ON LAS HER TEST SET ."D IM " DENOTES THE DIMENSION OF THE ADAPTER MODULES . T HE VALUE BEFORE THE "&" SYMBOL TYPICALLY REPRESENTS THE DIMENSION OF THE HIDDEN LAYER IN HA AND CEA, WHILE THE VALUE AFTER THE "&"  
+
+> SYMBOL INDICATES THE INTERNAL HIDDEN LAYER DIMENSION OF
+
+MDA. Method Params Flops Dim SR PR FPS FFT 92.13M 56.44G 768 0.479 0.590 107.10 ViPT 92.97M 21.8G 8 0.525 0.651 24.78 BAT 92.45M 56.68G 8 0.563 0.702 20.22 SDSTrack 102.179M 108.34G 8 0.531 0.665 13.25 GMMT 962.2M 146.5G 768 0.566 0.707 17.40 Our-tiny 93.64M 57.45G 8& 8 0.567 0.709 16.95 Our-base 95.51M 58.24G 8 & 192 0.578 0.718 16.40 Our-large 102.1M 62.45G 192 & 192 0.571 0.713 15.95 
+
+derstanding is that the depth data in DepthTrack dataset is sparse, unlike the RGB-T tracking tasks where thermal can provide richer target information, thus leading to a significant improvement in the metrics. We also use information entropy to measure the average uncertainty within a probability distribution [61], [62], and it 5.34 
+
+> T
+> E
+> D
+
+4.68 
+
+3.76 
+
+3.48 
+
+> RGB
+
+Fig. 4. Exploration analysis of the informativeness of RGB, thermal, event, and depth modalities using single-modality information entropy. Single-modality information entropy refers to the entropy value calculated for each individual modality. 
+
+could serve as a valuable indicator of redundancy inherent in different modalities. To assess the relative informativeness of various modalities, we calculate the single-modality entropy for RGB, thermal, depth, and event data across LasHeR, DepthTrack, and VisEvent benchmarks, as illustrated in Fig. 4. RGB images yield the highest entropy score (5.34), reflect-ing their rich information content and structural complexity. Thermal images follow with an entropy of 4.68. In contrast, depth and event data display comparatively lower entropy val-ues—3.76 and 3.48, respectively—indicating a higher degree of sparsity and reduced information density. This entropy-based comparison reinforces the observation that depth and event modalities inherently carry less information than thermal or RGB modalities. Depth features exhibit spatial sparsity [63], with invalid areas (such as transparent surfaces) typically forming con-tinuous blocks. This characteristic aligns well with the local masking strategy employed in the Complementary Masked Patch Distillation proposed by SDSTrack. As shown in Table 5 of the SDSTrack paper, the inclusion of Self-Distillation Learning (SD) notably enhances the model’s adaptability to depth data, resulting in a +1% improvement in F-score. In contrast, the benefit for event data is smaller, with the SR increasing by only +0.2%. Notably, SDSTrack only surpasses our method on depth data after incorporating SD, which JOURNAL OF L ATEX CLASS FILES, VOL. 14, NO. 8, AUGUST 2021 9BAT     
+
+> (AAAI 2024)
+> after
+> MDA
+> after
+> CEA
+> BAT
+> (AAAI 2024)
+> after
+> MDA
+> after
+> CEA
+> BAT
+> (AAAI 2024)
+> after
+> MDA
+> after
+> CEA
+> (a) RGB -T(b) RGB -E(c) RGB -D
+> before HA
+> /after HA
+> before HA
+> /after HA
+> before HA
+> /after HA
+> RGB
+> X
+> RGB
+> X
+> before
+> before
+> before before
+
+before    
+
+> after after
+> after
+> after
+> after after
+> before
+> Fig. 5. Illustration of feature map comparison between BAT and our fusion mechanism and score maps comparison between before Head Adaptation and after Head Adaptation. ’after MDA’ and ‘after CEA’ represent the feature outputs of our proposed Modality Dependent Adapter and Cross-modality Entangled Adapter, respectively. (a) constitutes the visualization from LasHeR dataset (RGB-T). (b) corresponds to the visualization from VisEvent dataset (RGB-E), and (c) represents visualization from DepthTrack dataset (RGB-D). In every visualization group of before HA/after HA , the top row shows the feature visualization without going through Head Adaptation, and the bottom row presents the visualization after going through Head Adaptation.
+
+constrains both clean and masked features—highlighting its effectiveness in addressing challenges specific to depth-based tracking. 
+
+VisEvent . VisEvent [44] dataset is the largest dataset avail-able for RGB-E tracking, comprising 500 pairs of videos for training and 320 pairs for testing. We evaluate our proposed PATrack against current RGB-E tracking trackers. As shown in Table I, our proposed tracker also surpasses previous EventVOT and CRSOT with improvements of 23.2% and 8% in SR and 22.4% and 2.9% in PR. PATrack achieves great results, with the SR of 60.5 % and PR of 77.0 %. 
+
+Attribute-Based Performance on LasHeR. Our approach is evaluated across a diverse range of scenarios, with its performance analyzed on various attributes of LasHeR [58] dataset. These attributes include No Occlusion (NO), Partial Occlusion (PO), Total Occlusion (TO), Hyaline Occlusion (HO), Motion Blur (MB), Low Illumination (LI), High Illumi-nation (HI), Abrupt Illumination Variation (AIV), Low Reso-lution (LR), Deformation (DEF), Background Clutter (BC), Similar Appearance (SA), Camera Moving (CM), Thermal Crossover (TC), Frame Lost (FL), Out-of-View (OV), Fast Motion (FM), Scale Variation (SV), and Aspect Ratio Change (ARC). As presented in Fig. 3, our approach outperforms existing trackers in most attributes for Precision Rate (PR). In particular, in commonly challenging scenarios in SOT, such as HO, DEF, SV, MB, and CM, where the target undergoes severe deformation or is even temporarily invisible, our method can also achieve superior accuracy. Furthermore, whether the degradation occurs in RGB images, such as Low LI, HI, and AIV, or in TIR images, including TC and HO, our method excels. This is attributed to the enhanced modality comple-mentary information provided by the MDA module, the shared modality information integrated through the CEA module, and the HA module’s effective adaptation to downstream multi-modal tasks. By enabling a more comprehensive interaction between RGB and TIR features, our method consistently    
+
+> TABLE V THE ABLATION EXPERIMENT OF MDA COMPONENTS ON LAS HER
+> DATASET .
+
+Avgpool Maxpool DWConv SR PR 0.536 0.665 
+
+✓ 0.542 0.676 
+
+✓ 0.535 0.667 
+
+✓ 0.532 0.669 
+
+✓ ✓ 0.568 0.706 
+
+✓ ✓ 0.560 0.673 
+
+✓ ✓ 0.562 0.691 
+
+✓ ✓ ✓ 0.578 0.718    
+
+> TABLE VI THE ABLATION EXPERIMENT OF CEA COMPONENTS ON LAS HER
+> DATASET .
+
+Method SR PR w/o CEA 0.570 0.712 w/o Fusuion-guided 0.572 0.713 w/o Conv 0.574 0.714 w/o Skip Connect 0.575 0.714 w Full CEA 0.578 0.718 
+
+delivers improved performance. 
+
+D. Ablation Study 
+
+Component analysis of PATrack. The results from ablation experiments on LasHeR, VisEvent, and DepthTrack bench-marks are detailed in Table III, highlighting the influence of our method components. We analyze to validate the effective-ness of the proposed MDA, CEA, and HA modules. Our base-line model employs a dual-branch structure, OSTrack, with feature fusion implemented in the last layer of the Transformer block. As shown in Table III, the incorporation of MDA results JOURNAL OF L ATEX CLASS FILES, VOL. 14, NO. 8, AUGUST 2021 10 
+
+in significant improvements, with a 4.2% increase in the F-score on DepthTrack compared to the baseline. Furthermore, the SR and NPR on LasHeR increase by 8.8% and 11.6%, respectively, and the SR and PR on VisEvent improve by 28.3% and 24.6%, respectively. Further combination with CEA enhances effectiveness, notably increasing the F-score on DepthTrack by 1.1%. The addition of HA also improves performance, with a 0.8% boost in SR on LasHeR and a 1.8% F-score increase on DepthTrack. Additionally, the SR on the VisEvent experiences a slight increase of 0.2%. Due to the inherent sparsity of event data, which differs from thermal data that encompasses a richer set of information, the improvement in HA accuracy is relatively minor. 
+
+Different hidden layer dimensions in adapters. We ex-plore the effectiveness of different hidden layer dimensions for three types of adapters. We select various combinations of 8 and 192 as the dimensions for our adapter. The choice of 8 is based on its common use as a dimension in adapters, facilitating a fair comparison with benchmark methods such as ViPT, BAT, and SDSTrack. The selection of 192 is due to the fact that attention mechanisms typically require a sufficient number of parameters to calculate the weights between differ-ent input elements accurately. A larger dimension provides more parameters, enabling a more refined distribution of attention. From Table IV, it can be observed that our method achieves more accurate localization and tracking of the target with only a slight increase in the number of parameters and computational load. 
+
+Component analysis of the MDA module. Considering the effectiveness and efficiency of high- and low-frequency components, we analyze the proposed MDA module in Table V. As shown, introducing operations like max pooling, depth-wise separable convolution, or average pooling individually enhances network performance compared to configurations without the MDA module. Notably, adding average pooling yields the most significant improvement, as Transformers inherently retain more low-frequency information. Combining Avgpool and Maxpool results in better performance compared to combinations of Maxpool with DWConv or Avgpool with DWConv. This is likely because the latter configurations ei-ther prioritize high-frequency extraction while neglecting low-frequency enhancement or fail to effectively capture critical high-frequency information when relying solely on Maxpool. When Maxpool, Avgpool, and DWConv are combined, the evaluation metrics for SR and PR reach higher values of 0.578 and 0.718, respectively, validating that DWConv en-hances high-frequency feature extraction in conjunction with Maxpool. 
+
+Component analysis of the CEA module. To evaluate the effectiveness of the CEA module, we examine its components as detailed in Table VI. 
+
+w/o Fusion-guided represents the absence of multi-modal-guided information, where the cross-attention mechanism in the original CEA module transitions to a self-attention oper-ation. Compared with the baseline lacking the CEA module (w/o CEA ), this structure demonstrates improved performance, indicating its ability to capture a certain degree of multi-modal information. However, compared with our proposed full                  
+
+> TABLE VII RESULTS OF DIFFERENT CEA ADAPTER LAYERS IN THE LAS HER. ’E VEN ’
+> AND ’UNEVEN ’RESPECTIVELY REPRESENT THE POSITIONS WHERE ECA
+> IS EVENLY AND UNEVENLY PLACED . ’2’, ’4’, AND ’6’ REPRESENT REPLACING THE MDA MODULE WITH THE CEA MODULE EVERY 2, 4,
+> AND 6LAYERS ,RESPECTIVELY .
+
+Layers SR PR NPR w/o CEA 0.574 0.715 0.679 even 2 0.573 0.715 0.678 4 0.562 0.697 0.663 6 0.559 0.696 0.661 un-even 4 0.567 0.699 0.664 7 0.562 0.697 0.663 10 0.560 0.671 0.662 4,7 0.567 0.706 0.669 7,10 0.574 0.721 0.658 4,10 0.566 0.690 0.668 4,7,10 0.578 0.718 0.683 
+
+CEA module, its PR and SR decrease by 0.6% and 0.5%, respectively. This performance degradation is attributed to the lack of cross-modal correlation information, which hinders the enhancement of discriminative capability and limits overall performance. 
+
+w/o Conv eliminates convolution layers that process RGB and X modalities to extract Q, K, and V data. Nonetheless, compared with w Full CEA , its SR and PR decline by 0.4% and 0.4%, respectively. Since the convolution layer can enhance the model representational ability, it still achieves higher accuracy than w/o CEA .
+
+w/o Skip Connection omits the operation of adding original modality data back into the cross-attention calculation. This omission leads to inferior performance compared with the wFull CEA , as the skip connection further enhances shared modality information and improves cross-modal discriminative capability. 
+
+Impact of inserted layers. Considering the effectiveness and efficiency of the network, we investigate the even and uneven distribution of proposed modules in Table VII. For an even distribution, placing the CEA module every two layers rather than every four or six layers results in a higher number of modules and a stronger modality correlation. This adjust-ment significantly enhances performance, as it allows for more frequent interactions and deeper integration of complementary multi-modal information across the network. However, this improvement does not surpass the performance of the network without the addition of the CEA module. As for uneven distribution, previous work [64] identifies the homogeneous nature of Transformer architectures, and we strategically place our CEA modules at representative layers (4th, 7th, and 10th). This placement enables effective hierarchical feature extraction across distinct network depths including shallow, middle, and deep levels. Then, this layer selection follows existing practices in multi-modal tracking research (e.g., TBSI), where these specific layers have proven critical operations like candidate elimination and cross-modal JOURNAL OF L ATEX CLASS FILES, VOL. 14, NO. 8, AUGUST 2021 11 (a)   
+
+> ViPT Our GT SDSTrack
+
+# dv 
+
+> (b)
+> (c)
+
+# backpack_indoor  
+
+> Fig. 6. Tracking results of RGB-T, RGB-E, and RGB-D. (a) Represents tracking results of RGB-T tracking derived from the LasHeR dataset. (b) Represents tracking results of RGB-E tracking derived from the VisEvent dataset. (c) Represents tracking results of RGB-D tracking derived from the DepthTrack dataset.
+
+interaction. Additionally, when CEA modules are unevenly distributed, placed at layers 4, 7, and 10, the performance exceeds that of the network without CEA in terms of SR, PR, and NPR by 0.4%, 0.3%, and 0.4%, respectively. It hints that the model engages in a more sophisticated and extensive joint learning process, effectively integrating both intra-modal and inter-modal information. Analysis from Table VII indicates that performance declines when only one of the 4th, 7th, or 10th layers replaces its MDA module with a CEA module. However, equipping two layers, particularly the 7th and 10th, with CEA modules yields substantial performance improvements. When CEA is inserted into all three layers—the 4th, 7th, and 10th, the PR, SR, and NPR achieve their highest values. In summary, the 4/7/10 configuration remains superior by maintaining an optimal trade-off between model performance and computational efficiency. 
+
+E. Visualization 
+
+Effectiveness of Progressive Adaptation. We conduct a qualitative analysis of the proposed PATrack components for various tracking tasks including RGB-T, RGB-D, and RGB-E. As illustrated in Fig. 5, the MDA module effectively enhances specific modality features for both RGB and X modalities, improving the attention distribution toward the target. Despite the differences in target distributions between RGB and X modalities, the addition of the CEA module, which leverages modality correlations, enables the utilization of shared regions of interest. This integration facilitates effective cross-modal fusion, further enhancing tracking performance. Regarding the visualization of features processed through the HA module, this module effectively filters out background information, even when the data in RGB-E and RGB-D modalities are inherently sparse. This further indicates that the RGB pre-trained prediction head architecture is not well-suited for downstream multi-modal tasks, and our proposed specific adapter effectively enhances the capability to adapt to these downstream tasks. 
+
+Visualization of tracking results. We compare the tracking performance of our method with ViPT and SDSTrack in Fig. 6. It can be observed that in some challenging sequences, such as (a) sequence with occlusions, (b) sequence where the target appears off-screen multiple times and moves rapidly, and (c) sequence with background interference at different depths, our method can achieve more accurate performance. This indicates that our method could fully utilize multi-modal complementary information and modality-related information. 
+
+F. Limitation Analysis and Future Expectation 
+
+Analysis of Failure Cases. Fig. 7 (a) illustrates a tracking failure case from the "bike" sequence. When the target bike appears in the upper right corner of the frame, the combination of low-light condition and the presence of visually similar ob-jects in the surroundings leads to a degradation in the tracker’s robustness in subsequent frames. Fig. 7(b) presents another failure case from the “boundaryandfast” sequence, where the target is a person riding a motorcycle. As the target moves into a cluttered background, our tracker mistakenly switches to another person riding a different bike. These failures are partially attributed to the use of an offline tracker, which relies on the first frame as the template. This fixed-template approach is vulnerable to failure when the target or scene undergoes significant changes, especially in long video sequences. To mitigate this limitation, we plan to incorporate a template update mechanism that updates the template every 25 frames, effectively converting the tracker into an online framework and improving its adaptability to dynamic environments. 
+
+Limitation of tracking efficiency. To enhance the effi-ciency of our PATrack, we plan to propose a solution that JOURNAL OF L ATEX CLASS FILES, VOL. 14, NO. 8, AUGUST 2021 12 # 303      
+
+> # 303
+> # 318
+> # 318
+> # 335
+> GT Our
+> # 335
+> # 190 # 50 # 100
+> # 50 # 100 # 190
+> (a)
+> (b)
+> Fig. 7. Illustration of failure cases on RGBT234 dataset. (a) shows the track-ing results from the "bike" sequence. (b) corresponds to the "boundaryandfast" sequence. For each group, the top row presents the RGB images, and the bottom row shows the corresponding thermal images.
+
+combines module-level structured pruning and dynamic spar-sification. First, we employ a head pruning strategy in the CEA module based on gradient sensitivity analysis. Specif-ically, the number of attention heads is reduced from 8 to 4 by evaluating the contribution of each head to tracking precision rate and retaining the four most impactful heads. This approach significantly reduces computational overhead while minimizing performance degradation. Second, we fur-ther plan to introduce a dynamic sparsification mechanism. A lightweight CNN-based modality quality evaluator, comprising two convolutional layers and one MLP layer, can be designed to dynamically output clarity scores (ranging from 0 to 1) for both RGB and thermal modalities. Based on these scores, we implement adaptive computation rules: (1) If the RGB quality score exceeds 0.7 and the thermal imaging score is below 0.3, the CEA module computation is skipped, retaining only the MDA module computation for the RGB branch. (2) If the thermal modality score exceeds 0.6, all CEA layers are enforced to leverage the thermal advantage. (3) In other cases, all adapter modules execute as normal. This solution balances efficiency and accuracy by leveraging pruning and dynamic computation, offering a significant improvement in computational efficiency while maintaining robust tracking performance. 
+
+Future Expectation. Although our method demonstrates satisfactory performance and achieves the unified network architecture across different multi-modal tracking tasks, it still has the limitation of requiring multiple training processes for each individual task and the achievement of a one-time training process with adaptive recognition of input data. Additionally, the significant differences in the richness and characteristics of depth, event, and thermal data further complicate the tracking process. Our current method does not incorporate modality customization, which limits its flexibility and applicability across various tasks. To address these challenges, our future work will focus on developing a unified tracking model that includes modality-specific customization to enhance perfor-mance. This will enable the seamless integration of different modalities, allowing the algorithm to better handle variations in tasks and potentially improve tracking accuracy across diverse environments. V. C ONCLUSION 
+
+This paper proposes a novel approach, Progressively Learn-ing Adaptation for Multi-modal Tracking (PATrack), to en-hance the adaptability of pre-trained networks for downstream tasks. Our proposed PATrack demonstrates outstanding perfor-mance against other trackers across challenging datasets, in-cluding LasHeR, GTOT, RGBT234, VisEvent, and DepthTrack benchmarks, substantiating its effectiveness through a series of RGB SOT downstream tasks, including RGB+Thermal, RGB+Event, and RGB+Depth tracking. We attribute this en-hanced performance to the complementary learning of inter-modal and intra-modal information from multi-modal feature maps. Besides, the prediction head architecture is optimized to effectively bridge the gap between the pre-trained network and the downstream task of multi-modal tracking. REFERENCES [1] B. Ye, H. Chang, B. Ma, S. Shan, and X. Chen, “Joint feature learning and relation modeling for tracking: A one-stream framework,” in Computer Vision–ECCV 2022: 17th European Conference, Tel Aviv, Israel, October 23–27, 2022, Proceedings, Part XXII . Springer, 2022, pp. 341–357. [2] B. Yan, H. Peng, J. Fu, D. Wang, and H. Lu, “Learning spatio-temporal transformer for visual tracking,” in Proceedings of the IEEE/CVF international conference on computer vision , 2021, pp. 10 448–10 457. [3] L. Bertinetto, J. Valmadre, J. F. Henriques, A. Vedaldi, and P. H. S. Torr, “Fully-convolutional siamese networks for object tracking,” in European Conference on Computer Vision workshops (ECCVW) , 2016, pp. 850– 865. [4] G. Bhat, M. Danelljan, L. V. Gool, and R. Timofte, “Learning discrim-inative model prediction for tracking,” in Proceedings of the IEEE/CVF international conference on computer vision , 2019, pp. 6182–6191. [5] C. Xu, B. Zhong, Q. Liang, Y. Zheng, G. Li, and S. Song, “Less is more: Token context-aware learning for object tracking,” in Proceedings of the AAAI Conference on Artificial Intelligence , vol. 39, no. 8, 2025, pp. 8824–8832. [6] X. Chen, B. Yan, J. Zhu, D. Wang, X. Yang, and H. Lu, “Transformer tracking,” in 2021 IEEE/CVF Conference on Computer Vision and Pattern Recognition (CVPR) , Jun 2021. [Online]. Available: http://dx.doi.org/10.1109/cvpr46437.2021.00803 [7] Y. Zheng, B. Zhong, Q. Liang, Z. Mo, S. Zhang, and X. Li, “Odtrack: Online dense temporal token learning for visual tracking,” in Proceed-ings of the AAAI conference on artificial intelligence , vol. 38, no. 7, 2024, pp. 7588–7596. [8] M. Danelljan, L. Van Gool, and R. Timofte, “Probabilistic regression for visual tracking,” in 2020 IEEE/CVF Conference on Computer Vision and Pattern Recognition (CVPR) , Jun 2020. [Online]. Available: http://dx.doi.org/10.1109/cvpr42600.2020.00721 [9] K. Yang, Z. He, W. Pei, Z. Zhou, X. Li, D. Yuan, and H. Zhang, “Siamcorners: Siamese corner networks for visual tracking,” IEEE Transactions on Multimedia , vol. 24, pp. 1956–1967, 2022. [10] X.-F. Zhu, T. Xu, Z. Tang, Z. Wu, H. Liu, X. Yang, X.-J. Wu, and J. Kittler, “Rgbd1k: A large-scale dataset and benchmark for rgb-d object tracking,” in Proceedings of the AAAI Conference on Artificial Intelligence , 2023, pp. 3870–3878. [11] Z. Tang, T. Xu, X.-J. Wu, and J. Kittler, “Multi-level fusion for robust rgbt tracking via enhanced thermal representation,” ACM Transactions on Multimedia Computing, Communications and Applications , vol. 20, no. 10, pp. 1–24, 2024. JOURNAL OF L ATEX CLASS FILES, VOL. 14, NO. 8, AUGUST 2021 13 
+
+[12] P. Shao, T. Xu, Z. Tang, L. Li, X.-J. Wu, and J. Kittler, “Tenet: Targetness entanglement incorporating with multi-scale pooling and mutually-guided fusion for rgb-e object tracking,” arXiv preprint arXiv:2405.05004 , 2024. [13] Z. Tang, T. Xu, X. Zhu, X.-J. Wu, and J. Kittler, “Generative-based fusion mechanism for multi-modal tracking,” arXiv preprint arXiv:2309.01728 , 2023. [14] L. Hong, S. Yan, R. Zhang, W. Li, X. Zhou, P. Guo, K. Jiang, Y. Chen, J. Li, Z. Chen et al. , “Onetracker: Unifying visual object tracking with foundation models and efficient tuning,” in Proceedings of the IEEE/CVF Conference on Computer Vision and Pattern Recognition ,2024, pp. 19 079–19 091. [15] X.-F. Zhu, T. Xu, Z. Liu, Z. Tang, X.-J. Wu, and J. Kittler, “Unimod1k: Towards a more universal large-scale dataset and benchmark for multi-modal learning,” International Journal of Computer Vision , pp. 1–16, 2024. [16] C. Zhang, Z. Huang, S. Wang, and Y. Hong, “Decision-making for overtaking in specific unmanned driving scenarios based on deep re-inforcement learning,” in 2023 IEEE 3rd International Conference on Information Technology, Big Data and Artificial Intelligence (ICIBA) ,2023, pp. 680–685. [17] Z. Zhuang, R. Li, K. Jia, Q. Wang, Y. Li, and M. Tan, “Perception-aware multi-sensor fusion for 3d lidar semantic segmentation,” in Proceedings of the IEEE/CVF International Conference on Computer Vision , 2021, pp. 16 280–16 290. [18] Z. Jiang, Y. Li, C. Yang, P. Gao, Y. Wang, Y. Tai, and C. Wang, “Proto-typical contrast adaptation for domain adaptive semantic segmentation,” in European conference on computer vision . Springer, 2022, pp. 36–54. [19] T. Hui, Z. Xun, F. Peng, J. Huang, X. Wei, X. Wei, J. Dai, J. Han, and S. Liu, “Bridging search region interaction with template for rgb-t tracking,” in Proceedings of the IEEE/CVF Conference on Computer Vision and Pattern Recognition , 2023, pp. 13 630–13 639. [20] S. Yan, J. Yang, J. Kapyla, F. Zheng, A. Leonardis, and J. Kamarainen, “Depthtrack: Unveiling the power of rgbd tracking,” in 2021 IEEE/CVF International Conference on Computer Vision (ICCV) , 2021, pp. 10 705– 10 713. [21] X.-F. Zhu, X.-J. Wu, T. Xu, Z.-H. Feng, and J. Kittler, “Robust visual object tracking via adaptive attribute-aware discriminative correlation filters,” IEEE Transactions on Multimedia , vol. 24, pp. 301–312, 2021. [22] J. Yang, Z. Li, F. Zheng, A. Leonardis, and J. Song, “Prompting for multi-modal tracking,” in Proceedings of the 30th ACM International Conference on Multimedia , 2022, pp. 3492–3500. [23] R. Li, Z. Feng, T. Xu, L. Li, X.-J. Wu, M. Awais, S. Atito, and J. Kittler, “C2c: Component-to-composition learning for zero-shot com-positional action recognition,” in European Conference on Computer Vision . Springer, 2025, pp. 369–388. [24] R. Li, T. Xu, X.-J. Wu, L. Li, X. Yang, Z. Shen, and J. Kittler, “M-adapter: Multi-level image-to-video adaptation for video action recognition,” Computer Vision and Image Understanding , p. 104150, 2024. [25] J. Zhu, S. Lai, X. Chen, D. Wang, and H. Lu, “Visual prompt multi-modal tracking,” in Proceedings of the IEEE/CVF Conference on Com-puter Vision and Pattern Recognition (CVPR) , 2023, pp. 9516–9526. [26] X. Hou, J. Xing, Y. Qian, Y. Guo, S. Xin, J. Chen, K. Tang, M. Wang, Z. Jiang, L. Liu et al. , “Sdstrack: Self-distillation symmetric adapter learning for multi-modal visual object tracking,” in Proceedings of the IEEE/CVF Conference on Computer Vision and Pattern Recognition ,2024, pp. 26 551–26 561. [27] B. Cao, J. Guo, P. Zhu, and Q. Hu, “Bi-directional adapter for multi-modal tracking,” in Proceedings of the AAAI Conference on Artificial Intelligence , vol. 38, 2024, pp. 927–935. [28] R. Palm, U. Paquet, and O. Winther, “Recurrent relational networks,” 
+
+Advances in neural information processing systems , vol. 31, 2018. [29] P. W. Battaglia, J. B. Hamrick, V. Bapst, A. Sanchez-Gonzalez, V. Zam-baldi, M. Malinowski, A. Tacchetti, D. Raposo, A. Santoro, R. Faulkner 
+
+et al. , “Relational inductive biases, deep learning, and graph networks. arxiv 2018,” arXiv preprint arXiv:1806.01261 , 2018. [30] N. Houlsby, A. Giurgiu, S. Jastrz˛ ebski, B. Morrone, Q. Laroussilhe, A. Gesmundo, M. Attariyan, and S. Gelly, “Parameter-efficient trans-fer learning for nlp,” International Conference on Machine Learn-ing,International Conference on Machine Learning , Jan 2019. [31] M. Danelljan, G. Bhat, F. S. Khan, and M. Felsberg, “Atom: Accurate tracking by overlap maximization,” in 2019 IEEE/CVF Conference on Computer Vision and Pattern Recognition (CVPR) , 2019, pp. 4655– 4664. [32] C. Cheng, T. Xu, X.-J. Wu, H. Li, X. Li, and J. Kittler, “Fusionbooster: A unified image fusion boosting paradigm,” International Journal of Computer Vision , vol. 133, pp. 3041–3058, 2025. [33] Z. Tang, T. Xu, H. Li, X.-J. Wu, X. Zhu, and J. Kittler, “Exploring fusion strategies for accurate rgbt visual object tracking,” Information Fusion , vol. 99, p. 101881, 2023. [34] Y. Xiao, M. Yang, C. Li, L. Liu, and J. Tang, “Attribute-based pro-gressive fusion network for rgbt tracking,” in Proceedings of the AAAI Conference on Artificial Intelligence , 2022, pp. 2831–2838. [35] A. Lu, C. Li, Y. Yan, J. Tang, and B. Luo, “Rgbt tracking via multi-adapter network with hierarchical divergence loss,” IEEE Transactions on Image Processing , p. 5613–5625, Jan 2021. [Online]. Available: http://dx.doi.org/10.1109/tip.2021.3087341 [36] X. Hu, Y. Tai, X. Zhao, C. Zhao, Z. Zhang, J. Li, B. Zhong, and J. Yang, “Exploiting multimodal spatial-temporal patterns for video object tracking,” in Proceedings of the AAAI Conference on Artificial Intelligence , vol. 39, no. 4, 2025, pp. 3581–3589. [37] Z. Tang, T. Xu, X.-J. Wu, and J. Kittler, “Temporal aggregation for real-time rgbt tracking via fast decision-level fusion,” Pattern Recognition Letters , vol. 193, pp. 29–35, 2025. [38] H. Zhang, L. Zhang, L. Zhuo, and J. Zhang, “Object tracking in rgb-t videos using modal-aware attention network and competitive learning,” 
+
+Sensors , vol. 20, no. 2, p. 393, 2020. [39] Z. Tang, T. Xu, Z. Feng, X. Zhu, H. Wang, P. Shao, C. Cheng, X.-J. Wu, M. Awais, S. Atito et al. , “Revisiting rgbt tracking benchmarks from the perspective of modality validity: A new benchmark, problem, and method,” arXiv preprint arXiv:2405.00168 , 2024. [40] J. Zhang, X. Yang, Y. Fu, X. Wei, B. Yin, and B. Dong, “Object tracking by jointly exploiting frame and event domain,” in Proceedings of the IEEE/CVF International Conference on Computer Vision , 2021, pp. 13 043–13 052. [41] X.-F. Zhu, T. Xu, S. Atito, M. Awais, X.-J. Wu, Z. Feng, and J. Kittler, “Self-supervised learning for rgb-d object tracking,” Pattern Recognition ,p. 110543, 2024. [42] X. Wang, X. Shu, S. Zhang, B. Jiang, Y. Wang, Y. Tian, and F. Wu, “Mfgnet: Dynamic modality-aware filter generation for rgb-t tracking,” 
+
+IEEE Transactions on Multimedia , vol. 25, pp. 4335–4348, 2022. [43] Q. Xu, Y. Mei, J. Liu, and C. Li, “Multimodal cross-layer bilinear pooling for rgbt tracking,” IEEE Transactions on Multimedia , pp. 1– 1, 2021. [44] X. Wang, J. Li, L. Zhu, Z. Zhang, Z. Chen, X. Li, Y. Wang, Y. Tian, and F. Wu, “Visevent: Reliable object tracking via collaboration of frame and event flows,” IEEE Transactions on Cybernetics , 2023. [45] Y. Zhu, X. Wang, C. Li, B. Jiang, L. Zhu, Z. Huang, Y. Tian, and J. Tang, “Crsot: Cross-resolution object tracking using unaligned frame and event cameras,” arXiv preprint arXiv:2401.02826 , 2024. [46] X. Wang, S. Wang, C. Tang, L. Zhu, B. Jiang, Y. Tian, and J. Tang, “Event stream-based visual object tracking: A high-resolution bench-mark dataset and a novel baseline,” in Proceedings of the IEEE/CVF Conference on Computer Vision and Pattern Recognition , 2024, pp. 19 248–19 257. [47] Y. Luo, M. Dong, X. Guo, and J. Yu, “Rgb-t tracking based on mixed attention,” arXiv preprint arXiv:2304.04264 , 2023. [48] A. Vaswani, N. Shazeer, N. Parmar, J. Uszkoreit, L. Jones, A. Gomez, L. Kaiser, and I. Polosukhin, “Attention is all you need,” Neural Information Processing Systems,Neural Information Processing Systems ,Jun 2017. [49] Z. Tu, Y. Ma, Z. Li, C. Li, J. Xu, and Y. Liu, “Rgbt salient object detection: A large-scale dataset and benchmark,” IEEE Transactions on Multimedia , vol. 25, pp. 4163–4176, 2023. [50] H. Wang, T. Xu, Z. Tang, X.-J. Wu, and J. Kittler, “Multi-modal adapter for rgb-t tracking,” Information Fusion , vol. 118, p. 102940, 2025. [51] C. Liu, Z. Guan, S. Lai, Y. Liu, H. Lu, and D. Wang, “Emtrack: Efficient multimodal object tracking,” IEEE Transactions on Circuits and Systems for Video Technology , 2024. [52] M. D. Deepa et al. , “Bidirectional encoder representations from trans-formers (bert) language model for sentiment analysis task,” Turkish Jour-nal of Computer and Mathematics Education (TURCOMAT) , vol. 12, no. 7, pp. 1708–1721, 2021. [53] Q. Liu, X. Li, Z. He, C. Li, J. Li, Z. Zhou, D. Yuan, J. Li, K. Yang, N. Fan et al. , “Lsotb-tir: A large-scale high-diversity thermal infrared object tracking benchmark,” in Proceedings of the 28th ACM interna-tional conference on multimedia , 2020, pp. 3847–3856. [54] Q. Li, K. Tan, Q. Liu, D. Yuan, X. Li, and Y. Liu, “Efficient hierarchical domain adaptive thermal infrared tracking,” in ICASSP 2025-2025 IEEE International Conference on Acoustics, Speech and Signal Processing (ICASSP) . IEEE, 2025, pp. 1–5. JOURNAL OF L ATEX CLASS FILES, VOL. 14, NO. 8, AUGUST 2021 14 
+
+[55] C. Si, W. Yu, P. Zhou, Y. Zhou, X. Wang, and S. Yan, “Inception trans-former,” Advances in Neural Information Processing Systems , vol. 35, pp. 23 495–23 509, 2022. [56] B. Luo, D. Liu, X. Peng, H. Zuo, J. Zhang, M. Li, and Y. Wei, “Pro-gressive transformer with multi-modality adaptation for rgb-t tracking,” 
+
+IEEE Transactions on Instrumentation and Measurement , 2025. [57] Z. Tang, T. Xu, X.-J. Wu, and J. Kittler, “M 3 track: Meta-prompt for multi-modal tracking,” IEEE Signal Processing Letters , 2025. [58] C. Li, W. Xue, Y. Jia, Z. Qu, B. Luo, J. Tang, and D. Sun, “Lasher: A large-scale high-diversity benchmark for rgbt tracking,” IEEE Transac-tions on Image Processing , vol. 31, pp. 392–404, 2022. [59] C. Li, X. Liang, Y. Lu, N. Zhao, and J. Tang, “Rgb-t object tracking: Benchmark and baseline,” Pattern Recognition , vol. 96, p. 106977, 2019. [60] C. Li, H. Cheng, S. Hu, X. Liu, J. Tang, and L. Lin, “Learning collaborative sparse representation for grayscale-thermal tracking,” IEEE Transactions on Image Processing , vol. 25, no. 12, pp. 5743–5756, 2016. [61] J. Harte and E. A. Newman, “Maximum information entropy: a foun-dation for ecological theory,” Trends in ecology & evolution , vol. 29, no. 7, pp. 384–389, 2014. [62] H. Wang, S. Qu, Z. Qiao, and X. Liu, “Kcdnet: Multimodal object detection in modal information imbalance scenes,” IEEE Transactions on Instrumentation and Measurement , 2024. [63] H. Xu, Y. R. Wang, S. Eppel, A. Aspuru-Guzik, F. Shkurti, and A. Garg, “Seeing glass: joint point cloud and depth completion for transparent objects,” arXiv preprint arXiv:2110.00087 , 2021. [64] H. Chen, J. Lin, X. Chen, Y. Fan, X. Jin, H. Su, J. Dong, J. Fu, and X. Shen, “Rethinking visual layer selection in multimodal llms,” arXiv preprint arXiv:2504.21447 , 2025. 嘈..._  ~.售 
+
+He Wang is now a Ph.D. student with the School of Artificial Intelligence and Computer Science, Jiang-nan University. Her research interests include multi-modal object tracking and deep learning. 
+
+Tianyang Xu (Member, IEEE) received the B.Sc. degree in electronic science and engineering from Nanjing University, Nanjing, China, in 2011, and the Ph.D. degree from the School of Artificial Intel-ligence and Computer Science, Jiangnan University, Wuxi, China, in 2019. He is currently an Associate Professor with the School of Artificial Intelligence and Computer Science, Jiangnan University. His research interests include visual tracking and deep learning. 
+
+Zhangyong Tang is now a Ph.D. student with the School of Internet of Things Engineering, Jiang-nan University. His research interests include multi-modal object tracking and deep learning. 
+
+Xiao-Jun Wu received the B.Sc. degree in math-ematics from Nanjing Normal University, Nanjing, China, in 1991, and the M.S. and Ph.D. degrees in pattern recognition and intelligent systems from Nanjing University of Science and Technology, Nan-jing, in 1996 and 2002, respectively. He is cur-rently a Professor in artificial intelligence and pattern recognition with Jiangnan University, Wuxi, China. His research interests include pattern recognition, computer vision, fuzzy systems, neural networks, and intelligent systems. He is currently a fellow of IAPR and AAIA. He has won several domestic and international awards because of his research achievements. He served as an associate editor for several international journals. 
+
+Josef Kittler received the B.A., Ph.D., and D.Sc. degrees from the University of Cambridge, in 1971, 1974, and 1991, respectively. He is a distinguished Professor of Machine Intelligence at the Centre for Vision, Speech and Signal Processing, University of Surrey, Guildford, U.K. He conducts research in biometrics, video and image database retrieval, medical image analysis, and cognitive vision. He published the textbook Pattern Recognition: A Sta-tistical Approach and about 1000 scientific papers. His publications have been cited by around 70,000 times. He is series editor of Springer Lecture Notes on Computer Science. He currently serves on the Editorial Boards of Pattern Recognition Letters, Pattern Recognition and Artificial Intelligence, Pattern Analysis and Applications. He also served as a member of the Editorial Board of IEEE Transactions on Pattern Analysis and Machine Intelligence during 1982-1985. He served on the Governing Board of the International Association for Pattern Recognition (IAPR) as one of the two British representatives during 1982-2005, and the President of IAPR during 1994-1996.

@@ -6,49 +6,67 @@
 </div>
 
 ## 每次日报
-- 最新运行日期：2026-03-23
-- 运行时间：2026-03-23 19:49:27 UTC
+- 最新运行日期：2026-03-24
+- 运行时间：2026-03-24 20:01:46 UTC
 - 运行状态：成功
-- 本次总论文数：9
-- 精读区：3
-- 速读区：6
+- 本次总论文数：15
+- 精读区：6
+- 速读区：9
 
 ### 今日简报（AI）
-今日聚焦多模态学习的前沿突破，深度解析了 9 篇涵盖融合去偏与缺失补偿的最新研究。
-满分论文 BALM 提出了解决缺失率不平衡的通用框架，与动态融合去偏技术共同定义了多模态鲁棒性的新高度。
-推荐优先研读 BALM 框架，掌握在数据不完备环境下构建均衡多模态模型的实战策略。
-- 详情：[/202603/23/README](/202603/23/README)
+今日聚焦多模态融合前沿，深度剖析了光学-SAR 语义分割与旋转等变扩散模型等 15 篇最新成果。
+核心突破在于通过差异调节实现高效的光学-SAR 融合，以及利用扩散模型解决多聚焦图像融合中的旋转一致性问题。
+推荐关注扩散模型在交互式检索与复杂导航中的跨界应用，把握多模态感知技术的新趋势。
+- 详情：[/202603/24/README](/202603/24/README)
 
 ### 精读区论文标签
-1. [BALM: A Model-Agnostic Framework for Balanced Multimodal Learning under Imbalanced Missing Rates](/202603/23/2603.19718v1-balm-a-model-agnostic-framework-for-balanced-multimodal-learning-under-imbalanced-missing-rates)  
-   标签：评分：10.0/10、query:mm-fus
-   evidence：不平衡缺失率下的平衡多模态学习
-2. [Unbiased Dynamic Multimodal Fusion](/202603/23/2603.19681v1-unbiased-dynamic-multimodal-fusion)  
+1. [Lean Learning Beyond Clouds: Efficient Discrepancy-Conditioned Optical-SAR Fusion for Semantic Segmentation](/202603/24/2603.20811v1-lean-learning-beyond-clouds-efficient-discrepancy-conditioned-optical-sar-fusion-for-semantic-segmentation)  
    标签：评分：9.0/10、query:mm-fus
-   evidence：动态多模态融合，评估模态质量与噪声水平
-3. [Hyper-Connections for Adaptive Multi-Modal MRI Brain Tumor Segmentation](/202603/23/2603.19844v1-hyper-connections-for-adaptive-multi-modal-mri-brain-tumor-segmentation)  
+   evidence：云层干扰（数据缺失）下的鲁棒跨模态融合
+2. [ReDiffuse: Rotation Equivariant Diffusion Model for Multi-focus Image Fusion](/202603/24/2603.21129v1-rediffuse-rotation-equivariant-diffusion-model-for-multi-focus-image-fusion)  
+   标签：评分：9.0/10、query:mm-fus
+   evidence：提出了一种用于多聚焦图像融合的旋转等变扩散模型。
+3. [Beyond Strict Pairing: Arbitrarily Paired Training for High-Performance Infrared and Visible Image Fusion](/202603/24/2603.21820v1-beyond-strict-pairing-arbitrarily-paired-training-for-high-performance-infrared-and-visible-image-fusion)  
+   标签：评分：9.0/10、query:mm-fus
+   evidence：红外与可见光图像融合及非对齐训练范式
+4. [Weakly supervised multimodal segmentation of acoustic borehole images with depth-aware cross-attention](/202603/24/2603.20729v1-weakly-supervised-multimodal-segmentation-of-acoustic-borehole-images-with-depth-aware-cross-attention)  
    标签：评分：8.0/10、query:mm-fus
-   evidence：自适应多模态 MRI 分割与模态消融研究
+   evidence：2D图像与1D测井数据的多模态融合及物理结构化融合
+5. [Unregistered Spectral Image Fusion: Unmixing, Adversarial Learning, and Recoverability](/202603/24/2603.21510v1-unregistered-spectral-image-fusion-unmixing-adversarial-learning-and-recoverability)  
+   标签：评分：8.0/10、query:mm-fus
+   evidence：空间未对齐的高光谱与多光谱图像融合
+6. [A Multidisciplinary AI Board for Multimodal Dementia Characterization and Risk Assessment](/202603/24/2603.21597v1-a-multidisciplinary-ai-board-for-multimodal-dementia-characterization-and-risk-assessment)  
+   标签：评分：8.0/10、query:mm-fus
+   evidence：对异构且不完整的患者数据进行推理
 
 ### 速读区论文标签
-1. [Disentangle-then-Align: Non-Iterative Hybrid Multimodal Image Registration via Cross-Scale Feature Disentanglement](/202603/23/2603.19623v1-disentangle-then-align-non-iterative-hybrid-multimodal-image-registration-via-cross-scale-feature-disentanglement)  
+1. [Cross-Modal Reinforcement Learning for Navigation with Degraded Depth Measurements](/202603/24/2603.22182v1-cross-modal-reinforcement-learning-for-navigation-with-degraded-depth-measurements)  
+   标签：评分：8.0/10、query:mm-fus
+   evidence：针对深度数据退化或缺失的跨模态导航学习
+2. [Learning Progressive Adaptation for Multi-Modal Tracking](/202603/24/2603.21100v1-learning-progressive-adaptation-for-multi-modal-tracking)  
    标签：评分：7.0/10、query:mm-fus
-   evidence：通过跨尺度特征解耦实现混合多模态图像配准
-2. [Improving Generalization on Cybersecurity Tasks with Multi-Modal Contrastive Learning](/202603/23/2603.20181v1-improving-generalization-on-cybersecurity-tasks-with-multi-modal-contrastive-learning)  
+   evidence：将预训练模型应用于多模态数据
+3. [ADaFuSE: Adaptive Diffusion-generated Image and Text Fusion for Interactive Text-to-Image Retrieval](/202603/24/2603.21886v1-adafuse-adaptive-diffusion-generated-image-and-text-fusion-for-interactive-text-to-image-retrieval)  
    标签：评分：7.0/10、query:mm-fus
-   evidence：将知识转移到数据稀缺的模态
-3. [FlatLands: Generative Floormap Completion From a Single Egocentric View](/202603/23/2603.16016v1-flatlands-generative-floormap-completion-from-a-single-egocentric-view)  
+   evidence：利用扩散模型进行图像和文本模态的自适应融合
+4. [STENet: Superpixel Token Enhancing Network for RGB-D Salient Object Detection](/202603/24/2603.21999v1-stenet-superpixel-token-enhancing-network-for-rgb-d-salient-object-detection)  
+   标签：评分：7.0/10、query:mm-fus
+   evidence：用于RGB-D显著目标检测的跨模态交互
+5. [Tuning Real-World Image Restoration at Inference: A Test-Time Scaling Paradigm for Flow Matching Models](/202603/24/2603.22027v1-tuning-real-world-image-restoration-at-inference-a-test-time-scaling-paradigm-for-flow-matching-models)  
+   标签：评分：7.0/10、query:mm-fus
+   evidence：用于图像修复的统一多模态融合 (UMMF)
+6. [MARCUS: An agentic, multimodal vision-language model for cardiac diagnosis and management](/202603/24/2603.22179v1-marcus-an-agentic-multimodal-vision-language-model-for-cardiac-diagnosis-and-management)  
+   标签：评分：7.0/10、query:mm-fus
+   evidence：心脏诊断的多模态输入解释
+7. [ReLi3D: Relightable Multi-view 3D Reconstruction with Disentangled Illumination](/202603/24/2603.19753v1-reli3d-relightable-multi-view-3d-reconstruction-with-disentangled-illumination)  
    标签：评分：6.0/10、query:mm-fus
-   evidence：从单一视角进行生成式补全
-4. [Are a Thousand Words Better Than a Single Picture? Beyond Images -- A Framework for Multi-Modal Knowledge Graph Dataset Enrichment](/202603/23/2603.16974v1-are-a-thousand-words-better-than-a-single-picture-beyond-images----a-framework-for-multi-modal-knowledge-graph-dataset-enrichment)  
+   evidence：通过Transformer交叉调节机制融合多视图输入以进行3D重建。
+8. [Text-Image Conditioned 3D Generation](/202603/24/2603.21295v1-text-image-conditioned-3d-generation)  
    标签：评分：6.0/10、query:mm-fus
-   evidence：融合多源描述以丰富多模态知识图谱
-5. [Part-Aware Open-Vocabulary 3D Affordance Grounding via Prototypical Semantic and Geometric Alignment](/202603/23/2603.17647v1-part-aware-open-vocabulary-3d-affordance-grounding-via-prototypical-semantic-and-geometric-alignment)  
+   evidence：文本和图像条件预测的融合
+9. [GaussianSSC: Triplane-Guided Directional Gaussian Fields for 3D Semantic Completion](/202603/24/2603.21487v1-gaussianssc-triplane-guided-directional-gaussian-fields-for-3d-semantic-completion)  
    标签：评分：6.0/10、query:mm-fus
-   evidence：在3D定位中恢复缺失语义的跨模态框架
-6. [GenMFSR: Generative Multi-Frame Image Restoration and Super-Resolution](/202603/23/2603.19187v1-genmfsr-generative-multi-frame-image-restoration-and-super-resolution)  
-   标签：评分：6.0/10、query:mm-fus
-   evidence：多帧图像修复与原始帧融合
+   evidence：基于融合特征的3D语义场景补全
 
 
 <div class="dpr-home-promo-card">
