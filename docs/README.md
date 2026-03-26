@@ -6,52 +6,45 @@
 </div>
 
 ## 每次日报
-- 最新运行日期：2026-03-25
-- 运行时间：2026-03-25 20:07:30 UTC
+- 最新运行日期：2026-03-26
+- 运行时间：2026-03-26 20:39:47 UTC
 - 运行状态：成功
-- 本次总论文数：10
-- 精读区：4
-- 速读区：6
+- 本次总论文数：8
+- 精读区：3
+- 速读区：5
 
 ### 今日简报（AI）
-今日深度解析 10 篇多模态前沿论文，重点攻克图像融合稳定性与 3D 空间感知精度难题。
-最值得关注获满分评价的干预稳定特征学习方案，以及利用几何补全高斯提升 3D 占据预测表现的创新突破。
-建议优先研读视觉融合与
-- 详情：[/202603/25/README](/202603/25/README)
+今日精选 8 篇多模态前沿论文，重点突破医疗图像安全融合与自监督表征学习。
+满
+- 详情：[/202603/26/README](/202603/26/README)
 
 ### 精读区论文标签
-1. [Multi-Modal Image Fusion via Intervention-Stable Feature Learning](/202603/25/2603.23272v1-multi-modal-image-fusion-via-intervention-stable-feature-learning)  
+1. [AMIF: Authorizable Medical Image Fusion Model with Built-in Authentication](/202603/26/2603.24296v1-amif-authorizable-medical-image-fusion-model-with-built-in-authentication)  
    标签：评分：10.0/10、query:mm-fus
-   evidence：通过掩码测试缺失信息补偿的多模态图像融合
-2. [Gau-Occ: Geometry-Completed Gaussians for Multi-Modal 3D Occupancy Prediction](/202603/25/2603.22852v1-gau-occ-geometry-completed-gaussians-for-multi-modal-3d-occupancy-prediction)  
-   标签：评分：9.0/10、query:mm-fus
-   evidence：从稀疏LiDAR中恢复缺失结构以进行多模态融合
-3. [CCF: Complementary Collaborative Fusion for Domain Generalized Multi-Modal 3D Object Detection](/202603/25/2603.23276v1-ccf-complementary-collaborative-fusion-for-domain-generalized-multi-modal-3d-object-detection)  
-   标签：评分：9.0/10、query:mm-fus
-   evidence：当某一模态严重退化时的鲁棒融合
-4. [Cerebra: A Multidisciplinary AI Board for Multimodal Dementia Characterization and Risk Assessment](/202603/25/2603.21597v2-cerebra-a-multidisciplinary-ai-board-for-multimodal-dementia-characterization-and-risk-assessment)  
+   evidence：多模态医学图像融合模型
+2. [Le MuMo JEPA: Multi-Modal Self-Supervised Representation Learning with Learnable Fusion Tokens](/202603/26/2603.24327v1-le-mumo-jepa-multi-modal-self-supervised-representation-learning-with-learnable-fusion-tokens)  
    标签：评分：8.0/10、query:mm-fus
-   evidence：对异构且不完整的患者数据进行推理
+   evidence：带有可学习融合令牌的多模态自监督表示学习
+3. [POLY-SIM: Polyglot Speaker Identification with Missing Modality Grand Challenge 2026 Evaluation Plan](/202603/26/2603.24569v1-poly-sim-polyglot-speaker-identification-with-missing-modality-grand-challenge-2026-evaluation-plan)  
+   标签：评分：8.0/10、query:mm-fus
+   evidence：模态缺失条件下的多模态识别
 
 ### 速读区论文标签
-1. [SSAM: Singular Subspace Alignment for Merging Multimodal Large Language Models](/202603/25/2603.21584v1-ssam-singular-subspace-alignment-for-merging-multimodal-large-language-models)  
+1. [Generative Artificial Intelligence Assisted Multi-modal Semantic Extraction for NOMA-based Image Transmissions](/202603/26/2603.21092v1-generative-artificial-intelligence-assisted-multi-modal-semantic-extraction-for-noma-based-image-transmissions)  
    标签：评分：7.0/10、query:mm-fus
-   evidence：合并具有不同输入模态的多模态大语言模型
-2. [UniMotion: A Unified Framework for Motion-Text-Vision Understanding and Generation](/202603/25/2603.22282v1-unimotion-a-unified-framework-for-motion-text-vision-understanding-and-generation)  
+   evidence：提取跨模态语义特征用于图像恢复
+2. [Comparative analysis of dual-form networks for live land monitoring using multi-modal satellite image time series](/202603/26/2603.24109v1-comparative-analysis-of-dual-form-networks-for-live-land-monitoring-using-multi-modal-satellite-image-time-series)  
    标签：评分：7.0/10、query:mm-fus
-   evidence：运动-文本-视觉理解的统一框架
-3. [Memory Bear AI Memory Science Engine for Multimodal Affective Intelligence: A Technical Report](/202603/25/2603.22306v1-memory-bear-ai-memory-science-engine-for-multimodal-affective-intelligence-a-technical-report)  
-   标签：评分：7.0/10、query:mm-fus
-   evidence：可能微弱、有噪声或不完整的多模态证据
-4. [Dynamic Fusion-Aware Graph Convolutional Neural Network for Multimodal Emotion Recognition in Conversations](/202603/25/2603.22345v1-dynamic-fusion-aware-graph-convolutional-neural-network-for-multimodal-emotion-recognition-in-conversations)  
-   标签：评分：7.0/10、query:mm-fus
-   evidence：文本、音频和图像等多模态的动态融合
-5. [YOLOv10 with Kolmogorov-Arnold networks and vision-language foundation models for interpretable object detection and trustworthy multimodal AI in computer vision perception](/202603/25/2603.23037v1-yolov10-with-kolmogorov-arnold-networks-and-vision-language-foundation-models-for-interpretable-object-detection-and-trustworthy-multimodal-ai-in-computer-vision-perception)  
-   标签：评分：7.0/10、query:mm-fus
-   evidence：视觉退化场景下的可信多模态AI
-6. [DA-Flow: Degradation-Aware Optical Flow Estimation with Diffusion Models](/202603/25/2603.23499v1-da-flow-degradation-aware-optical-flow-estimation-with-diffusion-models)  
+   evidence：融合多模态卫星图像时间序列
+3. [Towards Multimodal Time Series Anomaly Detection with Semantic Alignment and Condensed Interaction](/202603/26/2603.21612v1-towards-multimodal-time-series-anomaly-detection-with-semantic-alignment-and-condensed-interaction)  
    标签：评分：6.0/10、query:mm-fus
-   evidence：针对真实世界损坏视频的鲁棒估计
+   evidence：多模态时间序列语义对齐与交互
+4. [Thinking with Tables: Enhancing Multi-Modal Tabular Understanding via Neuro-Symbolic Reasoning](/202603/26/2603.24004v1-thinking-with-tables-enhancing-multi-modal-tabular-understanding-via-neuro-symbolic-reasoning)  
+   标签：评分：6.0/10、query:mm-fus
+   evidence：存在数据不完整性的多模态表格理解
+5. [Language-Guided Structure-Aware Network for Camouflaged Object Detection](/202603/26/2603.24355v1-language-guided-structure-aware-network-for-camouflaged-object-detection)  
+   标签：评分：6.0/10、query:mm-fus
+   evidence：文本提示与RGB图像的多尺度融合用于目标检测
 
 
 <div class="dpr-home-promo-card">
