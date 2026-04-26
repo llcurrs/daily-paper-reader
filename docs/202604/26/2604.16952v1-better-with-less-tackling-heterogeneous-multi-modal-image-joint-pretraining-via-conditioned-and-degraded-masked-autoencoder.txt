@@ -1,0 +1,412 @@
+Title: Better with Less: Tackling Heterogeneous Multi-Modal Image Joint Pretraining via Conditioned and Degraded Masked Autoencoder
+
+URL Source: https://arxiv.org/pdf/2604.16952v1
+
+Published Time: Tue, 21 Apr 2026 00:44:55 GMT
+
+Number of Pages: 12
+
+Markdown Content:
+PREPRINT 1
+
+# Better with Less: Tackling Heterogeneous Multi-Modal Image Joint Pretraining via Conditioned and Degraded Masked Autoencoder 
+
+Bowen Peng, Yongxiang Liu, Jie Zhou, Xiaodong Chen, Tianpeng Liu, Xiaogang Yu, Li Liu 
+
+Abstract —Learning robust representations across extremely het-erogeneous modalities remains a fundamental challenge in multi-modal vision. As a critical and profound instantiation of this challenge, high-resolution (HR) joint optical and synthetic aperture radar (SAR) pretraining seeks modality synergy to mutually enhance single-source representations; its potential is severely hin-dered by the Heterogeneity-Resolution Paradox: finer spatial scales drastically amplify the physical divergence between complex radar geometries and non-homologous optical textures. Consequently, migrating medium-resolution-oriented rigid alignment paradigms to HR scenarios triggers either severe feature suppression to force equivalence, or feature contamination driven by extreme epistemic uncertainty. Both extremes inevitably culminate in profound rep-resentation degradation and negative transfer. To overcome this bottleneck, we propose CoDe-MAE, pioneering a better synergy with less alignment philosophy. First, Optical-anchored Knowledge Distillation (OKD) implicitly regularizes SAR’s speckle noise by mapping it into a pure semantic manifold. Building on this, Con-ditioned Contrastive Learning (CCL) utilizes a gradient buffering mechanism to align shared consensus while safely preserving di-vergent physical signatures. Concurrently, Cross-Modal Degraded Reconstruction (CDR) deliberately strips non-homologous spectral pseudo-features, truncating the inherently ill-posed mapping to capture true structural invariants. Extensive analyses validate our theoretical claims. Pretrained on 1M samples, CoDe-MAE demonstrates remarkable data efficiency, successfully preventing representation degradation and establishing new state-of-the-art performance across diverse single- and bi-modal downstream tasks, substantially outperforming foundation models scaled on vastly larger datasets. Code and weights: https://github.com/ scenarri/CoDeMAE. 
+
+Index Terms —Self-supervised learning, remote sensing, multi-modality learning, masked autoencoders 
+
+I. I NTRODUCTION 
+
+# IN multi-modal self-supervised learning (SSL) [1]–[3], bal-ancing the capture of modality-shared invariance with the preservation of modality-unique priors for complementary syn-ergy poses a fundamental dilemma. This bottleneck is dras-tically amplified when confronting inherently non-isomorphic sensors. Serving as a critical and severe instantiation of such extreme physical divergence, joint optical and synthetic aperture 
+
+Bowen Peng, Yongxiang Liu, Jie Zhou, Xiaodong Chen, Tianpeng Liu, and Li Liu are with the College of Electronic Science and Technology, National University of Defense Technology (NUDT), Changsha 410073, China. Email: pbow16@nudt.edu.com, lyx bible@sina.com, zhoujie @nudt.edu.cn, cxd@nudt.edu.com, everliutianpeng@sina.cn, liuli nudt@nudt.edu.cn. Xiaogang Yu is with the Beijing Institute of Remote Sensing Information, Beijing 100192, China. Email: 13366351343@189.cn. This work was supported by the National Natural Science Foundation of China (NSFC) under Grant 62376283 and 62531026, the Innovation Research Foundation of National University of Defense Technology (JS2023-03), and the Fundamental and Interdisciplinary Disciplines Breakthrough Plan of the Ministry of Education of China (JYB2025XDXM110). Corresponding authors: Yongxiang Liu and Li Liu. 
+
+Fig. 1. The Heterogeneity-Resolution Paradox. Optical and SAR sensors observe the Earth through fundamentally distinct physical mechanisms. This inherent heterogeneity, quantified here by the Structural Similarity (SSIM) between image pairs, drastically amplifies at finer spatial scales. The equivalent resolution starts from the original 0.5m ground sample distance (GSD) provided by MSAW dataset [7], with coarser scales generated via Gaussian Pyramid downsampling following Scale-MAE [8]. For SAR imagery, these scales represent the resampled pixel spacing consistent with the optical grids. 
+
+radar (SAR) pretraining for Earth observation represents a vital frontier [4]–[6]. It seeks to learn superior representations that empower both single- and dual-modal downstream tasks. How-ever, unlocking this potential is severely hindered by profound heterogeneity (Fig. 1), characterized by two coupled challenges: 1) Physical Divergence vs. Modality Synergy : Optical sensors capture rich spectral textures and colors but are highly susceptible to cloud interference. Conversely, SAR records dielectric structures, offering all-weather visibility, yet suf-fers from inherent speckle noise and lacks fine-grained semantic clarity. The core motivation of joint pretraining is to achieve modality synergy that mutually enhances single-source representations, imbuing optical features with weather-robust structural geometries, and SAR features with fine-grained perceptual clarity. However, their funda-mentally distinct physical mechanisms create a profound semantic gap that makes explicit cross-modal interaction intrinsically difficult. 2) The Heterogeneity-Resolution Paradox : Transitioning to high-resolution 1 (HR) pretraining is strictly necessary for fine-grained spatial understanding and object-level recogni-tion. Yet, finer spatial scales drastically amplify the afore-mentioned modality gap. Specifically, HR SAR magnifies 
+
+> 1
+
+In this study, we define high-resolution remote sensing imagery as data with a GSD of less than 5 meters, while medium-resolution data refers to imagery with a GSD ranging from 10 to 30 meters.     
+
+> arXiv:2604.16952v1 [cs.CV] 18 Apr 2026 PREPRINT 2
+> Fig. 2. Overview of CoDe-MAE. (a) Optical-anchored Knowledge Distillation (OKD) establishes a robust semantic baseline, acting as an implicit speckle regularization to map noisy SAR inputs into a pure semantic manifold (Section III-B). Anchored by this, CoDe-MAE shifts from conventional rigid alignment to a paradigm of better synergy with less alignment . To bridge the severe physical gap in HR imagery, it introduces two synergistic mechanisms: ( b) Conditioned Contrastive Learning (CCL) utilizes cross-attention as a gradient buffer to selectively align shared consensus, thereby preventing feature suppression and preserving modality-unique physical signatures (Section III-C). ( c) Cross-modal Degraded Reconstruction (CDR) avoids ill-posed completeness-driven recovery by predicting spectrally degraded targets. This truncates epistemic uncertainty and prevents feature contamination, explicitly aligning only on structural invariants (Section III-D). (d) Singular value spectrum explicitly illustrates representation degradation (via dimensional collapse) and our robust synergy. Conventional rigid alignment causes severe dimensional collapse (rapid decay). Our CCL acts as a soft bottleneck to securely maintain the baseline’s capacity, while CDR further enhances it. Together, CoDe-MAE achieves the highest effective feature rank.
+
+complex backscattering phenomena ( e.g., layover, shadow, and strong point scatterers) inherent to its side-looking imaging geometry. Concurrently, HR optical imagery re-solves intricate superficial textures ( e.g., painted markings and material colors) that possess absolutely no dielectric or geometric counterparts in SAR. This clash between com-plex radar geometry and non-homologous optical details establishes a profound physical gap. Furthermore, optical-SAR pairs inherently suffer from temporal asynchrony. When coupled with HR scales, the resulting fine-grained land-cover variations ( e.g., seasonal canopy changes or construction) severely exacerbate cross-modal uncertainty. Historically, the wide accessibility of MR imagery [9], [10] ( e.g., Sentinel-1/2) has profoundly shaped optical-SAR joint pretraining. Because coarser spatial scales inherently blur fine-grained physical discrepancies, existing paradigms seek modality synergy primarily through rigid, MR-centric philoso-phies: equivalence-driven alignment [1], [3], [5], [11] and 
+
+completeness-driven alignment [12], [13]. The former forces a global consensus. Whether treating optical-SAR pairs as aug-mented views (subject to the InfoMin principle [14]) or as paired semantic entities, its fundamental motive is to capture modality-invariant representations that reflect the underlying physical reality. The latter pursues an exhaustive cross-modal mapping, coercing single-source representations to reconstruct both their own input and the heterogeneous counterpart perfectly. While effective on MR datasets, these rigid paradigms fully expose their fragility when migrated to HR scenarios. Driven by the Heterogeneity-Resolution paradox, rich HR spatial details drastically exacerbate the inherently non-isomorphic optical-SAR mapping. Consequently, the pursuit of forced equivalence triggers severe feature suppression , coercing the network to destructively discard modality-unique physical priors to bridge the widened gap. Conversely, ill-posed completeness-driven recovery introduces extreme epistemic uncertainty, causing fea-ture contamination as the encoder memorizes noisy, uninter-pretable translations rather than capturing true structural syn-ergy. Ultimately, both rigid extremes inevitably induce profound 
+
+representation degradation , culminating in negative transfer on downstream tasks. To circumvent the fragility of rigid alignment, we introduce CoDe-MAE (Conditioned and Degraded Masked Autoencoder, Fig. 2), which pioneers a paradigm of better synergy with less alignment for HR optical-SAR pretraining. First, Optical-anchored Knowledge Distillation (OKD) establishes a robust semantic baseline, acting as an implicit speckle regularization to map SAR’s complex multiplicative noise into a pure seman-tic manifold. Building on this, CoDe-MAE achieves modality synergy via Conditioned Contrastive Learning (CCL) and Cross-Modal Degraded Reconstruction (CDR). Instead of forcing ex-plicit feature overlap, CCL utilizes cross-attention as a gradient buffer. It extracts strictly conditioned representations to max-imize shared consensus while safely leaving the base embed-dings unconstrained to prevent feature suppression and preserve divergent physical signatures. Concurrently, CDR breaks the illusion of completeness-driven recovery by formulating cross-modal reconstruction as a target-degraded optimization. By physically stripping non-homologous spectral pseudo-features, CDR truncates epistemic uncertainty and prevents feature con-tamination, compelling the network to align strictly on structural invariants rather than memorizing noisy translations. This better with less paradigm is empirically validated by the representations’ singular value spectrum (Fig. 2d). Conventional rigid alignment exhibits a precipitous singular value decay, indicating severe dimensional collapse and the destructive loss of physical priors. In contrast, our CCL securely maintains the baseline’s capacity, while CDR further enriches the represen-tation. Ultimately, CoDe-MAE preserves the highest effective feature rank, successfully preventing representation degradation. Further mechanism analysis can be found in Section IV-C. Our main contributions are summarized as follows: 1) Mechanism Analysis of Representation Degradation: 
+
+We formally identify the Heterogeneity-Resolution Para-dox specifically within the context of HR optical-SAR pretraining. We systematically analyze how this paradox drives conventional rigid alignment to fail, explicitly mani-PREPRINT 3  
+
+> Fig. 3. Downstream performance. The modality-specific tokenizers and the shared encoder are retained for downstream adaptation, which outperforms diverse optical, SAR, and dual-modal foundation models (FMs).
+
+festing as severe feature suppression and contamination. By dissecting these degradation mechanisms in such a highly non-isomorphic scenario, our work provides a rigorously grounded reference for tackling modality gaps in broader multi-modal visual representation learning. 2) A Novel Pretraining Philosophy and Framework: To break this fundamental bottleneck, we propose CoDe-MAE, a generalized framework grounded in a pioneering 
+
+better synergy with less alignment philosophy. By syner-gizing CCL and CDR, our method safely extracts shared structural consensus while truncating epistemic uncertainty, elegantly preventing representation degradation and pre-serving modality-unique priors. 3) Remarkable Data Efficiency and SOTA Performance: 
+
+Pretrained on 1M samples, CoDe-MAE establishes new state-of-the-art (SOTA) performance across diverse single-and dual-modal downstream tasks (Fig. 3). Extensive eval-uations validate our proposed philosophy, demonstrating that CoDe-MAE successfully overcomes extreme modal-ity gaps and substantially outperforms foundation models scaled on vastly larger datasets. II. R ELATED WORKS 
+
+A. Self-supervised Learning and Modality Alignment 
+
+Visual SSL and Knowledge Distillation. SSL has revolu-tionized visual representation learning. Generative approaches like MAE [15] capture holistic structures by reconstruct-ing masked inputs, while contrastive methods [16] and self-distillation frameworks [17] learn robust invariants. Recently, leveraging FMs as teachers for feature distillation has proven highly effective for domain-specific bootstrapping [18]. Build-ing on this, CoDe-MAE adopts an MAE architecture anchored by OKD to establish a robust baseline. 
+
+Cross-modal Alignment and Heterogeneity. In pure vi-sual SSL, contrastive alignment follows the InfoMin principle [14], discarding view-specific noise to capture robust invari-ants. However, this strict consensus inherently triggers feature suppression. This dilemma extends to cross-modal alignment like CLIP [2], which pursue vision-language semantic equiv-alence; coerced by coarse global captions, the visual tower frequently suppresses fine-grained visual priors and falls short at spatial understanding. While recent advances [19] mitigate this by utilizing rich, dense textual descriptors to construct a comprehensive semantic bridge, migrating such equivalence-driven paradigms to optical-SAR pretraining introduces a fun-damental mechanistic bias. Unlike image-text pairs that can be explicitly aligned via dense language, optical and SAR sensors capture inherently distinct, non-isomorphic physics. This phys-ical divergence creates a profound semantic gap with strictly limited shared structural information. Forcing rigid equivalence across this gap artificially “squeezes” representation capacity, inevitably compromising modality-unique signatures and once again triggering severe feature suppression. 
+
+B. Optical-SAR Joint Representation Learning 
+
+Current optical-SAR pretraining frameworks primarily tar-get MR imagery like Sentinel-1/2 [9], [10]. They heavily rely on rigid alignment, either by pulling heterogeneous fea-tures together via contrastive learning [1], [11] or attempting completeness-driven cross-modal reconstruction [13]. However, the drastically amplified physical divergence at HR scales renders these strategies highly sub-optimal. Recent mit-igations include DeCUR [20], which explicitly decouples em-bedding spaces but relies on rigid, sample-agnostic dimensional splits; and MaRS [5], which utilizes nested self-attention (SA) for unconditioned dense mixing. This mixing indiscriminately entangles shared semantics and dilutes modality uniqueness. Furthermore, completeness-driven reconstruction forces an ill-posed mapping from microwave backscatter to high-frequency optical colors. This introduces extreme epistemic uncertainty, inevitably causing feature contamination as the network mem-orizes noisy translations. Bypassing both explicit dimensional decoupling and uncondi-tioned entanglement, CoDe-MAE instantiates our better synergy with less alignment philosophy. By utilizing cross-attention (CA) as an information bottleneck to selectively align shared contexts (preventing feature suppression), and guiding structural synergy via spectrally degraded targets to truncate epistemic uncertainty (preventing feature contamination), CoDe-MAE el-egantly preserves modality-unique signatures to avoid overall representation degradation. III. M ETHODOLOGY 
+
+A. Preliminary 
+
+Masked Autoencoders. MAE [15] learns representations by reconstructing masked inputs. An image Io/s ∈ RC×H×W is partitioned into M patches Po/s . A random subset of these patches is discarded based on a binary mask m ∈ { 0, 1}M ,where mi = 1 indicates a masked (invisible) patch. The visible patches are encoded into latent embeddings xo/s ∈ RMvis ×D .A Transformer decoder subsequently reconstructs the original pixels Ro/s from these embeddings and learnable mask tokens. For paired optical-SAR inputs, we apply an identical spatial mask with a 75% masking ratio and utilize an 8-layer decoder. The standard reconstruction loss is computed exclusively on the 
+
+Minv masked patches: 
+
+LMAE =
+
+P 
+
+> i|mi=1
+
+∥Ro,i − Po,i ∥22
+
+Minv 
+
++
+
+P 
+
+> i|mi=1
+
+∥Rs,i − Ps,i ∥22
+
+Minv 
+
+.
+
+(1) 
+
+OSPretrain-1M Dataset. To address the scarcity of large-scale, HR optical-SAR pairs, we curate the OSPretrain-1M PREPRINT 4                                                                                                                    
+
+> TABLE I SPECIFICS OF THE PRETRAINING DATASET .†TEST SET IS EXCLUDED . GEE: G OOGLE EARTH ENGINE .
+> Paired Year Modality Source #Patches Resolution Coverage
+> MSAW [7] 2020 O&S Worldview-2, Cappella 64,084 .5/.5 Rotterdam QXS-SAROPT [22] 2021 O&S GEE/GF-3 40,000 1/1 San Diego, Shanghai, and Qingdao DDHR-XA/DY [23] 2022 O&S GF-2/GF-3 15,662 1/1 Xi’an and Dongying WHU-OPT-SAR †[24] 2022 O&S GF-1/GF-3 47,040 2/5 Hubei Province DFC23-T1/T2 †[25] 2023 O&S SuperView-1, GF-2/GF-3 65,800 .5-1/1 17 cities over 6 continents OGSOD-2 [26] 2025 O&S GEE/GF-3 32,570 3/10 -GFGE-SO [27] 2025 O&S GEE/GF-3 60,000 5/5 7 cities in China OEM-SAR [28] 2025 O&S NAIP, IGN & GSI/Umbra 138,578 .15-.5/ <135 cities in Japen, France, and the USA EarthMiss [29] 2025 O&S Worldview-2/Hisea-1, Cappella 44,008 .6/.35 13 cities distributed across five continents OSdataset 2.0 [30] 2025 O&S GEE/GF-3 30,424 .5/.5 14 countries worldwide Total (Paired) 538,166
+> Unpaired Year Modality Source #Patches Resolution Coverage/Description
+> RSD46-WHU †[31] 2017 OGEE, Tianditu 109,157 .5-2 -FAIR1M †[32] 2022 OGF, GEE 149,881 .3-.8 more than 100 civil airports, harbors, and cities worldwide FAIR-CSAR †[33] 2024 SGF-3 33,214 1, 5 airports, refineries, ports, and river channels worldwide SARDet-180K †[34] 2025 SAerial SAR, GF-3, RadarSat-2, etc .157,733 -a composite pretraining set that integrates 14 SAR datasets ATRNet-STAR †[35] 2025 SAerial SAR 68,091 .15 -Total (Unpaired) 518,076
+
+dataset from 15 diverse open-source datasets (Table I). It encom-passes both geo-registered scene-level pairs and unregistered moving targets ( e.g., aircraft, ships). The inclusion of the latter reflects the practical impossibility of perfectly aligning dynamic objects in multi-temporal HR imagery, thereby providing a rigorous testbed for evaluating structural generalization from strictly registered to unaligned domains. 
+
+B. Optical-anchored Knowledge Distillation 
+
+In HR scenarios, SAR’s inherent multiplicative speckle noise severely hinders representation quality. A natural intuition to mitigate this is to utilize the paired optical modality as a pristine semantic anchor. Existing frameworks typically introduce high-quality optical representations via knowledge distillation, sub-sequently attempting to transfer them by exploiting the spatial co-occurrence of optical-SAR pairs. For example, MaRS [5] forces this transfer via dual-tower contrastive alignment [5] and SARMAE achieves this by direct token matching [21]. However, as discussed before, these strategies inevitably trigger representation degradation across the profound physical gap. To circumvent this, OKD subtly shares the entire encoder-decoder architecture to achieve implicit speckle regulariza-tion , leveraging shared attention mechanisms and normalization layers to inherently coordinate spatial representations. This statistically maps the complex multiplicative noise distribution inherent to SAR inputs into a high-dimensional, pure seman-tic manifold without forcing destructive explicit alignment. Moreover, this shared architecture not only halves parameter usage but also naturally accommodates spatially unpaired data, significantly enhancing its applicability to various data sources. Formally, to establish this robust semantic baseline, we leverage the frozen DINOv3-Sat foundation model [17] as a teacher network fteacher . An ℓ1 loss is employed to distill knowledge strictly from the teacher to the corresponding CoDe-MAE visible optical tokens xo:
+
+LOKD = 1
+
+Mvis 
+
+X
+
+> i|mi=0
+
+∥fteacher (Io)i − xo,i ∥1 . (2) While this implicit baseline is stable, deep synergy demands active alignment, which is achieved by our CCL module. 
+
+C. Conditioned Contrastive Learning 
+
+Theoretical Motivation. Existing equivalence-driven con-trastive learning paradigms [1], [11] explicitly maximize mutual information I(xo; xs) by pulling raw, unconditioned embeddings together. Mathematically, this rigid alignment forces the condi-tional entropy H(xs|xo) toward zero. Consequently, it inevitably destroys modality-unique physics by forcefully overwriting SAR’s intrinsic microwave scattering physical priors and the optical sensor’s distinct spectral signatures, ultimately trigger-ing severe feature suppression. While static projection heads, whether linear [1] or non-linear MLPs [11], are conventionally employed to buffer this pressure, they prove insufficient against the profound physical gap of HR optical-SAR data, inevitably leaking destructive gradients back to the encoder. To circumvent this, CCL shifts the alignment target from the unconstrained raw embeddings xo/s to strictly conditioned embeddings xcd o/s via a dynamic buffering mechanism: 
+
+xcd o/s = xo/s + softmax xo/s Wq (xs/o Wk)⊤
+
+√D
+
+!
+
+xs/o Wv , (3) where Wq , Wk, Wv are the query, key, and value projection matrices. Acting as an information bottleneck, the CA module queries the counterpart modality to distill shared contexts as dynamic residual additives. We enforce a symmetric contrastive penalty on the normalized global conditioned embeddings ¯xcd o/s :
+
+LCCL = − 12
+
+> N
+
+X
+
+> i=1
+
+log exp( ⟨¯xcd s,i , ¯xcd o,i ⟩/τ )
+
+PNj=1 exp( ⟨¯xcd s,i , ¯xcd o,j ⟩/τ ) +log exp( ⟨¯xcd o,i , ¯xcd s,i ⟩/τ )
+
+PNj=1 exp( ⟨¯xcd o,i , ¯xcd s,j ⟩/τ )
+
+!
+
+, (4) where N is the batch size and τ = 0 .07 is the temperature. Crucially, formulating the CA output as a dynamic residual additive, rather than a direct replacement [19], allows it to act as a gradient buffer during optimization. It absorbs the rigid align-ment pressure to maximize cross-modal consensus within the attention-aggregated subspace. Consequently, this ensures that the deep feature space can inherently tolerate the profound gap between the two sensors. It leaves the representation capacity of the base embeddings xo/s safely unconstrained, empowering them to freely explore divergent physical signatures rather than suffering from feature suppression. PREPRINT 5                                                                                                      
+
+> TABLE II ABLATION RESULTS OF DATASET COMPOSITION ,ARCHITECTURAL DESIGN ,AND THE PROPOSED TRAINING OBJECTIVES .OUR CHOICE
+> (a) Ablation on dataset composition
+> OSPretrain-1M DDHR-SK
+> Paired Unpaired Opt. SAR
+> ✓87.32 83.57
+> ✓88.33 82.51
+> ✓✓88.41 84.34
+> (b) Whether to share backbone
+> OKD Shared Arch. DDHR-SK
+> Enc. Dec. Opt. SAR 88.31 82.50
+> ✓88.38 84.24
+> ✓✓88.41 84.34
+> ✓✓91.17 85.89
+> ✓✓✓91.23 86.48
+> (c) Ablation on CCL and CDR
+> CCL CDR DDHR-SK
+> Opt. SAR 91.23 86.48
+> ✓91.35 86.65
+> ✓91.32 86.92
+> ✓✓91.39 87.06
+> (d) Choice of cross-modal reconstruction target
+> Degradation Target DDHR-SK
+> Type Operation Opt. SAR N/A --91.23 86.48 -Pixel 90.70 86.57 Spatial Median Pixel 90.88 86.35 AvgPool Pixel 89.88 84.84 Spectral Grayscale Pixel 91.32 86.92
+> Feature -HOG [36], [37] 91.30 86.73 -MGF [34] 91.17 86.77
+> (e) Choice of contrastive learning target
+> CA Block Contrastive objective DDHR-SK
+> CA SA FFN Buffer Applied Opt. SAR
+> 91.23 86.48 Linear proj. [1], [2] ✓90.78 85.76 Non-linear proj. [11], [16] ✓90.90 86.02 No proj. [5] ✓90.96 86.09
+> ✓✓✓
+> CCL
+> ✓90.87 86.20
+> ✓✓✓91.12 86.54
+> ✓✓91.35 86.65
+
+D. Cross-modal Degraded Reconstruction 
+
+Theoretical Motivation. As established, the profound gap between SAR’s structural backscatter and optical’s spec-tral reflectance, along with the tmporal asynchrony, render completeness-driven cross-modal recovery severely ill-posed. Decoding high-fidelity RGB colors directly from SAR intro-duces extreme epistemic uncertainty. This coerces the encoder into memorizing noisy, uninterpretable translations rather than capturing true modality synergy, inevitably resulting in severe feature contamination. To explicitly isolate shared spatial topol-ogy without resorting to rigid, handcrafted descriptors ( e.g., HOG [36], [37] or MGF [34]), CDR introduces an elegant, self-driven information bottleneck: target-degraded optimization. By simply reducing optical targets to grayscale, it deliber-ately discards modality-exclusive spectral distributions. Beyond merely acting as a target-side “Information Dropout,” this spectral degradation physically strips non-homologous pseudo-features. It truncates the ill-posed mapping, compelling the network to align strictly on the true physical invariants shared by both sensors without contaminating the encoder’s feature space. Utilizing an auxiliary modality-shared decoder, the CDR loss is computed as: 
+
+LCDR =
+
+P 
+
+> i|mi=1
+
+∥Rcdr o,i − Deg( Ps,i )∥22
+
+Minv 
+
++
+
+P 
+
+> i|mi=1
+
+∥Rcdr s,i − Deg( Po,i )∥22
+
+Minv 
+
+. (5) where Deg( ·) denotes the grayscale degradation function. Finally, the CoDe-MAE framework is jointly optimized in an end-to-end manner by minimizing the total objective: 
+
+LTotal = LMAE + LOKD + LCCL + LCDR . (6) IV. E XPERIMENTS 
+
+Following established protocols [38], [39], we evaluate CoDe-MAE’s representational capacity via downstream transfer across three stages: (1) progressive ablations validating architec-tural and objective designs; (2) mechanism analyses unraveling 
+
+better synergy with less alignment dynamics; and (3) extensive comparisons against SOTA FMs. 
+
+A. Implementation Details 
+
+For the OKD teacher, we employ a frozen DINOv3-Sat (ViT-L) model [17]. To bridge pretraining and dense prediction tasks, CoDe-MAE utilizes the iTPN framework [18] equipped with an ImageNet-1K initialized HiViT-Base/16 encoder (79M parameters) [40]. Models are optimized using AdamW with a total batch size of 2,048 and a base learning rate of 1.5 × 10 −4,scheduled via cosine annealing with a 15-epoch warmup. Pre-training is distributed across eight NVIDIA RTX 4090D GPUs, spanning 100 epochs for ablation studies and 800 epochs for optimal downstream benchmarks. In all tables, the best and second-best results are highlighted in red and blue , respectively. Additional implementation details and qualitative results are provided in our supplementary. 
+
+B. Ablation Study 
+
+We progressively integrate OKD, CCL, and CDR into a vanilla baseline to isolate their individual and synergistic con-tributions. All ablations report mIoU after 300-epoch fine-tuning on the DDHR-SK [23] segmentation benchmark. We specifically adopt DDHR-SK because its dense HR imagery rigorously assesses fine-grained spatial understanding, while its inherent cloud interference provides an ideal testbed for evaluating weather-robustness of optical representations. 
+
+Dataset Composition. Using a vanilla shared encoder-decoder baseline, we pretrain on OSPretrain-1M’s paired, un-paired, and full subsets. Table IIIa shows that introducing spatially unaligned, target-centric imagery (the unpaired sub-set) provides complementary benefits without degrading perfor-mance. This highlights our method’s robustness to misregistra-tion, safely assimilating diverse data sources. 
+
+Shared vs. Independent Architecture. Compared to modality-independent decoders [13], sharing the full architec-ture yields consistent gains (Table IIIb), particularly for the SAR branch, even without explicit cross-modal interactions. This confirms our design purpose, which implicitly regularizes the speckle noise into a pure semantic manifold. Introducing OKD into this setup exceptionally amplifies these advantages by effectively transferring high-quality optical semantic priors to the SAR branch. 
+
+Synergistic Effect of CCL and CDR. Adopting the OKD-equipped shared architecture as a strong baseline, Table IIIc PREPRINT 6               
+
+> (a) Modality gap analysis via UMAP [41] (b) Cross-modal reconstruction visulization (c) Alignment vs. heterogeneity
+> Fig. 4. Mechanism analysis. (a) UMAP visualization reveals that CoDe-MAE prevents destructive feature suppression by preserving inter-modal divergence while enforcing isomorphic intra-cluster structures. ( b) Cross-modal reconstruction demonstrates that our CDR avoids epistemic uncertainty (color hallucinations), successfully recovering sharp structural synergy (the bridge). ( c) The alignment-heterogeneity analysis reveals that CoDe-MAE performs heterogeneity-aware selective interaction, effectively aligning structurally complex, heterogeneous patches rather than over-fitting to inherently trivial, homogeneous regions. TABLE III LINEAR PROBING RESULTS OF 10-SHOT CLASSIFICATION . W E COMPENSATE FOR MISSING SPECTRAL BANDS IN MULTISPECTRAL -PRETRAINED MODELS BY INPUTTING AVERAGED RGB INFORMATION .†PRETRAINING WITH MODALITY INTERACTIONS .‡SEPERATE ENCODERS FOR OPTICAL AND SAR INPUT .
+
+Method Backbone Dataset HR PIE DDHR-SK WHU DFC20 BEN-MM EuroSat 
+
+Opt. SAR Opt. SAR Opt. SAR Opt. SAR Opt. SAR Opt. SAR SwinSSL † [11] Swin-T ‡ SEN12MS (360K) [9] 80.12 79.43 59.06 76.62 78.47 79.51 51.56 54.01 49.17 49.85 48.00 40.85 DINO-MM † [12] ViT-S BEN-MM (620K) [42] 84.70 84.66 75.17 85.52 79.04 84.08 47.55 59.61 52.02 54.54 50.66 47.39 DeCUR † [20] ViT-S ‡ SSL4EO (502K) [10] 79.20 79.59 72.63 81.69 77.51 77.23 57.95 53.02 56.22 53.20 60.48 48.08 FG-MAE [36] ViT-B ‡ SSL4EO (2M) [10] 81.95 81.59 60.86 81.56 76.75 80.77 48.95 54.84 53.19 52.33 48.88 42.72 SatViT † [43] ViT-B Sentinel-1/2 (2.6M) 86.05 83.82 74.33 83.16 83.19 83.67 55.17 56.27 56.55 53.42 54.94 47.03 CROMA † [1] ViT-B ‡ SSL4EO (2M) [10] 83.03 81.99 71.69 84.25 79.78 82.05 50.39 55.37 55.90 54.83 59.12 47.97 DOFA † [44] DOFA-B DOFA-MM (8M) ✓ 88.19 86.13 81.57 87.13 85.45 81.44 62.20 60.27 57.94 56.50 70.25 55.87 
+
+MaRS † [5] Swin V2-B ‡ MaRS-16M (32M) ✓ 85.93 79.18 81.86 76.27 81.98 68.36 65.48 27.82 60.22 36.83 79.79 32.66 
+
+CoDe-MAE † (Ours) HiViT-B OSPretrain-1M ✓ 91.27 88.78 84.86 89.20 86.86 87.29 70.43 62.55 65.38 57.97 81.18 59.88 
+
+both CCL and CDR individually prevent representation degra-dation. Crucially, their combination yields peak performance, confirming that conditioning the contrastive space and degrading reconstruction targets are highly synergistic for decoupling shared semantics from distinct physical priors. 
+
+Contrastive Learning Space. Table IIIe ablates the design of our contrastive alignment space. Directly applying a vanilla equivalence-driven contrastive loss explicitly impairs repre-sentation quality, reconfirming that forced feature suppression across the non-isomorphic HR gap is highly destructive. Unlike static projection heads [1], [5], [11] that inevitably leak this alignment pressure back to the encoder, integrating our CA module introduces a robust, dynamic gradient buffer. This en-sures the contrastive penalty strictly targets the distilled shared consensus within the residual space, safely shielding the base embeddings to preserve modality-unique physical signatures and yielding optimal performance. 
+
+Cross-modal Reconstruction Target. Validating our epis-temic uncertainty hypothesis (Table IIId), forcing completeness-driven recovery (pixel-level RGB) severely causes severe feature contamination, while spatial degradation destroys HR granular-ity. Notably, although relying on handcrafted descriptors (HOG [36], [37], MGF [34]) alleviates the physical heterogeneity to some extent, they enforce rigid geometric priors. In contrast, our straightforward spectral degradation (grayscale) achieves superior results. By selectively dropping high-frequency spectral channels, it acts as an optimal, self-driven information bot-tleneck, successfully obviating the need for complex feature engineering while capturing structural synergy. 
+
+C. Mechanism Analysis 
+
+Topological Isomorphism vs. Feature Homogenization. 
+
+UMAP visualization (Fig. 6b) reveals that baseline and full-information reconstruction models exhibit chaotic pairwise con-nectivity and topological mismatch. Vanilla contrastive learn-ing forces feature suppression. Conversely, CoDe-MAE ele-gantly preserves inter-modal separation (protecting physical divergence) while enforcing isomorphic intra-cluster structures, visually evidenced by highly parallel connectivities. 
+
+Structural Synergy vs. Epistemic Uncertainty. Cross-modal reconstruction (Fig. 4b) further exposes the inherent flaws of explicit cross-modal mapping. When masking a structural region ( e.g., a bridge), full-information reconstruction suffers extreme epistemic uncertainty; driven by the ill-posed spectral mapping, it hallucinates erroneous color interference, resulting in severe feature contamination. By enforcing spectral degrada-tion, CDR acts as a targeted information bottleneck. Truncating this uncertain mapping enables CDR to successfully reconstruct sharp geometries, proving it learns robust structural synergy rather than memorizing noisy pixel-level translations. 
+
+Heterogeneity-Aware Selective Interaction. Fig. 4c maps patch-level alignment (embedding cosine similarity) against physical heterogeneity (original patch SSIM). Vanilla con-trastive and full-information reconstruction models exhibit a counter-productive bias: they indiscriminately over-align trivial homogeneous patches (high SSIM; e.g., water, soil) while failing on crucial heterogeneous ones (low SSIM; e.g., build-ings). Strikingly, CoDe-MAE reverses this trend. Exhibiting heterogeneity-aware selective interaction, it achieves stronger alignment on structurally complex, highly heterogeneous re-gions while moderately relaxing constraints on low-information homogeneous areas. Together, these confirm that by selectively capturing shared semantic and structural correspondences, CoDe-MAE success-fully decouples and preserves modality-unique signatures, sub-stantiating our better synergy with less alignment philosophy. PREPRINT 7                                                                                            
+
+> TABLE IV PERFORMANCE COMPARISON ON BRIGHT (DFC25-T2) DATASET . W ELEVERAGE THE SIAMESE -STYLE DAMAGE FORMER [47] FRAMEWORK .
+> Method Backbone DFC25-T2
+> mIoU DOFA [44] DoFA-B 37.59 SatMAE [48] ViT-L 29.39 GFM [49] Swin-B 28.24 SatLas [50] Swin-B 37.06 MaRS [5] Swin V2-B 41.49 CoDe-MAE (Ours) HiViT-B 43.75
+> TABLE V PERFORMANCE COMPARISON ON OPTICAL TASKS . W E ADHERE TO THE CONFIGURATIONS OF [3], [38], [39]. T HE TRAINING RATIO FOR AID AND
+> RESISC45 CLASSIFICATION IS 20% AND 10%, RESPECTIVELY .
+> Method Backbone AID
+> OA
+> RESISC45
+> OA
+> DIOR
+> mAP 50
+> LoveDA
+> mIoU RVSA [51] ViT-B+RVSA 97.03 93.93 75.80 51.95 SelectiveMAE [38] ViT-B 96.78 93.35 75.70 53.05
+> RingMo [39] Swin-B 96.90 94.25 75.90 -SatLas [50] Swin-B 94.96 92.16 74.10 -GFM [49] Swin-B 95.47 92.73 72.84 -MaRS [5] Swin V2-B 96.84 92.87 73.70 52.25
+> CoDe-MAE (Ours) HiViT-B 97.76 94.79 79.00 55.32
+> SatMAE [48] ViT-L 95.02 91.72 70.89 -ScaleMAE [8] ViT-L 96.44 92.63 73.81 -SelectiveMAE [38] ViT-L 97.25 94.57 77.80 54.31 SkySense [3] Swin V2-L -94.34 76.74 -SkySense [3] Swin V2-H 97.68 94.85 78.73 -
+
+D. Comparative Experiments 
+
+We evaluate CoDe-MAE via a three-tiered protocol: (1) assessing fundamental representation quality via linear probing, (2) evaluating asynchronous cross-modal understanding via fine-grained change detection, and (3) testing the preservation of distinct physical priors via single-modal transfer. 
+
+Fundamental Representation Quality (Linear Probing). 
+
+Following established protocols [11], [36], we evaluate 10-shot classification on three HR (PIE [45], DDHR-SK [23], WHU [24]) and three MR (DFC20 [46], BigEarthNet-MM [42], EuroSat-MM [36]) datasets to gauge intrinsic capacity without full fine-tuning bias. As shown in Table III, utilizing a modality-shared backbone, CoDe-MAE consistently outperforms existing dual-modal FMs across both modalities. This confirms that our framework successfully extracts superior representations while circumventing representation degradation. 
+
+Asynchronous Cross-Modal Understanding. We assess building damage on the BRIGHT dataset [6] (DFC25-T2 split), a challenging task requiring fine-grained change detec-tion across pre-disaster optical and post-disaster SAR inputs. Surpassing the previous SOTA dual-modal model, MaRS [5], by 2.26 mIoU (Table IV), CoDe-MAE demonstrates a supe-rior ability to identify true physical changes while remaining invariant to the profound optical-SAR physical gap. 
+
+Preserving Modality-Unique Priors. Joint optical-SAR models typically suffer “negative transfer” on single-modal tasks, where rigid alignment induces representation degradation. To rigorously test our capacity to prevent this degradation and achieve true positive synergy, we evaluate CoDe-MAE against specialized single-modal models on established benchmarks. 
+
+1) Optical Benchmarks: We evaluate classification (AID [52], RESISC45 [53]), detection (DIOR [54]), and segmentation (LoveDA [55]). CoDe-MAE establishes new Base-level SOTA performance (Table V). Despite pretraining on merely 1M samples, an order of magnitude fewer than OpticalRS-13M            
+
+> TABLE VI PERFORMANCE COMPARISON ON SAR TASKS AMONG BASE -LEVEL FM S.WE FOLLOW THE 40-SHOT SETTING [21] FOR CLASSIFICATION ,AND [34]
+> FOR SARD ET -100K DETECTION .
+
+Method Backbone FUSAR-SHIP 
+
+OA 
+
+MSTAR 
+
+OA 
+
+SAR-ACD 
+
+OA SAR-JEPA [58] ViT-B 85.8 91.6 75.5 SARATR-X [34] HiViT-B 87.7 98.1 76.4 
+
+SUMMIT [59] ViT-B 81.5 63.6 68.7 SARMAE [21] ViT-B 89.3 96.7 -MaRS [5] Swin V2-B 77.7 75.5 68.4 
+
+CoDe-MAE (Ours) HiViT-B 89.4 98.7 78.3 Method Backbone SARDet-100K 
+
+mAP mAP 50 mAP 75 
+
+MSFA [37] ConvNext-B 56.4 88.2 61.5 SARATR-X [34] HiViT-B 57.3 88.7 62.8 
+
+SUMMIT [59] ViT-B 57.0 89.9 62.7 SARMAE [21] ViT-B 57.9 - -MaRS [5] Swin V2-B 55.4 - 61.4 
+
+CoDe-MAE (Ours) HiViT-B 61.1 90.6 66.6 
+
+[38] and SkySense-21.5M [3], CoDe-MAE outperforms larger-scale optical-exclusive models ( e.g., surpassing SelectiveMAE-L [38] by 1.2 mAP 50 on DIOR and 1.01 mIoU on LoveDA), demonstrating remarkable data efficiency. 
+
+2) SAR Benchmarks: Evaluating SAR-only target classi-fication (FUSAR-SHIP [56], MSTAR, SAR-ACD [57]) and detection (SARDet-100K [37]), CoDe-MAE achieves SOTA across all datasets (Table VI). Crucially, it surpasses specialized SAR-specific models ( e.g., SARMAE [21], SARATR-X [34]). Outperforming these domain experts explicitly confirms that our strategy successfully preserves and enhances the modality-unique microwave scattering characteristics essential for SAR interpretation. V. C ONCLUSION 
+
+We address the representation degradation bottleneck in multi-modal visual SSL using HR optical-SAR pretraining as an extreme testbed. We reveal that applying rigid alignment to such non-isomorphic scenarios triggers severe feature sup-pression and contamination. To circumvent this, we propose CoDe-MAE, a framework driven by a better synergy with less alignment philosophy. By synergizing CCL and CDR, it safely extracts conditioned consensus and truncates epistemic uncertainty, effectively decoupling structural invariants from physical divergence. Pretrained on 1M samples, CoDe-MAE establishes new SOTA performance across diverse downstream tasks, substantially outperforming FMs trained on vastly larger datasets. By resolving representation degradation in this highly divergent setting, we hope our philosophy provides a rigorously grounded reference for broader multi-modal visual representa-tion learning. APPENDIX APRE -TRAINING IMPLEMENTATION DETAILS 
+
+In established practices, pre-trained models commonly adopt ImageNet statistics for data standardization during both pre-training and downstream tasks. OSPretrain-1M is composed of patches from 15 datasets, encompassing diverse geograph-ical distributions, land-cover types, imaging bands, and post-processing algorithms. To accommodate this heterogeneity, we apply separate normalization for each constituent dataset and PREPRINT 8
+
+TABLE VII DETAILED CONFIGURATIONS OF PRE -TRAINING AND FINE -TUNING ON CLASSIFICATION DATASETS .
+
+Task Pre-training Classification Dataset OSPretrain-1M AID RESISC-45 FUSAR-SHIP ,
+
+MSTAR SAR-ACD 
+
+Optimizer AdamW AdamW AdamW AdamW AdamW Input Size 224 × 224 224 × 224 224 × 224 224 × 224 224 × 224 
+
+Input channel RGB & SAR RGB RGB SAR SAR Base learning rate 1.5e−4 1e−3 1e−3 1e−3 1e−3
+
+Learning rate scheduler Cosine Annealing Cosine Annealing Cosine Annealing Cosine Annealing Cosine Annealing Weight decay 0.05 0.05 0.05 0.05 0.05 
+
+Optimizer momentum (0 .9, 0.95) (0 .9, 0.999) (0 .9, 0.999) (0 .9, 0.999) (0 .9, 0.999) 
+
+Batch size 2, 048 32 32 50 50 
+
+Max epoch 800 100 100 60 60 
+
+Warmup Linear Linear Linear Linear Linear Warmup epoch 15 5 5 2 2
+
+Drop path rate 0 0.1 0.1 0.05 0.05 
+
+Layer decay - 0.85 0.95 0.85 -Augmentation RandomResizedCrop, HorizontalFlip RandomResizedCrop, HorizontalFlip, RandomErasing RandomResizedCrop, HorizontalFlip, RandomErasing - -Head - Linear Classifier Linear Classifier Linear Classifier (+BN) Linear Classifier (+BN) Loss function LM AE + LOKD +,
+
+LCCL + LCDR CrossEntropy CrossEntropy CrossEntropy CrossEntropy TABLE VIII DETAILED CONFIGURATIONS OF FINE -TUNING ON DENSE PREDICTION TASKS .
+
+Task Detection Segmentation Dataset DIOR SARDet-100K LoveDA DFC25-T2 
+
+Optimizer AdamW AdamW AdamW AdamW Input Size 800 × 800 800 × 800 512 × 512 512 × 512 
+
+Input channel RGB SAR RGB RGB & SAR Learning rate 3e−4 3e−4 1e−4 1e−4
+
+Learning rate scheduler Multistep Multistep Poly Poly Weight decay 0.05 0.05 0.05 0.05 
+
+Optimizer momentum (0 .9, 0.999) (0 .9, 0.999) (0 .9, 0.999) (0 .9, 0.999) 
+
+Batch size 16 16 16 8 (pair) Max epoch/iteration 12 36 10 , 000 30 , 000 
+
+Warmup Linear Linear Linear Linear Warmup epoch/iteration 500 500 500 100 
+
+Drop path rate 0.15 0.15 0.15 0.15 
+
+Layer decay 0.85 0.85 0.85 0.85 
+
+Augmentation Resize, RandomFlip Resize, RandomFlip RandomScaling (0.5 to 2.0), RandomCrop, RandomFlip RandomScaling (0.5 to 2.0), RandomCrop, RandomFlip, RandomRotation Head Faster RCNN Faster RCNN UperNet DamageFormer Loss function CrossEntropy, L1 CrossEntropy CrossEntropy CrossEntropy 
+
+modality during input preprocessing. Consequently, when adapt-ing CoDe-MAE to downstream tasks, we compute and apply the normalization statistics specifically for each target dataset. During training, we sample optical and SAR data at a 1:1 ratio. Recall that OSPretrain-1M consists of both paired and unpaired portions. In distributed training, we ensure that each GPU receives batches that are entirely either paired or unpaired. When a batch is unpaired, the losses LCDR and LCCL are multiplied by zero to avoid confusion. In this case, only the shared encoder and decoder contribute to implicit cross-modal alignment. The overall configuration of pre-training is provided in Table VII. APPENDIX BIMPLEMENTATION DETAILS OF DOWNSTREAM TASKS 
+
+A. Linear Probing 
+
+To enable a fair comparison with existing optical–SAR foundation models, we evaluate on six optical–SAR regis-tered datasets for land-cover classification, including PIE-RGB-SAR [45], DDHR-SK [23], WHU-OPT-SAR [24], DFC20 [46], BigEarthNet-MM [42], and EuroSat-MM [36], [60]. Among these, the first four provide pixel-level annotations, BigEarthNet-MM provides multi-label classification labels, and EuroSat-MM provides single-label classification labels. Follow-ing SwinSSL [11], we retain categories that account for more than 10% of the total pixels as valid labels. Accordingly, we use micro mAP as the evaluation metric for the first five datasets, while EuroSat-MM is evaluated using overall accuracy (OA). We freeze the backbone and perform linear probing by adding a Batch Normalization layer before the classifier. Following FG-MAE [36], we adopt the SGD optimizer with a learning rate of 0.5, momentum of 0.9, and weight decay of 0 for 50-epoch training. All input images are resized to match the pretraining resolution of each compared model. The final results are averaged over 5 distinct seeds. PREPRINT 9
+
+B. Scene/Target Classification 
+
+We mainly follow the evaluation protocols established in RingMo [39], SkySense [3], and SelectiveMAE [38] for optical image classification on the AID [52] and NWPU-RESISC45 [53] datasets. Specifically, we use 20% and 10% of the data for training, respectively, with the remaining samples used for evaluation via OA. For SAR target classification evaluation, we follow the protocols established in SARATR-X [34], SARMAE [21], and SUMMIT [59]. We conduct 40-shot full fine-tuning experiment on the FUSAR-SHIP [56], MSTAR [61], and SAR-ACD [57] datasets. Detailed experimental settings are provided in Table VII. 
+
+C. Object Detection and Semantic Segmentation 
+
+We evaluate object detection performance on DIOR [54] (RGB) and SARDet-100K [37] (SAR). Following established evaluation protocols [3], [39], [51], we adopt Faster RCNN [62] as the detector. Training follows a 1 × schedule (12 epochs) [3], [38] for DIOR and a 3 × schedule (36 epochs) [34] for SARDet-100K. We evaluate segmentation capabilities using UperNet [63] as the segmentation head for the LoveDA dataset [55] (RGB) and DamageFormer [47] for the BRIGHT dataset [6] (RGB & SAR, Bi-temporal, DFC25-T2 subset). Detailed configurations are provided in Table VIII. 
+
+D. Qualitative Results 
+
+We provide qualitative inference results of CoDe-MAE in Figs. 5 and 6. Overall, CoDe-MAE demonstrates strong gen-eralization capabilities, performing well even in dense small-object scenarios. In pixel-level tasks, it produces regular shapes and sharp boundary delineations. REFERENCES [1] A. Fuller, K. Millard, and J. Green, “Croma: Remote sensing representa-tions with contrastive radar-optical masked autoencoders,” in Adv. Neural Inform. Process. Syst. , vol. 36, 2023, pp. 5506–5538. [2] A. Radford et al. , “Learning transferable visual models from natural language supervision,” in Int. Conf. Mach. Learn. , 2021, pp. 8748–8763. [3] X. Guo et al. , “Skysense: A multi-modal remote sensing foundation model towards universal interpretation for earth observation imagery,” in IEEE Conf. Comput. Vis. Pattern Recog. , 2024, pp. 27 672–27 683. [4] D. Hong, C. Li, X. Li, G. Camps-Valls, and J. Chanussot, “Foundation models in remote sensing: Evolving from unimodality to multimodality,” 
+
+IEEE Geosci. Remote Sens. Mag. , 2026. [5] R. Yang et al. , “Mars: A multi-modality very-high-resolution remote sensing foundation model with cross-granularity meta-modality learning,” in AAAI Conf. Artif. Intell. , vol. 40, 2026, pp. 11 685–11 693. [6] H. Chen et al. , “B RIGHT : a globally distributed multimodal building dam-age assessment dataset with very-high-resolution for all-weather disaster response,” Earth Syst. Sci. Data , vol. 17, no. 11, pp. 6217–6253, 2025. [7] J. Shermeyer et al. , “Spacenet 6: Multi-sensor all weather mapping dataset,” in IEEE Conf. Comput. Vis. Pattern Recog. Worksh. , 2020. [8] C. J. Reed et al. , “Scale-mae: A scale-aware masked autoencoder for multiscale geospatial representation learning,” in Int. Conf. Comput. Vis. ,2023. [9] M. Schmitt, L. Hughes, C. Qiu, and X. Zhu, “Sen12ms–a curated dataset of georeferenced multi-spectral sentinel-1/2 imagery for deep learning and data fusion,” ISPRS Ann. Photogramm. Remote Sens. Spat. Inf. Sci. , vol. 4, pp. 153–160, 2019. [10] Y. Wang, N. A. A. Braham, Z. Xiong, C. Liu, C. M. Albrecht, and X. X. Zhu, “Ssl4eo-s12: A large-scale multimodal, multitemporal dataset for self-supervised learning in earth observation [software and data sets],” 
+
+IEEE Geosci. Remote Sens. Mag. , vol. 11, no. 3, pp. 98–106, 2023. [11] L. Scheibenreif, J. Hanna, M. Mommert, and D. Borth, “Self-supervised vision transformers for land-cover segmentation and classification,” in 
+
+IEEE Conf. Comput. Vis. Pattern Recog. Worksh. , 2022, pp. 1422–1431. [12] Y. Wang, C. M. Albrecht, and X. X. Zhu, “Self-supervised vision transformers for joint sar-optical representation learning,” in IEEE Int. Geosci. Remote Sens. Symp. , 2022, pp. 139–142. [13] B. Han, S. Zhang, X. Shi, and M. Reichstein, “Bridging remote sensors with multisensor geospatial foundation models,” in IEEE Conf. Comput. Vis. Pattern Recog. , 2024, pp. 27 852–27 862. [14] Y. Tian, C. Sun, B. Poole, D. Krishnan, C. Schmid, and P. Isola, “What makes for good views for contrastive learning?” in Adv. Neural Inform. Process. Syst. , vol. 33, 2020, pp. 6827–6839. [15] K. He, X. Chen, S. Xie, Y. Li, P. Doll´ ar, and R. Girshick, “Masked autoencoders are scalable vision learners,” in IEEE Conf. Comput. Vis. Pattern Recog. , 2022, pp. 16 000–16 009. [16] T. Chen, S. Kornblith, M. Norouzi, and G. Hinton, “A simple framework for contrastive learning of visual representations,” in Int. Conf. Mach. Learn. , 2020, pp. 1597–1607. [17] O. Sim´ eoni et al. , “Dinov3,” arXiv preprint:2508.10104 , 2025. [18] Y. Tian et al. , “Integrally pre-trained transformer pyramid networks,” in 
+
+IEEE Conf. Comput. Vis. Pattern Recog. , 2023, pp. 18 610–18 620. [19] R. Xiao, S. Kim, M.-I. Georgescu, Z. Akata, and S. Alaniz, “Flair: Vlm with fine-grained language-informed image representations,” in IEEE Conf. Comput. Vis. Pattern Recog. , 2025, pp. 24 884–24 894. [20] Y. Wang, C. M. Albrecht, N. A. A. Braham, C. Liu, Z. Xiong, and X. X. Zhu, “Decoupling common and unique representations for multimodal self-supervised learning,” in Eur. Conf. Comput. Vis. , 2024, pp. 286–303. [21] D. Liu et al. , “Sarmae: Masked autoencoder for sar representation learn-ing,” arXiv preprint:2512.16635 , 2025. [22] M. Huang et al. , “The qxs-saropt dataset for deep learning in sar-optical data fusion,” arXiv preprint:2103.08259 , 2021. [23] B. Ren et al. , “A dual-stream high resolution network: Deep fusion of gf-2 and gf-3 data for land cover classification,” Int. J. Appl. Earth Obs. Geoinf. , vol. 112, p. 102896, 2022. [24] X. Li et al. , “Mcanet: A joint semantic segmentation framework of optical and sar images for land use classification,” Int. J. Appl. Earth Obs. Geoinf. ,vol. 106, p. 102638, 2022. [25] C. Persello et al. , “2023 ieee grss data fusion contest: Large-scale fine-grained building classification for semantic urban reconstruction [technical committees],” IEEE Geosci. Remote Sens. Mag. , 2023. [26] C. Wang, L. Luo, W. Fang, and J. Yang, “Cross-modal gaussian local-ization distillation for optical information guided sar object detection,” in 
+
+IEEE Int. Conf. Acoust. Speech Signal Process. , 2025. [27] C. Yang, G. Gong, C. Liu, J. Deng, and Y. Ye, “Rmso-convnext: A lightweight cnn network for robust sar and optical image matching under strong noise interference,” IEEE Trans. Geosci. Remote Sens. , vol. 63, 2025. [28] J. Xia, H. Chen, C. Broni-Bediako, Y. Wei, J. Song, and N. Yokoya, “Openearthmap-sar: A benchmark synthetic aperture radar dataset for global high-resolution land cover mapping,” arXiv preprint:2501.10891 ,2025. [29] Y. Zhou, A. Ma, J. Wang, Z. Chen, and Y. Zhong, “Remote sensing meta modal representation for missing modality land cover mapping: From earthmiss dataset to metars method,” Remote Sens. Environ. , vol. 333, p. 115132, 2026. [30] Y. Xiang et al. , “Osdataset2.0: Sar-optical image matching dataset and evaluation benchmark,” Journal of Radars , 2025. [31] Y. Long, Y. Gong, Z. Xiao, and Q. Liu, “Accurate object localization in remote sensing images based on convolutional neural networks,” IEEE Trans. Geosci. Remote Sens. , vol. 55, no. 5, pp. 2486–2498, 2017. [32] X. Sun et al. , “Fair1m: A benchmark dataset for fine-grained object recog-nition in high-resolution remote sensing imagery,” ISPRS-J. Photogramm. Remote Sens. , vol. 184, pp. 116–130, 2022. [33] Y. Wu et al. , “Fair-csar: A benchmark dataset for fine-grained object detection and recognition based on single-look complex sar images,” IEEE Trans. Geosci. Remote Sens. , vol. 63, 2024. [34] W. Li, W. Yang, Y. Hou, L. Liu, Y. Liu, and X. Li, “Saratr-x: Toward building a foundation model for sar target recognition,” IEEE Trans. Image Process. , vol. 34, pp. 869–884, 2025. [35] Y. Liu et al. , “Atrnet-star: A large dataset and benchmark towards remote sensing object recognition in the wild,” IEEE Trans. Pattern Anal. Mach. Intell. , 2026. [36] Y. Wang, H. H. Hern´ andez, C. M. Albrecht, and X. X. Zhu, “Feature guided masked autoencoder for self-supervised learning in remote sens-ing,” IEEE J. Sel. Top. Appl. Earth Observ. Remote Sens. , vol. 18, pp. 321–336, 2025. [37] Y. Li et al. , “Sardet-100k: Towards open-source benchmark and toolkit for large-scale sar object detection,” in Adv. Neural Inform. Process. Syst. ,vol. 37, 2024, pp. 128 430–128 461. [38] F. Wang et al. , “Harnessing massive satellite imagery with efficient masked image modeling,” in Int. Conf. Comput. Vis. , 2025, pp. 6935–6947. [39] X. Sun et al. , “Ringmo: A remote sensing foundation model with masked image modeling,” IEEE Trans. Geosci. Remote Sens. , vol. 61, 2022. PREPRINT 10 
+
+(a) DIOR 
+
+(b) SARDet-100K 
+
+Fig. 5. CoDe-MAE prediction on detection task. PREPRINT 11 
+
+(a) LoveDA 
+
+(b) BRIGHT 
+
+Fig. 6. CoDe-MAE prediction on segmentation task. PREPRINT 12 
+
+[40] X. Zhang et al. , “Hivit: A simpler and more efficient design of hierarchical vision transformer,” in Int. Conf. Learn. Represent. , 2023. [41] L. McInnes, J. Healy, and J. Melville, “UMAP: Uniform Mani-fold Approximation and Projection for Dimension Reduction,” arXiv preprint:1802.03426 , 2018. [42] G. Sumbul et al. , “Bigearthnet-mm: A large-scale, multimodal, multilabel benchmark archive for remote sensing image classification and retrieval [software and data sets],” IEEE Geosci. Remote Sens. Mag. , vol. 9, no. 3, pp. 174–180, 2021. [43] A. Fuller, K. Millard, and J. R. Green, “Satvit: Pretraining transformers for earth observation,” IEEE Geosci. Remote Sens. Lett. , vol. 19, 2022. [44] Z. Xiong et al. , “Neural plasticity-inspired multimodal foundation model for earth observation,” arXiv preprint:2403.15356 , 2024. [45] P. Zhang, B. Peng, C. Lu, Q. Huang, and D. Liu, “Asanet: Asymmetric semantic aligning network for rgb and sar image land cover classification,” 
+
+ISPRS-J. Photogramm. Remote Sens. , vol. 218, pp. 574–587, 2024. [46] M. Schmitt, L. Hughes, P. Ghamisi, N. Yokoya, and R. H¨ ansch, “2020 ieee grss data fusion contest,” IEEE Dataport , 2019. [47] H. Chen, E. Nemni, S. Vallecorsa, X. Li, C. Wu, and L. Bromley, “Dual-tasks siamese transformer framework for building damage assessment,” in 
+
+IEEE Int. Geosci. Remote Sens. Symp. , 2022, pp. 1600–1603. [48] Y. Cong et al. , “Satmae: Pre-training transformers for temporal and multi-spectral satellite imagery,” in Adv. Neural Inform. Process. Syst. , vol. 35, 2022, pp. 197–211. [49] M. Mendieta, B. Han, X. Shi, Y. Zhu, and C. Chen, “Towards geospatial foundation models via continual pretraining,” in Int. Conf. Comput. Vis. ,2023, pp. 16 806–16 816. [50] F. Bastani, P. Wolters, R. Gupta, J. Ferdinando, and A. Kembhavi, “Sat-laspretrain: A large-scale dataset for remote sensing image understanding,” in Int. Conf. Comput. Vis. , 2023, pp. 16 772–16 782. [51] D. Wang et al. , “Advancing plain vision transformer toward remote sensing foundation model,” IEEE Trans. Geosci. Remote Sens. , vol. 61, 2022. [52] G.-S. Xia et al. , “Aid: A benchmark data set for performance evaluation of aerial scene classification,” IEEE Trans. Geosci. Remote Sens. , vol. 55, no. 7, pp. 3965–3981, 2017. [53] G. Cheng, J. Han, and X. Lu, “Remote sensing image scene classification: Benchmark and state of the art,” Proc. IEEE , 2017. [54] K. Li, G. Wan, G. Cheng, L. Meng, and J. Han, “Object detection in optical remote sensing images: A survey and a new benchmark,” ISPRS-J. Photogramm. Remote Sens. , vol. 159, pp. 296–307, 2020. [55] J. Wang, Z. Zheng, A. Ma, X. Lu, and Y. Zhong, “Loveda: A remote sensing land-cover dataset for domain adaptive semantic segmentation,” in Adv. Neural Inform. Process. Syst. , 2021. [56] X. Hou, W. Ao, Q. Song, J. Lai, H. Wang, and F. Xu, “Fusar-ship: Building a high-resolution sar-ais matchup dataset of gaofen-3 for ship detection and recognition,” Sci. China Inf. Sci. , vol. 63, no. 4, p. 140303, 2020. [57] X. Sun, Y. Lv, Z. Wang, and K. Fu, “Scan: Scattering characteristics analysis network for few-shot aircraft classification in high-resolution sar images,” IEEE Trans. Geosci. Remote Sens. , vol. 60, 2022. [58] W. Li et al. , “Predicting gradient is better: Exploring self-supervised learning for sar atr with a joint-embedding predictive architecture,” ISPRS-J. Photogramm. Remote Sens. , vol. 218, pp. 326–338, 2024. [59] Y. Du, Y. Chen, L. Huang, Y. Yang, P. Ghamisi, and Q. Du, “Summit: A sar foundation model with multiple auxiliary tasks enhanced intrinsic characteristics,” Int. J. Appl. Earth Obs. Geoinf. , vol. 141, p. 104624, 2025. [60] P. Helber, B. Bischke, A. Dengel, and D. Borth, “Eurosat: A novel dataset and deep learning benchmark for land use and land cover classification,” 
+
+IEEE J. Sel. Top. Appl. Earth Observ. Remote Sens. , 2019. [61] “The Air Force Moving and Stationary Target Recognition Database.” [Online]. Available: https://www.sdms.afrl.af.mil/datasets/mstar/ [62] S. Ren, K. He, R. Girshick, and J. Sun, “Faster r-cnn: Towards real-time object detection with region proposal networks,” NeurIPS , 2015. [63] T. Xiao, Y. Liu, B. Zhou, Y. Jiang, and J. Sun, “Unified perceptual parsing for scene understanding,” in Eur. Conf. Comput. Vis. , 2018.
