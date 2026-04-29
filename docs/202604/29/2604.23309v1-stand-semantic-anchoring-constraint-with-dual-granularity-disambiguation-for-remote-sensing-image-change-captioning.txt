@@ -1,0 +1,707 @@
+Title: STAND: Semantic Anchoring Constraint with Dual-Granularity Disambiguation for Remote Sensing Image Change Captioning
+
+URL Source: https://arxiv.org/pdf/2604.23309v1
+
+Published Time: Tue, 28 Apr 2026 00:36:30 GMT
+
+Number of Pages: 18
+
+Markdown Content:
+# STAND: Semantic Anchoring Constraint with Dual-Granularity Disambiguation for Remote Sensing Image Change Captioning 
+
+Yanpei Gong 1, Beichen Zhang 1⋆, Hao Wang 1, Zhaobo Qi 1, Xinyan Liu 1,Yuanrong Xu 1, Ruiyang Gao 1, and Weigang Zhang 1
+
+Harbin Institute of Technology, Weihai, China 
+
+2023211640@stu.hit.edu.cn, beiczhang@hit.edu.cn 
+
+Abstract. Remote sensing image change captioning (RSICC) aims to describe the difference between two remote sensing images. While re-cent methods have explored video modeling, they largely overlook the inherent ambiguities in viewpoint, scale, and prior knowledge, lacking effective constraints on the encoder. In this paper, we present STAND, a Semantic Anchoring Constraint with Dual-Granularity Disambiguation for RSICC, to progressively resolve these ambiguities. Specifically, to es-tablish a reliable feature foundation, we first introduce an interpretable constraint to regularize temporal representations. Operating on these purified features, a dual-granularity disambiguation module resolves spa-tial uncertainties by coupling macro-level global context aggregation for viewpoint confusion with micro-level frequency-refocused attention for small-object scale enhancement. Ultimately, to translate these visually disambiguated features into precise text, a semantic concept anchoring module leverages language categorical priors to tackle knowledge ambi-guity during decoding. Extensive experiments verify the superiority of STAND and its effectiveness in addressing ambiguities. The code will be open-sourced at https://github.com/yanpeigong/stand .
+
+Keywords: Change Captioning · Remote Sensing · Concept Disam-biguation 
+
+1 Introduction 
+
+Remote sensing image change captioning (RSICC) aims to describe the difference between two bi-temporal images. With increasing demand in urban monitoring and environmental assessment, this task has gained growing attention in both the remote sensing (RS) and vision-language communities [20, 31]. Unlike natural image change captioning, RSICC is more challenging due to the inherent ambiguities within RS images. We attribute these ambiguities to three factors: viewpoint, scale, and knowledge. (1) Viewpoint ambiguity (Fig. 1 (a) (b)): since distinct objects may have highly similar appearances under a top-down and remote viewpoint, RS images are often confusing. (2) Scale ambiguity  
+
+> ⋆
+
+Corresponding author 
+
+> arXiv:2604.23309v1 [cs.CV] 25 Apr 2026
+
+2 Y. Gong et al. <image1> <image2> <ambiguity>           
+
+> (a)
+> Viewpoint ambiguity: the white
+> square on the left represents a road ,
+> whereas the one on the right is the
+> roof . This makes it difficult for
+> models to disambiguate categories.
+> (b)
+> Scale ambiguity: a small building
+> appears in the top left and occupies a
+> small portion of pixels , which makes
+> it hard for models to capture its
+> features .
+> (c)
+> Knowledge ambiguity: there are many
+> changed objects in the “after” image,
+> such as woods ,buildings ,parking lots
+> and swimming pools , which requires
+> models to recognize precisely.
+> (d)
+> Viewpoint ambiguity: the long blue
+> rectangular shape on the left is a
+> container , while the right is the roof .
+> This makes it difficult for models to
+> disambiguate categories.
+> <image1> <image2> <ambiguity>
+
+Fig. 1: Typical examples of ambiguities in the remote sensing images. We attribute these ambiguities to three main factors: viewpoint, scale, and knowledge. 
+
+(Fig. 1 (c)): a 256*256 image often corresponds to a region with hundreds of square meters [20,31], while changed objects occupy only a small portion of pixels making the changes difficult to distinguish and recognize from the background. (3) Knowledge ambiguity (Fig. 1 (d)): In contrast to natural image settings [28], RSICC requires precise entity-level identification, making it heavily dependent on domain-specific prior knowledge, especially when multiple entities appear. To generate accurate change descriptions, most previous studies [5, 20, 54] adopt a static image encoder for bi-temporal modeling. Nevertheless, image en-coders mainly focus on local feature extraction while neglecting long-range con-text [51,56]. Building upon such encoders, difference-centric methods [5,6,18,20] assume that visual discrepancies directly correspond to semantic changes. How-ever, this assumption often fails in RS due to the aforementioned ambiguity, where distinct objects may have a similar appearance from top-down viewpoint. Therefore, we argue that resolving such an issue requires understanding the overall scene rather than difference features alone. Recently, mask-based meth-ods [15, 23] attempted to highlight changed regions by hard filtering. Yet, this operation ignores contextual information that is crucial for disambiguating look-alike objects, often amplifying the ambiguity. More recently, video-based models utilizing learnable perception frames were proposed to extract temporal fea-tures [56]. While they capture spatio-temporal dynamics, they naively overlook the inherent ambiguities and lack effective constraints on the encoder, failing to systematically decouple these domain-specific challenges. Based on these observations, we argue that high-quality change caption-ing requires progressively resolving these ambiguities. Accordingly, we propose STAND, a Seman Tic Anchoring Co Nstraint with Dual-Granularity Disam-biguation for RSICC. First, to capture temporal change dynamics, STAND mod-els the before-mask-after triplet as a short video clip and encodes it using a video encoder. To further regularize the temporal transition, an Interpretable Tran-sition Constraint (ITC) module encourages consistent relations among before, change, and after representations. Building upon these representations, we de-sign a Dual-Granularity Target Disambiguation (DGTD) module to address scale and viewpoint ambiguities. Specifically, a macro-level Context-Aware Viewpoint Disambiguation (CAVD) module incorporates global semantics to distinguish vi-STAND for Remote Sensing Image Change Captioning 3
+
+sually similar entities, while a micro-level Frequency-Refocused Complementary Attention (FRCA) enhances small-object responses to mitigate scale ambiguity. Finally, to resolve knowledge ambiguity, a Semantic Concept Anchoring (SCA) module leverages language categorical priors to guide the decoding process. Overall, STAND addresses the three ambiguities through a progressive pipeline and outperforms state-of-the-art methods on extensive RS datasets. The main contributions are summarized as follows: 
+
+– We propose a disambiguation network. Within it, we introduce an ITC to regularize temporal representations and capture genuine change dynamics. 
+
+– We introduce a DGTD module that jointly enhances global perception and small-object sensitivity to alleviate viewpoint and scale ambiguities. 
+
+– We propose SCA module that stabilizes caption generation by grounding visual changes to structured language priors. 
+
+– We further conduct targeted evaluations that examine the model behavior under different ambiguity scenarios. 
+
+2 Related Work 
+
+2.1 Change Captioning 
+
+Change captioning is an essential task in the field of vision language process-ing [42, 45, 56]. Depending on the image domain, existing research in this area can be broadly divided into two main domains based on image type: natural images and remote sensing images [5]. In the domain of natural images, early works [10, 14, 25, 39, 43, 53] have explored various methods for localizing and describing changes. A typical ap-proach [12, 32, 52] is to isolate the change features by computing the image sim-ilarity and removing the shared components. Another approach [40, 41] adopts contrastive learning for better robustness. These advances in natural images have offered valuable insights, yet their applicability to other visual domains remains limited due to domain-specific ambiguities. In view of this, remote sensing image change captioning (RSICC) was pro-posed for satellite images. Unlike natural scenes, remote sensing (RS) images contain more complex, dynamic landscapes, substantial visual noise and unre-lated changes like illumination and seasonal effects [5, 19]. Therefore, the goal is to describe meaningful changes while ignoring unimportant visual variations. Recent studies [5, 6, 16, 18, 54] employ various attention mechanisms or revisit the task from a video-modeling perspective [56] to enhance difference percep-tion. In parallel, multi-task frameworks [11, 31, 35, 46] leverage complementary supervision from related tasks to improve representation learning. More recently, works [15, 23] have introduced change masks to highlight the changed areas and achieved promising results. Yet, their methods rely on explicit mask filtering, which risks disrupting contextual integrity and causes irreversible information loss. Furthermore, most RS methods [5, 20, 31, 42] adopt Siamese encoders that process the two images separately. However, this parallel processing architecture focuses on local feature extraction while neglecting long-range context [51, 56]. 4 Y. Gong et al. ITC 
+
+ITC         
+
+> fc
+> fusion
+> fc
+> fc
+> constraint
+> Change
+> extractor
+> Global
+> extractor
+> FRCA  FRCA
+> mlp
+> Cross-
+> attention
+> Add & Norm
+> Self-
+> attention
+> Add & Norm
+> Cross-
+> attention
+> Add & Norm
+> Linear & Softmax
+> classifier
+> S
+> FRCA
+> C
+> Position
+> Embedding
+> Semantic
+> Enrichment
+> DCT
+> DCT
+> iDCT
+> iDCT Which object category has changed?
+> Building: 1
+> Parking lot: 0
+> Road: 0
+> Vegetation: 1
+> Water: 0
+> ITC Module
+> FRCA
+> SCA Module
+> DGTD Module
+> Video Clip
+> Building: 1
+> Parking lot: 0
+> Road: 0
+> Vegetation: 1
+> Water: 0
+> Building: 1
+> Parking lot: 0
+> Road: 0
+> Vegetation: 1
+> Water: 0
+> split
+> 𝐀 𝐀 𝐀 𝐀
+> ′
+> 𝐀 𝐀𰠀𝐀
+> ′
+> 𝐀 𝐀
+> 𝐀 𝐀𰰀𰠀
+> ′
+> 𝐀 𝐀 𝐀 𝐀
+> ′
+> 𝐀 𝐀𰰀𰠀
+> 𝐀 𝐀𰠀𝐀
+> 𝐀 𝐀𰠀𝐀
+> 𝐀 𝐀𰰀𰠀 𝐀 𝐀
+> 𝐀 𝐀
+> 𝐀 𝐀𝐀𝐀
+> 𝐀 𝐀
+> 𝐀 𝐀
+> 𝐀 𝐀
+> 𝐀 ×𝐀
+> Avgpool
+> Bn
+> 𝐀 𝐀
+> 𝐀 Spatial mask Channel mask
+> CE
+> Loss
+> caption
+> Multiplication
+> and Concat
+> Linear
+> Modulation
+> Addition
+> Multiplication
+> S
+> L
+> L
+> L
+> 𝐀 𝐀 ,𝐀 𝐀
+> 𝐀 𝐀 ,𝐀 𝐀
+> reshape
+> query
+> split
+> Video
+> encoder
+> LLM
+
+Fig. 2: The architecture of STAND, including an interpretable transition constraint (ITC), dual-granularity target disambiguation (DGTD) module, and semantic concept anchoring (SCA) module. B and fc denote batch size and fully connected layer. 
+
+2.2 Video Understanding 
+
+Video understanding provides an effective paradigm for modeling spatio-temporal dynamics [36]. By treating a sequence of frames as a unified input, video under-standing models excel at capturing spatio-temporal relationships and dynamic events. Early works [4, 33, 37, 38] have extended 2D CNNs to 3D CNNs, achiev-ing notable progress but suffering from high computational cost. To achieve a better trade-off between accuracy and efficiency, [8] proposed X3D to expand 2D image backbone along several network axes. This design enables powerful spatio-temporal feature learning while keeping computational complexity low, making it well suited for compact video-like modeling scenarios. 
+
+3 Methodology 
+
+As illustrated in Fig. 2, our proposed STAND network comprises five parts: (1) A pretrained video encoder encodes a short video clip. (2) The ITC regularizes these temporal representations. (3) A DGTD module resolves scale and view-point ambiguity. (4) The SCA module stabilizes caption generation by grounding visual changes to language priors. (5) A decoder generates change descriptions. 
+
+3.1 Video Clip Encoding 
+
+Formally, given a pair of bi-temporal images Ibef and Iaft , along with the “change mask” Imask , STAND first concatenates them to form a short video clip. The concatenated sequence is then fed into a video encoder and the encoder outputs are subsequently split into three feature tokens, denoted as Xbef , Xc, and Xaft .This process is defined by: 
+
+ Xbef , X c, X aft 
+
+ = Split( Fenc ([ Ibef ; Imask ; Iaft ])) , (1) STAND for Remote Sensing Image Change Captioning 5
+
+where Fenc (·) is a video encoder, and [·; ·] denotes concatenation. I ∈ R 3×H×W ,
+
+X ∈ {R Ci× H   
+
+> 2i+1 ×W
+> 2i+1
+
+}3
+
+> i=0
+
+. Xti indicates the feature of the t-th frame from the 
+
+i-th encoder layer. Imask is obtained from a pre-trained change detector [56]. 
+
+3.2 Interpretable Transition Constraint 
+
+After the video clip encoding, we first utilize a linear modulation method [29] to suppress feature entanglement caused by 3D convolutions: 
+
+¯xo ← α¯xo + β, α = f (xo), β = h(xo), (2) where xo, ¯xo ∈ { Xbef , X aft } with xo̸ = ¯ xo, and the functions f (·) and h(·) denote feed-forward networks, parameterizing the weights α, β ∈ R C×H×W .To explicitly supervise this modulation, we enforce a transition constraint within each training batch of B triplets. For the k-th sample, we first synthesize a pseudo-after feature X(k) 
+
+> p-aft
+
+from X(k) 
+
+> bef
+
+and X(k) 
+
+> c
+
+. We interpret X(k) 
+
+> bef
+
+as the initial pre-change, X(k) 
+
+> c
+
+as the change-aware representation. To model the transition, we first synthesize a pseudo-after feature X(k) 
+
+> p-aft
+
+to represent the expected resulting state: 
+
+X(k) 
+
+> p-aft
+
+= Ffus (X(k) 
+
+> bef
+
+, X (k) 
+
+> c
+
+), (3) where Ffus (·) is AFF [7] and we will discuss more fusion strategies in the Suppl. Then, the pair  X(k) 
+
+> aft
+
+, X (k)
+
+> p-aft
+
+ is treated as a positive sample, while all other features X(j) 
+
+> p-aft
+
+(j̸ = k) serve as negatives. Then the model projects X(k) 
+
+> aft
+
+and 
+
+X(k) 
+
+> p-aft
+
+into a shared embedding space, denoted as ˜X(k) 
+
+> aft
+
+and ˜X(k)
+
+> p-aft
+
+.Finally, we adopt a bidirectional InfoNCE loss [26] to align with the true after state within the batch, while pushing away all mismatched pairs: 
+
+Lp2a = − 1
+
+B
+
+> B
+
+X
+
+> k=1
+
+log esim( ˜X(k)  
+
+> aft ,˜X(k)
+> p-aft )/τ
+
+PBj=1 esim( ˜X(k)   
+
+> aft ,˜X(j)
+> p-aft )/τ
+
+,
+
+La2p = − 1
+
+B
+
+> B
+
+X
+
+> k=1
+
+log esim( ˜X(k)  
+
+> p-aft ,˜X(k)
+> aft )/τ
+
+PBj=1 esim( ˜X(k)   
+
+> p-aft ,˜X(j)
+> aft )/τ
+
+,
+
+Lca = Lp2a + La2p,
+
+(4) where “sim” is the dot-product to measure the similarity between two features. 
+
+τ is a temperature hyper-parameter. 
+
+3.3 Dual-Granularity Target Disambiguation Module 
+
+Following the ITC, the features are successfully aligned. However, the represen-tations still suffer from viewpoint and scale ambiguities in top-down RS images. To resolve this, we propose a Dual-Granularity Disambiguation module. This module integrates a micro-level frequency attention to tackle scale ambiguity with a macro-level context aggregation to eliminate viewpoint confusion. 6 Y. Gong et al. 
+
+Micro-Level: Frequency-Refocused Complementary Attention Remote sensing images often contain substantial noise, and the continuous down-sampling in the encoder further weakens the response of tiny changed objects. Conse-quently, directly applying self-attention leads to unsatisfactory performance. To address this issue, we design a Frequency-Refocused Complementary At-tention (FRCA) that filters out low-frequency components and refocuses atten-tion on changed regions. Specifically, given a feature map X ∈ R C×H×W , we first divide it into two parts along the channel dimension and apply convolutional layers to each part to improve position embedding and semantic enrichment: 
+
+X1, X 2 = Split( X), (5) 
+
+Xs = Conv 1(X1), Xc = Conv 2(X2), (6) where X1 ∈ R (γC )×H×W and X2 ∈ R((1 −γ)C)×H×W , γ is a hyper-parameter, and Conv 1(·) and Conv 2(·) restore the original channel capacity. Furthermore, we generate two masks to filter low-frequency components, Mc
+
+for the channel dimension and Ms for the spatial dimension respectively: 
+
+Mc ∈ R C×1×1, M s = HighPass + (1 − β)LowPass ,
+
+HighPass = σ κ 1
+
+√2
+
+s xH −1
+
+ 
+
+> 2
+
++
+
+ yW −1
+
+ 
+
+> 2
+
+−t
+
+!! 
+
+,
+
+LowPass = σ κ t− 1
+
+√2
+
+s xH −1
+
+ 
+
+> 2
+
++
+
+ yW −1
+
+
+
+> 2
+
+!! 
+
+,
+
+(7) where β are learnable parameters, Ms ∈ R 1×H×W and Mc is initialized to a near-one constant. Both Mc and Ms are learnable and globally shared. σ(·) represents the sigmoid function and κ is a hyper-parameter. x, y are coordinate indices on the frequency grid. Then, they are normalized to calculate the radial distance "d" to the DC component. The terms σ(κ) and σ(κ(t − d)) act as a differentiable soft filter, where κ controls sharpness and t ∈ (0 , 1) is a threshold. Next, we apply these two masks to the feature responses to suppress low-frequency components: 
+
+X′ 
+
+> s
+
+= iDCT(DCT( Xs) · Ms), X′ 
+
+> c
+
+= iDCT(DCT( Xc) · Mc), (8) where DCT( ·) and iDCT( ·) denote the discrete cosine transform and its inverse operation, respectively. After frequency filtering, we enhance the refined features by integrating spa-tial and channel information in a complementary manner [49]. The filtered fea-tures X′ 
+
+> c
+
+and X′ 
+
+> s
+
+are combined through cross-dimensional interactions to empha-size informative change regions and strengthen discriminative responses: 
+
+Xatt = Xs · AvgPool( X′
+
+> c
+
+) + Xc · σ(BN(Conv( X′
+
+> s
+
+))) , (9) where BN( ·) denotes BatchNorm and Conv reduces the channel dimension to 1. STAND for Remote Sensing Image Change Captioning 7
+
+Macro-Level: Context-Aware Viewpoint Disambiguation While micro-level refinement enhances local responses, it remains insufficient when multiple objects exhibit similar local appearances under different viewpoints. We formalize viewpoint ambiguity as a conditional distribution overlap prob-lem. Let p denote a local image patch and o an object category. Under viewpoint ambiguity, the posterior distributions may overlap: 
+
+P (oi | p) ≈ P (oj | p), i̸ = j, 
+
+where oi and oj share similar appearance, indicating that local evidence alone is insufficient to determine object identity. To resolve this ambiguity, we introduce global context g and reformulate the posterior as: 
+
+P (o | p, g ),
+
+where the global context provides additional semantic constraints that reduce distribution overlap and improve object identifiability. Based on this formulation, we design a change extractor and a global context extractor to condition local difference representations on scene-level semantics. For the change extractor, STAND adopts a spatio-temporally biased multi-head cross-attention operation. The process can be expressed as: 
+
+Cdiff = MHCA( Xc, X bef , X bef ), Cdiff = MHCA( Cdiff , X aft , X aft ), (10) where MHCA( ·) denotes the multi-head cross-attention. For the global extractor, STAND employs a spatio-temporally symmetric cross-attention mechanism defined as: 
+
+Cbef = MHCA( Xc, X bef , X bef ), Caft = MHCA( Xc, X aft , X aft ), (11) We then compute a gate to adaptively balance the Cbef and Caft :
+
+gate = σ(Linear([ Cbef ; Caft ])) . (12) Next, Cbef and Caft are linearly projected to obtain ˜Cbef and ˜Caft , respectively. Then, the global feature representation is generated through gated fusion: 
+
+Cglobal = gate · ˜Cbef + (1 − gate ) · ˜Caft . (13) 
+
+Dual-Granularity Synthesis. Finally, we apply the FRCA to refocus atten-tion on change-related regions. The global representation Cglobal is then used to guide the difference representation Cdiff to synthesize the final feature. The process is formulated as: 
+
+C′ 
+
+> diff
+
+= FRCA( Cdiff ), C′ 
+
+> global
+
+= FRCA( Cglobal ),Ctruth = FRCA  Linear  [C′
+
+> global
+
+; C′
+
+> diff
+
+] . (14) 8 Y. Gong et al. 
+
+3.4 Semantic Concept Anchoring Module 
+
+While the DGTD resolves spatial uncertainties, the representations may still suffer from knowledge ambiguity. To address this, we deploy a dual-agent verifi-cation to extract category labels of the changed entities from training sets. Then we utilize these labels to extract entity-level features. Typically, we first reshape Ctruth into ˜Ctruth ∈ R HW ×C , and construct a set of learnable query vectors query i. Each query interacts with ˜Ctruth to capture object-specific representations, formulated as: 
+
+scores i = Softmax query i · ˜C⊤
+
+> truth
+
+τ · √C
+
+!
+
+,Cobject ,i = AvgPool 
+
+
+
+scores ⊤ 
+
+> i
+
+· ˜Ctruth 
+
+
+
+,
+
+(15) where query i ∈ R n×C , with n denoting the number of heads, and i indicates the entity category, and Cobject ,i ∈ R 1×C . τ is a temperature hyper-parameter. Each object feature Cobject ,i is fed into a classifier to predict its corresponding object category. We first compute the class probability distribution: 
+
+pi = Softmax(Classifier( Cobject ,i )) , (16) where pi ∈ R K represents the predicted probability vector over K classes. The classification is supervised by a cross-entropy loss, defined as: 
+
+Lcls = −
+
+> N
+
+X
+
+> i=1
+> K
+
+X
+
+> j=1
+
+yi,j log( pi,j ), (17) where yi,j is the ground-truth label for the j-th class of the i-th object, and N
+
+denotes the number of object categories. Then, each object feature is weighted by the corresponding probability of change to emphasize objects that are more likely to have changed: 
+
+˜Cobject ,i = pi, 1 · Cobject ,i , (18) where pi, 1 denotes the predicted probability of the i-th object belonging to the 
+
+change class. Finally, all weighted object features are concatenated to form the unified object representation: 
+
+Cobject = Concat 
+
+ ˜Cobject ,1, ˜Cobject ,2, . . . , ˜Cobject ,N 
+
+
+
+, (19) where Cobject ∈ R N ×C is the final object-aware representation. 
+
+3.5 Prior Knowledge Guided Difference Decoder 
+
+To generate fine-grained change descriptions, we design a Prior Knowledge Guided Difference Decoder that progressively fuses difference features and object-aware representations. The decoding process at layer l is formulated as: STAND for Remote Sensing Image Change Captioning 9
+
+H′ 
+
+> l
+
+= MHCA(MHSA( Hl−1), C truth ), Hl = MHCA( H′ 
+
+> l
+
+, C object ), (20) where MHSA is multi-head self-attention, Hl−1 and Hl denote the input and output of the l-th decoder layer, respectively. The final caption is generated from the top-layer hidden representation HL
+
+through a linear projection followed by softmax. 
+
+3.6 Joint Training 
+
+Given the ground-truth caption sequence (w∗ 
+
+> 1
+
+, . . . , w ∗
+
+> m
+
+), the decoder is trained by minimizing the negative log-likelihood loss: 
+
+Lcap (θ) = −
+
+> m
+
+X
+
+> t=1
+
+log pθ (w∗ 
+
+> t
+
+| w∗
+
+> <t
+
+), (21) where θ denotes learnable parameters. In addition, the network is self-supervised by two auxiliary objectives: the Inter-frame constraint loss Lca as Eq. (4), and the classification loss Lcls as Eq. (17): 
+
+L = Lcap + λca Lca + λcls Lcls , (22) where λca and λcls are hyper-parameters. 
+
+4 Experiments 
+
+4.1 Experimental Setup Datasets. LEVIR-CC [20] consists of 10,077 image pairs with 5,038 change pairs. Each pair is annotated with five sentences. WHU-CDC [31] comprises 7,434 image pairs and 37,170 corresponding change descriptions. The sentences range from 3 to 24 words and are drawn from a vocabulary of 327 tokens. Both datasets adopt the same five annotated object categories, including building ,
+
+road , parking lot , vegetation , and water .
+
+Evaluation metrics. Following prior work [20], we evaluate the generated captions with seven common metrics, i.e. , BLEU-N ( N = 1 , 2, 3, 4) [27], ME-TEOR [2], ROUGE L [17], and CIDEr-D [44]. 
+
+Implementation details. The proposed method adopts X3D-L [8] as the base-line. All experiments are conducted on an RTX 4090 GPU. To extract category change labels for the training set, we construct a dual-agent verification: Agent A (Qwen2.5-72B-Instruct) derives labels from only the training set, while Agent B (GPT-4o) performs an inspection. In addition, the change masks are obtained from a pre-trained change detector. Importantly, label extraction and detector pretraining procedures are conducted strictly within the training data and do not access any test sets, thereby avoiding data leakage. Additional implementa-tion details, parameter studies, categorical label evaluation, robustness analyses (LLM and change mask), and further discussions are provided in the Suppl. 10 Y. Gong et al. 
+
+Table 1: Comparison with other methods on LEVIR-CC. Method BLEU-1 BLEU-2 BLEU-3 BLEU-4 METEOR ROUGE L CIDEr Chg2Cap [5] 86.14 78.08 70.66 64.39 40.03 75.12 136.61 CVMSL-L [48] - - - 64.83 39.72 74.97 136.59 MV-CC [23] 86.37 79.01 72.03 66.22 40.20 75.73 138.28 Change3D [56] 85.81 77.81 70.57 64.38 40.38 75.12 138.29 KCFI [50] 86.34 77.31 70.89 65.30 39.42 75.47 138.25 CD4C [15] 86.74 78.71 71.48 65.41 40.56 75.72 138.00 SCNet [34] 86.14 78.19 71.44 65.82 40.51 75.37 140.23 RMNet [3] 86.09 78.43 71.68 66.11 40.94 75.57 139.43 CTM [1] 86.78 79.24 72.65 65.48 40.63 75.72 138.78 DGAT [30] 87.09 78.93 71.35 65.30 40.98 76.41 141.27 
+
+STAND (ours) 88.24 80.33 73.15 67.11 41.55 77.25 143.39 Table 2: Comparison with other methods on WHU-CDC. Method BLEU-1 BLEU-2 BLEU-3 BLEU-4 METEOR ROUGE L CIDEr PromptCC [21] 81.12 73.96 37.22 61.45 36.99 71.88 134.50 RSICCFormer [20] 80.05 74.24 69.61 66.54 42.65 73.91 133.44 CTMTNet [31] 83.56 77.66 72.76 69.00 45.39 79.23 149.40 CTM [1] 85.36 79.49 75.36 72.36 46.98 80.97 153.29 Chg2Cap [5] 86.33 82.07 78.54 76.16 48.29 81.44 156.10 SEN [54] 85.12 80.28 76.84 74.71 46.81 79.45 148.70 CTSD-Net [47] 85.49 80.07 76.45 73.84 47.75 80.99 153.96 FST-Net [57] 88.15 83.46 79.55 76.78 48.78 82.91 160.01 
+
+STAND (ours) 88.66 84.04 80.05 76.91 49.08 83.36 160.78 
+
+4.2 Performance Comparison Results on the LEVIR-CC Dataset. We compare STAND with state-of-the-art methods, including Chg2Cap [5], MV-CC [23], CD4C [15], Change3D [56], CTM [1], KCFI [50], SCNet [34], CVMSL [48] , RMNet [3] and DGAT [30]. As shown in Tab. 1, STAND achieves the best performance across all metrics, with notable improvements in METEOR (+0.57), ROUGE L (+0.84), and CIDEr (+2.12) over the second-best method (DGAT). Meanwhile, MV-CC [23] and CD4C [15] are the methods that apply change masks via simple filtering, whereas STAND leverages the mask as a guidance signal to focus on changes. STAND outperforms both approaches indicating the superiority of this guidance method. 
+
+Results on the WHU-CDC Dataset. We compare STAND with state-of-the-art methods, including PromptCC [21], RSICCFormer [20], CTMTNet [31], CTM [1], Chg2Cap [5], SEN [54], CTSD-Net [47] and FST-Net [57]. STAND for Remote Sensing Image Change Captioning 11                                                        
+
+> Table 3: Progressive ablation of STAND on LEVIR-CC. # Model BLEU-4 METEOR ROUGE LCIDEr ∆CIDEr B0 Video Encoder (base) 63.38 40.38 75.12 138.29 –B1 + DGTD (CAVD+FRCA) 65.24 40.31 75.81 139.29 +1.00 B2 + DGTD (CAVD+FRCA) + SCA 65.82 41.03 76.78 142.11 +3.82 B3 + ITC + DGTD + SCA (Full) 67.11 41.55 77.25 143.39 +5.10
+> Table 4: DGTD ablation on LEVIR-CC includes ITC, with SCA excluded for clarity. Setting CAVD FRCA BLEU-4 METEOR ROUGE LCIDEr w/o DGTD ××64.38 40.25 75.61 139.66 Macro only (CAVD) ✓×65.52 40.41 75.83 140.21 Micro only (FRCA) ×✓64.79 40.55 75.58 140.17 Dual (CAVD+FRCA) ✓✓65.47 40.60 76.39 141.22
+
+As shown in Tab. 2, although WHU-CDC exhibits relatively simple change patterns and limited object diversity, thus diminishing the advantage of object priors, STAND still outperforms the latest method. This proves the effectiveness of our method for the other two ambiguity types. 
+
+4.3 Ablation Study and Analysis Progressive Ablation on LEVIR-CC. As shown in Tab. 3, the model per-formance steadily improves as modules are progressively added. Among them, incorporating the SCA module brings the most significant performance gain, particularly in CIDEr. Adding ITC leads to improvements in absolute scores, and we conduct five other independent runs on B2 & B3 which demonstrate it effectively stabilizes training, reducing the averaged metric variance from 0.26 
+
+to 0.18 across all evaluation metrics. These results verify the effectiveness and stability of the proposed progressive refinement pipeline. 
+
+Analysis of DGTD. Viewpoint and scale ambiguities are inherently spatial in nature, fundamentally different from knowledge ambiguity. To isolate their ef-fects, we evaluate CAVD and FRCA separately in Tab. 4, while keeping ITC enabled and excluding SCA for clarity. Using either CAVD or FRCA alone brings limited gains, indicating that resolving spatial ambiguity from a single perspective is insufficient. In contrast, combining both components yields the best performance, demonstrating that macro-level contextual conditioning and micro-level feature refinement are complementary for tackling spatial ambiguity. 
+
+Effect of the Encoder Architecture. We further investigate the impact of dif-ferent encoder architectures, including image-based and video-based backbones. Among them, X3D-L achieves the best overall balance across BLEU, METEOR, and ROUGE. Considering its stable and competitive performance across metrics, we adopt X3D-L as the default backbone in subsequent experiments. 12 Y. Gong et al. 
+
+Table 5: Ablation studies on LEVIR-CC: encoder, masks, and negative compositions. Setting BLEU-4 METEOR ROUGE L CIDEr 
+
+Encoder Architecture 
+
+ResNet-101 (Image) [9] 65.13 40.45 75.50 139.81 I3D [4] 66.71 41.00 76.02 142.36 Swin-T [24] 67.03 41.23 76.98 143.66 
+
+X3D-M 64.52 40.21 75.42 138.53 X3D-L 67.11 41.55 77.25 143.39 
+
+Change guidance 
+
+Naive Diff. Mask 66.15 41.02 75.84 142.01 Pre-trained Mask 67.11 41.55 77.25 143.39 
+
+Number of Negative Compositions (n+1) 
+
+4 65.70 41.00 76.47 142.20 2 65.55 40.99 76.20 141.15 1 67.11 41.55 77.25 143.39 Table 6: Ambiguity-specific evaluation on LEVIR-CC. Setting BLEU-4 METEOR FPR ↓ Prec ↑ Rec ↑ F1 ↑
+
+(a) Small-Scale Subset 
+
+Change3D (Baseline) 30.06 20.12 – – – –Ours 31.39 21.91 – – – –
+
+(b) Viewpoint Ambiguity 
+
+Change3D (Baseline) – – 0.06 0.70 – –Ours – – 0.02 0.78 – –
+
+(c) Knowledge Ambiguity 
+
+Change3D (Baseline) – – – 0.70 0.72 0.71 Ours – – – 0.78 0.85 0.81 
+
+Effect of the Change Mask. To verify the necessity of high-quality change guidance, we replace the change mask with a naive pixel-wise difference mask. Specifically, this mask is generated by computing the absolute pixel difference between two images and applying a binary threshold. As shown in Tab. 5, while this replacement leads to a metric drop, our method equipped with this naive mask still outperforms all non-mask-based models in Tab. 1. This demonstrates that the superiority of STAND does not merely rely on the external mask, but fundamentally stems from the disambiguation capabilities of our core pipeline. Further robustness analysis of the change mask is provided in the Suppl. 
+
+Effect of the Number of Negative Compositions. To further investigate the influence of negative compositions in ITC (Sec. 3.2), we extend the formula-tion by pairing each X(k) 
+
+> bef
+
+with n different change features {X(j) 
+
+> c
+
+}j̸ =k. This yields 
+
+n+1 synthesized pseudo-after features per sample, where the n mismatched pairs are treated as negatives. As shown in Tab. 5, the best performance is achieved STAND for Remote Sensing Image Change Captioning 13 GT: some houses are built by the                            
+
+> roadside
+> Change3D: acontainer in the top
+> disappears and some buildings appear
+> STAND: some buildings are built by
+> the road and a house in the left is rebuilt
+> into a bigger one
+> GT: a small building appears on the
+> right side of the scene
+> Change3D: the scene is the same as
+> before
+> STAND :a small house in the right is
+> built
+> GT: the bareland and bushes are replaced
+> by a turning road with villas built along
+> on both sides
+> Change3D: many houses are built along
+> the road (missing the change in bushes)
+> STAND :the vegetation disappears and
+> neat rows of houses appear on both sides
+> of the road
+> GT: the two scenes seem identical
+> Change3D: vegetation appears in the
+> center of the scene
+> STAND :the scene is the same as before
+> <before> <after>
+> STAND Change3D Change3D Change3D STAND STAND
+> <before> <after> <after> <before> <before> <after>
+> Change3D STAND
+> (a) (b) (c) (d)
+
+Fig. 3: Visualization of baseline Change3D [56] and STAND on LEVIR-CC. (a), (b), and (c) are change image pairs, while (d) is a no-change pair. 
+
+when n = 0 (i.e., n+1 = 1 ). Unlike conventional contrastive learning, RS change features often share similar contextual patterns and small structural variations, making mismatched compositions prone to introducing false negatives. Such arti-ficial separation may disrupt the intrinsic transition consistency among Xbef , Xc,and Xaft . In contrast, using matched composition produces a tighter constraint. 
+
+Ambiguity-Specific Evaluation. Existing RSICC works lack targeted evalua-tion for ambiguity. To validate whether STAND mitigates ambiguities, we design metrics for different ambiguity types, as shown in Tab. 6. For scale ambiguity , we evaluate results on a small-scale subset (selected by LLM), where BLEU-4 and METEOR reflect the model’s ability to describe sub-tle changes. For viewpoint ambiguity , we report the false positive rate (FPR) and precision, which measure whether the model avoids hallucinated changes when entities share similar appearance. For knowledge ambiguity , we further report entity-level recall and F1 score, which quantify the completeness and balance of detected changed categories. All entity-level metrics (FPR, Prec, Rec, F1) are computed by extracting change labels from the generated captions and compar-ing them with ground-truth labels. The results show consistent improvements across all ambiguity types, indicating STAND effectively mitigates ambiguities. 
+
+4.4 Visualization 
+
+We further compare STAND with Change3D [56] and present four representative cases. As shown in Fig. 3, we can observe: (a) Under the top-down remote-sensing viewpoint, the baseline misreads the building as a container, whereas our approach correctly recognizes the change. (b) When changes occur at a small scale, our model reliably captures differences, whereas Change3D predicts no change. (c) For captions involving multiple objects, STAND effectively exploits prior knowledge to improve semantic precision. In contrast, the caption generated by Change3D misses some of the changed objects. (d) For image pairs with no actual change, our attention remains uniformly distributed and is robust to seasonal effects. In addition, as shown in Fig. 4, the proposed FRCA module refocuses attention from low-frequency regions to true change areas, improving the localization of real changes. 14 Y. Gong et al. mask w/ FRCA w/o FRCA w/o FRCA w/ FRCA mask                                 
+
+> Fig. 4: Visualization of the heatmap, without (left) and with (right) FRCA.
+> Table 7: Comparison with MLLM methods on LEVIR-CC. Model size represents encoder + decoder. Method Model Size BLEU-4 METEOR ROUGE LCIDEr MiniGPT4-7B [55] 1.1B + 7B 62.55 39.60 74.22 136.10 LLaVA-1.5-7B [22] 0.3B + 7B 62.75 39.85 75.10 136.56 LLaVA-ov-0.5B [13] 0.4B + 0.5B 64.55 40.77 75.32 138.24 LLaVA-ov-7B [13] 0.4B + 7B 63.66 41.23 75.78 139.61 STAND (ours) 9.2M + 6.5M 67.11 41.55 77.25 143.39
+
+4.5 Comparison with MLLM Methods 
+
+To further examine whether general MLLMs can replace task-specific architec-tures and achieve competitive performance, we adapt off-the-shelf MLLMs to RS change captioning and perform instruction tuning on the training split. As shown in Tab. 7, our STAND clearly surpasses the tuned MLLMs. This suggests that MLLMs still lack sufficient domain awareness for this vertical remote sens-ing task, making their generic priors difficult to transfer to RSICC. Therefore, in the era of foundation MLLMs, carefully designed compact models still remain indispensable for RSICC, especially when domain-specific (e.g., remote sensing) data for pretraining or fine-tuning are limited. Detailed fine-tuning settings are provided in the supplementary material. 
+
+5 Conclusion 
+
+In this paper, we proposed STAND to model changes in a spatio-temporal man-ner, thereby resolving the ambiguities of viewpoint, scale, and knowledge in RS images. In the future, we plan to further explore the applications of RSICC to high-resolution images and more complex scenes (e.g., deserts, rainforests, coastal zones). At the same time, we hope to develop a closer integration with MLLMs and remote sensing priors to generate more high-level semantics. We believe that our work has the potential to inspire more studies on RSICC with spatio-temporal modeling. STAND for Remote Sensing Image Change Captioning 15 
+
+References 
+
+1. Bai, Q., Wang, X.: Cross-temporal remote sensing image change captioning: A manifold mapping and bayesian diffusion approach for land use monitoring. IEEE Journal of Selected Topics in Applied Earth Observations and Remote Sensing (2025) 2. Banerjee, S., Lavie, A.: Meteor: An automatic metric for mt evaluation with im-proved correlation with human judgments. In: Proceedings of the acl workshop on intrinsic and extrinsic evaluation measures for machine translation and/or summa-rization. pp. 65–72 (2005) 3. Cao, X., Dong, W., Qu, J., Li, Y.: Rmnet: Dual-dimensional difference recalibration-guided cnn-vmamba synergistic network for remote sensing image change captioning. IEEE Transactions on Geoscience and Remote Sensing (2026) 4. Carreira, J., Zisserman, A.: Quo vadis, action recognition? a new model and the kinetics dataset. In: proceedings of the IEEE Conference on Computer Vision and Pattern Recognition. pp. 6299–6308 (2017) 5. Chang, S., Ghamisi, P.: Changes to captions: An attentive network for remote sensing change captioning. IEEE Transactions on Image Processing 32 , 6047–6060 (2023) 6. Chen, C., Wang, Y., Yap, K.H.: Multi-scale attentive fusion network for remote sensing image change captioning. In: 2024 IEEE International Symposium on Cir-cuits and Systems (ISCAS). pp. 1–5. IEEE (2024) 7. Dai, Y., Gieseke, F., Oehmcke, S., Wu, Y., Barnard, K.: Attentional feature fusion. In: Proceedings of the IEEE/CVF winter conference on applications of computer vision. pp. 3560–3569 (2021) 8. Feichtenhofer, C.: X3d: Expanding architectures for efficient video recognition. In: Proceedings of the IEEE/CVF conference on computer vision and pattern recog-nition. pp. 203–213 (2020) 9. He, K., Zhang, X., Ren, S., Sun, J.: Deep residual learning for image recognition. In: Proceedings of the IEEE conference on computer vision and pattern recognition. pp. 770–778 (2016) 10. Hosseinzadeh, M., Wang, Y.: Image change captioning by learning from an auxil-iary task. In: Proceedings of the IEEE/CVF Conference on Computer Vision and Pattern Recognition. pp. 2725–2734 (2021) 11. Karaca, A.C., Ozelbas, E., Berber, S., Karimli, O., Yildirim, T., Amasyali, M.F.: Robust change captioning in remote sensing: Second-cc dataset and mmodalcc framework. IEEE Journal of Selected Topics in Applied Earth Observations and Remote Sensing (2025) 12. Kim, H., Kim, J., Lee, H., Park, H., Kim, G.: Agnostic change captioning with cycle consistency. In: Proceedings of the IEEE/CVF International Conference on Computer Vision. pp. 2095–2104 (2021) 13. Li, B., Zhang, Y., Guo, D., Zhang, R., Li, F., Zhang, H., Zhang, K., Zhang, P., Li, Y., Liu, Z., et al.: Llava-onevision: Easy visual task transfer. arXiv preprint arXiv:2408.03326 (2024) 14. Li, R., Li, L., Zhang, J., Zhao, Q., Wang, H., Yan, C.: Region-aware difference distilling with attribute-guided contrastive regularization for change captioning. In: Proceedings of the AAAI Conference on Artificial Intelligence. vol. 39, pp. 4887–4895 (2025) 15. Li, X., Sun, B., Wu, Z., Li, S., Guo, H.: Cd4c: Change detection for remote sens-ing image change captioning. IEEE Journal of Selected Topics in Applied Earth Observations and Remote Sensing (2025) 16 Y. Gong et al. 16. Li, Y., Zhang, X., Cheng, X., Chen, P., Jiao, L.: Inter-temporal interaction and symmetric difference learning for remote sensing image change captioning. IEEE Transactions on Geoscience and Remote Sensing (2024) 17. Lin, C.Y.: Rouge: A package for automatic evaluation of summaries. In: Text sum-marization branches out. pp. 74–81 (2004) 18. Liu, C., Yang, J., Qi, Z., Zou, Z., Shi, Z.: Progressive scale-aware network for re-mote sensing image change captioning. In: IGARSS 2023-2023 IEEE International Geoscience and Remote Sensing Symposium. pp. 6668–6671. IEEE (2023) 19. Liu, C., Zhang, J., Chen, K., Wang, M., Zou, Z., Shi, Z.: Remote sensing spa-tiotemporal vision–language models: A comprehensive survey. IEEE Geoscience and Remote Sensing Magazine (2025) 20. Liu, C., Zhao, R., Chen, H., Zou, Z., Shi, Z.: Remote sensing image change cap-tioning with dual-branch transformers: A new method and a large scale dataset. IEEE Transactions on Geoscience and Remote Sensing 60 , 1–20 (2022) 21. Liu, C., Zhao, R., Chen, J., Qi, Z., Zou, Z., Shi, Z.: A decoupling paradigm with prompt learning for remote sensing image change captioning. IEEE Transactions on Geoscience and Remote Sensing 61 , 1–18 (2023) 22. Liu, H., Li, C., Wu, Q., Lee, Y.J.: Visual instruction tuning. Advances in neural information processing systems 36 , 34892–34916 (2023) 23. Liu, R., Li, K., Song, J., Sun, D., Cao, X.: Mv-cc: Mask enhanced video model for remote sensing change caption. arXiv preprint arXiv:2410.23946 (2024) 24. Liu, Z., Ning, J., Cao, Y., Wei, Y., Zhang, Z., Lin, S., Hu, H.: Video swin trans-former. In: Proceedings of the IEEE/CVF conference on computer vision and pat-tern recognition. pp. 3202–3211 (2022) 25. Lv, F., Wang, R., Jing, L.: Revisiting change captioning from self-supervised global-part alignment. In: Proceedings of the AAAI Conference on Artificial Intelligence. vol. 39, pp. 5892–5900 (2025) 26. Oord, A.v.d., Li, Y., Vinyals, O.: Representation learning with contrastive predic-tive coding. arXiv preprint arXiv:1807.03748 (2018) 27. Papineni, K., Roukos, S., Ward, T., Zhu, W.J.: Bleu: a method for automatic evaluation of machine translation. In: Proceedings of the 40th annual meeting of the Association for Computational Linguistics. pp. 311–318 (2002) 28. Park, D.H., Darrell, T., Rohrbach, A.: Robust change captioning. In: Proceedings of the IEEE/CVF International Conference on Computer Vision. pp. 4624–4633 (2019) 29. Perez, E., Strub, F., De Vries, H., Dumoulin, V., Courville, A.: Film: Visual rea-soning with a general conditioning layer. In: Proceedings of the AAAI conference on artificial intelligence. vol. 32 (2018) 30. Qin, P., Liu, J., Li, L., Tian, C., Cao, X.: Dgat: Dynamic gaussian attenuate transformer for remote sensing image change captioning. IEEE Transactions on Geoscience and Remote Sensing 63 , 1–16 (2025) 31. Shi, J., Zhang, M., Hou, Y., Zhi, R., Liu, J.: A multi-task network and two large scale datasets for change detection and captioning in remote sensing images. IEEE Transactions on Geoscience and Remote Sensing (2024) 32. Shi, X., Yang, X., Gu, J., Joty, S., Cai, J.: Finding it at another side: A viewpoint-adapted matching encoder for change captioning. In: European conference on com-puter vision. pp. 574–590. Springer (2020) 33. Simonyan, K., Zisserman, A.: Two-stream convolutional networks for action recog-nition in videos. Advances in neural information processing systems 27 (2014) STAND for Remote Sensing Image Change Captioning 17 34. Sun, D., Wang, Y., Yao, J., Yu, W., Cao, X., Ghamisi, P.: Scnet: Lightweight spatial-channel attention network for remote sensing change captioning. IEEE Transactions on Geoscience and Remote Sensing (2026) 35. Sun, D., Yao, J., Xue, W., Zhou, C., Ghamisi, P., Cao, X.: Mask approximation net: A novel diffusion model approach for remote sensing change captioning. IEEE Transactions on Geoscience and Remote Sensing (2025) 36. Tang, Y., Bi, J., Xu, S., Song, L., Liang, S., Wang, T., Zhang, D., An, J., Lin, J., Zhu, R., et al.: Video understanding with large language models: A survey. IEEE Transactions on Circuits and Systems for Video Technology (2025) 37. Tran, D., Bourdev, L., Fergus, R., Torresani, L., Paluri, M.: Learning spatiotem-poral features with 3d convolutional networks. In: Proceedings of the IEEE inter-national conference on computer vision. pp. 4489–4497 (2015) 38. Tran, D., Wang, H., Torresani, L., Ray, J., LeCun, Y., Paluri, M.: A closer look at spatiotemporal convolutions for action recognition. In: Proceedings of the IEEE conference on Computer Vision and Pattern Recognition. pp. 6450–6459 (2018) 39. Tu, Y., Li, L., Su, L., Du, J., Lu, K., Huang, Q.: Adaptive representation disentan-glement network for change captioning. IEEE Transactions on Image Processing 
+
+32 , 2620–2635 (2023) 40. Tu, Y., Li, L., Su, L., Zha, Z.J., Huang, Q.: Smart: Syntax-calibrated multi-aspect relation transformer for change captioning. IEEE Transactions on Pattern Analysis and Machine Intelligence 46 (7), 4926–4943 (2024) 41. Tu, Y., Li, L., Su, L., Zha, Z.J., Yan, C., Huang, Q.: Self-supervised cross-view rep-resentation reconstruction for change captioning. In: Proceedings of the IEEE/CVF international conference on computer vision. pp. 2805–2815 (2023) 42. Tu, Y., Li, L., Su, L., Zha, Z.J., Yan, C., Huang, Q.: Context-aware difference distilling for multi-change captioning. In: Proceedings of the 62nd Annual Meeting of the Association for Computational Linguistics (Volume 1: Long Papers). pp. 7941–7956 (2024) 43. Tu, Y., Yao, T., Li, L., Lou, J., Gao, S., Yu, Z., Yan, C.: Semantic relation-aware difference representation learning for change captioning. In: Findings of the asso-ciation for computational linguistics: ACL-IJCNLP 2021. pp. 63–73 (2021) 44. Vedantam, R., Lawrence Zitnick, C., Parikh, D.: Cider: Consensus-based image description evaluation. In: Proceedings of the IEEE conference on computer vision and pattern recognition. pp. 4566–4575 (2015) 45. Wang, H., Zhang, B., Gong, Y., Fang, S., Qi, Z., Xu, Y., Liu, X., Zhang, W.: Aifind: Artifact-aware interpreting fine-grained alignment for incremental face forgery de-tection (2026), https://arxiv.org/abs/2604.16207 
+
+46. Wang, Y., Yu, W., Kopp, M., Ghamisi, P.: Changeminds: Multi-task frame-work for detecting and describing changes in remote sensing. arXiv preprint arXiv:2410.10047 (2024) 47. Wu, R., Ye, H., Liu, X., Li, Z., Sun, C., Wu, J.: A cross-spatial differential localiza-tion network for remote sensing change captioning. Remote Sensing 17 (13), 2285 (2025) 48. Xian, T., Zhou, Z., Zhou, W., Zeng, D., Li, B.: Cross-view and multi-step interac-tion for change captioning. IEEE Transactions on Multimedia (2026) 49. Xiao, Y., Xu, T., Xin, Y., Li, J.: Fbrt-yolo: Faster and better for real-time aerial image detection. In: Proceedings of the AAAI Conference on Artificial Intelligence. vol. 39, pp. 8673–8681 (2025) 50. Yang, C., Li, Z., Jiao, H., Gao, Z., Zhang, L.: Enhancing perception of key changes in remote sensing image change captioning. IEEE Transactions on Image Process-ing (2025) 18 Y. Gong et al. 51. Yang, Y., Liu, T., Pu, Y., Liu, L., Zhao, Q., Wan, Q.: Remote sensing image change captioning using multi-attentive network with diffusion model. Remote Sensing 
+
+16 (21), 4083 (2024) 52. Yue, S., Tu, Y., Li, L., Yang, Y., Gao, S., Yu, Z.: I3n: Intra-and inter-representation interaction network for change captioning. IEEE Transactions on Multimedia 25 ,8828–8841 (2023) 53. Zhong, G., Hu, J., Chen, J., Yuan, J., Pan, W.: Decider: Difference-aware con-trastive diffusion model with adversarial perturbations for image change caption-ing. In: Proceedings of the AAAI Conference on Artificial Intelligence. vol. 39, pp. 10662–10670 (2025) 54. Zhou, Q., Gao, J., Yuan, Y., Wang, Q.: Single-stream extractor network with contrastive pre-training for remote-sensing change captioning. IEEE Transactions on Geoscience and Remote Sensing 62 , 1–14 (2024) 55. Zhu, D., Chen, J., Shen, X., Li, X., Elhoseiny, M.: Minigpt-4: Enhancing vision-language understanding with advanced large language models. arXiv preprint arXiv:2304.10592 (2023) 56. Zhu, D., Huang, X., Huang, H., Zhou, H., Shao, Z.: Change3d: Revisiting change detection and captioning from a video modeling perspective. In: Proceedings of the Computer Vision and Pattern Recognition Conference. pp. 24011–24022 (2025) 57. Zou, S., Wei, Y., Xie, Y., Luan, X.: Frequency–spatial–temporal domain fusion network for remote sensing image change captioning. Remote Sensing 17 (8), 1463 (2025)
