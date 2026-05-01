@@ -1,0 +1,683 @@
+Title: Hyperspectral Image Classification via Efficient Global Spectral Supertoken Clustering
+
+URL Source: https://arxiv.org/pdf/2604.27364v1
+
+Published Time: Fri, 01 May 2026 00:30:43 GMT
+
+Number of Pages: 14
+
+Markdown Content:
+# Hyperspectral Image Classification via Efficient Global Spectral Supertoken Clustering 
+
+## Peifu Liu a, Tingfa Xu a,b,c ,∗, Jie Wang a, Huan Chen a, Huiyan Bai a and Jianan Li a,c ,∗
+
+> a
+
+Beijing Institute of Technology, Beijing 100081, China 
+
+> b
+
+Beijing Institute of Technology Chongqing Innovation Center, Chongqing 401135, China 
+
+> c
+
+Key Laboratory of Photoelectronic Imaging Technology and System, Ministry of Education of China, Beijing 100081, China 
+
+A R T I C L E I N F O 
+
+Keywords :Clustering Dual-stage Method Hyperspectral Image Classification 
+
+A B S T R A C T 
+
+Hyperspectral image classification demands spatially coherent predictions and precise boundary delineation. Yet prevailing superpixel-based methods face an inherent contradiction: clustering aggregates similar pixels into regions, but the subsequent classifier operates pixel-wise, undermining regional consistency. Consequently, existing approaches do not guarantee region-level, boundary-aligned classification. To address this limitation, we propose the Dual-stage Spectrum-Constrained Clustering-based Classifier (DSCC), an end-to-end framework that explicitly decouples clustering from classification by first grouping spectral similar and spatially proximate pixels into spectral supertokens and then performing token-level prediction. At its core, DSCC computes an image-level multi-criteria feature distance between pixels and centers, followed by a locality-aware assignment regularization, enabling the generation of boundary-preserving spectral supertokens. A density-isolation based center selection further yields representative, well-separated centers, reducing redun-dancy and improving robustness to scale variation. To accommodate mixed land-cover compositions within each token, we introduce a soft-label scheme that encodes class proportions and improves robustness for mixed-class tokens. DSCC attains a CF1 of 0.728 at 197.75 FPS on the WHU-OHS dataset, offering a superior accuracy-efficiency trade-off compared with state-of-the-art methods. Extensive experiments further validate the effectiveness and generality of the proposed dual-stage paradigm for hyperspectral image classification. The source code is available at https://github.com/ laprf/DSCC .
+
+## 1. Introduction 
+
+Hyperspectral images (HSIs) capture rich spatial and spectral information at high resolution, enabling precise material characterization [20, 45]. Hyperspectral image clas-sification (HSIC), which assigns each pixel to a predefined category, is fundamental in remote sensing and supports ap-plications such as object detection [29], urban planning [32], agricultural monitoring [4, 47], and mineral exploration [1]. Recent deep learning approaches, including convolu-tional neural networks (CNNs) [2, 8, 16, 28, 50], Transform-ers [15, 26, 42], and Mamba architectures [20, 22], have significantly advanced classification performance. However, as shown in Fig. 1(a), two limitations persist: (i) pixel-wise classification fails to treat similar pixels as coherent regions, producing local inconsistencies in prediction maps; 
+
+(ii) fixed-grid mechanisms such as CNN kernels and Trans-former patches adapt poorly to complex boundaries, leading to inaccurate edge delineation. These issues motivate the integration of clustering into hyperspectral image classification. By grouping spectrally similar and spatially adjacent pixels, clustering creates se-mantically meaningful units that better align with object 
+
+> ∗
+
+Corresponding author.  
+
+> 3120245389@bit.edu.cn
+
+(P. Liu); ciom_xtf1@bit.edu.cn (T. Xu);  
+
+> 3220245170@bit.edu.cn
+
+(J. Wang); 3220235096@bit.edu.cn (H. Chen);  
+
+> 3120255523@bit.edu.cn
+
+(H. Bai); lijianan@bit.edu.cn (J. Li) 
+
+> ORCID
+
+(s): 0000-0003-4018-1478 (P. Liu); 0000-0001-5452-2662 (T. Xu);  
+
+> 0000-0002-4847-3697
+
+(J. Wang); 0000-0003-1965-9107 (H. Chen);  
+
+> 0009-0000-8037-2338
+
+(H. Bai); 0000-0002-6936-9485 (J. Li) 
+
+boundaries. Prior works exploit clustering or superpix-els—for instance, to guide deformable convolutions [49] or to construct superpixel-level features [5]. Yet their final predictions remain pixel-wise. This creates an architectural contradiction: although clustering can capture homogeneous regions during feature extraction, the classifier ultimately treats pixels independently, breaking the spatial coherence induced by clustering. Consequently, local inconsistencies persist, indicating that simply injecting clustering into a pixel-wise pipeline cannot ensure region-consistent classi-fication. True region-wise classification is needed. Motivated by this, we decouple clustering from classi-fication and propose the Dual-stage Spectrum-Constrained 
+
+Clustering-based Classifier (DSCC), an end-to-end dual-stage hyperspectral image classification framework, as shown in Fig. 1(b). In Stage 1, DSCC forms spectral supertokens through global pixel-center association and refines them via center filtering. In Stage 2, these supertokens are classified token-wise and then mapped back to pixels, preserving spatial-spectral consistency throughout the pipeline. This dual-stage design ensures genuinely region-wise rather than pixel-wise prediction. Implementing this dual-stage paradigm in an end-to-end and efficient manner introduces distinct challenges. Ex-isting clustering mechanisms rely on simple spatial-color metrics such as XYRGB [6, 17, 25], limiting their ability to exploit spectral information. Our previous work [21] im-proves spectral modeling but restricts pixel-center similarity 
+
+Peifu Liu, et al: Preprint submitted to Elsevier Page 1 of 14 
+
+> arXiv:2604.27364v1 [cs.CV] 30 Apr 2026
+
+Hyperspectral Image Classification via Efficient Global Spectral Supertoken Clustering (a) Pixel-wise Classification  Methods    
+
+> Independent Pixel Classification
+> Token-wise Classification
+> Ground Truth
+> Category Proportion-aware Soft Label Exemplar Supertoken Spectral Supertokens
+> Stage 1 Stage 2
+> Pixel
+> Clustering
+> 00.84
+> #2: 84% #0: 16%
+> Prediction Prediction
+> #2: Dry farm
+> #4: Shrubbery
+> #16: Rural settl. #0: Ignore
+> Color Label
+> inconsistency! inaccuracy!
+> supervision
+> Input HSI Input HSI
+> (b) Dual-stage Spectrum-Constrained Clustering-based Classifier
+
+Fig. 1: (a) Pixel-wise classification models predict each pixel independently and often produce local inconsistencies and inaccurate boundaries (black boxes). Our proposed (b) Dual-stage Spectrum-Constrained Clustering-based Classifier first aggregates spectrally similar and spatially adjacent pixels into spectral supertokens and then classifies them with a category proportion-aware soft label, yielding region-consistent predictions with sharper boundaries. 
+
+computation to local patches. This patch-based design in-evitably truncates large, continuous regions at patch bound-aries and introduces discontinuities. Moreover, the element-wise affinity computation between centers and neighboring pixels imposes a significant inference bottleneck. To address these issues, we propose the Spectral-Consistent Pixel Aggregation (SCPA) mechanism. SCPA models global 
+
+pixel-center similarity using a multi-criteria feature distance that integrates spectral, spatial, and structural cues. Sub-sequently, pixels that are spectrally similar and spatially adjacent are aggregated to form spectral supertokens. By avoiding fixed patch-wise partition constraints and modeling pixel-center relations in an image-level candidate space, spectral supertokens can better preserve region coherence and alleviate boundary truncation. The parallelized, one-shot computation nature of SCPA also significantly accel-erates inference. Uniformly distributing centers across an image can pro-duce an imbalanced token distribution: large homogeneous regions accumulate excessive centers, generating redundant, overly fragmented tokens, while small or fine-grained struc-tures receive too few, weakening their representation. To mitigate this, we introduce the Density-Isolation Center Filtering (DICF) mechanism, which evaluates centers by their local density and mutual separation. DICF selects rep-resentative, well-isolated centers, effectively reduces token redundancy and enhances robustness to scale variation. A further challenge in dual-stage hyperspectral image classification is supervising region-wise predictions. Even with carefully constructed supertokens, many inevitably CLSJE GAHT 
+
+> GMANet
+> MambaHSI CSCN
+> DSTC
+> DSCC (Ours)
+
+0.62 
+
+0.64 
+
+0.66 
+
+0.68 
+
+0.70 
+
+0.72 
+
+0.74 
+
+1 10 100 1000 
+
+> Classification Performance (CF1)
+
+Inference Speed (FPS) 
+
+Fig. 2: Comparison of classification performance and inference speed. Circle radius represents Floating Point Operations (FLOPs). Our DSCC achieves the best accuracy-efficiency trade-off. 
+
+cover pixels from multiple classes, especially near bound-aries or in mixed land-cover areas. Training with one-hot labels at the token level would introduce severe label noise. To address this, we propose a Category Proportion-aware Soft Label that encodes the class proportions within each supertoken, as illustrated in Fig. 1(b). This supervision aligns with the internal composition of tokens, improves robustness to mixed-class regions, and stabilizes training. We evaluate DSCC on the WHU-OHS dataset [18] and compare it with open-source state-of-the-art methods. As shown in Fig. 2, DSCC achieves a CF1 of 0.728 at 197.75 FPS, demonstrating a strong accuracy-efficiency trade-off. Additional experiments on the IP, KSC, WHU-Hi-Hanchuan [51], and HyRANK-Dioni datasets further confirm its generality. This work extends and deepens our previous conference paper [21] by introducing several inno-vations and addressing core limitations: 
+
+• We introduce a global multi-criteria feature distance mechanism that replaces rigid patch-based computations with a full-image distance evaluation strategy, maintain-ing similarity accuracy while boosting inference speed. 
+
+• Building on this distance mechanism, we propose the Spectral-Consistent Pixel Aggregation module, which ag-gregates spatially related pixels into spectral supertokens. This global search space coupled with dynamic local assignment resolves the boundary truncation inherent in fixed-grid hard aggregation. 
+
+• We design a Density-Isolation Center Filtering mecha-nism that evaluates both local density and global isola-tion to filter representative and well- separated centers, improving robustness to scale variation. 
+
+Peifu Liu, et al: Preprint submitted to Elsevier Page 2 of 14 Hyperspectral Image Classification via Efficient Global Spectral Supertoken Clustering 
+
+## 2. Related Work 
+
+2.1. Superpixel in Hyperspectral Image Classification 
+
+Despite advances enabled by CNNs [2, 8, 16, 50], Trans-formers [15, 26], and Mamba architectures [20, 22], hyper-spectral image classification still suffers from segmentation discontinuities and imprecise edge localization. Superpixel segmentation is a promising way to mitigate these issues. For instance, Zhao et al . [49] used superpixels to guide deformable convolutions for feature extraction, while Tu et al . [34] and Nartey et al . [27] integrated superpixels into graph neural networks to enhance boundary modeling. Bai et al . [3] further combined superpixels with graph-based meth-ods to balance spatial-spectral representation and compu-tational efficiency. However, these approaches still perform pixel-wise classification, leading to local inconsistencies. Our method addresses this issue by aggregating pixels into spectral supertokens and performing token-wise clas-sification. Pixel-level predictions are obtained by assigning all pixels in a supertoken to its predicted class. This strategy improves edge delineation and regional consistency while remaining efficient and effective for hyperspectral image classification. 
+
+2.2. Transformer/Mamba in Hyperspectral Image Classification 
+
+Transformers, known for self-attention and strong long-range dependency modeling [36], have been widely adopted in hyperspectral image classification. Hong et al . [15] pio-neered this line by replacing CNN-based preprocessing with group-wise spectral embeddings processed by a Transformer encoder. Subsequent works refined spectral-spatial model-ing: Mei et al . [26] proposed a hierarchical Transformer with grouped pixel embeddings; Yu et al . [43] introduced CLSJE, integrating multi-scale features with attention to handle class imbalance; Lu et al . [24] designed a band-grouping multi-attention network to extract discriminative spectral-spatial features. More recently, Mamba [13], a structured state space model with linear-time complexity and strong long-range modeling capacity, has emerged as an alternative to Trans-formers. Li et al . [20] proposed MambaHSI with adaptive spectral-spatial fusion, while Sheng et al . [33] introduced DualMamba, a lightweight parallel CNN-Mamba architec-ture with cross-attention fusion to capture both global and local cues. Unlike one-stage Transformer- or Mamba-based ap-proaches, our method adopts a dual-stage design: it first aggregates similar pixels into supertokens and then applies a hybrid Transformer-Mamba architecture to model global relations among these tokens, followed by token-wise classi-fication. This paradigm effectively realizes real region-wise prediction. 
+
+2.3. Dual-stage Methods 
+
+Dual-stage methods have been widely used in object detection [30], where region proposals are first generated and then classified and refined. Recent studies have also shown that dual-stage deep architectures remain effective across diverse vision tasks. For example, stage-wise de-signs have been adopted for face anti-spoofing [41], where identity-related features are first separated from spoofing cues to improve cross-domain generalization, for human-object interaction detection [38], where intermediate spatial priors are first constructed and then used for interaction recognition, for motion prediction via proposal generation and subsequent trajectory refinement [10], and for neu-ral surface reconstruction through two-stage representation learning and refinement [40]. In hyperspectral image classification, Tu et al . [35] pro-posed an early dual-stage framework for generating prob-ability maps. Their method extracted hand-crafted shape attributes to produce an initial classification map and then refined it using a rolling guidance filter. Although effective at preserving boundaries, it suffered from limited accuracy and efficiency due to reliance on manual features. Recent studies have further shown that stage-wise modeling can also be beneficial for hyperspectral classification when subpixel priors are explicitly incorporated. For example, S2VNet [14] first learns subpixel representations through an unmixing-oriented spectral modeling branch and then integrates them with classifier features for final prediction. Although it still produces pixel-wise outputs, this design follows a “subpixel modeling first, semantic decision second” paradigm, sug-gesting that decoupling intermediate structure-aware repre-sentation learning from subsequent classification is benefi-cial. Motivated by this insight, our method instead formu-lates a fully region-wise dual-stage framework that explicitly separates supertoken generation and token classification, achieving improved performance and efficiency. 
+
+## 3. Method 
+
+Let 𝑰 ∈ ℝH×W×B denote the input hyperspectral image, where H and W are the spatial dimensions (height and width) and B is the number of spectral bands. Hyperspectral image classification aims to learn a mapping function 𝒇 (⋅) ∶ 
+
+ℝH×W×B → ℝH×W×1 that outputs a pixel-wise classification map: 
+
+𝒁 = 𝒇 (𝑰 ), (1) where 𝒁 ∈ ℝH×W×1 is the final classification map. Conventional methods implement 𝒇 (⋅) in a strictly pixel-wise manner, leading to local inconsistencies and inaccurate edges. To overcome this, we reformulate hyperspectral im-age classification as region-wise prediction via a two-stage paradigm: Stage 1 aggregates spectrally similar and spatially proximate pixels into tokens, and Stage 2 performs token-wise classification and maps predictions back to pixels. To this end, we propose a Dual-stage Spectrum-Constrained Clustering-based Classifier (DSCC), as shown in Fig. 3(a). Specifically, Stage 1 consists of two groups of Spectral-Consistent Pixel Aggregation (SCPA) modules, where each module is repeated K𝑙 (𝑙 = 1 , 2) times. In each group, all pixels are associated with M𝑙 (𝑙 = 1 , 2) clustering centers   
+
+> Peifu Liu, et al: Preprint submitted to Elsevier Page 3 of 14
+
+Hyperspectral Image Classification via Efficient Global Spectral Supertoken Clustering Stage 1: Spectral Supertoken Generation    
+
+> ... ...
+> Transformer-Mamba Classification
+> Ground Truth
+> CE Loss
+> ... ...
+> Input HSI
+> Stage 2: Token-to-Pixel Prediction Spectral Supertokens
+> Density-Isolation
+> Center Filtering
+> Spectral-Consistent
+> Pixel Aggregation
+> ... ...
+> Spectral-Consistent
+> Pixel Aggregation
+> Category  Proportion-aware Soft Label
+> Semantic Feature
+> Spectral Derivative
+> Simplified UNet Differentiate
+> Global Multi-criteria Feature Distance Modeling
+> Spectral Supertoken Aggregation
+> all centers
+> all pixels
+> Local Pixel-Center Association
+> compute global pixel-center distance assign pixel to nearest center aggregate semantic features
+> Original Centers
+> Filtered Centers
+> Token-wise Classification
+
+(a)  Dual-stage Spectrum-Constrained Clustering-based Classifier 
+
+(b)  Spectral-Consistent  Pixel Aggregation 
+
+> isolation
+> density
+> DICF
+
+(c)  Density-Isolation  Center Filtering 
+
+> density density
+> isolation
+> isolation
+
+Fig. 3: Overall architecture of the proposed (a) Dual-stage Spectrum-Constrained Clustering-based Classifier. In Stage 1, multiple groups of (b) Spectral-consistent Pixel Aggregation is applied to cluster similar pixels into spectral supertokens, followed by (c) 
+
+Density-Isolation Center Filtering to optimize the distribution of clustering centers. In Stage 2, spectral supertokens are classified using a Transformer-Mamba-based model. Token-wise predictions are projected back to the pixel level to produce the final classification map. During training, each token is supervised by a class proportion-aware soft label, where the color composition indicates the proportion of different land cover types within each token. 
+
+in a single global step, producing spectral supertokens. A Density-Isolation Center Filtering (DICF) module between the two SCPA groups selects centers that are both represen-tative and globally isolated. In Stage 2, the refined super-tokens are fed into a Transformer-Mamba-based classifier for token-wise classification. Supervision is provided by a Category Proportion-aware Soft Label that encodes the class proportions within each supertoken. 
+
+3.1. Preliminary Spectral-Semantic Analysis 
+
+To support the subsequent modules, we extract both semantic features and spectral derivatives from the hyper-spectral image. 
+
+Semantic Feature Extraction. Simply using the original spectra alone may be insufficient for robust clustering, while deep semantic features provide complementary information. In our framework, the semantic feature map 𝑭 ∈ ℝH×W×C 1
+
+is obtained as: 
+
+𝑭 = 𝒇 U(𝑰 ), (2) where C1 denotes the feature dimension, and 𝒇 U(⋅) rep-resents the feature extractor. To balance computational ef-ficiency and performance, 𝒇 U(⋅) is implemented using a lightweight UNet architecture with two downsampling and two upsampling layers. 
+
+Spectral Derivative Computation. The spectral derivative highlights local spectral structures and suppresses subtle fluctuations [37]. We incorporate it into our model as an additional cue. Let 𝑰 (𝑖 ) ∈ ℝH×W be the 𝑖 -th spectral band of the input image. The spectral derivative at band 𝑖 , denoted 
+
+𝑰 ′(𝑖 ) ∈ ℝH×W , is computed as: 
+
+𝑰 ′(𝑖 ) = 𝑰 (𝑖 + 1) − 𝑰 (𝑖 ), 𝑖 = 1 , … , B − 1 . (3) Applying this computation across all spectral bands yields the spectral derivative 𝑰 ′ ∈ ℝH×W×(B−1) .
+
+3.2. Spectral-Consistent Pixel Aggregation 
+
+Patch-based clustering methods [6, 21, 25] restrict pixel-center association to local windows. This truncates large homogeneous regions at patch boundaries and causes dis-continuities. Iterative, patch-wise updates also introduce computation bottleneck. 
+
+Peifu Liu, et al: Preprint submitted to Elsevier Page 4 of 14 Hyperspectral Image Classification via Efficient Global Spectral Supertoken Clustering 
+
+To avoid these issues, we adopt a one-shot global asso-ciation strategy that computes a global multi-criteria feature distance between each pixel and every clustering center over the entire image. As illustrated in Fig. 3(b), this process consists of three steps: (i) computing global multi-criteria feature distances between pixels and centers, (ii) enforcing local pixel-center association, and (iii) aggregating spectral supertokens. For clarity, we describe the workflow using the first stage as an example, where M1 centers are initialized. 
+
+Global Multi-criteria Feature Distance Modeling. In-spired by Context Cluster [25], we first place a fixed grid of uniformly distributed cluster centers, which balances accuracy and efficiency. We then compute a distance matrix 
+
+𝑫 ∈ ℝN×M 1 that captures the relationships between pixels and centers using both spatial coordinates and multi-modal features: 
+
+𝑫 (𝑛, 𝑚 ) = 𝑫 spa (𝑛, 𝑚 ) + 𝑫 feat (𝑛, 𝑚 ), (4) where N = H × W is the number of pixels and M1 is the number of centers. The spatial distance 𝑫 spa ∈ ℝN×M 1 is computed as: 
+
+𝑫 spa (𝑛, 𝑚 ) = ‖𝑪 p(𝑛, ∶) − 𝑪 c(𝑚, ∶) ‖2
+
+max(H , W) , (5) where 𝑪 c ∈ ℝM1×2 and 𝑪 p ∈ ℝN×2 are the spatial coordinates of the centers and pixels, respectively. Based on these coordinates, the spectral features of the centers 
+
+𝑰 c ∈ ℝM1×B , their spectral derivatives 𝑰 ′ 
+
+> c
+
+∈ ℝM1×(B−1) ,and their semantic features 𝑭 c ∈ ℝM1×C 1 are sampled from the original image 𝑰 , the derivatives 𝑰 ′, and the semantic feature map 𝑭 , respectively. The feature distance matrix 
+
+𝑫 feat ∈ ℝN×M 1 is subsequently defined as: 
+
+𝑫 feat (𝑛, 𝑚 ) = ‖𝑰 r(𝑛, ∶) − 𝑰 c(𝑚, ∶) ‖2
+
+√B+ ‖𝑰 ′
+
+> r
+
+(𝑛, ∶) − 𝑰 ′
+
+> c
+
+(𝑚, ∶) ‖2
+
+√B − 1 + ‖𝑭 r(𝑛, ∶) − 𝑭 c(𝑚, ∶) ‖2
+
+√C
+
+,
+
+(6) where 𝑰 r ∈ ℝN×B , 𝑰 ′ 
+
+> r
+
+∈ ℝN×(B−1) , and 𝑭 r ∈ ℝN×C 1 are the reshaped pixel-wise features. To prevent components with larger magnitudes or higher dimensions from dominating the feature distance, explicit normalization is applied to each term in Eq. (5) and Eq. (6). Specifically, we normalize the spatial distance by the image size and scale each feature distance by the square root of its channel dimension before summation. This guarantees that all modalities contribute fairly to the global multi-criteria feature distance. Compared with patch-based methods, this image-level formulation allows each pixel to evaluate all clustering cen-ters before locality regularization, so spectrally similar and spatially proximate pixels can still be grouped into super-tokens even across patch boundaries. It therefore alleviates the fixed patch-wise truncation of candidate centers caused by patch division, while preserving accurate association. Moreover, the parallel single-pass computation significantly improves efficiency. 
+
+Local Pixel-Center Association. We derive the association matrix 𝑨 ∈ ℝN×M 1 , which encodes the relationship between each pixel and all centers, by applying an exponential kernel to the distance matrix: 
+
+𝑨 = exp(− 𝑫 ). (7) Directly using 𝑨 may produce spatially scattered assign-ments, since spectrally similar pixels can be far apart and form fragmented, non-contiguous supertokens. To ensure spatial coherence and prevent fragmented supertokens, we further regularize the image-level association matrix with a spatial top-k mask, which preserves only the nearest candi-date centers for each pixel rather than imposing fixed patch-wise isolation. 
+
+Spectral Supertoken Aggregation. We then aggregate the semantic features of all pixels associated with each center, weighted by their similarities. Let 𝒑 ∈ ℝC1 be a center with Np associated feature points, and let 𝒂 ∈ ℝNp be the corresponding association weights. The aggregated feature 
+
+𝒔 ∈ ℝC1 is computed as: 
+
+𝒔 = 𝒑 + ∑Np 
+
+> 𝑖 =1
+
+𝒂 𝑖 𝒇 𝑖 
+
+1 + ∑Np 
+
+> 𝑖 =1
+
+𝒂 𝑖 
+
+, (8) where 𝒇 𝑖 is the 𝑖 -th deep semantic feature. Applying this aggregation to all centers yields the final set of spectral supertokens 𝑺 1 ∈ ℝM1×C 1 . These updated center repre-sentations are then fed into the Density-Isolation Center Filtering module for center evaluation and selection. 
+
+3.3. Density-Isolation Center Filtering 
+
+Uniformly distributed centers oversample large homoge-neous regions and undersample small structures. To reduce token redundancy and improve the adaptability to objects of different scales, we introduce a Density-Isolation Center Filtering (DICF) module, as shown in Fig. 3(c), inspired by recent token fusion approaches [44]. By jointly assessing local density and global isolation, DICF selects centers that are both representative within their local neighborhoods and well separated in the global feature space. Unlike conventional methods that compute pairwise distances and merge similar tokens into prototypes, our method differs in two key aspects. First, we use the global multi-criteria feature distance to capture richer relationships among centers in the feature space. Second, we retain the selected centers in their original form instead of merging them, preserving their distinct characteristics and avoiding information loss. 
+
+Local Center Compactness. After spectral supertoken ag-gregation, each center is represented by an updated feature vector that summarizes the information of its associated pixels. Based on these updated center representations and   
+
+> Peifu Liu, et al: Preprint submitted to Elsevier Page 5 of 14 Hyperspectral Image Classification via Efficient Global Spectral Supertoken Clustering
+
+their corresponding spatial coordinates, we compute the center-to-center distance matrix 𝑫 c ∈ ℝM1×M 1 . Similar to Eq. (4), this distance still consists of a spatial distance term and a multi-feature distance term. The local density 𝜌 (𝑗 ) of the 𝑗 -th center is defined based on its K-nearest neighbors: 
+
+𝜌 (𝑗 ) = exp 
+
+(
+
+− 1K
+
+> K
+
+∑
+
+> 𝑘 =1
+
+𝑑 2(𝑗, 𝑘 )
+
+)
+
+∈ (0 , 1] , 𝑗 ∈ [1 , M1], (9) where 𝑑 (𝑗, 𝑘 ) is the distance from the 𝑗 -th center to its 𝑘 -th nearest neighbor, derived from 𝑫 c. The local density 
+
+𝜌 (𝑗 ) reflects how compact the neighborhood around the 𝑗 -th center is. 
+
+Global Center Separation. To measure how isolated each center is from others, we define a binary indicator matrix 
+
+𝑶 ∈ ℝM1×M 1 as: 
+
+𝑶 (𝑗, 𝑘 ) = 
+
+{
+
+1, if 𝜌 (𝑘 ) > 𝜌 (𝑗 ),
+
+0, otherwise . (10) Here, 𝑗 and 𝑘 index different centers. For each center, the isolation score 𝜂 (𝑗 ) is defined as the minimum distance to any other center with higher local density. For the center with the highest density, 𝜂 (𝑗 ) is set to the maximum distance to all other centers. Formally,   
+
+> 𝜂 (𝑗 ) = min
+> 𝑘 {𝑶 (𝑗, 𝑘 )⊙𝑫 c(𝑗, 𝑘 )+(1− 𝑶 (𝑗, 𝑘 )) ⊙𝑫 max } ∈ (0 ,𝑫 max ],
+
+(11) where 𝑫 max is the largest value in 𝑫 c, and ⊙ denotes element-wise multiplication. The isolation score quantifies how far the 𝑗 -th center is from denser regions in the feature space. 
+
+Joint Score for Center Filtering. High density ensures that a center is representative of a dense local region, while high isolation ensures that it is distinguishable from centers in other regions. Centers with both high density and high isolation are thus the most representative. Accordingly, we define a joint score for the 𝑗 -th center as the product of its density and isolation scores: Score (𝑗 ) = 𝜌 (𝑗 ) × 𝜂 (𝑗 ) ∈ (0 , 𝑫 max ]. (12) Since 𝑑 (𝑗, 𝑘 ) is derived from the distance matrix 𝑫 c, we have 
+
+𝑑 (𝑗, 𝑘 ) ≥ 0. Therefore, 𝜌 (𝑗 ) ∈ (0 , 1] , 𝜂 (𝑗 ) ∈ (0 , 𝐃 max ], and Score (𝑗 ) ∈ (0 , 𝐃 max ]. The final set of centers is obtained by selecting those with the highest scores. This retains only the most distinctive and well-separated centers. 
+
+Center Separation Loss. To further enhance the discrim-inability of the centers, we introduce a center separation loss. Let 𝑪 e ∈ ℝM2×C 1 denote the selected centers, where 
+
+M2 is the number of selected centers. The average pairwise Euclidean distance between distinct centers is defined as: 
+
+de =
+
+∑M2
+
+> 𝑖 =1
+
+∑M2 
+
+> 𝑗 =1 ,𝑗 ≠𝑖
+
+‖𝑪 e(𝑖 ) − 𝑪 e(𝑗 )‖2
+
+M2(M 2 − 1) , (13) and the separation loss is defined as sst = 1∕d e. This encourages the filtered centers to be well separated in the embedding space, leading to a clearer clustering structure. 
+
+3.4. Token-to-Pixel Prediction 
+
+After filtering, the second group of SCPA modules up-dates the supertokens, yielding 𝑺 2 ∈ ℝM2×C 1 . We subse-quently leverage the Transformer’s strength in global feature modeling and Mamba’s efficiency in sequential modeling to perform class prediction for each spectral supertoken: ̂
+
+𝑺 = 𝒇 tm (𝑺 2), (14) where 𝒇 tm (⋅) denotes a stack of alternating Transformer and Mamba blocks. The output ̂ 𝑺 ∈ ℝM2×C , where C is the number of predefined classes. In our framework, spectral supertokens are fed directly into the model, avoiding the patch partitioning step in Vision Transformers (ViT) [11]. Each Transformer block applies standard self-attention to model token interdependencies. For example, in the first attention block, the self-attention operation is computed as: 
+
+𝑺 ′ = 𝝈 ( 𝑸 S𝑲 ⊤
+
+> S
+
+√C1
+
+)𝑽 S, (15) where 𝝈 (⋅) is the Softmax function, and the query 𝑸 S, key 
+
+𝑲 S, and value 𝑽 S are obtained via linear projections: 
+
+𝑸 S = 𝑺𝑬 Q, 𝑲 S = 𝑺𝑬 K, 𝑽 S = 𝑺𝑬 V, (16) with 𝑬 Q, 𝑬 K, and 𝑬 V being learnable projection matrices. For brevity, we omit multi-head attention. Following the Transformer block, the Mamba block ap-plies dynamic state-space modeling to the token sequence. At each time step 𝑡 , given input token 𝑺 ′
+
+> 𝑡
+
+, the hidden state 𝒉 𝑡 
+
+is updated as: 
+
+𝒉 𝑡 = 𝒇 A(𝑺 ′
+
+> 𝑡
+
+; 𝜃 A)𝒉 𝑡 −1 + 𝒇 B(𝑺 ′
+
+> 𝑡
+
+; 𝜃 B)𝑺 ′
+
+> 𝑡
+
+, (17) where 𝒇 (⋅, 𝜃 ) are learnable functions parameterized by 𝜃 ,implemented with MLPs to generate state transition and input mapping matrices. The output is then computed as: 
+
+𝑺 ′′  
+
+> 𝑡
+
+= 𝑪𝒉 𝑡 + 𝑫𝑺 ′
+
+> 𝑡
+
+, (18) with 𝑪 and 𝑫 are learnable projection matrices. By alternately stacking Transformer and Mamba blocks, the model captures long-range dependencies and efficiently models sequential behavior. After passing through the stacked blocks, token-wise predictions ̂ 𝑺 are obtained via a final linear projection and then mapped back to the image domain to generate the pixel-level classification map 𝒁 .
+
+3.5. Category Proportion-aware Soft Label 
+
+In hyperspectral imaging, the ubiquitous mixed-pixel phenomenon gives rise to complex spectral variability, which is often characterized using spatial-spectral or low-rank priors [46]. Analogously, a generated supertoken can be viewed as a macroscopic mixed unit that may encom-pass multiple classes. To better reflect this compositional property and avoid the label noise introduced by one-hot assignment, we design a Category Proportion-aware Soft   
+
+> Peifu Liu, et al: Preprint submitted to Elsevier Page 6 of 14 Hyperspectral Image Classification via Efficient Global Spectral Supertoken Clustering
+
+Label (Fig. 3). Specifically, it encodes the class proportions within each supertoken, thereby providing supervision that is better aligned with its internal semantic composition. To handle the multi-class nature of each supertoken, we design a category proportion-aware soft label, as shown in Fig. 3. Each pixel is first assigned to its most similar supertoken, and then class proportions are computed within each supertoken’s assigned pixel set. Specifically, we first determine a hard association matrix 
+
+𝑨 ′ ∈ {0 , 1} N×M 2 , where each pixel 𝑛 is exclusively assigned to the center 𝑚 with the highest similarity: 
+
+𝑨 ′ 
+
+> 𝑛,𝑚
+
+=
+
+{
+
+1, if 𝑚 = arg max 𝑚 ′ 𝑨 𝑛,𝑚 ′
+
+0, otherwise (19) Given the pixel-level ground truth labels 𝑮 ∈ {1 , ..., C} N,we compute the count 𝑪 c(𝑚, 𝑐 ) of class 𝑐 within supertoken 
+
+𝑚 as: 
+
+𝑪 c(𝑚, 𝑐 ) = 
+
+> 𝑁
+
+∑
+
+> 𝑛 =1
+
+𝑨 ′ 
+
+> 𝑛,𝑚
+
+⋅ 𝛿 (𝑮 𝑛 , 𝑐 ), (20) where 𝛿 (𝑥, 𝑐 ) is the Kronecker delta function (1 if 𝑥 = 𝑐 , 0 otherwise). We then normalize the counts for each supertoken to obtain the soft label matrix 𝑳 ∈ ℝM2×C :
+
+𝑳 (𝑚, 𝑐 ) = 𝑪 c(𝑚, 𝑐 )
+
+∑𝐶 𝑐 ′=1 𝑪 c(𝑚, 𝑐 ′) . (21) The cross-entropy loss is then computed as: 
+
+CE (̂ 𝑺 , 𝑳 ) = − 1M2M2∑
+
+> 𝑚 =1 C
+
+∑
+
+> 𝑐 =1
+
+𝑳 (𝑚, 𝑐 ) log ̂ 𝑺 (𝑚, 𝑐 ), (22) where ̂ 𝑺 (𝑚, 𝑐 ) is the predicted probability that supertoken 𝑚 
+
+belongs to class 𝑐 . This soft-label strategy improves robust-ness to mixed-class tokens and stabilizes training. 
+
+3.6. Learning Objective 
+
+The overall training objective is defined as: 
+
+ = CE + sst , (23) where CE is the cross-entropy loss for classification, and 
+
+sst (𝑙 ) is the supertoken separation loss for the 𝑙 -th module. 
+
+## 4. Experiments 
+
+We conduct comprehensive comparisons and ablation studies on multiple hyperspectral image classification datasets to evaluate the effectiveness of DSCC and its components. 
+
+4.1. Implementation Details 
+
+We optimize network parameters using the AdamW op-timizer with a cosine-annealing learning rate schedule. All experiments are implemented in PyTorch and run on an NVIDIA RTX 3090 GPU with an Intel XEON Gold 5218R CPU. Mixed-precision training is adopted to reduce memory usage and accelerate computation. The two hierarchy levels contain K1 = 3 and K2 = 4 Spectral-Consistent Pixel Aggregation blocks, respectively. In the Local Pixel-Center Association stage, the mask size is set to 9, meaning that each pixel can associate only with its 9 nearest clustering centers. The value of K in the Density-Isolation Center Filtering module is also set to 9. 
+
+4.2. Results on WHU-OHS Dataset 
+
+Dataset and Experimental Setups. The WHU-OHS dataset [18] contains 7795 hyperspectral images acquired by the Orbita Hyperspectral Satellite and covers 24 land cover categories. Each image has a spatial size of 512 ×512 pixels, a spatial resolution of 10 m, and 32 spectral bands spanning 466-940 nm. As a large-scale hyperspectral benchmark with rela-tively high spatial detail and complex land-cover boundaries, it is particularly suitable for evaluating region-consistent and boundary-preserving classification methods. During train-ing, the initial learning rate is set to 1×10 −4 , with 150 epochs and a batch size of 12. To reduce memory consumption, input images are resized to 256 ×256 pixels. In the two-level Spectral-Consistent Pixel Aggregation modules, pixels are grouped into M1 = 256 and M2 = 128 spectral supertokens at the first and second levels, respectively. 
+
+Quantitative Results. Tab. 1 reports quantitative compar-isons between DSCC and other open-source state-of-the-art methods for hyperspectral image classification. Our previous work DSTC achieves strong performance by aggregating spectrally similar pixels, enabling accurate boundary de-lineation and region-consistent classification. However, its patch-based clustering strategy introduces boundary trunca-tion artifacts. To overcome this issue, we enhance the clustering pro-cess with a global pixel-center similarity computation that captures long-range dependencies across the entire image, alleviating discontinuities caused by local partitioning. We further introduce Density-Isolation Center Filtering to refine clustering centers, mitigating the uneven supertoken dis-tribution caused by uniform initialization. DSCC achieves consistent gains across multiple metrics. In particular, it attains a CF1 score of 0.728, outperforming DSTC, which achieves 0.718. The mIoU of DSCC reaches 0.602, surpass-ing DSTC’s 0.588. Some methods, such as GMANet, MambaHSI, and ReS3Net variants, are specifically tailored for small-scale datasets with limited training samples. On a large-scale dataset like WHU-OHS, where both data volume and image size are large, their performance lags behind CSCN, DSTC, and DSCC. Overall, these results confirm the effectiveness of DSCC in addressing key challenges in hyperspectral image classification. 
+
+Efficiency Analysis. We compare the computational effi-ciency of DSCC with existing methods in terms of Floating Point Operations (FLOPs), number of parameters (#Params), and inference speed (FPS). The results are summarized in Tab. 1. Although DSTC delivers strong classification   
+
+> Peifu Liu, et al: Preprint submitted to Elsevier Page 7 of 14
+
+Hyperspectral Image Classification via Efficient Global Spectral Supertoken Clustering 
+
+Table 1 
+
+Comparison of DSCC’s Performance and Efficiency with Other Methods on WHU-OHS Dataset. CF1: Class Average F1, OA: Overall Average, 𝜅 : Kappa, mIoU: mean Intersection over Union. Methods CF1 ↑ OA ↑ 𝜅 ↑ mIoU ↑ FLOPs (G) #Params (M) Speed (FPS) 3D-CNN [8] - 0.652 0.605 0.405 1814.51 0.346 1122.88 FreeNet [50] - 0.778 0.749 0.525 116.20 2.508 231.17 ViT [11] 0.673 0.774 0.745 0.542 142.08 10.049 604.15 CLSJE [43] 0.644 0.781 0.753 0.520 412.20 5.352 6.51 GAHT [26] 0.675 0.776 0.748 0.542 3.01 0.734 696.35 GMANet [24] 0.641 0.757 0.725 0.512 19.14 1.17 550.24 MambaHSI [20] 0.681 0.776 0.748 0.546 5.746 0.170 622.66 CSCN [2] 0.704 0.788 0.761 0.574 286.50 7.38 24.65 3D-CNN+ReS3Net [16] - 0.669 0.623 0.421 - - -FreeNet+ReS3Net [16] - 0.794 0.768 0.545 - - -SiT [9] 0.690 0.781 0.752 0.556 45.67 44.22 333.24 HDHN [7] 0.710 0.794 0.775 0.581 50.58 8.64 92.00 DSTC [21] 0.718 0.799 0.774 0.588 19.78 11.589 9.61 S2Mamba [39] 0.723 0.800 0.774 0.592 139.05 7.49 501.11 DSCC (Ours) 0.728 0.802 0.776 0.602 34.33 8.57 197.75 Ground Truth DSTC 3D-CNN FreeNet CLSJE False-color          
+
+> Scene 4  Scene 3  Scene 2  Scene 1
+> DSCC (Ours)
+> Paddy field Woodland Sparse woodland Forest land Ocean Urban built-up Rural settlement River canal Gobi Reservoir pond Ignore
+> S2Mamba MambaHSI
+
+Fig. 4: Qualitative results on WHU-OHS. DSCC achieves the best classification accuracy with regional consistency (black-box regions) and precise boundaries. 
+
+accuracy, its inference speed is relatively low at about 10 FPS, limiting its suitability for real-time applications. In contrast, DSCC abandons DSTC’s fixed-grid, local aggre-gation strategy and adopts a one-shot, global paradigm for modeling pixel-center associations, increasing the inference speed to 197.75 FPS. Despite a moderate increase in model complexity (8.57 M parameters, 34.33 G FLOPs), DSCC achieves the best classification performance among all compared methods on WHU-OHS. While it is not as lightweight as GAHT or Mam-baHSI, the performance-efficiency trade-off is favorable and justifies the additional computational cost. 
+
+Qualitative Results. As shown in Fig. 4, qualitative results show that DSCC produces more accurate boundaries and better spatial consistency over large regions. The highlighted areas indicate that DSCC yields cleaner and more contin-uous predictions, such as river bends in Scene 1 and rural settlements in Scene 2. These improvements arise from the use of spectral supertokens, which aggregate spectrally similar and spatially proximate pixels and enable token-wise classification that enhances spatial coherence. Compared with DSTC, which aggregates pixels within fixed patches, DSCC computes correlations between all pix-els and clustering centers globally, and then applies a spatial mask to assign each pixel to the most appropriate cluster. 
+
+Peifu Liu, et al: Preprint submitted to Elsevier Page 8 of 14 Hyperspectral Image Classification via Efficient Global Spectral Supertoken Clustering False-color Image Initial Centers Image Space Filtered Centers Image Space Initial Centers Feature Space Filtered Centers Feature Space 
+
+Fig. 5: Distribution of clustering centers in feature and image space before and after filtering. Density-Isolation Center Filtering removes less representative centers, resulting in a more uniform and dispersed distribution in the feature space. In image space, centers are reduced in large-scale regions. Patch-based Supertoken Global Supertoken 
+
+> Global
+> Classification Patch-based
+> Classification Ground Truth
+
+Fig. 6: Compared with the patch-based supertoken aggregation method. Our global supertoken aggregation method avoids the truncation caused by patch division at boundaries, thereby pre-serving structure integrity and delineates accurate boundaries. 
+
+This design helps DSCC better preserve fine-grained bound-aries while maintaining the integrity of large regions. 
+
+Visualization of Filtered Centers. Fig. 5 visualizes the distribution of clustering centers in both feature and image space before and after applying Density-Isolation Center Fil-tering. Initially, centers are densely packed in feature space and uniformly distributed in image space. After filtering, only centers that are local density maxima and well separated from other high-density clusters are retained. The remaining centers become more evenly and sparsely distributed in fea-ture space, indicating reduced redundancy. In image space, fewer centers appear in large uniform areas ( e.g. , woodland), which suppresses redundancy and improves robustness to scale variations. 
+
+Comparison with Patch-based Supertoken. Fig. 6 com-pares the supertoken segmentation and classification results of the patch-based aggregation in DSTC and the global aggregation in DSCC. Although DSTC can group pixels False-color Global Pixel-Center Similarity Ground Truth 
+
+> Scene 4  Scene 3  Scene 2  Scene 1
+
+Fig. 7: Heatmap of pixel-center similarity. The white stars indicate selected centers. Strong correlations (red) are estab-lished with neighboring pixels having similar spectral features, while distant or spectrally distinct pixels show weak correlations (blue). 
+
+into supertokens within local patches, it struggles with large or continuous regions, often splitting coherent areas into multiple supertokens. This introduces boundary truncation and imprecise edges, leading to classification errors. In contrast, our DSCC computes spectral similarity be-tween pixels and clustering centers across the entire image, while a spatial mask restricts pixel assignment to nearby cen-ters. This global strategy better preserves spatial structures and edge continuity, yielding more accurate and consistent classification maps. 
+
+Heatmap of Pixel-Center Similarity. Fig. 7 shows the pixel-center similarity in the final Spectral-Consistent Pixel Aggregation block. White stars mark the selected cluster-ing centers, around which strong correlations emerge with neighboring pixels that share similar spectral characteristics. Pixels farther away or belonging to different land cover classes exhibit weaker correlations. This behavior is driven by our Global Multi-criteria Feature Distance, which jointly models spatial and spectral relationships between pixels and centers. Accurate modeling of these correlations enables precise pixel aggregation, thereby improving classification consistency and boundary accuracy. 
+
+4.3. Experiment on Four Benchmark Datasets 
+
+Data and Experimental Setups. The Indian Pines (IP) dataset comprises 145 ×145 pixels with a spatial resolution of 20 m. It contains 200 spectral bands and represents 16 land cover classes with varying sample sizes. The Kennedy Space Center (KSC) dataset covers an area of 512 ×614 pixels and originally includes 176 spectral bands. After eliminating bands with low signal-to-noise ratios in the wavelength range of 400-2500 nm, the dataset is reduced to 5202 labeled samples across 13 classes. The WHU-Hi-HanChuan dataset [51] consists of 1217 ×303 pixels with a 
+
+Peifu Liu, et al: Preprint submitted to Elsevier Page 9 of 14 Hyperspectral Image Classification via Efficient Global Spectral Supertoken Clustering 
+
+Table 2 
+
+Quantitative results on four hyperspectral image classification benchmark datasets.                                                                                                                                        
+
+> Methods IP KSC WHU-Hi-HanChuan HyRANK-Dioni AA ↑OA ↑𝜅 ↑AA ↑OA ↑𝜅 ↑AA ↑OA ↑𝜅 ↑AA ↑OA ↑𝜅 ↑
+> SSTN [52] 0.8982 0.9091 0.8961 0.8014 0.8770 0.8631 0.9281 0.9667 0.9610 0.9735 0.9687 0.9612 SSSAN [48] 0.9218 0.9580 0.9521 0.8930 0.9313 0.9235 0.9664 0.9799 0.9764 0.9844 0.9854 0.9819 CVSSN [19] 0.9731 0.9842 0.9820 0.9791 0.9852 0.9835 0.9820 0.9868 0.9846 0.9875 0.9883 0.9855
+> MorphFormer [31] 0.8627 0.8266 0.8012 0.8644 0.9076 0.8972 0.9553 0.9769 0.9730 0.9510 0.9408 0.9262 SSEFN [23] 0.9618 0.9821 0.9796 0.9834 0.9904 0.9893 0.9915 0.9937 0.9927 0.9871 0.9827 0.9785 MambaHSI [20] 0.9626 0.9737 0.9700 0.9854 0.9902 0.9891 0.9731 0.9822 0.9792 0.9876 0.9854 0.9819 DSTC [21] 0.9875 0.9615 0.9857 0.9802 0.9860 0.9844 0.9885 0.9909 0.9894 0.9683 0.9633 0.9544 S2Mamba [39] 0.9791 0.9868 0.9850 0.9949 0.9976 0.9973 0.9946 0.9959 0.9953 0.9886 0.9859 0.9825 DSCC (Ours) 0.9877 0.9885 0.9869 0.9985 0.9983 0.9981 0.9976 0.9975 0.9971 0.9915 0.9878 0.9848
+
+False-color SSTN CVSSN MambaHSI 
+
+S2Mamba DSTC DSCC (Ours) Ground Truth 
+
+> HyRANK-Dioni  KSC  IP
+
+SSTN CVSSN DSCC (Ours) DSTC Ground Truth False-color S2Mamba MambaHSI 
+
+Fig. 8: Qualitative results on IP, KSC and HyRANK-Dioni datasets. DSCC achieves the best classification performance with accurate boundary delineation. False-color SSTN CVSSN MambaHSI S2Mamba DSTC DSCC (Ours) Ground Truth 
+
+Fig. 9: Qualitative results on the WHU-Hi-HanChuan dataset. Clustering similar pixels improves regional consistency and boundary accuracy in DSCC’s output. 
+
+spatial resolution of approximately 0.109 m. It includes 274 spectral bands in the 400-1000 nm range, distributed across 16 land cover classes. The HyRANK-Dioni dataset has a spatial dimension of 250 ×1376 pixels, with 176 spectral bands and a spatial resolution of 30 m. It contains 14 land cover categories. For experiments on these datasets, the hyperspectral images are cropped into non-overlapping 9 ×9 patches. Un-like the WHU-OHS dataset, processing the entire image at once on these single-image benchmarks would lead to unfair comparisons with existing state-of-the-art methods that strictly adhere to the patch-based evaluation protocol. We adopt this standard patch-wise setup to ensure a rigorous and fair comparison. Within each patch, Spectral-Consistent Pixel Aggregation modules group pixels into M1 = 16 and 
+
+M2 = 8 spectral supertokens, respectively. A random split of 10% and 90% is used for training and testing. DSCC is trained with a batch size of 16, an initial learning rate of 
+
+1×10 −4 , and 100 epochs, while DSTC uses a learning rate of 
+
+1 × 10 −3 with other settings kept the same. Final pixel-wise predictions are obtained by majority voting over all patches containing each pixel. 
+
+Quantitative Results. The quantitative results on the bench-mark datasets are summarized in Tab. 2. DSCC achieves 
+
+Peifu Liu, et al: Preprint submitted to Elsevier Page 10 of 14 Hyperspectral Image Classification via Efficient Global Spectral Supertoken Clustering DSCC (Ours) + Spec. Deriv. + Sem. Feat. False-color Baseline Ground Truth 
+
+> Scene 1 Scene 2 Scene 3 Scene 4
+
+Fig. 10: Ablation study of Spectral Derivative (Spec. Deriv.) and Semantic Feature (Sem. Feat.) on pixel-center similarity. White stars indicate selected centers. Red denotes higher similarity, and blue denotes lower similarity. 
+
+strong and often leading performance across multiple evalu-ation metrics. It achieves the best results on all three metrics for the IP, KSC, and WHU-Hi-HanChuan datasets. For ex-ample, on the WHU-Hi-HanChuan dataset, DSCC achieves an OA of 0.9975, an AA of 0.9976, and a 𝜅 of 0.9971, clearly outperforming S2Mamba, which attains 0.9959, 0.9946, and 0.9953, respectively. On the HyRANK-Dioni dataset, DSCC also performs exceptionally well, achieving the best AA and remaining highly competitive on OA and 𝜅 , falling short of the leading method by only 0.0005 and 0.0007. DSCC consistently surpasses DSTC across all datasets, confirming the benefit of the proposed improvements. On the KSC dataset, for instance, DSCC achieves an AA of 0.9985, exceeding DSTC by 0.0183. A substantial gain is also observed on the IP dataset, where DSCC obtains an OA of 0.9885 compared to DSTC’s 0.9615, an improvement of 0.0270. These results comprehensively demonstrate the superiority of DSCC for hyperspectral image classification. 
+
+Qualitative Results. Qualitative results are shown in Figs. 8 and 9, with zoomed-in views for closer inspection. Both DSTC and DSCC leverage spectral similarity to aggregate pixels, yielding more accurate boundaries and more coherent spatial predictions compared with pixel-wise methods, as seen in the enlarged regions. By modeling global pixel-cluster correlations and refining center distributions, DSCC further enhances boundary preservation and classification accuracy over DSTC. Results on the IP dataset also confirm the effectiveness of these improvements. Compared with other open-source state-of-the-art methods, DSCC delivers clear advantages in both classification accuracy and bound-ary delineation, further validating its robustness and efficacy. 
+
+4.4. Ablation Study 
+
+We conduct ablation studies on the WHU-OHS dataset to evaluate the contribution of each component in DSCC. 
+
+Effect of Semantic Feature and Spectral Derivative. As shown in Tab. 3, we examine the impact of semantic fea-tures and spectral derivative on classification performance. 
+
+Table 3 
+
+Effect of Semantic Feature (SF) and Spectral Derivative (SD). SF SD CF1 ↑ OA ↑ 𝜅 ↑ mIoU ↑
+
+✗ ✗ 0.713 0.791 0.765 0.582 
+
+✗ ✓ 0.720 0.794 0.768 0.590 
+
+✓ ✗ 0.725 0.801 0.775 0.597 
+
+✓ ✓ 0.728 0.802 0.776 0.602 Table 4 
+
+Comparison of Supervision Strategies. Supervision CF1 ↑ OA ↑ 𝜅 ↑ mIoU ↑
+
+Hard label 0.594 0.693 0.651 0.450 Dense-CE 0.716 0.795 0.768 0.589 Soft label 0.728 0.802 0.776 0.602 False-color Hard Label Dense-CE DSCC (Ours) Ground Truth 
+
+Fig. 11: Comparison of classification results under different supervision strategies. Soft label used in our DSCC achieves the best performance, underscoring its effectiveness. 
+
+Compared with the baseline, adding semantic features alone improves OA to 0.801 and CF1 to 0.725, while adding only the spectral derivative increases OA to 0.794 and CF1 to 0.720. The larger gain from semantic features indicates their stronger role in pixel clustering and center filtering. When both components are combined, all metrics reach their highest values, showing that semantic features and spectral derivative complement each other. Fig. 10 visualizes similarity heatmaps between selected centers and their neighboring pixels under different con-figurations. The baseline groups spectrally similar pixels reasonably well but still shows moderate responses to dis-similar ones, revealing limited discrimination. Adding only the spectral derivative yields little improvement. In contrast, semantic features substantially suppress responses to dissim-ilar pixels and sharpen focus on similar ones. Combining semantic features and spectral derivative further enhances discrimination, consistent with the quantitative results. 
+
+Comparison of Supervision Strategies. To assess the ef-fectiveness of the Category Proportion-aware Soft Label, we compare it with two alternatives: a hard label assigning each 
+
+Peifu Liu, et al: Preprint submitted to Elsevier Page 11 of 14 Hyperspectral Image Classification via Efficient Global Spectral Supertoken Clustering                                                                                
+
+> Table 5
+> Ablation Study on Number of Layers in UNet. Layers CF1 ↑FLOPs (G) #Param (M) Speed (FPS) 10.719 23.92 7.28 312.62 20.728 34.33 8.57 197.75 30.721 44.70 13.75 137.01 40.721 55.05 34.47 110.83
+> Table 6
+> Effect of spatial mask size in Spectral-Consistent Pixel Aggre-gation.
+> Mask Size CF1 ↑OA ↑𝜅 ↑mIoU ↑
+> 50.725 0.797 0.771 0.597 70.725 0.797 0.772 0.596 90.728 0.802 0.776 0.602
+> 11 0.724 0.797 0.771 0.594 13 0.715 0.796 0.770 0.586
+> Table 7
+> Effect of Kvalue in Density-Isolation Center Filtering.
+> KCF1 ↑OA ↑𝜅 ↑mIoU ↑
+> 50.725 0.797 0.771 0.597 70.725 0.797 0.772 0.596 90.728 0.801 0.776 0.602
+> 11 0.724 0.797 0.771 0.594 13 0.715 0.796 0.770 0.586
+
+supertoken to a single class and dense cross-entropy (dense-CE), which projects supertokens back to the pixel space for pixel-level supervision. As shown in Tab. 4, hard labels produce the weakest results, likely due to amplified label noise from one-hot assignments. Dense-CE performs better, but our soft-label supervision achieves the best performance, reaching a CF1 of 0.728, OA of 0.802, 𝜅 of 0.776, and mIoU of 0.602. The visual comparisons in Fig. 11 show that hard labels degrade segmentation quality, while the proposed CPSL yields the most consistent predictions, confirming its robustness to mixed-class supertokens and its stabilizing effect during training. 
+
+Effect of UNet Layers. Tab. 5 analyzes the impact of the number of downsampling and upsampling layers in the UNet. Network depth significantly affects performance and efficiency. A one-layer UNet is the most efficient (7.28 M parameters, 312.62 FPS) but achieves a relatively low CF1 of 0.719. The two-layer UNet delivers the best classification performance (CF1: 0.728) with acceptable computational cost. Increasing depth further leads to substantial overhead with no accuracy gains. This suggests that shallow semantic features are more effective for pixel aggregation and center filtering. Thus, we adopt the two-layer UNet as the default architecture. 
+
+Effect of Spatial Mask Size. To study the influence of spatial locality in the Spectral-Consistent Pixel Aggregation                                                                           
+
+> Table 8
+> Ablation Study on Transformer and Mamba Integration Strate-gies. Strategy CF1 ↑OA ↑𝜅 ↑mIoU ↑
+> Transformer Only 0.724 0.793 0.767 0.595 Transformer + Mamba 0.728 0.802 0.776 0.602
+> Mamba + Transformer 0.719 0.794 0.768 0.590
+> Table 9
+> Ablation Study on Clustering Center Filtering Patterns.
+> M1M2CF1 ↑OA ↑𝜅 ↑mIoU ↑
+> 144 144 0.718 0.793 0.767 0.588 144 72 0.709 0.787 0.760 0.578 144 36 0.704 0.780 0.752 0.573 256 256 0.724 0.801 0.776 0.595 256 128 0.728 0.802 0.776 0.602
+> 256 64 0.714 0.789 0.762 0.583 400 400 0.719 0.800 0.775 0.591 400 200 0.713 0.796 0.770 0.582 400 100 0.716 0.795 0.768 0.586
+
+module, we evaluate different mask sizes, as summarized in Tab. 6. The mask controls which centers each pixel can associate with. A mask size of 9 yields the highest accuracy. Smaller masks restrict the local neighborhood too strongly, reducing expressive capacity, while larger masks introduce spatially irrelevant centers that weaken local consistency. We therefore set the mask size to 9 in our implementation. 
+
+Effect of K in Center Filtering. We also investigate the effect of the hyperparameter K in the Density-Isolation Cen-ter Filtering module, which controls the locality of density estimation. As shown in Tab. 7, using 9 neighbors strikes the best balance between local sensitivity and contextual awareness. In practice, K does not need to be tuned over a wide range for each dataset. Extremely small K leads to unstable density estimation, while overly large K over-smooths local structure. Therefore, K is naturally upper-bounded by the number of available centers and is preferably chosen as a moderate neighborhood size. 
+
+Effect of Transformer-Mamba Integration Strategies. 
+
+We evaluate different integration strategies for the Trans-former and Mamba modules, as reported in Tab. 8. “Trans-former Only” uses four stacked Transformer blocks. “Trans-former + Mamba” alternates the two modules starting with a Transformer block, while “Mamba + Transformer” starts with a Mamba block. The “Transformer + Mamba” configu-ration achieves the best results, demonstrating the effective-ness of the hybrid design. A pure Mamba architecture fails to converge, likely due to its sensitivity to initialization and implementation details [12]. Considering both stability and accuracy, we adopt the “Transformer + Mamba” structure. 
+
+Effect of Center Filtering Patterns. As shown in Tab. 9, the center filtering scheme substantially affects classifica-tion performance. M2 controls the compactness of the fil-tered center set: using too many centers (e.g., 256 →256   
+
+> Peifu Liu, et al: Preprint submitted to Elsevier Page 12 of 14
+
+Hyperspectral Image Classification via Efficient Global Spectral Supertoken Clustering 
+
+or 400 →400) introduces redundancy and weakens feature discrimination, whereas using too few (e.g., 144 →72 or 256 →64) leads to sparse spatial distribution and loss of small-object details. The 256 →128 configuration achieves the best balance between representational compactness and spatial coherence, yielding the highest CF1, OA, and mIoU scores. Therefore, in practice, M2 can be selected as a moderate fraction of M1 rather than re-designed from scratch for each scenario, with the natural constraint M2 ≤ M1.
+
+## 5. Conclusion 
+
+In this work, we propose a novel dual-stage clustering-based classifier, DSCC, for hyperspectral image classifica-tion. The method uses a multi-layer architecture that first aggregates spectrally similar pixels into supertokens via Spectral-Consistent Pixel Aggregation, and then applies Density-Isolation Center Filtering to refine cluster centers and improve robustness to scale variation. We further intro-duce a Category Proportion-aware Soft Label mechanism to incorporate category distribution information into learning. Extensive experiments show that DSCC achieves state-of-the-art accuracy and a superior trade-off in computational efficiency, indicating that DSCC is particularly promising for high-spatial-resolution hyperspectral scenarios, where preserving fine boundaries and maintaining regional con-sistency are both critical. Ablation studies validate the effectiveness of each component. Future research may focus on adaptive determination of the neighborhood size for density estimation and the numbers of clustering centers, in order to improve flexibil-ity across scenes with different spatial structures. Another promising direction is to develop more efficient global asso-ciation schemes for ultra-large hyperspectral images, further improving scalability while preserving boundary accuracy and regional consistency. 
+
+## Acknowledgments 
+
+This work was financially supported by the National Natural Science Foundation of China (No. 62101032), the Chongqing Excellent Young Scientists Fund (No. CSTB2025NSCQ-JQX0017), and the High-Quality Development Special Project of the Ministry of Industry and Information Technology (TC240HAJ9-35). 
+
+## References 
+
+[1] Acosta, I.C.C., Khodadadzadeh, M., Tusa, L., Ghamisi, P., Gloaguen, R., 2019. A machine learning framework for drill-core mineral mapping using hyperspectral and high-resolution mineralogical data fusion. IEEE Journal of Selected Topics in Applied Earth Observa-tions and Remote Sensing 12, 4829–4842. doi: 10.1109/JSTARS.2019. 2924292 .[2] Bai, H., Xu, T., Chen, H., Liu, P., Li, J., 2024. Content-driven magnitude-derivative spectrum complementary learning for hyper-spectral image classification. IEEE Transactions on Geoscience and Remote Sensing 62, 1–14. doi: 10.1109/TGRS.2024.3435079 .[3] Bai, J., Shi, W., Xiao, Z., Regan, A.C., Ali, T.A.A., Zhu, Y., Zhang, R., Jiao, L., 2022. Hyperspectral image classification based on superpixel feature subdivision and adaptive graph structure. IEEE Transactions on Geoscience and Remote Sensing 60, 1–15. doi: 10.1109/TGRS.2022. 3153446 .[4] Bhadra, S., Sagan, V., Sarkar, S., Braud, M., Mockler, T.C., Eveland, A.L., 2024. Prosail-net: A transfer learning-based dual stream neural network to estimate leaf chlorophyll and leaf angle of crops from uav hyperspectral images. ISPRS Journal of Photogrammetry and Remote Sensing 210, 1–24. doi: https://doi.org/10.1016/j.isprsjprs.2024. 02.020 .[5] Cai, Y., Zhang, Z., Ghamisi, P., Ding, Y., Liu, X., Cai, Z., Gloaguen, R., 2022. Superpixel contracted neighborhood contrastive subspace clustering network for hyperspectral images. IEEE Transactions on Geoscience and Remote Sensing 60, 1–13. doi: 10.1109/TGRS.2022. 3179637 .[6] Chen, G., Li, X., Yang, Y., Wang, W., 2024. Neural clustering based visual representation learning, in: CVPR, pp. 5714–5725. [7] Chen, H., Xu, T., Liu, P., Bai, H., Bian, Z., Li, J., 2025a. Bridging 3-d and 2-d convolution for hyperspectral images with cross-dimensional spectral attention. IEEE Journal of Selected Topics in Applied Earth Observations and Remote Sensing 19, 2497–2510. doi: 10.1109/ JSTARS.2025.3608249 .[8] Chen, Y., Jiang, H., Li, C., Jia, X., Ghamisi, P., 2016. Deep feature extraction and classification of hyperspectral images based on con-volutional neural networks. IEEE Transactions on Geoscience and Remote Sensing 54, 6232–6251. doi: 10.1109/TGRS.2016.2584107 .[9] Chen, Z., Kumar Roy, S., Gao, H., Ding, Y., Zhang, B., 2025b. Sit: Scale-interaction transformer for hyperspectral image classification. IEEE Transactions on Geoscience and Remote Sensing 63, 1–17. doi: 10.1109/TGRS.2025.3598290 .[10] Choi, S., Kim, J., Yun, J., Choi, J.W., 2023. R-pred: Two-stage motion prediction via tube-query attention-based trajectory refinement, in: Proceedings of the IEEE/CVF International Conference on Computer Vision (ICCV), pp. 8525–8535. [11] Dosovitskiy, A., Beyer, L., Kolesnikov, A., Weissenborn, D., Zhai, X., Unterthiner, T., Dehghani, M., Minderer, M., Heigold, G., Gelly, S., Uszkoreit, J., Houlsby, N., 2021. An image is worth 16x16 words: Transformers for image recognition at scale, in: ICLR. [12] Fu, D.Y., Epstein, E.L., Nguyen, E., Thomas, A.W., Zhang, M., Dao, T., Rudra, A., Re, C., 2023. Simple hardware-efficient long convolutions for sequence modeling, in: Proceedings of International Conference on Machine Learning, pp. 10373–10391. [13] Gu, A., Dao, T., 2024. Mamba: Linear-time sequence modeling with selective state spaces. [14] Han, Z., Yang, J., Gao, L., Zeng, Z., Zhang, B., Chanussot, J., 2025. Subpixel spectral variability network for hyperspectral image classification. IEEE Transactions on Geoscience and Remote Sensing 63, 1–14. doi: 10.1109/TGRS.2025.3535749 .[15] Hong, D., Han, Z., Yao, J., Gao, L., Zhang, B., Plaza, A., Chanussot, J., 2022. Spectralformer: Rethinking hyperspectral image classifica-tion with transformers. IEEE Transactions on Geoscience and Remote Sensing 60, 1–15. doi: 10.1109/TGRS.2021.3130716 .[16] Hou, J., Zhu, Z., Hou, J., Liu, H., Zeng, H., Meng, D., 2024. Deep diversity-enhanced feature representation of hyperspectral images. IEEE Transactions on Pattern Analysis and Machine Intelligence 46, 8123–8138. doi: 10.1109/TPAMI.2024.3399753 .[17] Jampani, V., Sun, D., Liu, M.Y., Yang, M.H., Kautz, J., 2018. Super-pixel sampling networks, in: ECCV. [18] Li, J., Huang, X., Tu, L., 2022. Whu-ohs: A benchmark dataset for large-scale hersepctral image classification. International Journal of Applied Earth Observation and Geoinformation 113, 103022. [19] Li, M., Liu, Y., Xue, G., Huang, Y., Yang, G., 2023. Exploring the relationship between center and neighborhoods: Central vector ori-ented self-similarity network for hyperspectral image classification. IEEE Transactions on Circuits and Systems for Video Technology 33, 1979–1993. doi: 10.1109/TCSVT.2022.3218284 .[20] Li, Y., Luo, Y., Zhang, L., Wang, Z., Du, B., 2024. Mambahsi: Spatial–spectral mamba for hyperspectral image classification. IEEE Transactions on Geoscience and Remote Sensing 62, 1–16. doi: 10. 
+
+Peifu Liu, et al: Preprint submitted to Elsevier Page 13 of 14 Hyperspectral Image Classification via Efficient Global Spectral Supertoken Clustering 
+
+> 1109/TGRS.2024.3430985
+
+.[21] Liu, P., Xu, T., Wang, J., Chen, H., Bai, H., Li, J., 2025a. Dual-stage hyperspectral image classification model with spectral supertoken, in: ECCV, pp. 368–386. [22] Liu, Q., Yue, J., Fang, Y., Xia, S., Fang, L., 2024. Hypermamba: A spectral-spatial adaptive mamba for hyperspectral image classifi-cation. IEEE Transactions on Geoscience and Remote Sensing 62, 1–14. doi: 10.1109/TGRS.2024.3482473 .[23] Liu, S., Fu, C., Duan, Y., Wang, X., Luo, F., 2025b. Spatial–spectral enhancement and fusion network for hyperspectral image classifica-tion with few labeled samples. IEEE Transactions on Geoscience and Remote Sensing 63, 1–14. doi: 10.1109/TGRS.2024.3523578 .[24] Lu, T., Liu, M., Fu, W., Kang, X., 2023. Grouped multi-attention network for hyperspectral image spectral-spatial classification. IEEE Transactions on Geoscience and Remote Sensing 61, 1–12. doi: 10. 1109/TGRS.2023.3263851 .[25] Ma, X., Zhou, Y., Wang, H., Qin, C., Sun, B., Liu, C., Fu, Y., 2023. Image as set of points, in: ICLR. [26] Mei, S., Song, C., Ma, M., Xu, F., 2022. Hyperspectral image classifi-cation using group-aware hierarchical transformer. IEEE Transactions on Geoscience and Remote Sensing 60, 1–14. doi: 10.1109/TGRS.2022. 3207933 .[27] Nartey, O.T., Sarpong, K., Addo, D., Rao, Y., Qin, Z., 2023. Picovs: Pixel-level with covariance pooling feature and superpixel-level fea-ture fusion for hyperspectral image classification. IEEE Transactions on Geoscience and Remote Sensing 61, 1–20. doi: 10.1109/TGRS.2023. 3322641 .[28] Pande, S., Banerjee, B., 2022. Hyperloopnet: Hyperspectral image classification using multiscale self-looping convolutional networks. ISPRS Journal of Photogrammetry and Remote Sensing 183, 422– 438. doi: https://doi.org/10.1016/j.isprsjprs.2021.11.021 .[29] Qiu, Y., Bai, S., Xu, T., Liu, P., Qin, H., Li, J., 2025. Hsod-bit-v2: A challenging benchmark for hyperspectral salient object detection. Proceedings of the AAAI Conference on Artificial Intelligence 39, 6630–6638. [30] Ren, S., He, K., Girshick, R., Sun, J., 2017. Faster r-cnn: Towards real-time object detection with region proposal networks. IEEE Transactions on Pattern Analysis and Machine Intelligence 39, 1137– 1149. doi: 10.1109/TPAMI.2016.2577031 .[31] Roy, S.K., Deria, A., Shah, C., Haut, J.M., Du, Q., Plaza, A., 2023. Spectral–spatial morphological attention transformer for hyperspec-tral image classification. IEEE Transactions on Geoscience and Remote Sensing 61, 1–15. doi: 10.1109/TGRS.2023.3242346 .[32] Shao, Z., Fu, H., Li, D., Altan, O., Cheng, T., 2019. Remote sensing monitoring of multi-scale watersheds impermeability for urban hy-drological evaluation. Remote Sensing of Environment 232, 111338. [33] Sheng, J., Zhou, J., Wang, J., Ye, P., Fan, J., 2025. Dualmamba: A lightweight spectral–spatial mamba-convolution network for hyper-spectral image classification. IEEE Transactions on Geoscience and Remote Sensing 63, 1–15. doi: 10.1109/TGRS.2024.3516817 .[34] Tu, B., Ren, Q., Li, Q., He, W., He, W., 2023. Hyperspectral image classification using a superpixel–pixel–subpixel multilevel network. IEEE Transactions on Instrumentation and Measurement 72, 1–16. doi: 10.1109/TIM.2023.3271713 .[35] Tu, B., Wang, J., Zhao, G., Zhang, X., Zhang, G., 2019. Dual-stage construction of probability for hyperspectral image classification. IEEE Geoscience and Remote Sensing Letters 17, 889–893. [36] Vaswani, A., Shazeer, N., Parmar, N., Uszkoreit, J., Jones, L., Gomez, A.N., Kaiser, L.u., Polosukhin, I., 2017. Attention is all you need, in: NIPS. [37] Wan, L., Zhang, J., Xu, Y., Huang, Y., Zhou, W., Jiang, L., He, Y., Cen, H., 2021. Prosdm: Applicability of prospect model coupled with spectral derivatives and similarity metrics to retrieve leaf biochemical traits from bidirectional reflectance. Remote Sensing of Environment 267, 112761. doi: https://doi.org/10.1016/j.rse.2021.112761 .[38] Wang, G., Guo, Y., Xu, Z., Kankanhalli, M., 2024a. Bilateral adaptation for human-object interaction detection with occlusion-robustness, in: 2024 IEEE/CVF Conference on Computer Vision and Pattern Recognition (CVPR), pp. 27970–27980. doi: 10.1109/ CVPR52733.2024.02642 .[39] Wang, G., Zhang, X., Peng, Z., Zhang, T., Jiao, L., 2025. S2mamba: A spatial–spectral state space model for hyperspectral image classi-fication. IEEE Transactions on Geoscience and Remote Sensing 63, 1–13. doi: 10.1109/TGRS.2025.3530993 .[40] Wang, Y., Huang, D., Ye, W., Zhang, G., Ouyang, W., He, T., 2024b. Neurodin: A two-stage framework for high-fidelity neural surface reconstruction, in: Globerson, A., Mackey, L., Belgrave, D., Fan, A., Paquet, U., Tomczak, J., Zhang, C. (Eds.), Advances in Neural Information Processing Systems, Curran Associates, Inc.. pp. 103168–103197. URL: 
+
+> https://proceedings.neurips.cc/paper_files/paper/2024/ file/bade15648d6c71df84988cfe042be5d8-Paper-Conference.pdf
+
+,doi: 10.52202/079017-3278 .[41] Wang, Y.C., Wang, C.Y., Lai, S.H., 2022. Disentangled representation with dual-stage feature learning for face anti-spoofing, in: WACV, pp. 1955–1964. [42] Yang, J., Du, B., Zhang, L., 2023. From center to surrounding: An interactive learning framework for hyperspectral image classification. ISPRS Journal of Photogrammetry and Remote Sensing 197, 145– 166. doi: https://doi.org/10.1016/j.isprsjprs.2023.01.024 .[43] Yu, D., Li, Q., Wang, X., Xu, C., Zhou, Y., 2022. A cross-level spectral–spatial joint encode learning framework for imbalanced hy-perspectral image classification. IEEE Transactions on Geoscience and Remote Sensing 60, 1–17. doi: 10.1109/TGRS.2022.3203980 .[44] Zeng, W., Jin, S., Xu, L., Liu, W., Qian, C., Ouyang, W., Luo, P., Wang, X., 2024. Tcformer: Visual recognition via token clustering transformer. IEEE Transactions on Pattern Analysis and Machine Intelligence 46, 9521–9535. doi: 10.1109/TPAMI.2024.3425768 .[45] Zhang, Q., Dong, Y., Zheng, Y., Yu, H., Song, M., Zhang, L., Yuan, Q., 2024a. Three-dimension spatial–spectral attention transformer for hyperspectral image denoising. IEEE Transactions on Geoscience and Remote Sensing 62, 1–13. doi: 10.1109/TGRS.2024.3458174 .[46] Zhang, Q., Yuan, Q., Song, M., Yu, H., Zhang, L., 2022a. Cooperated spectral low-rankness prior and deep spatial prior for hsi unsupervised denoising. IEEE Transactions on Image Processing 31, 6356–6368. doi: 10.1109/TIP.2022.3211471 .[47] Zhang, Q., Zheng, Y., Yuan, Q., Song, M., Yu, H., Xiao, Y., 2024b. Hyperspectral image denoising: From model-driven, data-driven, to model-data-driven. IEEE Transactions on Neural Networks and Learning Systems 35, 13143–13163. doi: 10.1109/TNNLS.2023. 3278866 .[48] Zhang, X., Sun, G., Jia, X., Wu, L., Zhang, A., Ren, J., Fu, H., Yao, Y., 2022b. Spectral–spatial self-attention networks for hyperspectral image classification. IEEE Transactions on Geoscience and Remote Sensing 60, 1–15. doi: 10.1109/TGRS.2021.3102143 .[49] Zhao, C., Zhu, W., Feng, S., 2022. Superpixel guided deformable convolution network for hyperspectral image classification. IEEE Transactions on Image Processing 31, 3838–3851. doi: 10.1109/TIP. 2022.3176537 .[50] Zheng, Z., Zhong, Y., Ma, A., Zhang, L., 2020. Fpga: Fast patch-free global learning framework for fully end-to-end hyperspectral image classification. IEEE Transactions on Geoscience and Remote Sensing 58, 5612–5626. doi: 10.1109/TGRS.2020.2967821 .[51] Zhong, Y., Hu, X., Luo, C., Wang, X., Zhao, J., Zhang, L., 2020. Whu-hi: Uav-borne hyperspectral with high spatial resolution (h2) benchmark datasets and classifier for precise crop identification based on deep convolutional neural network with crf. Remote Sensing of Environment 250, 112012. doi: https://doi.org/10.1016/j.rse.2020. 112012 .[52] Zhong, Z., Li, Y., Ma, L., Li, J., Zheng, W.S., 2022. Spectral–spatial transformer network for hyperspectral image classification: A fac-torized architecture search framework. IEEE Transactions on Geo-science and Remote Sensing 60, 1–15. doi: 10.1109/TGRS.2021. 3115699 .
+
+Peifu Liu, et al: Preprint submitted to Elsevier Page 14 of 14
