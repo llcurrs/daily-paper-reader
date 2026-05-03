@@ -1,0 +1,608 @@
+Title: CLLAP: Contrastive Learning-based LiDAR-Augmented Pretraining for Enhanced Radar-Camera Fusion
+
+URL Source: https://arxiv.org/pdf/2604.24044v1
+
+Published Time: Tue, 28 Apr 2026 01:45:46 GMT
+
+Number of Pages: 14
+
+Markdown Content:
+# CLLAP: Contrastive Learning-based LiDAR-Augmented Pretraining for Enhanced Radar-Camera Fusion 
+
+# Bingyi Liu 1 Chuanhui Zhu 1 Hongfei Xue 2* Jian Teng 1
+
+# Jipeng Liu 5 Enshu Wang 3 Penglin Dai 4 Pu Wang 21Wuhan University of Technology 2University of North Carolina at Charlotte 3Wuhan University 
+
+> 4
+
+# Southwest Jiaotong University 5The Hong Kong Polytechnic University 
+
+# Abstract 
+
+Accurate 3D object detection is critical for autonomous driving, necessitating reliable, cost-effective sensors ca-pable of operating in adverse weather conditions. Cam-era and millimeter-wave radar fusion has emerged as a promising solution; however, these methods often rely on finely annotated radar data, which is scarce and labor-intensive to produce. To address this challenge, we present 
+
+CLLAP , a Contrastive Learning-based LiDAR-Augmented 
+
+Pretraining framework that enhances the performance of existing radar-camera fusion methods for 3D object detec-tion. CLLAP leverages abundant LiDAR data to gener-ate pseudo-radar data using the proposed L2R (LiDAR-to-Radar) Sampling method. Then, it incorporates this data into a novel dual-stage, dual-modality contrastive learning strategy, enabling effective self-supervised learning from paired pseudo-radar and image data. This approach facil-itates effective pretraining of existing radar-camera fusion models in a plug-and-play manner, enhancing their feature extraction capabilities and improving detection accuracy and robustness. Experimental results using NuScenes and Lyft Level 5 datasets demonstrate significant performance improvements across three baseline models, highlighting CLLAP’s effectiveness in advancing radar-camera fusion for autonomous driving applications. 
+
+# 1. Introduction 
+
+3D object detection plays a crucial role in autonomous driv-ing by enhancing spatial understanding, situational aware-ness, and decision-making, enabling autonomous driving systems to navigate complex environments with precision and safety [21, 26]. However, relying on a single sensor can limit performance, prompting the adoption of multi-modality sensor fusion. By integrating data from cameras, radar, and LiDAR, multi-modality fusion offers a richer 
+
+> *Corresponding author.
+
+Figure 1. (a) Existing camera-radar fusion models rely solely on scarce, finely annotated radar-image data for training, lead-ing to suboptimal performance. (b) The proposed CLLAP frame-work addresses this limitation by generating pseudo-radar data from large-scale unlabeled LiDAR data and employing a novel dual-stage, dual-modality contrastive learning strategy for self-supervised pretraining of the fusion model. Using the pretrained model as a starting point to train the fusion models in (a) signifi-cantly improves their detection performance and robustness. 
+
+and more robust perception of the environment, signifi-cantly improving 3D detection accuracy. Among these ap-proaches, camera-radar fusion is a cost-effective and re-silient approach for real-world applications [36]. Unlike expensive and interference-prone LiDAR, radar offers re-liable performance in adverse weather, making it ideal for intelligent transportation systems. This fusion delivers ro-bust, affordable solutions for smarter, safer cities [8]. CRN [13] and RCBEVDet [19] are notable radar-camera fusion frameworks. CRN utilizes multi-modality deformable at-tention to generate a semantically rich bird’s-eye-view rep-resentation from image features, while RCBEVDet lever-ages a dedicated cross-attention fusion framework to align radar and camera modalities in a unified space. Despite recent progress, further advancement in radar-based perception remains limited by the scarcity of large, well-annotated open-source radar datasets, which are cru-cial for both training and evaluation [4]. The intrinsic spar-
+
+> arXiv:2604.24044v1 [cs.CV] 27 Apr 2026
+
+sity and ambiguity of radar measurements also make man-ual annotation difficult and labor-intensive, further slowing dataset development [32]. Although several data augmen-tation strategies attempt to mitigate this limitation—such as rotating or duplicating radar point clouds, or transplanting objects across datasets to increase diversity—these opera-tions often introduce non-negligible artifacts and inconsis-tencies. As a result, while such techniques may offer mod-est robustness gains, the errors they introduce ultimately limit their ability to address the fundamental challenge of radar data scarcity [27]. Recent LiDAR-guided knowledge distillation meth-ods [2, 3, 35, 39] treat LiDAR as a privileged teacher and transfer its rich geometric cues to radar detectors through supervised distillation on paired, annotated radar–LiDAR data, thereby boosting radar-based 3D object detection. This raises a natural question: can we exploit abundant LiDAR data in a label-free manner, by converting LiDAR into pseudo-radar measurements and using them to self-supervise radar–camera fusion pretraining, so that radar perception can be enhanced without relying on large-scale annotated radar–LiDAR datasets? 
+
+To this end, we propose CLLAP, a novel Contrastive 
+
+Learning-based LiDAR-Augmented Pretraining frame-work. CLLAP generates pseudo-radar data from LiDAR data and incorporates a designed self-supervised contrastive learning strategy for effective model pretraining to enhance the sensing performance of existing radar-camera fusion models. Specifically, the CLLAP framework introduces two key innovations. First, L2R (LiDAR-to-Radar) Sam-pling generates high-quality pseudo-radar data from Li-DAR, replicating radar-specific characteristics, including an estimated velocity distribution absent in the original Li-DAR data. This method leverages large-scale, unlabeled LiDAR datasets to enrich training data diversity, enabling robust model training. Second, Dual-Stage Dual-Modality Contrastive Learning employs contrastive learning to align features from radar and camera modalities that represent the same object or scene. By combining cross-modal lo-cal and global contrastive losses with intra-modal global contrastive loss, this strategy enables robust self-supervised learning. Pretraining on unlabeled images and pseudo-radar data enhances feature alignment and representation across modalities, leveraging their complementary strengths. To-gether, these innovations reduce reliance on large paired radar-camera datasets, improve feature learning, and signif-icantly enhance the performance and robustness of radar-camera fusion models. The main contributions are summa-rized as follows: • We introduce CLLAP , a novel Contrastive Learning-based LiDAR-Augmented Pretraining framework that leverages large-scale pseudo-radar data generated from high-quality, open-source LiDAR datasets for self-supervised pretraining, addressing the scarcity of radar data and enhancing the performance of existing radar-camera fusion models. • We develop the L2R Sampling method to generate high-quality pseudo-radar data from LiDAR and propose a Dual-Stage Dual-Modality Contrastive Learning strat-egy, improving the model’s representation capabilities by carefully aligning and enhancing complementary features from radar and camera modalities. • Extensive experiments on the NuScenes and Lyft Level 5 datasets demonstrate that our proposed pretraining frame-work consistently enhances the performance of three dif-ferent baseline radar-camera fusion models. 
+
+# 2. Related Work 
+
+2.1. Camera-radar fusion 3d object detection 
+
+Accurate 3D object detection using radar is challenging due to the sparse radar point cloud and limited 3D seman-tic information. To overcome these limitations, fusion ap-proaches combining radar and camera data have been ex-plored. CRAFT [12] utilizes early fusion to integrate spatial and contextual features. ClusterFusion [14] preserves local spatial features through point cloud clustering, minimizing information loss. MVFusion [34] employs a Semantically Aligned Radar Encoder and a Radar-Guided Fusion Trans-former for enhanced global correlation. BEV-radar [40] integrates data bi-directionally in the BEV domain, while BEVCar [28] uses attention-based enhancement initialized by sparse radar points to refine image representation. Un-like the above methods trained only on radar datasets, our approach leverages LiDAR data for pretraining, leading to improved performance. 
+
+2.2. Data Augmentation 
+
+To further enhance the performance of fusion-based detec-tion, many studies have proposed data augmentation tech-niques to increase the diversity and robustness of training data. PasteFusion [37] introduces the Paste-Aug algorithm, which improves image and point cloud data while address-ing occlusion issues and reducing computational demands. Deformable Feature Fusion Network [9] further advances 3D object detection by incorporating the Feature Alignment Transform (FAT) module, which mitigates feature misalign-ment in point cloud enhancement by recording transforma-tion matrices and inverting voxel coordinates. C-CLOCs [38] improves multi-modality 3D object detection through Multimodal Ground Truth Sampling (MGS), which auto-mates database generation via instance segmentation. Our L2R Sampling method enhances generalization by sam-pling real LiDAR data matching the radar point cloud dis-tribution, rather than generating synthetic data for augmen-tation. Figure 2. The overall architecture of the proposed CLLAP Method. The framework begins by generating pseudo-radar point clouds from LiDAR data using the L2R Sampling method. Combined with image data, the backbone processes these inputs to extract features, pre-trained using the proposed dual-stage, dual-modality contrastive learning strategy. The model is then fine-tuned with real radar data for 3D object detection task. 
+
+2.3. Contrastive Learning 
+
+Self-supervised learning (SSL) leverages pseudo-labels to generate representations for downstream tasks, with con-trastive learning emerging as a key technique in computer vision [17]. In multi-modality 3D object detection, inno-vative SSL methods have advanced the field. CrossPoint [1] employs intra- and cross-modality losses to improve 3D point cloud understanding. ContrastAlign [29] aligns heterogeneous modalities for enhanced cross-modality 3D detection. CLIX 3D [10] achieves domain-invariant feature learning with supervised contrastive learning. MODCL [15] integrates point cloud-image mapping and supervised contrastive learning, surpassing traditional multi-modality methods on the SUN RGB-D dataset. In contrast to the aforementioned contrastive learning schemes, our method takes full advantage of the fusion models by applying multi-modality contrastive learning at both local and global stages. 
+
+2.4. Cross-Modal Knowledge Distillation 
+
+Cross-modal knowledge distillation (KD) leverages LiDAR as a privileged teacher to improve radar-based 3D percep-tion. SCKD [35], RadarDistill [2], CRKD [39], and RCT-Distill [3] all distill rich LiDAR (or LiDAR–camera) rep-resentations into radar or radar–camera students via super-vised feature and proposal alignment on paired, labeled radar–LiDAR data, consistently boosting detection perfor-mance. However, these methods inherently depend on large-scale annotated radar–LiDAR corpora and treat Li-DAR only as a teacher whose predictions or intermedi-ate features serve as distillation targets for specific radar or radar–camera samples. In contrast, our CLLAP frame-work does not perform supervised distillation from Li-DAR outputs; instead, it treats large-scale LiDAR-only point clouds as an unlabeled geometric corpus, converts them into pseudo-radar measurements, and pairs them with im-ages to conduct self-supervised contrastive pretraining of radar–camera fusion models, thereby improving radar per-ception without paired radar–LiDAR data or detection la-bels. 
+
+# 3. The Proposed Method 
+
+3.1. Overview 
+
+Fig. 2 illustrates the architecture of our proposed unsu-pervised contrastive learning method CLLAP, comprising two stages: pre-training and fine-tuning, divided into three steps. In the first step, the L2R Sampling module generates pseudo-radar data from large-scale LiDAR data, enabling initial pre-training of the feature encoder to capture diverse feature representations. The second step employs real radar data for secondary pre-training, enhancing the model’s un-derstanding of real-world radar data distribution. Together, these steps form the pre-training stage, leveraging a dual-stage, dual-modality contrastive learning approach to cap-ture intrinsic correlations across modalities and views. In the fine-tuning stage, the third step uses real radar data for task-specific optimization. Section 3.2 details the L2R Sam-pling module, while Section 3.3 discusses the Dual-Stage Dual-Modality Contrastive Learning Strategy. 
+
+3.2. L2R Sampling module 
+
+In this section, we introduce the design of our L2R Sam-pling module, illustrated in Fig. 3. Unlike prior neural network-based methods for converting LiDAR to radar data [18, 30], our approach emulates radar point cloud distribu-tion characteristics without training neural networks. This method bridges the distribution gap between LiDAR and radar data, enabling the effective use of abundant LiDAR datasets for radar-related tasks. The pseudo-radar data gen-eration process comprises five steps: Gaussian Mixture Model (GMM) fitting, point cloud redundancy removal, two-stage sampling, velocity augmentation, and radar plane mapping. The first step in sampling is GMM fitting. Radar point clouds in traffic scenarios exhibit highly non-uniform densi-ties—sparse in most frames with occasional dense clusters. To realistically capture these patterns without relying on ar-tificially uniform data, we model the density distribution us-ing a GMM. Experiments (Appendix) show that variations in GMM parameters have minimal impact on our frame-work. The second step is to use KD-tree-based spatial indexing method to remove redundancy. For each point, we calculate its minimum distance to neighboring points dmin , removing all points whose distance to other points is below a thresh-old dthreshold . The resulting point cloud, after redundancy removal, is sparser, preventing the concentration of points in any specific region, and better simulates the characteris-tics of radar point clouds. In order to effectively simulate the sparse distribution characteristics of the radar point cloud in space, we perform the third step: two-stage sampling. LiDAR point clouds are typically denser in the center region, whereas radar point clouds exhibit a more uniform distribution across the entire space. To reflect this, we apply a weight-based sampling method to sample point clouds from both the non-central region and the global space. Based on the point cloud count N derived from the GMM fitting, we divide it equally into two sampling categories: the non-central region sam-ple count N1 and the global region sample count N2, where 
+
+N = N1+N2. First, we sample N1 point clouds located far-ther than a certain threshold (set to 15 meters in our experi-ments) from the center to obtain the external sampled point clouds. Then, the remaining points N2 are sampled from the global region. This approach ensures that the sampled point clouds more accurately reflect the distribution characteris-tics of radar point clouds. During sampling, we incorpo-rate point cloud intensity, sparsity, and distance to compute a weighted sampling weight for each point. The intensity weight wint reflects the relative contribution of each point based on its point intensity. To ensure points with greater reflective intensity are properly emphasized during sam-pling, greater weights are assigned to them. The intensity weight for each point is calculated as wint = I 12 
+
+> i
+
+/ P 
+
+> j
+
+I 12 
+
+> j
+
+,where Ii is the intensity of point i. To ensure accurate feature representation, we assign weights based on point sparsity and distance. Sparse regions require greater sam-pling to capture their structural and semantic information, quantified by the sparsity weight wspa = P 
+
+> j
+
+D2 
+
+> ij
+
+, where 
+
+Dij is the Euclidean distance between point i and its j-th nearest neighbor. Similarly, points farther from the cen-ter of the point cloud, often sparse in radar sensing, are assigned a distance weight wdist = 1 /D 2 
+
+> iO
+
+, where DiO 
+
+is the Euclidean distance from point i to the origin. Fi-nally, the overall sampling weight is a linear combination of the three individual weights, with scaling factors αint ,
+
+αspa , αdist controlling the contributions of each weight: 
+
+wfinal = αint wint +αdist wdist +αspa wspa , where αint = 4 ,
+
+αspa = 2 , αdist = 4 in our experiment (appendix). By normalizing wfinal for all points, we ensure the sampling probabilities are well-defined. To supplement the missing velocity information in the LiDAR data and align the motion between frames, in the fourth step, we use FlowNet3D [20] to predict the scene flow between consecutive frames, completing the veloc-ity information augmentation step. Using the FlowNet3D model, we can predict velocity information for each LiDAR point, further enhancing the motion characteristics of the generated pseudo-radar point clouds. Since radar usually does not provide accurate altitude information, we map the point cloud to the radar plane in the final step of radar plane mapping. Due to the ran-dom nature of the sampling itself, our method can generate pseudo-radar point clouds with different distributions for the same scene, thus providing diverse datasets for model training and further enhancing the generalization ability of the model. The visual results of the L2R operation are shown in the Fig. 4. 
+
+3.3. Dual-Stage Dual-Modality Contrastive Learn-ing Strategy 
+
+Given the scarcity of open-source datasets and the chal-lenges associated with labeling 3D radar point clouds, fur-ther improvements in model performance are limited by the available data. To address this, we propose leveraging un-supervised contrastive learning to pre-train the model using unlabeled radar data and pseudo-radar point clouds gener-ated through the L2R Sampling module. This pre-training process aims to enhance model performance by using a contrastive learning framework that incorporates both Lo-Figure 3. Pipeline of the L2R Sampling process for generating pseudo-radar point clouds from LiDAR data.     
+
+> Figure 4. Comparison of sampling methods visualization. This figure illustrates different point cloud sampling methods: (a) rep-resents the original LiDAR point cloud frames, (b) shows the ground-truth radar point cloud frames, (c) displays the pseudo-radar point cloud frames generated by the L2R Sampling module, and (d) depicts the point cloud frames sampled with distance as the weighting factor.
+> Figure 5. An overall framework for Global Contrastive Loss. The inputs consist of features from multiple views across differ-ent modalities, grouped into six sets of contrast losses. An at-tention mechanism is applied to perform weighted aggregation of features into global features, followed by the computation of con-trast losses.
+
+cal Contrastive Loss and Global Contrastive Loss. 
+
+3.3.1. Local Contrastive Loss. 
+
+Different modalities, such as radar and image, often provide complementary information. However, even when their fea-ture maps are structurally aligned—such as both being rep-resented in the bird’s eye view (BEV) format—significant semantic gaps can emerge due to inherent differences in their sensory characteristics. To address this issue, we align corresponding feature columns across modalities to substantially reduce the se-mantic gap and enhance the quality of fused features. By aligning column features, we can directly optimize local-ized feature correspondence, which is particularly crucial for tasks requiring spatial precision, such as object detection and localization. The reason for choosing a column feature for the loss function stems from the observation that cor-responding columns across different modalities and views represent the same underlying features. This alignment is maintained across views, underscoring the importance of columns as units of correspondence for optimization. Building on this insight, we propose the Local Con-trastive Loss as shown in Fig. 2, which enforces alignment between feature columns across different modalities. To implement this, we first extract the BEV feature based on the baseline model from the radar ( Frad ) and the camera (Fimg ) modalities. Select N (number of batch size) fea-ture columns from each modality. Each set of correspond-ing columns represents the same spatial position across the modalities. For fine-grained feature misalignment, we conduct contrastive learning on carefully designed positive sample pairs. Specifically, for each feature column, we define a local search area with a width of R(R = 5) in the query feature map and use a sliding window of width 
+
+r(r = 3 , r<R ) to slide through the local search area to extract n = R − r + 1 candidate areas. Each candi-date area is adaptively aggregated via an attention mod-ule to match the feature column’s dimensions, followed by pairwise similarity comparison. The highest-scoring candi-date is selected as a positive pair, effectively replacing di-rect positional alignment with a learned, similarity-driven matching strategy. This approach enhances feature corre-spondence precision while maintaining robustness to spa-tial discrepancies between modalities. Furthermore, we in-troduce a Bidirectional Channel-Spatial Attention module, as shown in Fig. 6. For calculated positive pairs, their channel and spatial dimensions of the feature maps con-tain distinct semantic meanings. This inspired us to de-coupling the modeling of channel and spatial dimensions, allowing the model to conduct finer-grained feature align-Figure 6. The overall architecture of the proposed BCSA Module. 
+
+ment. Specifically, our module independently applies at-tention mechanisms along the channel and spatial dimen-sions. Channel Attention learns importance weights for dif-ferent feature channels, highlighting those most discrimina-tive for the current task. Spatial Attention learns importance weights for different spatial locations within the feature col-umn, emphasizing the importance of the region of interest in object detection while suppressing interference from back-ground regions. Through this bidirectional decoupling and weighting across channel and spatial dimensions, the mod-ule adaptively refines the most relevant feature information for positive pair contrastive learning, suppressing irrelevant noise and guiding the model to learn more discriminative feature representations. We use InfoNCE [24] loss to minimize the distance be-tween positive pairs and maximize the distance from nega-tive pairs:               
+
+> Lcol =−1
+> N
+> NX
+> i=1
+> log
+> exp
+> 
+> sim
+> 
+> frad
+> i,fimg
+> i
+> 
+> /τ
+> PNj=1 exp
+> 
+> sim
+> 
+> frad
+> i,fimg
+> j
+> 
+> /τ
+> (1)
+
+where sim( ·, ·) denotes cosine similarity, and τ is a temper-ature parameter that controls the smoothness of the softmax distribution. This loss encourages the contents of the same columns in different modalities to be more similar and the contents of different columns to be less similar. 
+
+3.3.2. Global Contrastive Loss. 
+
+While Local Contrastive Loss effectively aligns correspond-ing features at a fine-grained level, it may lead to seman-tic disjunction between features across different columns. To address this, we introduce Global Contrastive Loss, as shown in Fig. 5, to better leverage multi-view and multi-modality representations. In multi-modality feature fusion, the routine is to exploit complementary information from diverse sensory modali-ties (e.g., radar and camera). However, relying solely on simple modality-based fusion often overlooks the impor-tant variations that arise from multiple viewpoints. Each view offers unique insights that are crucial for forming a more complete and accurate representation of objects. By combining these views, we can enhance the model’s ability to understand the scene from multiple dimensions, improv-ing model robustness and accuracy. Therefore, we propose a novel approach that integrates both multi-modality and multi-view features, effectively combining their respective advantages to optimize feature extraction and fusion. This method not only bridges the semantic gaps between modal-ities but also ensures the model can capture the variations across different views, resulting in a more comprehensive and effective representation for downstream tasks. Considering all views and modalities, our approach results in six sets of contrastive losses: (F bev  
+
+> img
+
+, F fv 
+
+> img
+
+),
+
+(F bev  
+
+> img
+
+, F fv
+
+> rad
+
+), (F bev  
+
+> img
+
+, F bev  
+
+> rad
+
+), (F fv 
+
+> img
+
+, F bev  
+
+> rad
+
+), (F fv 
+
+> img
+
+, F fv
+
+> rad
+
+),
+
+(F bev  
+
+> rad
+
+, F fv
+
+> rad
+
+). Here, F bev and F fv represent bird’s-eye view and front view(FV) features, respectively, while Fimg and 
+
+Frad denote image and radar features, respectively. Be-fore calculating the Global Contrastive Loss, features are further processed using an attention mechanism to com-pute weighted representations. For illustration, two feature representations, (F bev  
+
+> img
+
+, F fv 
+
+> img
+
+) are used as an example, with each having dimensions C × H × W , where H and W rep-resent the spatial feature height and width, and C denotes the number of channels. To integrate the features from both modalities, we ap-ply a weighted summation approach. Instead of relying on attention weights derived from a single modality, which could lead to the loss of crucial information from the other modality, we first concatenate the features. This concate-nation enables the attention module to simultaneously con-sider the feature distributions from both views, ensuring a more balanced and comprehensive weight distribution. For the first step of feature aggregation, shared attention weights are computed for the rows. These weights determine the importance of each row by comparing the contributions of both views in the concatenated feature representation. The row weights are then used to perform a weighted summa-tion over the rows of the BEV and FV features, result-ing in aggregated column-wise feature representations for each modality. This operation captures the key information across rows, producing features that are condensed along the row dimension. Next, similar to row aggregation, we calculate attention weights for the columns using the previ-ously aggregated features. These column weights are com-puted based on the concatenated column-wise features of the two modalities. The column weights are then used to perform a weighted summation across columns, yielding the final global feature representations for both modalities. Through this two-step process of row-wise and column-wise aggregation, we achieve a global feature representation for each modality, F bev  
+
+> global
+
+and F f v 
+
+> global
+
+. These global features are now in a compact C-dimensional form that better char-acterizes the overall scene. For a given feature map, positive samples correspond to the features from the same batch that represent the same scene. For example, for the contrastive loss L(F bev img , F fv img ),the positive samples are the feature from the same batch, de-noted as F bev (i) 
+
+> img
+
+and F fv (i) 
+
+> img
+
+, where i is the index of the scene within the batch. Negative samples are those features that belong to different scenes within the same batch. The con-trastive loss for L(F bev img , F fv img ) can be formulated as follows:             
+
+> L
+> 
+> Fbev img , F fv img
+> 
+> =−log exp
+> 
+> sim
+> 
+> Fbev (i)
+> global , F fv (i)
+> global
+> 
+> /τ
+> PNk=1 exp
+> 
+> sim
+> 
+> Fbev (i)
+> global , F fv (k)
+> global
+> 
+> /τ
+> 
+> (2)
+
+The overall Global Contrastive Loss is then computed as the sum of the individual contrastive losses for all the positive and negative sample pairs across all sets of features:                         
+
+> Lglobal =L
+> 
+> Fbev img , F fv img
+> 
+> +L
+> 
+> Fbev img , F fv rad
+> 
+> +L
+> 
+> Ffv img , F fv rad
+> 
+> +L
+> 
+> Fbev img , F bev rad
+> 
+> +L
+> 
+> Ffv img , F bev rad
+> 
+> +L
+> 
+> Fbev rad , F fv rad
+> (3)
+
+Finally, we experimentally verify that the weight of global contrastive loss is 1/6 of the best effect in the appendix, so our overall contrastive loss is: L = Lglobal /6 + Lcol .
+
+# 4. Experiment 
+
+4.1. Implementation Details 
+
+Backbones: Our experiments used CRN, RCBEVDet, and BEVFusion [22] as backbones to evaluate our meth-ods. CRN employs multi-modality deformable attention to transform image features into a semantically rich bird’s-eye-view (BEV) representation. BEVFusion, originally designed for lidar-camera fusion, was adapted for radar-camera fusion to enable direct comparison. RCBEVDet in-tegrates RadarBEVNet and a Cross-Attention Multi-layer Fusion module to align and merge radar and camera data. All backbones were configured using the best publicly available settings from their open-source implementations. 
+
+Dataset: Experiments utilized the NuScenes [5] and Lyft Level 5 [11] datasets, established benchmarks in au-tonomous driving. NuScenes provides 3D object annota-tions from a full sensor suite across diverse urban scenarios, while Lyft Level 5 includes over 1,000 hours of lidar and camera data tracking vehicles, cyclists, and pedestrians. 
+
+Metrics: To assess the performance of our methods, we used standard evaluation metrics, including mean Average Precision (mAP) and NuScenes Detection Score (NDS)[5]. These metrics provide a comprehensive assessment of de-tection accuracy and overall system performance. 
+
+4.2. Main Results 
+
+Tab. 1 summarizes the performance gains brought by our pretraining on the nuScenes validation set. On CRN, CLLAP yields an absolute improvement of +3.23 mAP and +2.28 NDS. BEVFusion* also benefits notably, with mAP and NDS increased by +3.52 and +2.94, respectively. Even the strong RCBEVDet baseline is further improved, achieving gains of +0.61 mAP and +0.24 NDS. Compared with state-of-the-art radar–camera fusion methods, mod-els equipped with our pretraining framework achieve su-perior overall performance, indicating that CLLAP is both 
+
+Table 1. Comparison of overall 3D object detection performance on the NuScenes validation set. BEVFusion* represents a modi-fied model for radar-image fusion. Metrics include mean Average Precision (mAP) and NuScenes Detection Score (NDS) with pre-training improvements shown in parentheses. (w. CLLAP) indi-cates results using our proposed CLLAP framework. 
+
+Method mAP ↑ NDS ↑
+
+CenterFusion [23] 33.20 45.30 CRAFT [12] 41.10 51.70 RCBEV4d [41] 45.30 56.30 SOLOFusion [25] 42.70 53.40 StreamPETR [31] 43.20 54.00 BEVfusion* [22] 34.89 35.26 BEVfusion* (w. CLLAP) 38.41 (+3.52) 38.20 (+2.94) CRN [13] 47.30 55.74 CRN (w. CLLAP) 50.53 (+3.23) 58.02 (+2.28) 
+
+RCBEVDet [19] 45.30 56.85 RCBEVDet (w. CLLAP) 45.91 (+0.61) 57.09 (+0.24) 
+
+effective and backbone-agnostic. To further assess the generalization ability of our pretraining, we also evaluate these models under adverse-weather conditions; detailed per-condition results are reported in the appendix. 
+
+4.3. L2R Sampling 
+
+To evaluate the effectiveness of the proposed L2R Sampling module, we conducted experiments using VoxelNet [42] as the benchmark. The baseline used the NuScenes radar training dataset, while the “sample by distance” setting em-ployed pseudo-radar points sampled with distance-based weights. The L2R Sampling module generated pseudo-radar data using our proposed strategy, with the “map” set-ting further projecting sampled points onto the radar plane to emulate radar’s altitude insensitivity. As shown in Tab. 2, the L2R Sampling module consis-tently outperformed the baselines in mAP and NDS. (Re-sults for different sampling methods are shown in the ap-pendix.) These improvements stem from the module’s abil-ity to better preserve radar point cloud distributions and re-tain object-relevant points. Additionally, to quantify its sim-ilarity to real radar data, we calculated the Chamfer Dis-tance [7]. Over 4000 frames, the L2R Sampling module achieved a mean Chamfer Distance of 112.16, compared to 120.1 for the ”sample by distance” method, confirming its ability to better replicate radar point structures. 
+
+4.4. Ablation Study 
+
+We perform ablation studies on the NuScenes validation set using CRN as the backbone to evaluate the effectiveness of each setting of our proposed framework. 
+
+Impact of Contrastive Losses. Our method leverages two contrastive loss components during pretraining to enhance model performance. As shown in Tab. 3, each contrastive Table 2. Comparison of L2R Sampling module 3D object detec-tion performance on NuScenes val set.                                                                            
+
+> Training Data mAP (↑)NDS (↑)Real radar data 7.40 31.36 Sample by distance 11.25(+3.85) 32.32(+0.96) L2R Sampling module 12.73(+5.33) 33.49(+2.13)
+> Sample by distance(map) 10.57(+3.17) 32.53(+1.17) L2R Sampling module(map) 11.02(+3.62) 32.75(+1.39)
+> Table 3. Ablation of the components of Dual-Stage Dual-Modality Contrastive Learning Strategy.
+> Config Local Global mAP (↑)NDS (↑)baseline --47.30 55.74 1✓-49.72 (+2.42) 57.73 (+1.99) 2-✓48.13 (+0.83) 56.28 (+0.54) 3✓✓50.53 (+3.23) 58.02 (+2.28)
+> Table 4. Impact of Global Contrastive families in Lglobal .
+> Config Component mAP ↑NDS ↑
+> baseline None 47.30 55.74 1Same-mod. Cross-view 50.11(+2.81) 57.80(+2.06) 2Cross-mod. Same-view 49.81(+2.51) 57.83(+2.09) 3Cross-mod. Cross-view 50.18(+2.88) 58.11(+2.37) 4All (three families) 50.53(+3.23) 58.02(+2.28)
+> Table 5. Comparison of 3D object detection performance across different datasets pretrain on NuScenes val datasets.
+> Config Lyft NuScenes mAP (↑)NDS (↑)baseline --47.30 55.74 1✓-48.84 (+1.54) 56.87 (+1.13) 2-✓48.60 (+1.30) 56.37 (+0.63) 3✓✓50.53 (+3.23) 58.02 (+2.28)
+
+loss significantly improves model performance, with the combined losses yielding the highest gains. These results validate the effectiveness of both loss components in our contrastive learning framework. 
+
+Impact of Global Contrastive Losses. We decompose the global contrastive loss into three families and train three variants, each activating only one family under identical settings; Tab. 4 shows that all three consistently improve over the baseline. Same-modality cross-view improves view invariance and geometric consistency across viewpoints. 
+
+Cross-modality same-view reduces the semantic gap be-tween sensors under a shared projection, enabling smoother and better-calibrated fusion. Cross-modality cross-view 
+
+enforces compositional alignment under joint changes of viewpoint and modality, promoting cycle-consistent fea-tures and mitigating parallax- and occlusion-induced dis-crepancies. Overall, each family provides a distinct yet complementary benefit, jointly validating Lglobal as a prin-cipled composition of global contrastive constraints. 
+
+Impact of Pretraining Datasets. To assess the impact of pretraining data volume, we conducted an ablation experi-ment, with results summarized in Tab. 5. Pretraining on ei-ther Lyft Level 5 or nuScenes improves the downstream per-                         
+
+> Table 6. Ablation of the step components.
+> Config Step 1 Step 2 Step 3 mAP (↑)NDS (↑)1--✓47.30 55.74 2✓-✓49.53 (+2.23) 57.77 (+2.03) 3-✓✓49.11 (+1.81) 57.57 (+1.83) 4✓✓✓50.53 (+3.23) 58.02 (+2.28)
+
+formance on the nuScenes validation set, while Lyft-only pretraining yields slightly larger gains than nuScenes-only pretraining. Combining both datasets leads to the best per-formance. 
+
+Impact of the BCSA Module. To isolate the benefit of BCSA beyond generic cross-attention, we replace it with a bi-directional cross-attention that applies a single multi-head attention along the spatial sequence, without chan-nel–spatial decoupling or gated fusion. Under identical training, this vanilla variant yields 49.77 mAP / 57.57 NDS—only +0.08 mAP over removing the module entirely (49.69 / 57.74) while reducing NDS by 0.17—suggesting that naive cross-modal token mixing introduces noisy as-sociations that do not improve overall driving quality. In contrast, BCSA attains 50.53 mAP / 58.02 NDS, indicating that its structured channel–spatial interactions and normal-ized, gated bi-directional fusion better exploit complemen-tary cross-modal cues while suppressing spurious correla-tions, thereby improving both detection accuracy and the holistic NDS metric. 
+
+Impact of the Framework Steps. We evaluated the con-tribution of each pertaining step in our framework, as sum-marized in Tab. 6. Step 1, which involves pre-training on pseudo-radar point clouds, improves mAP and NDS. This indicates that the L2R Sampling module and contrastive learning enhance generalization. Step 2, using a small set of real radar data for secondary pre-training, further im-proves mAP and NDS, highlighting the value of real radar data for refining model accuracy. The best performance was achieved by combining all three steps, resulting in sig-nificant improvements across mAP and NDS. This demon-strates that integrating pseudo-radar data, real radar data, and fine-tuning yields the best performance. 
+
+# 5. Conclusion 
+
+In this paper, we propose CLLAP, a novel Contrastive Learning-based LiDAR-Augmented Pretraining framework designed to enhance the performance and robustness of ex-isting radar-camera fusion methods. We introduce the L2R module, which generates high-quality pseudo-radar data from large-scale LiDAR datasets, enhancing data diversity and facilitating robust model training. Additionally, we present a Dual-Stage Dual-modality Contrastive Learning Strategy that leverages features from different modalities and views to enhance the model’s representation capabil-ities. Extensive experiments on multiple datasets demon-strate the effectiveness of CLLAP and the superiority of its components. 6. Acknowledgement 
+
+This work was supported in part by the National Science and Technology Major Project under Grant 2024ZD1600100, in part by the National Natural Sci-ence Foundation of China under Grants 62272357 and 62302326, in part by the Wuhan Science and Technology Joint Project for Building a Strong Transportation Country under Grant 2024-2-7, in part by the Wuhan Science and Technology Project for Key Research and Development un-der Grant 2024050702030090, and in part by the Funda-mental Research Funds for the Central Universities under Grant 2042025kf0055. 
+
+# References 
+
+[1] Mohamed Afham, Isuru Dissanayake, Dinithi Dissanayake, Amaya Dharmasiri, Kanchana Thilakarathna, and Ranga Ro-drigo. Crosspoint: Self-supervised cross-modal contrastive learning for 3d point cloud understanding. In Proceedings of the IEEE/CVF Conference on Computer Vision and Pattern Recognition , pages 9902–9912, 2022. 3 [2] Geonho Bang, Kwangjin Choi, Jisong Kim, Dongsuk Kum, and Jun Won Choi. Radardistill: Boosting radar-based ob-ject detection performance via knowledge distillation from lidar features. In Proceedings of the IEEE/CVF Conference on Computer Vision and Pattern Recognition , pages 15491– 15500, 2024. 2, 3 [3] Geonho Bang, Minjae Seong, Jisong Kim, Geunju Baek, Daye Oh, Junhyung Kim, Junho Koh, and Jun Won Choi. Rctdistill: Cross-modal knowledge distillation framework for radar-camera 3d object detection with temporal fusion. In Proceedings of the IEEE/CVF International Conference on Computer Vision , pages 25315–25324, 2025. 2, 3 [4] Felipe Manfio Barbosa and Fernando Santos Os´ orio. Camera-radar perception for autonomous vehicles and adas: Concepts, datasets and metrics. arXiv preprint arXiv:2303.04302 , 2023. 1 [5] Holger Caesar, Varun Bankiti, Alex H Lang, Sourabh Vora, Venice Erin Liong, Qiang Xu, Anush Krishnan, Yu Pan, Gi-ancarlo Baldan, and Oscar Beijbom. nuscenes: A multi-modal dataset for autonomous driving. In Proceedings of the IEEE/CVF conference on computer vision and pattern recognition , pages 11621–11631, 2020. 7 [6] Yinpeng Dong, Caixin Kang, Jinlai Zhang, Zijian Zhu, Yikai Wang, Xiao Yang, Hang Su, Xingxing Wei, and Jun Zhu. Benchmarking robustness of 3d object detection to common corruptions. In Proceedings of the IEEE/CVF Conference on Computer Vision and Pattern Recognition , pages 1022– 1032, 2023. 3 [7] Haoqiang Fan, Hao Su, and Leonidas J Guibas. A point set generation network for 3d object reconstruction from a single image. In Proceedings of the IEEE conference on computer vision and pattern recognition , pages 605–613, 2017. 7 [8] Lili Fan, Junhao Wang, Yuanmeng Chang, Yuke Li, Yutong Wang, and Dongpu Cao. 4d mmwave radar for autonomous driving perception: a comprehensive survey. IEEE Transac-tions on Intelligent Vehicles , 2024. 1 [9] Kun Guo, Tong Gan, Zhao Ding, and Qiang Ling. De-formable feature fusion network for multi-modal 3d object detection. In 2024 3rd International Conference on Robotics, Artificial Intelligence and Intelligent Control (RAIIC) , pages 363–367. IEEE, 2024. 2 [10] Deepti Hegde, Suhas Lohit, Kuan-Chuan Peng, Michael J Jones, and Vishal M Patel. Multimodal 3d object detection on unseen domains. arXiv preprint arXiv:2404.11764 , 2024. 3[11] John Houston, Guido Zuidhof, Luca Bergamini, Yawei Ye, Long Chen, Ashesh Jain, Sammy Omari, Vladimir Iglovikov, and Peter Ondruska. One thousand and one hours: Self-driving motion prediction dataset. In Conference on Robot Learning , pages 409–418. PMLR, 2021. 7 [12] Youngseok Kim, Sanmin Kim, Jun Won Choi, and Dong-suk Kum. Craft: Camera-radar 3d object detection with spatio-contextual fusion transformer. In Proceedings of the AAAI Conference on Artificial Intelligence , pages 1160– 1168, 2023. 2, 7 [13] Youngseok Kim, Juyeb Shin, Sanmin Kim, In-Jae Lee, Jun Won Choi, and Dongsuk Kum. Crn: Camera radar net for accurate, robust, efficient 3d perception. In Proceedings of the IEEE/CVF International Conference on Computer Vi-sion , pages 17615–17626, 2023. 1, 7 [14] Irfan Tito Kurniawan and Bambang Riyanto Trilaksono. Clusterfusion: Leveraging radar spatial features for radar-camera 3d object detection in autonomous vehicles. IEEE Access , 2023. 2 [15] Zixu Lan, Fang Deng, Angang Zhang, and Zhongjian Chen. Modcl: multi-modal object detection with end-to-end con-trastive learning in indoor scene. In International Conference on Algorithms, High Performance Computing, and Artificial Intelligence (AHPCAI 2024) , pages 1032–1038. SPIE, 2024. 3[16] Itai Lang, Asaf Manor, and Shai Avidan. Samplenet: Differentiable point cloud sampling. In Proceedings of the IEEE/CVF conference on computer vision and pattern recognition , pages 7578–7588, 2020. 4 [17] Phuc H Le-Khac, Graham Healy, and Alan F Smeaton. Con-trastive representation learning: A framework and review. 
+
+Ieee Access , 8:193907–193934, 2020. 3 [18] Jinho Lee, Geonkyu Bang, Takaya Shimizu, Masato Iehara, and Shunsuke Kamijo. Lidar-to-radar translation based on voxel feature extraction module for radar data augmentation. 
+
+Sensors , 24(2):559, 2024. 4 [19] Zhiwei Lin, Zhe Liu, Zhongyu Xia, Xinhao Wang, Yong-tao Wang, Shengxiang Qi, Yang Dong, Nan Dong, Le Zhang, and Ce Zhu. Rcbevdet: Radar-camera fusion in bird’s eye view for 3d object detection. In Proceedings of the IEEE/CVF Conference on Computer Vision and Pattern Recognition , pages 14928–14937, 2024. 1, 7 [20] Xingyu Liu, Charles R Qi, and Leonidas J Guibas. Flownet3d: Learning scene flow in 3d point clouds. In Pro-ceedings of the IEEE/CVF conference on computer vision and pattern recognition , pages 529–537, 2019. 4 [21] Xinyu Liu, Baolu Li, Runsheng Xu, Jiaqi Ma, Xiaopeng Li, Jinlong Li, and Hongkai Yu. V2x-dsi: A density-sensitive infrastructure lidar benchmark for economic vehicle-to-everything cooperative perception. In 2024 IEEE Intelligent Vehicles Symposium (IV) , pages 490–495. IEEE, 2024. 1 [22] Zhijian Liu, Haotian Tang, Alexander Amini, Xinyu Yang, Huizi Mao, Daniela L Rus, and Song Han. Bevfusion: Multi-task multi-sensor fusion with unified bird’s-eye view repre-sentation. In 2023 IEEE international conference on robotics and automation (ICRA) , pages 2774–2781. IEEE, 2023. 7 [23] Ramin Nabati and Hairong Qi. Centerfusion: Center-based radar and camera fusion for 3d object detection. In Proceed-ings of the IEEE/CVF Winter Conference on Applications of Computer Vision , pages 1527–1536, 2021. 7 [24] Aaron van den Oord, Yazhe Li, and Oriol Vinyals. Repre-sentation learning with contrastive predictive coding. arXiv preprint arXiv:1807.03748 , 2018. 6 [25] Jinhyung Park, Chenfeng Xu, Shijia Yang, Kurt Keutzer, Kris Kitani, Masayoshi Tomizuka, and Wei Zhan. Time will tell: New outlooks and a baseline for temporal multi-view 3d object detection. arXiv preprint arXiv:2210.02443 , 2022. 7 [26] Cheng Peng. VISION-BASED SMART MONITORING AND ASSESSMENT OF HIGHWAY PAVEMENT INFRASTRUC-TURES . PhD thesis, Purdue University Graduate School, 2024. 1 [27] Aditi Raghunathan, Sang Michael Xie, Fanny Yang, John Duchi, and Percy Liang. Understanding and mitigating the tradeoff between robustness and accuracy. arXiv preprint arXiv:2002.10716 , 2020. 2 [28] Jonas Schramm, Niclas V¨ odisch, K¨ ursat Petek, B Ravi Ki-ran, Senthil Yogamani, Wolfram Burgard, and Abhinav Val-ada. Bevcar: Camera-radar fusion for bev map and object segmentation. arXiv preprint arXiv:2403.11761 , 2024. 2 [29] Ziying Song, Feiyang Jia, Hongyu Pan, Yadan Luo, Caiyan Jia, Guoxin Zhang, Lin Liu, Yang Ji, Lei Yang, and Li Wang. Contrastalign: Toward robust bev feature alignment via con-trastive learning for multi-modal 3d object detection. arXiv preprint arXiv:2405.16873 , 2024. 3 [30] Leichen Wang, Bastian Goldluecke, and Carsten Anklam. L2r gan: Lidar-to-radar translation. In Proceedings of the Asian Conference on Computer Vision , 2020. 4 [31] Shihao Wang, Yingfei Liu, Tiancai Wang, Ying Li, and Xi-angyu Zhang. Exploring object-centric temporal modeling for efficient multi-view 3d object detection. In Proceedings of the IEEE/CVF International Conference on Computer Vi-sion , pages 3621–3631, 2023. 7 [32] Wenbo Wang and Weibin Zhang. Crrfnet: An adaptive traf-fic object detection method based on camera and radar radio frequency fusion. Transportation Research Part C: Emerg-ing Technologies , 166:104791, 2024. 2 [33] Chengzhi Wu, Junwei Zheng, Julius Pfrommer, and J¨ urgen Beyerer. Attention-based point cloud edge sampling. In Pro-ceedings of the IEEE/CVF conference on computer vision and pattern recognition , pages 5333–5343, 2023. 4 [34] Zizhang Wu, Guilian Chen, Yuanzhu Gan, Lei Wang, and Jian Pu. Mvfusion: Multi-view 3d object detection with semantic-aligned radar and camera fusion. In 2023 IEEE In-ternational Conference on Robotics and Automation (ICRA) ,pages 2766–2773. IEEE, 2023. 2 [35] Ruoyu Xu, Zhiyu Xiang, Chenwei Zhang, Hanzhi Zhong, Xijun Zhao, Ruina Dang, Peng Xu, Tianyu Pu, and Eryun Liu. Sckd: Semi-supervised cross-modality knowledge dis-tillation for 4d radar object detection. In Proceedings of the AAAI Conference on Artificial Intelligence , pages 8933– 8941, 2025. 2, 3 [36] Shanliang Yao, Runwei Guan, Xiaoyu Huang, Zhuoxiao Li, Xiangyu Sha, Yong Yue, Eng Gee Lim, Hyungjoon Seo, Ka Lok Man, Xiaohui Zhu, et al. Radar-camera fusion for object detection and semantic segmentation in autonomous driving: A comprehensive review. IEEE Transactions on In-telligent Vehicles , 2023. 1 [37] Yuhong Yuan, Kai Zhang, Mingbo Yang, Shuxiang Li, and Yu Liang. Pastefusion: innovating multimodal sensor fusion for enhanced 3d object detection. In International Confer-ence on Image, Signal Processing, and Pattern Recognition (ISPP 2024) , pages 932–938. SPIE, 2024. 2 [38] Tingyu Zhang, Zhigang Liang, Yanzhao Yang, Xinyu Yang, Yu Zhu, and Jian Wang. Contrastive late fusion for 3d object detection. IEEE Transactions on Intelligent Vehicles , 2024. 2[39] Lingjun Zhao, Jingyu Song, and Katherine A Skinner. Crkd: Enhanced camera-radar object detection with cross-modality knowledge distillation. In Proceedings of the IEEE/CVF Conference on Computer Vision and Pattern Recognition ,pages 15470–15480, 2024. 2, 3 [40] Yuan Zhao, Lu Zhang, Jiajun Deng, and Yanyong Zhang. Bev-radar: bidirectional radar-camera fusion for 3d object detection. JUSTC , 54(1):0101–1, 2024. 2 [41] Taohua Zhou, Junjie Chen, Yining Shi, Kun Jiang, Meng-meng Yang, and Diange Yang. Bridging the view disparity between radar and camera features for multi-modal fusion 3d object detection. IEEE Transactions on Intelligent Vehicles ,8(2):1523–1535, 2023. 7 [42] Yin Zhou and Oncel Tuzel. Voxelnet: End-to-end learning for point cloud based 3d object detection. In Proceedings of the IEEE conference on computer vision and pattern recog-nition , pages 4490–4499, 2018. 7 CLLAP: Contrastive Learning-based LiDAR-Augmented Pretraining for Enhanced Radar-Camera Fusion 
+
+# Supplementary Material 
+
+# 1. Overview 
+
+The appendix offers comprehensive explanations of the methodologies introduced in the main text, together with additional experimental results and extended visual analy-ses. The supplementary material is organized into the fol-lowing sections: • Sec.2 Methodology Supplement 
+
+– Sec.2.1 Sliding Window Feature Matching Mechanism 
+
+– Sec.2.2 BCSA Module 
+
+– Sec.2.3 Column Selection in Local Contrastive Loss • Sec.3 Visual supplementation 
+
+– Sec.3.1 Visualization of Experimental Results 
+
+– Sec.3.2 Global Contrastive Loss • Sec.4 Supplementary Experiments 
+
+– Sec.4.1 Generalization to adverse weather 
+
+– Sec.4.2 Impact of the weighting parameter in loss func-tion 
+
+– Sec.4.3 Impact of the GMM parameter variations 
+
+– Sec.4.4 Impact of the weighting parameter in sampling 
+
+– Sec.4.5 Comparison with Learned Pseudo-Radar Base-lines 
+
+# 2. Methodology Supplement 
+
+2.1. Sliding Window Feature Matching Mechanism 
+
+Cross-modality feature misalignment presents a significant challenge in multi-modal contrastive learning for radar-camera fusion, as naively treating spatially corresponding features as positive pairs often results in suboptimal align-ment. To address this limitation, we proposed a method for finding the best positive sample pairs. Specifically, for each anchor f jt , We define a local search area with a width of R
+
+in the query feature map and use a sliding window of size 
+
+r (r<R ) to slide through the local search area to extract n
+
+(n = R − r + 1 ) candidate areas f ms . Each candidate area is adaptively aggregated through an attention module Atten 
+
+to align with the anchor’s dimensions, followed by pairwise similarity computation. The highest-scoring candidate f j∗
+
+> s
+
+is selected as the refined positive pair, effectively replac-ing coarse positional alignment with a learned, similarity-driven matching strategy. This approach enhances fea-ture correspondence precision while maintaining robustness to spatial discrepancies between pseudo-radar and camera modalities: 
+
+f j∗ 
+
+> s
+
+= max 
+
+> δ∈{− R,...,R }
+
+
+
+sim 
+
+
+
+f jt , Atten 
+
+n
+
+f ms | | m − (j + δ)| ≤ r
+
+2
+
+o  (4) where sim( ·, ·) denotes similarity, m is the center of the 
+
+mth area during the sliding process, and δ is the offset. 
+
+2.2. BCSA Module 
+
+To further enhance the discriminative power of these refined positive pairs, we introduce a Bidirectional Channel-Spatial Attention module. Within the constructed positive pairs, the channel-wise and spatial distribution information of the fea-ture maps convey distinct semantic meanings. Our mod-ule independently applies attention mechanisms along the channel and spatial dimensions: 
+
+MAT (Q, K, V ) = softmax 
+
+ QK ⊤
+
+√dk
+
+
+
+V (5) where Q = Fi ∈ RB×D×C or Γ( Fi) ∈ RB×C×D is the query, K, V = F3−i ∈ RB×D×C or Γ( F3−i) ∈ RB×C×D
+
+, and D, C represent the spatial and channel dimensions, re-spectively. (1) Channel Attention learns importance weights for different feature channels, highlighting those most dis-criminative for the 3D object detection task. (2) Spatial At-tention learns importance weights for different spatial lo-cations within the feature column, emphasizing the impor-tance of the region of interest in object detection while suppressing interference from background regions, thus en-hancing the alignment of pseudo-radar and camera features. Through this bidirectional decoupling and weighting across channel and spatial dimensions, the final refined feature rep-resentation is computed as: 
+
+Ffinal  
+
+> i
+
+= G
+
+
+
+LN (MAT( Fi, F3−i, F3−i)) ,
+
+LN (Γ (MAT(Γ( Fi), Γ( F3−i), Γ( F3−i)))) 
+
+ (6) where i ∈ { 1, 2} indexes the feature pair, G is a gate control mechanism, LN denotes layer normalization, and Γ repre-sents the transposition operation. The following is the explanation of why columns are se-lected instead of rows in the local contrastive loss part of the two-stage dual-modal comparative learning strategy in the proposed method paragraph. Figure 7. Figures (a) and (b) present the visualizations of the im-age and point cloud from the front view, respectively. Figures (c) and (d) illustrate simulated representations of the same modality observed from different viewpoints. Figures (e) and (f) depict vi-sualizations of different modalities under varying viewpoints. 
+
+2.3. Column Selection in Local Contrastive Loss 
+
+As illustrated in Fig. 7, Figures (a) and (b) indicate that both modalities convey consistent content when evaluated within the same column unit. Figures (c) and (d) demon-strate that column-based units maintain consistent content representation across views, whereas row-based units intro-duce noticeable inconsistencies, as highlighted by the yel-low dashed rectangles. Figures (e) and (f) reveal that row-based optimization units exacerbate inconsistencies in con-tent representation across modalities and views. 
+
+# 3. Visual supplementation 
+
+3.1. Visualization of Experimental Results 
+
+Figure 8 provides a visual comparison between the results produced by our proposed method and those generated by the CRN baseline. The green solid rectangle denotes the ground truth bounding box, the red dotted rectangle repre-sents the prediction from the baseline model, and the blue dotted rectangle corresponds to the prediction obtained us-ing our method. As observed, the predictions produced by our approach exhibit greater alignment with the ground truth, demonstrating improved localization accuracy com-pared to the baseline. This visual evidence highlights the effectiveness of our method in enhancing detection perfor-mance. 
+
+3.2. Global Contrastive Loss 
+
+As illustrated in Fig. 9, the left panel shows the inconsis-tency map produced by CLLAP without the Global Con- 
+
+> Figure 8. Comparison of our method with baseline visualization results.
+> Figure 9. Comparison of feature heatmaps before and after the application of Global Contrastive Loss is presented.
+
+trastive Loss, while the right panel shows the result after adding this loss. In both maps, brighter colors indicate a larger discrepancy between each feature and its local neigh-borhood. Without the global supervision, high-response re-gions are scattered across both foreground objects and back-ground areas, and even the interior of the target exhibits many fragmented, high-valued blobs, suggesting unstable and noisy representations. After introducing the Global Contrastive Loss, the responses become much more com-pact: large values concentrate around object boundaries, whereas the interior of the object and most background re-gions are strongly suppressed. This indicates that the pro-posed loss encourages globally coherent, object-level fea-tures and clearer separation between foreground and back-ground, which aligns with the quantitative gains in detection accuracy reported in Sec. 4.4. 
+
+# 4. Supplementary Experiments 
+
+Implementation Settings. Our proposed model is im-plemented using the PyTorch framework and trained on 
+
+NVIDIA GeForce RTX 4090 and NVIDIA H800 Tensor Core GPUs . We adopt the SGD optimizer with a learning rate of 
+
+2 × 10 −4, momentum of  0.9, and weight decay of  1 × 10 −5.The batch size is set to  6 during pretraining. 
+
+> Figure 10. Adverse Weather example
+
+4.1. Generalization to adverse weather 
+
+To further assess whether the proposed pretraining im-proves the robustness of the learned representations, we evaluate the models on adverse-weather scenarios without any additional training. Following the corruption protocol of the CVPR 2023 work[6], we synthesize adverse-weather data by injecting noise and weather-related corruptions into the original nuScenes samples; representative examples are shown in Fig. 10. We then directly apply the models pre-trained with our method and the corresponding baselines to this corrupted benchmark, using exactly the same weights as on the clean nuScenes validation set. As summarized in Tab. 7, our pretrained models consistently outperform their non-pretrained counterparts under adverse-weather condi-tions, suggesting that the learned features generalize beyond the clean training distribution and confer improved robust-ness to realistic corruptions. 
+
+4.2. Impact of the weighting parameter in the loss function 
+
+To study how the balance between the global and column-wise contrastive terms affects performance, we ablate the   
+
+> Table 7. Performance under adverse-weather corruptions on the nuScenes validation set. Models are directly evaluated on cor-rupted data without additional training.
+
+Weather Baseline w. CLLAP (ours) mAP ( ↑) NDS ( ↑) mAP ( ↑) NDS ( ↑)Rain 32.84 46.57 34.39 47.09 
+
+Snow 13.93 33.40 15.45 34.48 
+
+weighting factor λ in the loss: 
+
+L = λLglobal + Lcol . (7) For efficiency, all models are trained on a randomly sam-pled 20% subset of the nuScenes training set. As reported in Tab. 8, we evaluate λ ∈ { 1, 1/6, 1/12 }. Setting λ = 1 /6
+
+yields the best detection accuracy, indicating that a moder-ate weight on the global term provides a good trade-off be-tween global regularization and the local column-wise su-pervision. In contrast, λ = 1 over-emphasizes the global loss and slightly degrades performance, while λ = 1 /12 
+
+under-weights it and limits the benefit of global contrastive learning. Therefore, we adopt λ = 1 /6 as the default in all experiments. 
+
+4.3. Impact of the GMM parameter variations 
+
+Additionally, to verify that GMM parameter variations have a minimal impact on our framework, we evaluated GMM with 4, 5, and 6 components by Chamfer distances(a mea-sure of similarity between two sets): 
+
+CD (P, Q ) = 1
+
+|P |
+
+X
+
+> p∈P
+
+min  
+
+> q∈Q
+
+|p − q|2 + 1
+
+|Q|
+
+X
+
+> q∈Q
+
+min  
+
+> p∈P
+
+|p − q|2 (8) where P/Q denote the pseudo-radar/real-radar points. The results shown in Tab. 9 reveal that the setting of GMM pa-rameters had little effect on the results. 
+
+4.4. Impact of the weighting parameter in sampling 
+
+In the paper, the intensity weight wint reflects the relative contribution of each point based on its point intensity. To ensure points with greater reflective intensity are properly emphasized during sampling, greater weights are assigned to them. The intensity weight for each point is calculated as 
+
+wint = I 12 
+
+> i
+
+/ P 
+
+> j
+
+I 12 
+
+> j
+
+, where Ii is the intensity of point i.To ensure accurate feature representation, we assign weights based on point sparsity and distance. Sparse re-gions require greater sampling to capture their structural and semantic information, quantified by the sparsity weight 
+
+wspa = P 
+
+> j
+
+D2 
+
+> ij
+
+, where Dij is the Euclidean distance be-tween point i and its j-th nearest neighbor. Similarly, points Table 8. The result of different weight settings in the loss factor (using 1/5 of the nuScenes dataset). 
+
+weight mAP (↑)1 35.13 1/6 35.74 
+
+1/12 35.29 
+
+> Table 9. The result of different component settings in GMM.
+
+components Chamfer Distances (↓)4 142.0 5 140.7 6 141.2 
+
+> Table 10. The result of different sampling weight configurations.
+
+Config αint αdist αspa Chamfer Distances (↓)1 4 2 4 114.1 
+
+2 1 1 1 116.6 3 1 2 1 118.6 4 2 1 1 115.3 5 1 1 2 115.5 
+
+> Figure 11. Visualization Comparison
+
+farther from the center of the point cloud, often sparse in radar sensing, are assigned a distance weight wdist =1/D 2 
+
+> iO
+
+, where DiO is the Euclidean distance from point i
+
+to the origin. Finally, the overall sampling weight is a lin-ear combination of the three individual weights, with scal-ing factors αint , αspa , αdist controlling the contributions of each weight: wfinal = αint wint + αdist wdist + αspa wspa .By normalizing wfinal for all points, we ensure the sampling probabilities are well-defined. Furthermore, we conducted a sensitivity analysis of the weight using 2000 nuScenes point clouds with 5 settings: 4:2:4, 1:1:1, 1:2:1, 2:1:1, and 1:1:2. The results in Tab. 10 show that the chosen weight of 4:2:4 offers the best performance and the model is relatively ro-bust to weight variations. 
+
+4.5. Comparison with Learned Pseudo-Radar Base-lines 
+
+We further compare the proposed L2R sampling strategy with two learning-based pseudo-radar generation baselines, namely SampleNet[16]( CVPR 2020 ) and APES[33] ( CVPR 2023 ). As shown in Fig. 11, although these methods achieve lower Chamfer Distance values (SampleNet: 20.9 , APES: 
+
+42.0 ), their generated point patterns are less consistent with the spatial characteristics of real radar observations. In contrast, the pseudo-radar point clouds produced by our L2R sampling strategy more faithfully preserve radar-like spatial distributions. To further evaluate their utility for downstream pretrain-ing, we incorporate SampleNet-generated pseudo-radar point clouds into the same pretraining pipeline used in our method. This variant improves the baseline by +1.59 
+
+mAP and +1.32 NDS, but still remains clearly infe-rior to our L2R-based pretraining, which achieves +3.20 
+
+mAP and +1.87 NDS. These results suggest that a lower Chamfer Distance alone does not necessarily translate into more effective pseudo-radar supervision for radar-camera fusion pretraining. More importantly, they demonstrate that the proposed L2R sampling strategy provides pseudo-radar data that are more beneficial for downstream 3D object de-tection.
