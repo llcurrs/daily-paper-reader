@@ -1,0 +1,519 @@
+Title: RAFNet: Region-Aware Fusion Network for Pansharpening
+
+URL Source: https://arxiv.org/pdf/2605.02184v1
+
+Published Time: Tue, 05 May 2026 01:49:50 GMT
+
+Number of Pages: 12
+
+Markdown Content:
+> IEEE TRANSACTIONS ON GEOSCIENCE AND REMOTE SENSING, VOL. XX, NO. XX, [MONTH] 2026 1
+
+# RAFNet: Region-Aware Fusion Network for Pansharpening 
+
+Jianing Zhang , Zijian Zhou , Kai Sun 
+
+Abstract —Pansharpening aims to generate high-resolution multispectral (HRMS) images by fusing low-resolution multispec-tral (LRMS) and high-resolution panchromatic (PAN) images. Although deep learning has advanced this field, mainstream frequency-based methods relying on standard scaled dot-product attention suffer from quadratic computational complexity and fail to exploit the inherent regional sparsity of remote sensing imagery. Furthermore, existing spatial enhancement strategies typically employ static convolution kernels, which struggle to adapt to the complex frequency and regional variations of PAN and MS images. To address these bottlenecks, we propose a Region-Aware Fusion (RAFNet) Network that synergistically models spatial and frequency information. Specifically, we design a Spatial Adaptive Refinement (SAR) module that leverages the discrete wavelet transform (DWT) for directional frequency separation and K-means clustering for regional partitioning, which enables the dynamic construction of region-specific adap-tive convolution kernels, achieving spatially and frequency-adaptive feature enhancement. Moreover, we introduce a Clus-tered Frequency Aggregation (CFA) module based on a sparse attention mechanism guided by the semantic clusters, which executes a region-aware sparse attention strategy that drastically reduces computational redundancy while ensuring high-quality frequency feature extraction. In addition we integrated these modules into a progressive, multi-level spatial-frequency network architecture to facilitate robust interaction and accurate image reconstruction. Extensive experiments on multiple benchmark datasets demonstrate that the proposed RAFNet significantly outperforms state-of-the-art pansharpening methods in both reduced- and full-resolution assessments. The code is available at https://github.com/PatrickNod/RAFNet. 
+
+Index Terms —Pansharpening, Remote sensing, Wavelet trans-form, K-means, Adaptive convolution, Sparse attention. 
+
+I. I NTRODUCTION 
+
+# THE unprecedented demand for high-resolution multispec-tral (HRMS) imagery in Earth observation [1], [2] is hindered by the inherent physical trade-offs of optical sensors. Consequently, satellites typically acquire low-resolution multi-spectral (LRMS) and high-resolution panchromatic (PAN) im-ages separately. While LRMS preserves rich spectral fidelity, 
+
+Manuscript received [Month Day, Year]; revised [Month Day, Year]. This work was supported in part by the National Natural Science Foundation of China under Grant 12201490, in part by the China Postdoctoral Science Foundation under Grant 2025M773093, and in part by the Postdoctoral Fellowship Program of CPSF under Grant GZC20252028. (Corresponding author: Kai Sun.) 
+
+The first two authors contributed equally. Jianing Zhang and Zijian Zhou are with the College of Artificial Intelligence, Xi’an Jiaotong University, Xi’an 710049, China (e-mail: 2518720025@stu.xjtu.edu.cn; zzj210119@stu.xjtu.edu.cn). Kai Sun is with the School of Mathematics and Statistics, Xi’an Jiaotong University, Xi’an 710049, China (e-mail: kaisun@mail.xjtu.edu.cn). 
+
+PAN captures fine spatial details. Pansharpening has emerged as a crucial paradigm to circumvent this limitation, aiming to synergistically fuse the spectral information of LRMS with the spatial structures of PAN to reconstruct high-quality HRMS imagery. Traditional pansharpening methods are broadly categorized into three classes [3]: Component Substitution (CS) [4], [5], Multi-Resolution Analysis (MRA) [6], [7], and Variational Optimization (VO) [8], [9]. They frequently provoke severe spectral distortion [10], introduce spatial artifacts like ringing [11], or rely on hand-crafted priors that fail to model complex real-world remote sensing data [12]. In recent years, deep learning architectures have achieved remarkable success in remote sensing image fusion [13], [14]. Early paradigms directly fed stacked PAN and MS images into convolutional networks for end-to-end mapping [15]. Subsequently, methods that inject neural-extracted spatial de-tails into upsampled MS images substantially improved fusion fidelity [16], [17]. Representative architectures like U2Net [18] employ multi-scale networks to capture and enhance these details. However, relying exclusively on static convolutional kernels, these methods inherently lack spatial adaptability and struggle to model diverse regional distributions across input images [19]. Furthermore, Yedla et al. [20] revealed a spectral bias where conventional networks over-focus on low-frequency content at the expense of high-frequency details. Since intricate spatial details are embedded within high-frequency components [21], static convolutions inadvertently attenuate them, as illustrated in Fig. 1(a). While some studies employed linear transfor-mations to mitigate frequency entanglement [22], Multilayer Perceptron (MLP) modules disrupt the intrinsic spatial topol-ogy of pixels [23]. Consequently, the paradigm shifted toward spatially adaptive convolutions. Early methods like DFN [24] and DDF [25] synthesized localized dynamic kernels con-ditioned on input content (Fig. 1(b)), but failed to exploit non-local self-similarities. Motivated by regional correlations, methods like IGNN [26] and Canconv [27] integrated cluster-ing mechanisms to extract non-local adaptive priors (Fig. 1(c)), significantly bolstering spatial adaptability. Although cluster-guided convolutions present a promising paradigm, Chen et al. [28] demonstrated that the frequency-domain responses of dynamically generated weights often exhibit high similarity. To alleviate this, they proposed FDconv to construct adaptive kernels within the Fourier domain, un-derscoring that optimal kernel generation must simultaneously 
+
+1558-0644 © 2026 IEEE. All rights reserved, including rights for text and data mining, and training of artificial intelligence and similar technologies. Personal use is permitted, but republication/redistribution requires IEEE permission. See https://www.ieee.org/publicatios/rights/index.html for more information.     
+
+> arXiv:2605.02184v1 [cs.CV] 4 May 2026 IEEE TRANSACTIONS ON GEOSCIENCE AND REMOTE SENSING, VOL. XX, NO. XX, [MONTH] 2026 2(a) Static Conv (c) Context -Aware Conv (b) Dynamic Conv (d) Frequency AdaConv
+> DWT
+> LL
+> LH
+> HL
+> HH
+> Fig. 1. Evolution of convolution paradigms for spatial feature enhancement. (a) Static Conv applies a spatially invariant filter across the entire image, often attenuating high-frequency details. (b) Dynamic Conv generates localized, spatially adaptive weights but fails to exploit non-local similarities. (c) Context-Aware Conv leverages regional clustering to assign shared adaptive kernels to semantically similar non-local regions. (d) Frequency AdaConv integrates the discrete wavelet transform (DWT) to synthesize region-adaptive dynamic convolution kernels specifically tailored to distinct high-frequency components (LH, HL, HH) besides the low-frequency (LL) guided by the low-frequency (LL) semantic mask.
+
+account for spatial adaptability and frequency variations. This indicates existing strategies remain inadequately aligned with the complex frequency distributions of remote sensing data. Building upon these critical insights, our proposed method focuses on synthesizing region-adaptive dynamic convolution kernels specifically tailored to distinct frequency components via DWT (Fig. 1(d)), achieving a superior and highly gener-alized spatial enhancement paradigm. Furthermore, relying exclusively on the injection of spatial details is often suboptimal for comprehensive pansharpening inference [29]. Consequently, frequency-domain image fu-sion techniques have emerged as a superior alternative, with Transformer-based architectures rapidly establishing them-selves as the dominant paradigm [30], [31]. Nevertheless, the deployment of these attention-based models in practical remote sensing scenarios is severely hindered by inherent technical bottlenecks. The computational time and memory footprint of standard attention mechanisms scale quadratically with the spatial sequence length, which consumes prohibitive computational resources and introduces substantial informa-tion redundancy [32]. To empirically validate this redundancy, we analyze the cumulative distribution function (CDF) energy curve in Fig. 2(a), which reveals an extreme long-tail distri-bution where 90% of the useful attention energy is tightly clustered in a mere 57.1% of the tokens. Furthermore, the visualization of the global attention matrix (Fig. 2(c)) reveals a pronounced block-diagonal and highly sparse structure, vi-sually proving that the vast majority of query-key interactions compute near-zero weights and contribute minimally to the final representation. Therefore, mitigating the computational overhead of atten-tion mechanisms while preserving representation capabilities remains a critical challenge. To address this, pioneering studies have proposed sparse approximations to constrain the number of active Query-Key interactions, or low-rank approximations to compress the correlation matrices [33], [34]. Early sparse attention frameworks like CPC [35] employed banded atten-tion coupled with global node constraints to restrict Query interactions to local neighborhoods to achieve linear com-plexity. Similarly, the REFORMER [36] utilized Locality-Sensitive Hashing (LSH) to probabilistically select relevant Key-Value pairs. However, these methods typically impose spatially invariant attention patterns across the entire image, failing to accommodate the diverse semantic regions inherent in complex scenes. The Routing Transformer [37] alleviated this rigidity by leveraging K-means clustering, restricting each Query to exclusively attend to Keys within its assigned semantic cluster. In the specialized domain of remote sensing pansharpening, sparse attention paradigms are gradually gaining traction. For instance, PMRF [38] adopted Swin-Transformer architecture to explicitly curtail computational complexity while maintain-ing fusion fidelity, but the spatial flexibility of its static window partitioning remains fundamentally limited. This underscores a pressing imperative to design customized sparse attention mechanisms tailored to the regional semantic features of re-mote sensing data. To guide this design, we further investigate the spatial distribution of the active attention energy. As graphically depicted by comparing the K-Means cluster mask (Fig. 2(b)) with the spatial attention heatmaps of selected query pixels (Fig. 2(d)), a striking phenomenon of spatial semantic alignment emerges. The attention energy naturally concentrates strictly within the same semantic boundaries. Mo-tivated by these critical insights into global matrix sparsity and spatial semantic alignment, our proposed method integrates the advantages of spatial clustering to formulate a highly effi-cient, region-adaptive sparse attention mechanism, effectively resolving the dilemma between computational complexity and fusion performance. To surmount the aforementioned limitations in spatial en-hancement and frequency-domain fusion, we propose a novel Region-Aware Fusion (RAFNet) Network. Specifically, we design a Spatial Adaptive Refinement (SAR) module grounded in the discrete wavelet transform (DWT) for precise directional frequency decoupling. By employing K-means clustering to dynamically synthesize region-specific adaptive convolution kernels, the SAR explicitly captures the correlation between frequency distributions and spatial features to robustly enhance high-frequency details. Furthermore, to mitigate the prohibitive computational over-IEEE TRANSACTIONS ON GEOSCIENCE AND REMOTE SENSING, VOL. XX, NO. XX, [MONTH] 2026 3(c)  Attention  Matrix        
+
+> (a) CDF Energy Curve (b) K-Means Cluster Mask
+> (d) Attention Heatmap
+> Fig. 2. Motivation for the proposed Cluster-Routed Sparse Attention (CRSA). (a) CDF Energy Curve: Demonstrates the long-tail distribution of attention weights, where 90% of the energy is tightly clustered within only the top 57.1% of tokens. (b) K-Means Cluster Mask: Illustrates the spatial semantic regions of the image. (c) Attention Matrix: Visualization of the global attention matrix, revealing severe block-diagonal and sparse structures with massive inactive interactions. (d) Attention Heatmap: Spatial attention maps corresponding to the specific query indices highlighted by red boxes in (c). The heatmaps project the attention weights back into the 2D spatial domain, with warmer colors indicating higher attention scores. Crucially, the boundaries of the high-attention regions (red/yellow) for each query pixel align with the shape of its corresponding semantic cluster shown in (b). This visually confirms the spatial semantic alignment phenomenon, providing a strong empirical rationale for using regional clustering to guide sparse attention interactions.
+
+head of standard global attention, we introduce the Clustered Frequency Aggregation (CFA) module. By exploiting the inherent regional sparsity of attention matrices and integrating the semantic guidance from the SAR, the CFA executes a region-aware sparse attention strategy. This substantially reduces complexity while guaranteeing the unimpeded propa-gation of fine-grained details and global image structures. Finally, we embed these modules within a multi-scale architecture tailored to the unique characteristics of remote sensing imagery. By strategically harmonizing DWT, K-means clustering, adaptive convolutions, and sparse attention, our framework rigorously prunes computational redundancy. This achieves an optimal trade-off between computational effi-ciency and fusion performance, ensuring superior HRMS image reconstruction. In summary, our main contributions are as follows: 1) We propose a novel Region-Aware Fusion (RAF) Net-work for pansharpening that synergizes spatial enhance-ment with frequency-domain fusion. By facilitating col-laborative spatial-spectral processing, RAFNet circum-vents the limitations of existing architectures to achieve state-of-the-art performance, while its modular design offers a highly generalized paradigm for remote sensing image fusion. 2) We design a Spatial Adaptive Refinement (SAR) mod-ule that integrates the discrete wavelet transform with K-means semantic clustering. By coupling directional frequency decoupling with region-specific adaptive con-volution kernels, the SAR module ensures the precise extraction and high-fidelity propagation of complex spa-tial details. 3) We introduce a Cluster-Routed Sparse Attention (CRSA) module that leverages semantic clustering priors from SAR to adaptively route the flow of frequency informa-tion. This region-aware mechanism radically mitigates the quadratic computational complexity of standard at-tention, providing a highly efficient global fusion strat-egy optimized for high-resolution imagery. II. R ELATED WORK 
+
+A. Dynamic Convolution Based Pansharpening 
+
+Adaptive convolutions dynamically synthesize content-conditioned kernels to improve spatial representation over standard static weights. While early methods like DFN [24], DRConv [39], and DDF [25] introduced increasingly granular, pixel-specific kernels to address spatial variance, they often incur severe computational redundancy and apply spatially invariant parameters that fail to capture diverse regional het-erogeneity [40]. Furthermore, these spatial-centric techniques inherently neglect image frequency priors, leading to a spectral bias that suppresses crucial high-frequency details in favor IEEE TRANSACTIONS ON GEOSCIENCE AND REMOTE SENSING, VOL. XX, NO. XX, [MONTH] 2026 4PAN    
+
+> LRMS
+> Adaptive
+> Sparse
+> Attention
+> IDWT
+> Q
+> K
+> V
+> DWT
+> Region
+> Dynamic
+> Convolution
+> IDWT
+> DWT
+> CRSA
+> GDFN CRSA
+> LL pass Cluster
+> Region Partition
+> Fused HRMS
+> SAR
+> CFA
+> Spatial Adaptive Refinement (S AR )
+> Clustered Frequency Aggregation (CFA )
+> LL
+> LH
+> HL
+> HH
+> SAC
+> SAC
+> Cluster
+> Region
+> Partition
+> SAC
+> Convolution
+> Linear
+> MLP
+> Addition
+> Fig. 3. Overall architecture of the proposed Region-Aware Fusion (RAF) network. The network takes PAN and LRMS images as inputs and primarily consists of two core modules. The Spatial Adaptive Refinement (SAR) extracts and enhances spatial details via Discrete Wavelet Transform (DWT) and cascaded Spatial Adaptive Convolutions (SACs). The Clustered Frequency Aggregation (CFA) fuses information across frequencies using adaptive sparse attention and Gated Depthwise Forward Networks (GDFN). The final high-resolution multispectral (HRMS) image is reconstructed progressively.
+
+of low-frequency structures [28]. Although recent remote sensing applications like LAGConv [41] and Canconv [27] have successfully leveraged local and non-local similarities to augment spatial fidelity, they still struggle with this spec-tral imbalance. Motivated by these limitations, we design a specialized adaptive convolution module that synergistically integrates rich frequency priors with spatial adaptability to prevent the attenuation of high-frequency spatial details. 
+
+B. Sparse Attention Based Pansharpening 
+
+Transformer architectures excel at capturing long-range global dependencies, making them highly efficacious for pan-sharpening applications [42]–[45]. However, their standard scaled dot-product attention incurs a prohibitive quadratic computational and memory complexity. To alleviate this, sparse attention mechanisms have been extensively investi-gated to balance representation performance and efficiency [32]. Methods such as banded attention [35], Locality-Sensitive Hashing (LSH) [36], and transposed attention mech-anisms [46] successfully reduce computational overhead. Nev-ertheless, these conventional sparse approaches typically im-pose rigid, spatially invariant attention patterns, lacking the adaptive flexibility required for complex visual scenes. To address this rigidity, the Routing Transformer [37] introduced spatial adaptability by constraining interactions strictly within K-means semantic clusters. Concurrently, within remote sens-ing, architectures like PMRF [38] have deployed window-based sparse paradigms to maintain fusion fidelity efficiently. Building upon these critical advancements, we propose a customized sparse attention module explicitly tailored to the inherent regional heterogeneity and high-resolution processing demands of remote sensing imagery. III. P ROPOSED METHOD 
+
+This section elaborates on the overall architectural design of the proposed Region-Aware Fusion (RAF) network. As illustrated in Fig. 3, the RAF network is mainly composed of two core modules: the Spatial Adaptive Refinement (SAR) and the Clustered Frequency Aggregation (CFA). Let the input PAN image be IP ∈ RH×W ×1, the low-resolution MS image be IM ∈ R(H/r )×(W/r )×C , and the ground-truth HRMS image be IH ∈ RH×W ×C , where r is the spatial resolution ratio and C is the number of spectral channels. In typical pansharpening scenarios, r = 4 . Since a single DWT operation halves the spatial resolution, our RAF network naturally adopts a two-stage progressive architecture. To provide a clear explanation, the following subsections (III-A and III-B) detail the internal mechanisms of the SAR and CFA at a generic k-th stage, where they process the intermediate panchromatic frequency features Pk and the intermediate multispectral features Mk.
+
+A. SAR: Spatial Adaptive Refinement 
+
+The SAR is designed to adaptively extract and enhance spatial detail information at each scale. It utilizes a 2D Discrete Wavelet Transform (DWT) followed by cascaded Spatial Adaptive Convolutions (SACs) and an Inverse DWT (IDWT) for lossless spatial reconstruction. To effectively disentangle the spatial features into distinct frequency representations without computational overhead, we employ the standard 2D Haar DWT [22]. It is elegantly formu-lated as depthwise convolutions utilizing four fixed orthogonal kernels (capturing low-frequency baseline and high-frequency residuals along horizontal, vertical, and diagonal directions), followed by a spatial downsampling operation. IEEE TRANSACTIONS ON GEOSCIENCE AND REMOTE SENSING, VOL. XX, NO. XX, [MONTH] 2026 5Mean  M     
+
+> 𝐶 𝑖𝑛 ∙𝑘
+> 𝐶 𝑖𝑛
+> 𝑟𝑎𝑛𝑘
+> 𝑘 2
+> 𝑟𝑎𝑛𝑘 Cluster Centroid
+> 𝐶 𝑖𝑛
+> 𝑘 ∙𝐶 𝑜𝑢𝑡
+> Extract the
+> i-th Cluster
+
+Region Dynamic Convolution   
+
+> Weights 𝐶 𝑜𝑢𝑡
+> Bias
+> Matrix product Element -wise Product MAddition
+> Corresponding
+> cluster
+> Input Image
+> Feature
+> Embedding
+> Soft K -Means
+> Cluster Index
+> 𝑘
+> 𝐶 𝑜𝑢𝑡
+
+Cluster Region Partition  Linear with ReLU  Linear Convolution  Batch Norm 
+
+·
+
+> ·
+
+Fig. 4. Detailed architectures the Spatial Adaptive Convolution (SAC) unit within the SAR module. It comprises the Cluster Region Partition for generating semantic masks via Soft K-Means, and the Region Dynamic Convolution for producing region-specific kernels using a low-rank MLP architecture. 
+
+At the k-th stage, let ∗ denote the 2D convolution operation and ↓2 denote spatial downsampling with a stride of 2. The frequency decomposition is executed as: 
+
+Pb = ( Pk ∗ fb) ↓2, b ∈ { LL, LH, HL, HH } (1) where PLL captures the down-sampled baseline spatial struc-ture (low frequency), while PLH , PHL , and PHH explicitly extract the high-frequency residual details along the horizontal, vertical, and diagonal directions, respectively. These decoupled sub-bands are subsequently fed into the SAC, which consists of a Cluster Region Partition and a Region Dynamic Convolution, as illustrated in Fig. 4. 
+
+1) Cluster Region Partition: To capture non-local self-similarity, we perform a differentiable soft K-Means clustering [47] on the low-frequency component PLL . For a pixel with feature embedding fn and spatial coordinate pn, its soft assignment probability to the k-th cluster (with feature center 
+
+ck and spatial center sk) is computed via a temperature-scaled Softmax function: 
+
+Sn,k = exp( −(∥fn − ck∥2 + λ ∥pn − sk∥2)/τ )
+
+PKj=1 exp( −(∥fn − cj ∥2 + λ ∥pn − sj ∥2)/τ ) (2) where λ acts as a spatial penalty weight and τ is the temper-ature scaling factor. The output is the discrete cluster index matrix M ∈ NH×W ,acting as a regional mask. To ensure this argmax-based discrete assignment remains end-to-end differentiable during backpropagation, we employ the standard Straight-Through Estimator (STE) by forwarding the hard cluster assignments while bypassing gradients through the soft probabilities Sn,k .
+
+2) Region Dynamic Convolution: Guided by the partition matrix M , this block adaptively generates distinct convolution kernels [27] for each self-similar partition to achieve spatial adaptability. It is theoretically possible to use a simple multi-layer perceptron to directly map the cluster centroid to the full convolution weights. However, this naive approach entails an exorbitant number of learnable parameters, making the network exceedingly difficult to train. To significantly reduce the parameter burden while maintaining generative flexibility, we introduce a lightweight kernel generation scheme based on a low-rank matrix decomposition strategy. Specifically, for the i-th cluster denoted by the spatial co-ordinate set Si, its centroid vector ci ∈ Rk2×Cin is computed by averaging the unfolded neighborhood features px,y of all pixels within Si:
+
+ci = 1
+
+|Si|
+
+X
+
+> (x,y )∈Si
+
+px,y (3) This centroid vector ci is then flattened and fed into three parallel MLP branches. The top branch generates the bias vector bi. The middle and bottom branches generate two low-rank matrices, which are then multiplied to reconstruct the final convolution weights Wi. The calculation process is formulated as: 
+
+Ai = MLP A(ci) ∈ R(Cin ·k)×rank (4a) 
+
+Bi = MLP B (ci) ∈ Rrank ×(k·Cout ) (4b) 
+
+Wi = AiBi ∈ RCin ×k2×Cout (4c) 
+
+bi = MLP bias (ci) ∈ RCout (4d) For each sub-band Pb ∈ {PLL , PLH , PHL , PHH }, the partition-wise adaptive convolution is executed strictly within its corresponding cluster mask: 
+
+Fb(x, y ) = WM (x,y ) ⊗ Pb(x, y ) + bM (x,y ) (5) To ensure robust and deep spatial representation, the decou-pled sub-bands are sequentially processed through a cascade of three identical SAC blocks. Following this progressive adaptive enhancement, the refined frequency representations must be projected back to the original spatial resolution. To accomplish this, the IDWT is applied. Functioning as the exact inverse mapping of Eq. 1, the IDWT implicitly combines the structured low-frequency representations with the adaptively amplified high-frequency details. Symmetrically, this is exe-cuted via fixed-weight transposed convolutions with a stride of 2 (denoted as ↑2), guaranteeing mathematically precise IEEE TRANSACTIONS ON GEOSCIENCE AND REMOTE SENSING, VOL. XX, NO. XX, [MONTH] 2026 6IDWT    
+
+> Q
+> K
+> V
+> DWT
+> CRSA
+> Pk
+> Mk
+> Taking this cluster as an example
+> Taking this pixel
+> as an example
+> Intra -cluster attention
+> Compute with each
+> intra -cluster pixel
+> Inter -cluster attention
+> Compute with
+> cluster centroids
+> Process Repeated
+> for Each Pixel
+> QK T
+> Generalized to
+> all clusters
+> G·
+> 𝟏  × 𝟏
+> GDFN
+> Cluster Index
+> Generate the Attention Map
+> M
+> QK T
+> h
+> 2w
+> C
+> 2h
+> h
+> w
+> w
+> h
+> C
+> w
+> h
+> hw
+> w
+> FCAFA
+> 2h
+> 2w
+> C
+> Matrix product Element -wise Product MAddition Linear Convolution
+
+·Layer Norm  MLP  GeLU G
+
+Fig. 5. Architectures of the Clustered Frequency Aggregation (CFA) module, detailing the Cluster-Routed Sparse Attention (CRSA) and the GDFN. The right side of the bottom panel illustrates the sparse attention strategy, which performs dense dot-product for intra-cluster pixels and uses cluster-mean keys for inter-cluster interactions to significantly reduce computational redundancy. 
+
+and lossless spatial upsampling to produce the final enhanced feature map of the SAR module. 
+
+B. CFA: Clustered Frequency Aggregation 
+
+To fuse information across frequencies while mitigating the heavy computational burden of traditional global attention, we propose the Clustered Frequency Aggregation (CFA) module. The CFA is composed of two phases: the Cluster-Routed Sparse Attention (CRSA) and the Gated Depthwise Forward Network (GDFN). Detailed architectures are shown in Fig. 5. 
+
+1) Cluster-Routed Sparse Attention (CRSA): Standard global self-attention incurs quadratic computational complexity and often integrates redundant interactions from semantically ir-relevant regions. To overcome this limitation and improve computational efficiency, inspired by Roy et al. [37], the CRSA leverages the semantic clustering results from the SAR to execute a region-aware sparse attention mechanism. First, we construct a Frequency Attention Triplet comprising Frequency-Query, Spatial-Key, and Fusion-Value. The four frequency sub-bands derived from Pk, denoted as Pb ∈{PLL , PLH , PHL , PHH }, act as the Frequency-Queries to capture specific frequency information. The low-frequency band PLL , which encapsulates the overall spatial appearance, serves as the Spatial-Key. Instead of directly using the raw LRMS image, the Fusion-Value is derived by fusing the current stage’s intermediate multispectral features Mk with 
+
+PLL . The generation of the triplet is formulated as: 
+
+Qb = MLP(LN( Pb)) (6a) 
+
+K = MLP(LN( PLL )) (6b) 
+
+V = MLP(LN( fv (Mk, PLL ))) (6c) where fv denotes the convolutional fusion process, and LN 
+
+represents Layer Normalization. To significantly reduce redundancy and optimize computa-tional cost, the attention score Ab(i, j ) for the query pixel at position i and key pixel at position j is computed via a bifurcated sparse logic routed by the cluster index M
+
+inherited from the SAR. For intra-cluster pixels, a strict pixel-to-pixel dot product is applied to retain dense, fine-grained correlations within the same semantic region. For inter-cluster pixels, the redundant pixel-wise calculations are discarded; instead, the relationship is modeled non-locally and sparsely using the cluster-mean key ¯Kc. Specifically, ¯Kc is obtained by averaging the spatial-key embeddings of all pixels assigned to the c-th cluster: 
+
+¯Kc = 1
+
+|Ωc|
+
+X
+
+> j∈Ωc
+
+Kj , where Ωc = {j | M (j) = c} (7) where |Ωc| denotes the number of pixels in this cluster. Thus, the bifurcated attention score Ab(i, j ) is formulated as: 
+
+Ab(i, j ) = 
+
+(
+
+Qb,i KTj , if M (i) = M (j)
+
+Qb,i ¯KTc , if M (i)̸ = M (j) (8) By utilizing this sparse interaction pattern, the network fo-cuses on effective features rather than global noise. The sparse attention map is then normalized via the Softmax function and aggregated with the Fusion-Value V to reconstruct the enhanced multi-frequency features Ib:
+
+Ib = fout 
+
+
+
+Softmax 
+
+ Ab
+
+√d
+
+
+
+V
+
+
+
+(9) where d is the scaling factor and fout denotes a MLP function. Subsequently, the IDWT is applied to the four reconstructed frequency features to obtain the spatial-domain representation 
+
+FCRSA = IDWT( ILL , ILH , IHL , IHH ).
+
+2) Gated Depthwise Forward Network (GDFN): To further suppress redundant information passing through the sparse IEEE TRANSACTIONS ON GEOSCIENCE AND REMOTE SENSING, VOL. XX, NO. XX, [MONTH] 2026 7
+
+attention mechanism, FCRSA is refined by the GDFN [46]. This network implements a gating mechanism through parallel depthwise convolutions and the GELU activation: 
+
+X1 = GELU( ϕ1(LN( X))) ⊙ ϕ2(LN( X)) (10a) 
+
+GDFN( X) = X + Proj( X1) (10b) where ϕ1 and ϕ2 denote 3 × 3 depthwise convolutions, 
+
+LN represents Layer Normalization, ⊙ denotes element-wise multiplication, and Proj is a 1 × 1 linear projection. To further refine the fused features and capture deeper representations, the output of the GDFN is subsequently fed into a cascaded CRSA block. However, unlike the initial CRSA which directly inherits the semantic cluster mask M
+
+from the SAR module, the intermediate low-frequency (LL) components at this cascaded stage have not undergone spatial clustering. To support the region-aware routing mechanism in this subsequent attention block, an independent Cluster Region Partition (CRP) operation is explicitly executed on these updated LL features. 
+
+C. Network Framework and Loss Function 
+
+To fully harness the multi-scale characteristics of remote sensing images, our overall network is formulated as a hierar-chical framework with N cascading scales. We first construct a wavelet pyramid by continuously applying the DWT operation to the feature representations. Let Pk denote the frequency features at the k-th scale; the decomposition from a larger scale to a smaller scale is formulated as: 
+
+Pk = DWT( Pk+1 ) (11) where k ∈ { 1, 2, . . . , N − 1}. The spatial resolution progres-sively decreases as k decreases. The fusion paradigm operates progressively, starting from the lowest resolution scale and climbing up to the full scale. At each specific scale k, the network incorporates both the in-termediate fused feature Mk and the panchromatic frequency features Pk. The coupled operations of the aforementioned SAR and CFA process these inputs jointly. By denoting the synergistic function of these modules as F(·), the progressive reconstruction step can be generalized as: 
+
+Mk+1 = F(Mk, Pk) (12) By recursively unrolling this iterative refinement across all 
+
+N scales, the deep representation at the final scale, MN , en-capsulates rich spectral-spatial correspondences. A subsequent convolutional layer maps MN to generate the definitive high-resolution multispectral image ˆIHRM S .For the optimization of the entire RAF network, we employ a straightforward yet highly effective objective function. To strictly constrain the pixel-wise discrepancies and maintain stable convergence, the network is trained end-to-end using the standard ℓ1 loss function between the network’s prediction 
+
+ˆIHRM S and the corresponding ground truth IH .                                                                   
+
+> TABLE I DETAILS OF THE TWO DATASETS (G AO FEN 2AND WORLD VIEW -3) USED IN THIS STUDY
+> Datasets Train Reduced-resolution Test Full-resolution Test GaoFen-2 Patches: 19809 MS: 16 ×16 ×4
+> PAN: 64 ×64 ×1
+> Patches: 20 MS: 64 ×64 ×4
+> PAN: 256 ×256 ×1
+> Patches: 20 MS: 128 ×128 ×4
+> PAN: 512 ×512 ×1
+> WorldView-3 Patches: 9714 MS: 16 ×16 ×8
+> PAN: 64 ×64 ×1
+> Patches: 20 MS: 16 ×16 ×8
+> PAN: 64 ×64 ×1
+> Patches: 20 MS: 64 ×64 ×8
+> PAN: 256 ×256 ×1
+
+IV. E XPERIMENTS 
+
+In this section, we summarize the datasets, implementation details, and experimental results. We conduct a series of com-prehensive experiments to compare the fusion performance of our method against current state-of-the-art approaches. Furthermore, ablation studies are provided to validate the effectiveness of our proposed modules and architecture. 
+
+A. Datasets and Benchmarks 
+
+To evaluate the effectiveness of our network in pansharpen-ing, we utilized multiple datasets acquired by sensors including WorldView-3 (WV3) and GaoFen-2 (GF2). Since ground-truth (GT) HRMS images are unavailable in real-world scenarios, we adopted Wald’s protocol [48] for simulated experiments. Each training dataset comprises pairs of PAN, LRMS, and GT images; detailed information is provided in Table I. To bench-mark the proposed RAF network, we selected several state-of-the-art pansharpening methods, including two traditional methods (GS [49], BDSD [50]) and seven deep learning-based methods (PanNet [51], GPPNN [52], HyperTransformer [45], FAME [53], DCPNet [54], and FSGformer [30]). For reduced-resolution evaluations, we utilized common quantitative metrics, including Peak Signal-to-Noise Ratio (PSNR), Structural Similarity (SSIM), Spatial Correlation Co-efficient (SCC), Spectral Angle Mapper (SAM), and the Erreur Relative Globale Adimensionnelle de Synth` ese (ERGAS) [55]. For full-resolution evaluations, we employed no-reference metrics including the Hybrid Quality with No Reference (HQNR), the spectral distortion index Dλ, and the spatial distortion index Ds [56]. 
+
+B. Implementation Details 
+
+The proposed RAFNet was implemented in PyTorch and trained on an NVIDIA RTX 5090 GPU. We utilized the Adam optimizer with an initial learning rate of 9×10 −4, halved every 90 epochs, for a total of 500 epochs (batch size 32). In the CRSA module, the number of attention heads was set to 8. The semantic cluster number K was configured to 16 during training and scaled to 64 during testing to accommodate the larger spatial dimensions and diverse frequency distributions of full-scene images. 
+
+C. Reduced-Resolution Assessment 1) Quantitative Analysis: Tables II and III report the quanti-tative results obtained by different methods on the WorldView-3 and GaoFen-2 reduced-resolution datasets, respectively. IEEE TRANSACTIONS ON GEOSCIENCE AND REMOTE SENSING, VOL. XX, NO. XX, [MONTH] 2026 8
+
+TABLE II QUANTITATIVE RESULTS OF THE FUSION MODEL ON THE WORLD VIEW -3 R EDUCED -RESOLUTION DATASET . B OLD SHOWS THE BEST RESULT , MARKED WITH AN UNDERLINE SHOWS FOR SECOND -BEST RESULTS . M ETHODS THE NUMBER REPRESENTS AROUND THE RELATED PAPERS PUBLISHED YEAR .
+
+Method PSNR ↑ SSIM ↑ SCC ↑ SAM ↓ ERGAS ↓
+
+GS [49] 2000 29.3142 ± 1.9269 0.8513 ± 0.0330 0.9238 ± 0.0343 6.1275 ± 1.7823 5.5237 ± 1.3956 
+
+BDSD [50] 2007 30.9460 ± 1.4069 0.8882 ± 0.0295 0.9352 ± 0.0276 5.4651 ± 1.6705 4.6536 ± 1.4292 
+
+PanNet [51] 2017 35.0838 ± 1.7267 0.9583 ± 0.0113 0.9721 ± 0.0257 3.7926 ± 0.7145 2.8359 ± 0.7002 
+
+GPPNN [52] 2021 34.3080 ± 1.5424 0.9534 ± 0.0116 0.9666 ± 0.0240 4.2531 ± 0.8029 3.0810 ± 0.7010 
+
+HyperTransformer [45] 2022 36.1352 ± 1.6314 0.9649 ± 0.0092 0.9763 ± 0.0157 3.3702 ± 0.4964 2.4967 ± 0.5977 
+
+FAME [53] 2024 34.3259 ± 1.7426 0.9476 ± 0.0130 0.9633 ± 0.0366 4.2500 ± 0.7612 3.1115 ± 0.5954 
+
+DCPNet [54] 2024 36.9485 ± 1.7364 0.9679 ± 0.0087 0.9786 ± 0.0157 3.1042 ± 0.5343 2.2942 ± 0.4899 
+
+FSGformer [30] 2025 37.9639 ± 1.7737 0.9759 ± 0.0068 0.9845 ± 0.0131 2.7875 ± 0.5033 2.0353 ± 0.4401 
+
+RAFNet (Ours) 38.3770 ± 1.6536 0.9775 ± 0.0064 0.9857 ± 0.0126 2.5386 ± 0.5638 1.9687 ± 0.4368 
+
+TABLE III QUANTITATIVE RESULTS OF THE FUSION MODEL ON THE GAO FEN -2 R EDUCED -R ESOLUTION DATASET . B OLD SHOWS THE BEST RESULT , MARKED WITH AN UNDERLINE FOR SECOND -BEST METHOD . M ETHODS THE NUMBER REPRESENTS AROUND THE RELATED PAPERS PUBLISHED YEAR .
+
+Method PSNR ↑ SSIM ↑ SCC ↑ SAM ↓ ERGAS ↓
+
+GS [49] 2000 31.5261 ± 1.7524 0.8838 ± 0.0327 0.9297 ± 0.0260 2.0877 ± 0.3819 2.4199 ± 0.4046 
+
+BDSD [50] 2007 34.9580 ± 2.0107 0.9029 ± 0.0299 0.9644 ± 0.0177 1.7246 ± 0.3118 1.6952 ± 0.3896 
+
+PanNet [51] 2017 38.8802 ± 1.8542 0.9578 ± 0.0101 0.9851 ± 0.0070 1.1240 ± 0.1977 1.7705 ± 0.2998 
+
+GPPNN [52] 2021 36.3356 ± 1.7038 0.9419 ± 0.0135 0.9733 ± 0.0116 1.4236 ± 0.2248 1.0825 ± 0.2028 
+
+HyperTransformer [45] 2022 41.7755 ± 1.6534 0.9761 ± 0.0052 0.9923 ± 0.0036 0.8168 ± 0.1462 0.7632 ± 0.1261 
+
+FAME [53] 2024 40.2324 ± 1.5014 0.9709 ± 0.0053 0.9900 ± 0.0048 0.8751 ± 0.1548 0.8947 ± 0.1468 
+
+DCPNet [54] 2024 42.7252 ± 1.4202 0.9813 ± 0.0035 0.9940 ± 0.0029 0.7709 ± 0.0987 0.6861 ± 0.0844 
+
+FSGformer [30] 2025 45.0504 ± 1.4875 0.9873 ± 0.0027 0.9962 ± 0.0019 0.5968 ± 0.1008 0.5201 ± 0.0816 
+
+RAFNet (Ours) 45.1372 ± 1.4356 0.9892 ± 0.0026 0.9968 ± 0.0018 0.5759 ± 0.0936 0.5001 ± 0.0796 
+
+Deep learning-based methods consistently outperform tradi-tional approaches (GS and BDSD), underscoring the pow-erful representation capabilities of neural networks. Notably, the proposed RAFNet achieves state-of-the-art performance on both datasets, significantly outperforming the second-best method (FSGformer) across all metrics. These consistent im-provements can be attributed to the synergistic integration of the SAR and CFA modules. The SAR module ensures precise directional frequency decoupling and regional feature enhancement, while the CFA module effectively captures long-range dependencies, jointly ensuring superior spatial fidelity and spectral consistency. 
+
+2) Qualitative Analysis: Figures 6 and 7 present visual com-parisons and residual maps on the reduced-resolution datasets. As observed in the magnified regions, traditional methods and several earlier deep learning models exhibit blurred structures and edge artifacts. In contrast, RAFNet produces sharper con-tours and finer spatial details that are most consistent with the ground-truth image. The corresponding residual maps further support this observation, where the residuals of RAFNet are noticeably closer to blue (representing zero error) across the entire scene, indicating higher reconstruction accuracy. 
+
+D. Full-Resolution Assessment 1) Quantitative Analysis: To further verify practical perfor-mance, we evaluate all methods on the full-resolution datasets without reference images (Table IV). RAFNet achieves the best performance across all three no-reference metrics (HQNR, 
+
+Dλ, and Ds) for both sensors. The lowest distortion indices (Dλ and Ds) indicate that our method effectively preserves the spectral information of the LRMS image while successfully injecting high-resolution spatial details from the PAN image. The highest HQNR values further demonstrate that RAFNet maintains excellent generalization ability and superior overall quality in real-world scenarios where ground-truth references are unavailable. 
+
+2) Qualitative Analysis: Fig. 8 presents the qualitative results on the GaoFen-2 full-resolution dataset. For a more comprehensive comparison, the corresponding PAN image is also provided, and several representative regions are enlarged for detailed inspection. As observed in the magnified areas, the proposed method produces more natural visual appearances with clearer structural details and better spectral consistency compared with other methods. This indicates that the proposed framework effectively captures and integrates spatial and spec-tral information to generate high-quality fusion results. 
+
+E. Computational Complexity Analysis 
+
+To evaluate computational efficiency, we compare the total learnable parameters (Params) and floating-point operations (FLOPs) using a simulated 256 × 256 PAN image and a 64 ×
+
+64 × C LRMS image. Furthermore, to explicitly highlight the IEEE TRANSACTIONS ON GEOSCIENCE AND REMOTE SENSING, VOL. XX, NO. XX, [MONTH] 2026 9GT GS BDSD PanNet GPPNN 
+
+FAME HyperTransformer DCPNet FSGformer Proposed         
+
+> 0
+> 0.1
+> 0.2
+> 0.3
+> 0.4
+> 0.5
+> GT GS BDSD PanNet GPPNN FAME HyperTransformer DCPNet FSGformer Proposed
+
+Fig. 6. The visual results (Top) and residuals (Bottom) of all compared approaches on the WorldView-3 reduced-resolution dataset. GT GS BDSD PanNet GPPNN 
+
+FAME HyperTransformer DCPNet FSGformer Proposed         
+
+> 0
+> 0.1
+> 0.2
+> 0.3
+> 0.4
+> 0.5
+> GT GS BDSD PanNet GPPNN FAME HyperTransformer DCPNet FSGformer Proposed
+
+Fig. 7. The visual results (Top) and residuals (Bottom) of all compared approaches on the Gaofen-2 reduced-resolution dataset. PAN GS BDSD PanNet GPPNN FAME HyperTransformer DCPNet FSGformer Proposed 
+
+Fig. 8. The visual results of all compared approaches on the GaoFen-2 full-resolution dataset. IEEE TRANSACTIONS ON GEOSCIENCE AND REMOTE SENSING, VOL. XX, NO. XX, [MONTH] 2026 10                                                        
+
+> TABLE IV QUANTITATIVE RESULTS OF THE FUSION MODEL ON WORLD VIEW -3 AND
+> GAO FEN -2 DATASETS . T HE BEST RESULTS ARE HIGHLIGHTED IN BOLD ,
+> AND THE UNDERLINED ONES ARE THE SECOND -BEST METHODS . T HE NUMBERS AROUND THE METHODS REPRESENT THE PUBLICATION YEAR OF THE RELEVANT PAPER .
+> Method WorldView-3 GaoFen-2 HQNR ↑Dλ↓Ds↓HQNR ↑Dλ↓Ds↓
+> GS [49] 2000 0.8492 0.0929 0.0646 0.6216 0.2176 0.2077
+> BDSD [50] 2007 0.8698 0.0625 0.0730 0.7812 0.0759 0.1548
+> PanNet [51] 2017 0.8760 0.0586 0.0703 0.8962 0.0298 0.0763
+> GPPNN [52] 2021 0.8507 0.0750 0.0814 0.8553 0.0536 0.0963
+> HyperTransformer [45] 2022 0.9463 0.0217 0.0328 0.9269 0.0292 0.0451
+> FAME [53] 2024 0.9158 0.0312 0.0549 0.9299 0.0235 0.0486
+> DCPNet [54] 2024 0.9196 0.0412 0.0410 0.9165 0.0258 0.0592
+> FSGformer [30] 2025 0.9598 0.0165 0.0241 0.9580 0.0186 0.0238
+> RAFNet (Ours) 0.9610 0.0142 0.0213 0.9615 0.0171 0.0223
+
+efficiency of our proposed attention mechanism, we separately report the parameters specifically allocated to the Transformer or attention modules (Trans. Params) for the relevant network architectures. As detailed in Table V, early CNNs are extremely lightweight but yield suboptimal fusion performance due to their limited receptive fields. Standard Transformers achieve high spatial and spectral fidelity but suffer from significant computational burdens and parameter inflation. This inflation is primarily driven by the massive linear projection matrices required for the quadratic O(N 2) global self-attention mecha-nism and their associated heavy feed-forward networks. For instance, the attention-related modules in FSGformer alone consume the vast majority of its overall parameter budget. In contrast, RAFNet achieves an optimal trade-off between performance and efficiency. By utilizing the CRSA module, dense dot-product computations are restricted to localized semantic clusters O( N 2 
+
+> K
+
+), while inter-cluster dependencies are efficiently modeled via lightweight cluster-mean keys 
+
+O(N ×K). This region-aware routing strategy circumvents the need for massive, redundant projection weights typical in stan-dard global attention. Consequently, the attention component of RAFNet operates with a substantially smaller parameter footprint compared to other Transformer-based counterparts. Overall, RAFNet effectively curtails both FLOPs and pa-rameter redundancy while maintaining superior representation capability, establishing a highly efficient fusion paradigm. 
+
+F. Ablation Study 
+
+To validate the proposed components, we conducted com-prehensive ablation studies on the WorldView-3 dataset, with quantitative results summarized in Table VI. 
+
+1) Attention Mechanism Analysis: We evaluate the supe-riority of our CRSA by replacing it with three alternative masking strategies while keeping the rest of the network architecture unchanged. Specifically, the first strategy is Local Block Attention, which restricts query-key interactions to non-overlapping 4 × 4 local spatial windows. The second strategy is Banded Attention, which constrains attention to a local                                    
+
+> TABLE V COMPARISON OF COMPUTATIONAL COMPLEXITY AMONG DIFFERENT DEEP LEARNING -BASED METHODS ,INCLUDING THE PARAMETER COUNT SPECIFICALLY ALLOCATED TO ATTENTION /T RANSFORMER MODULES .EVALUATED ON A 256 ×256 PAN IMAGE .
+> Method Total Params (M) ↓
+> Trans. Params (M) ↓FLOPs (G) ↓
+> PanNet [51] 0.07 -0.12
+> GPPNN [52] 0.15 -0.35
+> HyperTransformer [45] 5.45 4.21 3.52
+> FAME [53] 2.85 -1.85
+> DCPNet [54] 3.10 2.95 4.35
+> FSGformer [30] 9.80 8.62 2.18
+> RAFNet (Ours) 3.09 2.92 1.38
+
+diagonal band (bandwidth = 8) within the flattened sequence. The third strategy is Global Cross Attention, which computes sparse global attention utilizing a cross-shaped mask (cross-width = 32) to capture long-range interactions along the horizontal and vertical axes. As shown in Table VI, Local and Banded attentions yield suboptimal performance by rigidly severing long-range depen-dencies. Conversely, while Global Cross expands the receptive field, it indiscriminately incorporates semantically irrelevant pixels, leading to noise aggregation and structural blurring. In contrast, the proposed CRSA dynamically routes interactions via K-means clusters. This strategy effectively filters out redundant noise while capturing highly relevant non-local dependencies, achieving the highest performance across all metrics. 
+
+2) Network Module Analysis: To verify the complementary nature of the SAR and CFA modules, we evaluated two constrained configurations: Only-Frequency (removing SAR) and Only-Spatial (removing CFA). Removing the SAR module results in a noticeable performance drop, highlighting that purely frequency-domain attention struggles to capture fine-grained, localized spatial variations without adaptive convo-lutions. Conversely, removing the CFA module restricts the network to localized operations, severely limiting its ability to model global contextual information and cross-frequency correlations. The superior performance of the full RAFNet demonstrates that the spatial adaptability of the SAR and the non-local frequency routing of the CFA are mutually indispensable for high-fidelity pansharpening. 
+
+3) Analysis of Semantic Clustering: To comprehensively evaluate the clustering mechanism within the SAR module, we analyze both the visual morphology of the partitions (Fig. 9) and the sensitivity of the cluster count K (Fig. 10). Visually, as training converges, the SAR module progressively transitions from grouping low-level color features to jointly modeling non-local semantic similarities. Homogeneous regions aggre-gate into continuous clusters, while high-frequency details are isolated into distinct subsets, ensuring that subsequent dynamic convolutions and sparse attention operate on precise semantic regions. Quantitatively, the performance metrics in Fig. 10 demon-strate that appropriate clustering is crucial for non-local infor-IEEE TRANSACTIONS ON GEOSCIENCE AND REMOTE SENSING, VOL. XX, NO. XX, [MONTH] 2026 11 (a) PAN 
+
+(b) LRMS 50 100 200 300 400 Epoch 
+
+Fig. 9. Visual representations of cluster index matrices in the model at different training epochs. (a) and (b) show the visual appearance of the raw PAN and LRMS input images. The right section displays the clustering results on these raw inputs without being transformed by convolution layers, where the upper row corresponds to the PAN image and the lower row corresponds to the LRMS image. The color indicates the cluster to which the pixel belongs. 10 0 10 1 10 2 10 3      
+
+> K
+> 37.9
+> 38.0
+> 38.1
+> 38.2
+> 38.3
+> 38.4
+> (a) PSNR
+> 10 010 110 210 3
+> K
+> 2.5
+> 2.6
+> 2.7
+> 2.8
+> 2.9
+> 3.0
+> (b) SAM
+> 10 010 110 210 3
+> K
+> 1.9
+> 2.0
+> 2.1
+> 2.2
+> 2.3
+> 2.4
+> (c) ERGAS
+
+Fig. 10. Variations of PSNR, SAM and ERGAS on the WorldView-3 reduced-resolution dataset with changing cluster number K. The optimal metrics are obtained around K = 64 .TABLE VI QUANTITATIVE RESULTS OF ABLATION STUDIES ON THE WORLD VIEW -3 
+
+> DATASET
+
+. T HE BEST RESULTS ARE HIGHLIGHTED IN BOLD .
+
+Configuration PSNR ↑ SSIM ↑ SCC ↑ SAM ↓ ERGAS ↓
+
+Attention Mechanism Variants 
+
+Local Block Attention 38.0666 0.9715 0.9785 2.8941 2.2014 Banded Attention 38.1720 0.9732 0.9810 2.8023 2.1252 Global Cross Attention 38.1992 0.9745 0.9821 2.7658 2.0854 
+
+CRSA (Ours) 38.3770 0.9775 0.9857 2.5386 1.9687 
+
+Network Module Configurations 
+
+Only-Spatial (w/o CFA) 38.2377 0.9748 0.9825 2.7139 2.0578 Only-Frequency (w/o SAR) 38.2824 0.9758 0.9835 2.6512 2.0215 
+
+RAFNet (Full) 38.3770 0.9775 0.9857 2.5386 1.9687 
+
+mation transmission. A small K approximates global filtering by improperly grouping dissimilar pixels, whereas an overly large K generates excessively sparse clusters that impede robust feature aggregation. Notably, the optimal K during in-ference (64) is larger than the training K (16), which naturally compensates for the larger spatial extent and more diverse frequency distributions inherent in full-scene test images. REFERENCES [1] R. Dehaan and G. Taylor, “Field-derived spectra of salinized soils and vegetation as indicators of irrigation-induced soil salinization,” Remote Sens. Environ. , vol. 80, no. 3, pp. 406–417, 2002. [2] B. Zhang, D. Wu, L. Zhang, Q. Jiao, and Q. Li, “Application of hyperspectral remote sensing for environment monitoring in mining areas,” Environ. Earth Sci. , vol. 65, no. 3, pp. 649–658, 2012. [3] X. Meng, H. Shen, H. Li, L. Zhang, and R. Fu, “Review of the pansharpening methods for remote sensing images based on the idea of meta-analysis: Practical discussion and challenges,” Inf. Fusion , vol. 46, pp. 102–113, 2019. [4] J. Choi, K. Yu, and Y. Kim, “A new adaptive component-substitution-based satellite image fusion by using partial replacement,” IEEE Trans. Geosci. Remote Sens. , vol. 49, no. 1, pp. 295–309, 2010. [5] G. Vivone, “Robust band-dependent spatial-detail approaches for panchromatic sharpening,” IEEE Trans. Geosci. Remote Sens. , vol. 57, no. 9, pp. 6421–6433, 2019. [6] G. Vivone, R. Restaino, M. Dalla Mura, G. Licciardi, and J. Chanus-sot, “Contrast and error-based fusion schemes for multispectral image pansharpening,” IEEE Trans. Geosci. Remote Sens. , vol. 11, no. 5, pp. 930–934, 2013. [7] G. Vivone, R. Restaino, and J. Chanussot, “Full scale regression-based injection coefficients for panchromatic sharpening,” IEEE Trans. Image Process. , vol. 27, no. 7, pp. 3418–3431, 2018. [8] X. Fu, Z. Lin, Y. Huang, and X. Ding, “A variational pan-sharpening with local gradient constraints,” in Proc. IEEE/CVF Conf. Comput. Vis. Pattern Recognit. (CVPR) , 2019, pp. 10 265–10 274. [9] X. Tian, Y. Chen, C. Yang, and J. Ma, “Variational pansharpening by exploiting cartoon-texture similarities,” IEEE Trans. Geosci. Remote Sens. , vol. 60, pp. 1–16, 2021. [10] G. Vivone, L. Alparone, J. Chanussot, M. Dalla Mura, A. Garzelli, G. A. Licciardi, R. Restaino, and L. Wald, “A critical comparison among IEEE TRANSACTIONS ON GEOSCIENCE AND REMOTE SENSING, VOL. XX, NO. XX, [MONTH] 2026 12 
+
+pansharpening algorithms,” IEEE Trans. Geosci. Remote Sens. , vol. 53, no. 5, pp. 2565–2586, 2014. [11] K. Amolins, Y. Zhang, and P. Dare, “Wavelet based image fusion techniques—an introduction, review and comparison,” ISPRS J. Pho-togramm. Remote Sens. , vol. 62, no. 4, pp. 249–263, 2007. [12] C. S. Yilmaz, V. Yilmaz, and O. Gungor, “A theoretical and practical survey of image fusion methods for multispectral pansharpening,” Inf. Fusion , vol. 79, pp. 1–43, 2022. [13] J. Li, K. Zheng, J. Yao, L. Gao, and D. Hong, “Deep unsupervised blind hyperspectral and multispectral data fusion,” IEEE Geosci. Remote Sens. Lett. , vol. 19, pp. 1–5, 2022. [14] J. Li, K. Zheng, Z. Li, L. Gao, and X. Jia, “X-shaped interactive autoencoders with cross-modality mutual learning for unsupervised hyperspectral image super-resolution,” IEEE Trans. Geosci. Remote Sens. , vol. 61, pp. 1–17, 2023. [15] G. Masi, D. Cozzolino, L. Verdoliva, and G. Scarpa, “Pansharpening by convolutional neural networks,” Remote Sens. , vol. 8, no. 7, p. 594, 2016. [16] L. He, Y. Rao, J. Li, J. Chanussot, A. Plaza, J. Zhu, and B. Li, “Pan-sharpening via detail injection based convolutional neural networks,” 
+
+IEEE J. Sel. Topics Appl. Earth Observ. Remote Sens. , vol. 12, no. 4, pp. 1188–1204, 2019. [17] L.-J. Deng, G. Vivone, C. Jin, and J. Chanussot, “Detail injection-based deep convolutional neural networks for pansharpening,” IEEE Trans. Geosci. Remote Sens. , vol. 59, no. 8, pp. 6995–7010, 2020. [18] S. Peng, C. Guo, X. Wu, and L.-J. Deng, “U2net: A general framework with spatial-spectral-integrated double u-net for image fusion,” in Proc. ACM Int. Conf. Multimedia (MM) , 2023, pp. 3219–3227. [19] H. Su, V. Jampani, D. Sun, O. Gallo, E. Learned-Miller, and J. Kautz, “Pixel-adaptive convolutional neural networks,” in Proc. IEEE/CVF Conf. Comput. Vis. Pattern Recognit. (CVPR) , 2019, pp. 11 166–11 175. [20] R. R. Yedla and S. R. Dubey, “On the performance of convolutional neural networks under high and low frequency information,” in Proc. Int. Conf. Comput. Vis. Image Process. (CVIP) , 2020, pp. 214–224. [21] M. Fritsche, S. Gu, and R. Timofte, “Frequency separation for real-world super-resolution,” in Proc. IEEE/CVF Int. Conf. Comput. Vis. Workshop (ICCVW) , 2019, pp. 3599–3608. [22] J. Huang, R. Huang, J. Xu, S. Peng, Y. Duan, and L.-J. Deng, “Wavelet-assisted multi-frequency attention network for pansharpening,” in Proc. AAAI Conf. Artif. Intell. , vol. 39, no. 4, 2025, pp. 3662–3670. [23] Z. Zhou, Y. Tay, R. Nallapati, B. Mitra, Z. Xiao, H. Cheng, X. Xiang, J. P. Sim, H. Swaminathan, N. D. Tran et al. , “Efficient language modeling with sparse all-mlp,” arXiv preprint arXiv:2203.06850 , 2022. [24] X. Jia, B. De Brabandere, T. Tuytelaars, and L. V. Gool, “Dynamic filter networks,” in Proc. Adv. Neural Inf. Process. Syst. (NIPS) , vol. 29, 2016. [25] J. Zhou, V. Jampani, Z. Pi, Q. Liu, and M.-H. Yang, “Decoupled dynamic filter networks,” in Proc. IEEE/CVF Conf. Comput. Vis. Pattern Recognit. (CVPR) , 2021, pp. 6647–6656. [26] S. Zhou, J. Zhang, W. Zuo, and C. C. Loy, “Cross-scale internal graph neural network for image super-resolution,” in Proc. Adv. Neural Inf. Process. Syst. (NIPS) , vol. 33, 2020, pp. 3499–3509. [27] Y. Duan, X. Wu, H. Deng, and L.-J. Deng, “Content-adaptive non-local convolution for remote sensing pansharpening,” in Proc. IEEE/CVF Conf. Comput. Vis. Pattern Recognit. (CVPR) , 2024, pp. 27 738–27 747. [28] L. Chen, L. Gu, L. Li, C. Yan, and Y. Fu, “Frequency dynamic convolution for dense image prediction,” in Proc. IEEE/CVF Conf. Comput. Vis. Pattern Recognit. (CVPR) , 2025, pp. 30 178–30 188. [29] W. Wang, L.-J. Deng, R. Ran, and G. Vivone, “A general paradigm with detail-preserving conditional invertible network for image fusion,” Int. J. Comput. Vis. , vol. 132, no. 4, pp. 1029–1054, 2024. [30] Q. Liu, X. Zhao, Y. Qin, L. Li, and J. Liu, “Fsgformer: Frequency separation and guidance transformer for pansharpening,” IEEE Trans. Geosci. Remote Sens. , 2025. [31] Y. Ye, T. Wang, F. Fang, and G. Zhang, “Mscscformer: Multiscale convolutional sparse coding-based transformer for pansharpening,” IEEE Trans. Geosci. Remote Sens. , vol. 62, pp. 1–12, 2024. [32] Z. Wu, Z. Liu, J. Lin, Y. Lin, and S. Han, “Lite transformer with long-short range attention,” arXiv preprint arXiv:2004.11886 , 2020. [33] I. Beltagy, M. E. Peters, and A. Cohan, “Longformer: The long-document transformer,” arXiv preprint arXiv:2004.05150 , 2020. [34] J. Ainslie, S. Ontanon, C. Alberti, V. Cvicek, Z. Fisher, P. Pham, A. Ravula, S. Sanghai, Q. Wang, and L. Yang, “Etc: Encoding long and structured inputs in transformers,” in Proc. Conf. Empir. Methods Nat. Lang. Process. (EMNLP) , 2020, pp. 268–284. [35] A. v. d. Oord, Y. Li, and O. Vinyals, “Representation learning with contrastive predictive coding,” arXiv preprint arXiv:1807.03748 , 2018. [36] N. Kitaev, Ł. Kaiser, and A. Levskaya, “Reformer: The efficient trans-former,” arXiv preprint arXiv:2001.04451 , 2020. [37] A. Roy, M. Saffar, A. Vaswani, and D. Grangier, “Efficient content-based sparse attention with routing transformers,” Trans. Assoc. Comput. Linguist. , vol. 9, pp. 53–68, 2021. [38] L. Hou, B. Zhang, and B. Wang, “Pan-guided multiresolution fusion network using swin transformer for pansharpening,” IEEE Geosci. Remote Sens. Lett. , vol. 20, pp. 1–5, 2022. [39] J. Chen, X. Wang, Z. Guo, X. Zhang, and J. Sun, “Dynamic region-aware convolution,” in Proc. IEEE/CVF Conf. Comput. Vis. Pattern Recognit. (CVPR) , 2021, pp. 8064–8073. [40] Y. Chen, X. Dai, M. Liu, D. Chen, L. Yuan, and Z. Liu, “Dynamic convolution: Attention over convolution kernels,” in Proc. IEEE/CVF Conf. Comput. Vis. Pattern Recognit. (CVPR) , 2020, pp. 11 030–11 039. [41] Z.-R. Jin, T.-J. Zhang, T.-X. Jiang, G. Vivone, and L.-J. Deng, “Lagconv: Local-context adaptive convolution kernels with global harmonic bias for pansharpening,” in Proc. AAAI Conf. Artif. Intell. , vol. 36, no. 1, 2022, pp. 1113–1121. [42] A. Vaswani, N. Shazeer, N. Parmar, J. Uszkoreit, L. Jones, A. N. Gomez, Ł. Kaiser, and I. Polosukhin, “Attention is all you need,” in Proc. Adv. Neural Inf. Process. Syst. (NIPS) , vol. 30, 2017. [43] A. Dosovitskiy, L. Beyer, A. Kolesnikov, D. Weissenborn, X. Zhai, T. Unterthiner, M. Dehghani, M. Minderer, G. Heigold, S. Gelly et al. ,“An image is worth 16x16 words: Transformers for image recognition at scale,” arXiv preprint arXiv:2010.11929 , 2020. [44] X. Meng, N. Wang, F. Shao, and S. Li, “Vision transformer for pansharpening,” IEEE Trans. Geosci. Remote Sens. , vol. 60, pp. 1–11, 2022. [45] W. G. C. Bandara and V. M. Patel, “Hypertransformer: A textural and spectral feature fusion transformer for pansharpening,” in Proc. IEEE/CVF Conf. Comput. Vis. Pattern Recognit. (CVPR) , 2022, pp. 1767–1777. [46] S. W. Zamir, A. Arora, S. Khan, M. Hayat, F. S. Khan, and M.-H. Yang, “Restormer: Efficient transformer for high-resolution image restoration,” in Proc. IEEE/CVF Conf. Comput. Vis. Pattern Recognit. (CVPR) , 2022, pp. 5728–5739. [47] M. Cho, K. A. Vahid, S. Adya, and M. Rastegari, “Dkm: Differentiable k-means clustering layer for neural network compression,” in Int. Conf. Learn. Represent. , 2012, pp. 2061–2079. [48] L. Wald, T. Ranchin, and M. Mangolini, “Fusion of satellite images of different spatial resolutions: Assessing the quality of resulting images,” 
+
+Photogramm. Eng. Remote Sens. , vol. 63, no. 6, pp. 691–699, 1997. [49] C. A. Laben and B. V. Brower, “Process for enhancing the spatial resolution of multispectral imagery using pan-sharpening,” U.S. Patent 6 011 875, Jan. 4, 2000. [50] A. Garzelli, F. Nencini, and L. Capobianco, “Optimal mmse pan sharpening of very high resolution multispectral images,” IEEE Trans. Geosci. Remote Sens. , vol. 46, no. 1, pp. 228–236, 2007. [51] J. Yang, X. Fu, Y. Hu, Y. Huang, X. Ding, and J. Paisley, “Pannet: A deep network architecture for pan-sharpening,” in Proc. IEEE/CVF Conf. Comput. Vis. Pattern Recognit. (CVPR) , 2017, pp. 5449–5457. [52] S. Xu, J. Zhang, Z. Zhao, K. Sun, J. Liu, and C. Zhang, “Deep gradient projection networks for pan-sharpening,” in Proc. IEEE/CVF Conf. Comput. Vis. Pattern Recognit. (CVPR) , 2021, pp. 1366–1375. [53] X. He, K. Yan, R. Li, C. Xie, J. Zhang, and M. Zhou, “Frequency-adaptive pan-sharpening with mixture of experts,” in Proc. AAAI Conf. Artif. Intell. , vol. 38, no. 3, 2024, pp. 2121–2129. [54] Y. Zhang, X. Yang, H. Li, M. Xie, and Z. Yu, “Dcpnet: A dual-task collaborative promotion network for pansharpening,” IEEE Trans. Geosci. Remote Sens. , vol. 62, pp. 1–16, 2024. [55] K. Zhang, F. Zhang, W. Wan, H. Yu, J. Sun, J. Del Ser, E. Elyan, and A. Hussain, “Panchromatic and multispectral image fusion for remote sensing and earth observation: Concepts, taxonomy, literature review, evaluation methodologies and challenges ahead,” Inf. Fusion , vol. 93, pp. 227–242, 2023. [56] A. Arienzo, G. Vivone, A. Garzelli, L. Alparone, and J. Chanussot, “Full-resolution quality assessment of pansharpening: Theoretical and hands-on approaches,” IEEE Geosci. Remote Sens. Mag. , vol. 10, no. 3, pp. 168–201, 2022.
