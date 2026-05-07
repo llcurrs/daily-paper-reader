@@ -6,76 +6,74 @@
 </div>
 
 ## 每次日报
-- 最新运行日期：2026-05-06
-- 运行时间：2026-05-06 20:59:08 UTC
+- 最新运行日期：2026-05-07
+- 运行时间：2026-05-07 20:26:23 UTC
 - 运行状态：成功
-- 本次总论文数：18
-- 精读区：7
+- 本次总论文数：17
+- 精读区：6
 - 速读区：11
 
 ### 今日简报（AI）
-聚焦多源遥感影像与融合方法，今日共研读 18 篇论文、精读 7 篇。  
-最值得关注的是光谱关联网络在影像分类中的性能提升，以及VV/VH双极化SAR在洪水制图中的融合优势。  
-建议读者持续跟进遥感多模态融合与语义分割的新进展，以拓展图像智能理解能力。
-- 详情：[/202605/06/README](/202605/06/README)
+- 今日共生成 17 篇推荐（精读 6 篇，速读 11 篇）
+- 精读：《Representative Spectral Correlation Network for Multi-source Remote Sensing Image Classification》（9.5/10）, 《Quantifying Multimodal Capabilities: Formal Generalization Guarantees in Pairwise Metric Learning》（9.5/10）
+- 速读：《Graph-based Semantic Calibration Network for Unaligned UAV RGBT Image Semantic Segmentation and A Large-scale Benchmark》（8.5/10）, 《Graph-based Semantic Calibration Network for Unaligned UAV RGBT Image Semantic Segmentation and A Large-scale Benchmark》（8.5/10）, 《EO-Gym: A Multimodal, Interactive Environment for Earth Observation Agents》（8.5/10）
+- 这些结果覆盖了当下较热的方向，建议先看精读区论文的关键问题与方法。
+- 详情：[/202605/07/README](/202605/07/README)
 
 ### 精读区论文标签
-1. [Representative Spectral Correlation Network for Multi-source Remote Sensing Image Classification](/202605/06/2604.27323v1-representative-spectral-correlation-network-for-multi-source-remote-sensing-image-classification)  
-   标签：评分：10.0/10、query:q5
-   evidence：融合高光谱与SAR/LiDAR的多源遥感图像分类
-2. [Cross-Polarization Fusion of VV AND VH SAR Observations for Improved Flood Mapping](/202605/06/2605.02153v1-cross-polarization-fusion-of-vv-and-vh-sar-observations-for-improved-flood-mapping)  
-   标签：评分：9.5/10、query:q4
-   evidence：VV与VH极化SAR观测数据的交叉极化融合
-3. [GraphPL: Leveraging GNN for Efficient and Robust Modalities Imputation in Patchwork Learning](/202605/06/2604.25352v1-graphpl-leveraging-gnn-for-efficient-and-robust-modalities-imputation-in-patchwork-learning)  
+1. [Representative Spectral Correlation Network for Multi-source Remote Sensing Image Classification](/202605/07/2604.27323v1-representative-spectral-correlation-network-for-multi-source-remote-sensing-image-classification)  
+   标签：评分：9.5/10、query:q5
+   evidence：针对高光谱与SAR/LiDAR数据的多源图像分类框架
+2. [Quantifying Multimodal Capabilities: Formal Generalization Guarantees in Pairwise Metric Learning](/202605/07/2605.01424v1-quantifying-multimodal-capabilities-formal-generalization-guarantees-in-pairwise-metric-learning)  
+   标签：评分：9.5/10、query:q3
+   evidence：针对不完整或冗余模态数据的多模态度量学习理论分析
+3. [Densification and forecasting of Sentinel-2 time series from multimodal SAR and Optical satellite data using deep generative models](/202605/07/2605.04239v1-densification-and-forecasting-of-sentinel-2-time-series-from-multimodal-sar-and-optical-satellite-data-using-deep-generative-models)  
+   标签：评分：9.5/10、query:q3
+   evidence：多模态卫星数据中缺失或受云污染观测的重建
+4. [LIMSSR: LLM-Driven Sequence-to-Score Reasoning under Training-Time Incomplete Multimodal Observations](/202605/07/2605.00434v1-limssr-llm-driven-sequence-to-score-reasoning-under-training-time-incomplete-multimodal-observations)  
    标签：评分：9.0/10、query:q7
-   evidence：拼凑学习中针对缺失模态的鲁棒模态插补
-4. [Graph-based Semantic Calibration Network for Unaligned UAV RGBT Image Semantic Segmentation and A Large-scale Benchmark](/202605/06/2604.26893v1-graph-based-semantic-calibration-network-for-unaligned-uav-rgbt-image-semantic-segmentation-and-a-large-scale-benchmark)  
+   evidence：在没有全模态训练数据的情况下处理缺失模态的深度学习
+5. [EAPFusion: Intrinsic Evolving Auxiliary Prior Guidance for Infrared and Visible Image Fusion](/202605/07/2605.01916v1-eapfusion-intrinsic-evolving-auxiliary-prior-guidance-for-infrared-and-visible-image-fusion)  
    标签：评分：9.0/10、query:q4
-   evidence：无人机多模态RGBT图像融合与语义分割
-5. [Graph-based Semantic Calibration Network for Unaligned UAV RGBT Image Semantic Segmentation and A Large-scale Benchmark](/202605/06/2604.26893v2-graph-based-semantic-calibration-network-for-unaligned-uav-rgbt-image-semantic-segmentation-and-a-large-scale-benchmark)  
+   evidence：融合红外热显著性和可见光精细纹理的互补信息
+6. [Cross-Polarization Fusion of VV AND VH SAR Observations for Improved Flood Mapping](/202605/07/2605.02153v1-cross-polarization-fusion-of-vv-and-vh-sar-observations-for-improved-flood-mapping)  
    标签：评分：9.0/10、query:q4
-   evidence：融合未对齐的无人机RGBT图像进行分割
-6. [Quantifying Multimodal Capabilities: Formal Generalization Guarantees in Pairwise Metric Learning](/202605/06/2605.01424v1-quantifying-multimodal-capabilities-formal-generalization-guarantees-in-pairwise-metric-learning)  
-   标签：评分：9.0/10、query:q5
-   evidence：不完整或冗余模态数据的泛化保证
-7. [FLoRA: Fusion-Latent for Optical Reconstruction and Flood Area Segmentation via Cross-Modal Multi-Task Distillation Network](/202605/06/2605.02137v1-flora-fusion-latent-for-optical-reconstruction-and-flood-area-segmentation-via-cross-modal-multi-task-distillation-network)  
-   标签：评分：9.0/10、query:q6
-   evidence：从SAR重建光学图像以处理环境限制导致的模态缺失
+   evidence：VV和VH极化合成孔径雷达观测的跨极化融合，用于改进洪水制图
 
 ### 速读区论文标签
-1. [Seeking Consensus: Geometric-Semantic On-the-Fly Recalibration for Open-Vocabulary Remote Sensing Semantic Segmentation](/202605/06/2604.26221v1-seeking-consensus-geometric-semantic-on-the-fly-recalibration-for-open-vocabulary-remote-sensing-semantic-segmentation)  
-   标签：评分：8.5/10、query:profile-1
-   evidence：利用文本描述的开放词汇遥感语义分割
-2. [LIE: LiDAR-only HD Map Construction with Intensity Enhancement via Online Knowledge Distillation](/202605/06/2605.01478v1-lie-lidar-only-hd-map-construction-with-intensity-enhancement-via-online-knowledge-distillation)  
-   标签：评分：8.5/10、query:q3
-   evidence：通过蒸馏处理LiDAR中密集语义线索缺失的问题
-3. [CGFformer: Cluster-Guidance Frequency Transformer for Pansharpening](/202605/06/2605.01490v1-cgfformer-cluster-guidance-frequency-transformer-for-pansharpening)  
+1. [Graph-based Semantic Calibration Network for Unaligned UAV RGBT Image Semantic Segmentation and A Large-scale Benchmark](/202605/07/2604.26893v1-graph-based-semantic-calibration-network-for-unaligned-uav-rgbt-image-semantic-segmentation-and-a-large-scale-benchmark)  
+   标签：评分：8.5/10、query:q6
+   evidence：未对齐的无人机RGBT图像语义分割与跨模态对齐
+2. [Graph-based Semantic Calibration Network for Unaligned UAV RGBT Image Semantic Segmentation and A Large-scale Benchmark](/202605/07/2604.26893v2-graph-based-semantic-calibration-network-for-unaligned-uav-rgbt-image-semantic-segmentation-and-a-large-scale-benchmark)  
    标签：评分：8.5/10、query:q4
-   evidence：融合多光谱与全色图像
-4. [Leveraging Previous-Traversal Point Cloud Map Priors for Camera-Based 3D Object Detection and Tracking](/202605/06/2604.25405v1-leveraging-previous-traversal-point-cloud-map-priors-for-camera-based-3d-object-detection-and-tracking)  
-   标签：评分：8.0/10、query:q7
-   evidence：通过相机与地图融合来缓解部署期间LiDAR传感器的缺失
-5. [Parameterized Quantum Circuits as Feature Maps: Representation Quality and Readout Effects in Multispectral Land-Cover Classification](/202605/06/2604.26675v1-parameterized-quantum-circuits-as-feature-maps-representation-quality-and-readout-effects-in-multispectral-land-cover-classification)  
-   标签：评分：7.5/10、query:q5
-   evidence：多光谱卫星图像土地覆盖分类
-6. [Sentinel2Cap: A Human-Annotated Benchmark Dataset for Multimodal Remote Sensing Image Captioning](/202605/06/2605.03189v1-sentinel2cap-a-human-annotated-benchmark-dataset-for-multimodal-remote-sensing-image-captioning)  
+   evidence：针对未对齐无人机RGBT图像语义分割的跨模态空间对齐
+3. [EO-Gym: A Multimodal, Interactive Environment for Earth Observation Agents](/202605/07/2605.01250v1-eo-gym-a-multimodal-interactive-environment-for-earth-observation-agents)  
+   标签：评分：8.5/10、query:q4
+   evidence：地球观测智能体多模态环境，支持在光学和合成孔径雷达等传感器间切换
+4. [RAFNet: Region-Aware Fusion Network for Pansharpening](/202605/07/2605.02184v1-rafnet-region-aware-fusion-network-for-pansharpening)  
+   标签：评分：8.5/10、query:q4
+   evidence：融合低分辨率多光谱和高分辨率全色图像
+5. [Lights Out: A Nighttime UAV Localization Framework Using Thermal Imagery and Semantic 3D Maps](/202605/07/2604.26201v1-lights-out-a-nighttime-uav-localization-framework-using-thermal-imagery-and-semantic-3d-maps)  
    标签：评分：7.5/10、query:q4
-   evidence：包含SAR和多光谱图像的多模态遥感数据集
-7. [High-Dimensional Noise to Low-Dimensional Manifolds: A Manifold-Space Diffusion Framework for Degraded Hyperspectral Image Classification](/202605/06/2604.26279v1-high-dimensional-noise-to-low-dimensional-manifolds-a-manifold-space-diffusion-framework-for-degraded-hyperspectral-image-classification)  
-   标签：评分：7.0/10、query:q5
-   evidence：复杂退化条件下的高光谱图像分类
-8. [Cross-Domain Transfer of Hyperspectral Foundation Models](/202605/06/2604.26478v1-cross-domain-transfer-of-hyperspectral-foundation-models)  
-   标签：评分：7.0/10、query:q5
-   evidence：用于遥感分割的高光谱基础模型
-9. [SARU: A Shadow-Aware and Removal Unified Framework for Remote Sensing Images with New Benchmarks](/202605/06/2604.25432v1-saru-a-shadow-aware-and-removal-unified-framework-for-remote-sensing-images-with-new-benchmarks)  
+   evidence：将分割后的热成像观测结果与来自白天RGB数据的全球参考3D地图进行对齐
+6. [REALM: An RGB and Event Aligned Latent Manifold for Cross-Modal Perception](/202605/07/2605.00271v2-realm-an-rgb-and-event-aligned-latent-manifold-for-cross-modal-perception)  
+   标签：评分：7.5/10、query:q4
+   evidence：通过潜流形对齐桥接RGB和事件相机模态的跨模态框架。
+7. [LUCAS-MEGA: A Large-Scale Multimodal Dataset for Representation Learning in Soil-Environment Systems](/202605/07/2605.04323v1-lucas-mega-a-large-scale-multimodal-dataset-for-representation-learning-in-soil-environment-systems)  
+   标签：评分：7.5/10、query:q4
+   evidence：欧洲土壤环境观测数据的系统数据融合
+8. [To Fuse or to Drop? Dual-Path Learning for Resolving Modality Conflicts in Multimodal Emotion Recognition](/202605/07/2605.04877v1-to-fuse-or-to-drop-dual-path-learning-for-resolving-modality-conflicts-in-multimodal-emotion-recognition)  
+   标签：评分：7.5/10、query:q6
+   evidence：针对缺失或微弱线索决定融合或舍弃模态的框架
+9. [Point Cloud Registration via Probabilistic Self-Update Local Correspondence and Line Vector Sets](/202605/07/2604.26318v1-point-cloud-registration-via-probabilistic-self-update-local-correspondence-and-line-vector-sets)  
+   标签：评分：6.5/10、query:q4
+   evidence：通过点云配准整合遥感中的3D观测数据
+10. [EmoMM: Benchmarking and Steering MLLM for Multimodal Emotion Recognition under Conflict and Missingness](/202605/07/2605.01024v1-emomm-benchmarking-and-steering-mllm-for-multimodal-emotion-recognition-under-conflict-and-missingness)  
+   标签：评分：6.5/10、query:q7
+   evidence：模态冲突和缺失情况下的多模态情感识别
+11. [MER-DG: Modality-Entropy Regularization for Multimodal Domain Generalization](/202605/07/2605.01967v1-mer-dg-modality-entropy-regularization-for-multimodal-domain-generalization)  
    标签：评分：6.5/10、query:profile-1
-   evidence：融合遥感图像中的多色彩空间与语义特征
-10. [A generalised pre-training strategy for deep learning networks in semantic segmentation of remotely sensed images](/202605/06/2604.27704v1-a-generalised-pre-training-strategy-for-deep-learning-networks-in-semantic-segmentation-of-remotely-sensed-images)  
-   标签：评分：6.5/10、query:profile-1
-   evidence：针对遥感图像模态差异的预训练策略
-11. [Toward Structural Multimodal Representations: Specialization, Selection, and Sparsification via Mixture-of-Experts](/202605/06/2605.03348v1-toward-structural-multimodal-representations-specialization-selection-and-sparsification-via-mixture-of-experts)  
-   标签：评分：6.5/10、query:profile-1
-   evidence：结构化多模态表示与混合专家稀疏化
+   evidence：多模态领域泛化与防止融合过拟合
 
 
 <div class="dpr-home-promo-card">

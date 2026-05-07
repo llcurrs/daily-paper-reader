@@ -1,0 +1,568 @@
+Title: LUCAS-MEGA: A Large-Scale Multimodal Dataset for Representation Learning in Soil-Environment Systems
+
+URL Source: https://arxiv.org/pdf/2605.04323v1
+
+Published Time: Thu, 07 May 2026 00:20:14 GMT
+
+Number of Pages: 27
+
+Markdown Content:
+# LUCAS-MEGA: A Large-Scale Multimodal Dataset for Representation Learning in Soil–Environment Systems 
+
+# Kuangdai Leng 1, Simon Jeffery 2, Panos Panagos 3, and Tarje Nissen-Meyer 1,4 
+
+> 1
+
+Earth Rover Program, 71-75 Shelton Street, London WC2H 9JQ, United Kingdom 
+
+> 2
+
+Centre for Crop and Environmental Science, Harper Adams University, Newport, Shropshire TF10 8NB, United Kingdom 
+
+> 3
+
+European Commission Joint Research Centre, Via E. Fermi, 2749, 21027 Ispra VA, Italy 
+
+> 4
+
+Department of Mathematics and Statistics & Center for Environmental Intelligence, University of Exeter, Exeter EX4 4QF, United Kingdom 
+
+Correspondence: Tarje Nissen-Meyer (tarje@earthroverprogram.org) 
+
+Abstract. Understanding soil is fundamental to agriculture, carbon cycling, and environmental sustainability, yet progress is limited by fragmented and heterogeneous datasets that constrain modeling to small-scale predictive settings rather than high-dimensional representation learning. We introduce LUCAS-MEGA, a large-scale multimodal dataset constructed through systematic data fusion of European soil–environment observations, with the LUCAS survey as its backbone. The fused dataset comprises over 70,000 samples and more than 1,000 features spanning physical, chemical, environmental, biological, and visual attributes, aggregated from 68 source datasets. To enable integration at scale, we develop SoilFuser, a multi-agent, human-in-the-loop data fusion pipeline that standardizes heterogeneous data formats and measurement protocols, resolves inconsistencies and invalid entries (e.g., unit inconsistencies, codebook mismatches, and erroneous values), incorporates natural language annotations, and harmonizes multimodal attributes and metadata into a unified, machine learning-ready feature space. The resulting dataset captures key characteristics of real-world soil observations, including multimodality, uneven feature coverage, and heterogeneous uncertainty. To demonstrate the usability of LUCAS-MEGA for data-driven modeling, we pretrain a multimodal tabular transformer (SoilFormer) using a self-supervised objective based on feature masking, achieving stable training, strong predictive performance, and representations that support uncertainty-aware prediction. We further show that the learned representations recover relationships consistent with established soil processes. LUCAS-MEGA is released with open access and is accompanied by composable, agent-friendly APIs that support structured querying and data-driven workflows. 
+
+1 Introduction 
+
+Soils are increasingly recognized as a critical but threatened foundation of terrestrial ecosystems, agricultural production, climate regulation, and biodiversity. In Europe, for example, 62% of soils are estimated to be unhealthy based on the 19 soil degradation indicators of the EU Soil Health Dashboard (Panagos et al., 2024). This urgency is further reflected in the EU Soil Monitoring Law, which establishes a harmonized framework for monitoring soil health across multiple soil threats and descriptors, reflecting the need to assess soil properties and degradation processes in an integrated rather than isolated manner (Panagos et al., 2025). Such interdependence reflects the inherent complexity of soils: their states and behaviors emerge 
+
+1
+
+> arXiv:2605.04323v1 [cs.LG] 5 May 2026
+
+from tightly coupled physical, chemical, and biological processes interacting across spatial and temporal scales (Jenny, 1941; Young and Crawford, 2004; Turner, 2021). Capturing this complexity therefore requires jointly modeling a large number of interdependent variables, often with uneven coverage across regions, depths, and observation systems, resulting in a high-dimensional and heterogeneous feature space .Recent advances in scientific machine learning have led to more general-purpose and multimodal foundation models (Vaswani et al., 2017; Bommasani et al., 2021). These models learn shared representations across large numbers of variables and modalities (Lam et al., 2023; Jakubik et al., 2025), enabling the discovery of complex cross-variable relationships and supporting a variety of downstream tasks. This paradigm is well aligned with the need to model soil as an integrated system, but its application in soil science remains constrained by the lack of unified, high-dimensional, and machine learning-ready data. Existing sample-based soil data are fragmented across sources, heterogeneous in format and measurement protocols, and not organized to support joint modeling across variables and modalities. As a result, most existing data-driven approaches in soil science rely primarily on small-scale, task-specific models trained on limited subsets of variables, providing only a partial view of soil–environment systems; see reviews by Minasny et al. (2024); Minasny and McBratney (2025). Soil data with broad geographic coverage are available through a range of spatial soil resources, from expert-derived soil databases such as the European Soil Database (ESDB) (King et al., 1994) and the Harmonized World Soil Database (HWSD) (FAO and IIASA, 2012), to digital soil mapping (DSM) products such as SoilGrids (Poggio et al., 2021). These products provide spatially continuous estimates at resolutions ranging from hundreds of meters to kilometers. While highly valuable for sub-national to continental-scale assessment and policy applications, they are typically derived from field observations and environmental covariates through empirical knowledge, statistical interpolation, or machine learning models, and thus constitute spatially generalized representations rather than direct measurements. This introduces inductive biases into the resulting products and limits their ability to capture fine-scale variability driven by local environmental and management factors. In addition, these products are limited in their feature space, providing only a small set of key soil properties and lacking the variable breadth needed for integrated representation learning. Direct soil observations are available from large-scale field surveys, including topsoil monitoring programs such as LUCAS (Europe) (Orgiazzi et al., 2018), RMQS (France) (Arrouays et al., 2018), and NSI (UK) (Lark et al., 2012), as well as soil profile-based datasets such as WoSIS (Global) (Batjes et al., 2017), SPADE/M (Europe) (Hiederer et al., 2006), EU-HYDI (Europe) (Weynants et al., 2013), AfSIS (Africa) (Hengl, 2015), and NCSS (US) (Soil Survey Staff, 2023). These datasets provide sample-based, directly measured observations and are therefore well suited for data-driven modeling. However, they originate from heterogeneous sources with differing measurement protocols, data formats, and variable coverage, and are not organized into a unified representation that supports joint modeling across datasets. In addition, the feature space of individual datasets remains limited: each sample typically contains tens of measured variables, reflecting the cost and design constraints of field and laboratory measurements. Recent work has increasingly explored multimodal and multi-source datasets or benchmarks in environmental and agricultural science, often incorporating soil information as part of a broader modeling context. Examples include IRRISIGHT for irrigation mapping and agricultural water management (Mandal et al., 2025); CY-Bench, CYCleSS, and a global conventional-tillage/no-
+
+2tillage dataset for crop-yield modeling (Paudel et al., 2025; Corcoran et al., 2026; Su et al., 2021); AgriBench/MM-LUCAS and AgMMU for benchmarking multimodal or vision–language models in agriculture (Zhou and Ryo, 2025; Gauba et al., 2025); and SoilNet for multimodal hierarchical classification of soil horizons (Chiaburu et al., 2025). These efforts demonstrate the growing importance of multimodal and multi-source data in agriculture and environmental modeling. However, where soil information is included, it is typically represented by a small set of core attributes, such as soil type, texture, bulk density, or selected chemical properties, and serves mainly as task-specific context rather than as a basis for soil-centered representation learning across high-dimensional soil–environment features. Collectively, existing soil datasets are either spatially comprehensive but low-dimensional and model-derived, or observation-based but fragmented and heterogeneous. There remains a lack of datasets that support high-dimensional representation learning of soil systems, where a large number of interdependent variables with uneven coverage are modeled jointly to capture the intrinsic complexity of soils. Related efforts in other data-intensive scientific domains provide useful precedents, such as FLUXNET (Pastorello et al., 2020) for environmental monitoring networks and MIMIC (Johnson et al., 2023) for healthcare. To address these gaps in soil science, we introduce LUCAS-MEGA , a large-scale multimodal dataset for soil systems constructed through systematic data fusion of European soil–environment observations. Our dataset uses the LUCAS soil survey as its primary backbone, augmented with additional sources including SPADE/M and EU-HYDI, resulting in a unified sample space of over 70,000 entries . To enable feature integration across heterogeneous sources, we develop SoilFuser , a multi-agent, human-in-the-loop data fusion system that standardizes and harmonizes disparate datasets into a unified feature space. Using this system, we analyze and curate 130 independent datasets hosted by the European Soil Data Centre (ESDAC; as of September 2025; Panagos et al., 2022), incorporating 68 of them into LUCAS-MEGA and constructing a high-dimensional feature space with over 1,000 features . Figure 1 provides a high-level overview of the LUCAS-MEGA system, including data fusion, modeling, and access. Beyond its scale, LUCAS-MEGA is characterized by the following properties: 
+
+– (M)ulti-modal – Features span numerical (scalar and vector-valued), categorical, textual, and visual modalities, covering physical, chemical, biological, environmental, functional, and soil threat-related attributes. 
+
+– (E)nd-to-end machine learning-ready (ML-ready) – The dataset is provided as a unified, schema-aligned representation with standardized units, consistent formats, and machine-readable metadata, enabling direct use in data-driven and machine learning workflows. 
+
+– (G)reat quality – Extensive validation and correction are performed to resolve data quality issues such as unit inconsistencies, invalid values, inconsistent missing-value codes, and ambiguous or outdated codebook definitions. 
+
+– (A)ccessible – LUCAS-MEGA is released with open access, accompanied by visualization tools and retrieval APIs that support both data exploration and model development. The main objective of LUCAS-MEGA is to bridge the gap between fragmented European soil–environment data resources and the requirements of modern data-driven soil science. First, for soil scientists and environmental practitioners, it provides 
+
+3Diverse Source   
+
+> Datasets from
+> ESDAC
+> LUCAS
+> MEGA
+> SoilFuser
+> User-end LLMs
+> Visualize
+> Learn SoilFormer
+> APIs
+> Query
+> Standardize & Fuse
+> Retrive
+> 68 Source Datasets
+> 72,552 Samples
+> 1,017 Features Figure 1. Overview of the LUCAS-MEGA pipeline from data fusion to modeling and application.
+
+a centralized resource with improved consistency and quality relative to the original raw datasets, thereby facilitating data discovery, integration, and reuse. Second, for soil-centered machine learning, it provides a large-scale, multimodal, and partially observed dataset for modeling variables spanning soil properties, environmental covariates, and soil threats, supporting tasks such as prediction, data gap filling, and assessing management interventions. Finally, beyond soil science, LUCAS-MEGA provides a structured case study for representation learning from high-dimensional, heterogeneous scientific data with uneven feature coverage, structured missingness, cross-variable dependence, and measurement uncertainty; this setting can help evaluate methods that aim to learn coherent and uncertainty-aware representations from complex real-world datasets. To demonstrate the utility of LUCAS-MEGA, we conduct experiments on multimodal representation learning for soil systems. We pretrain a multimodal tabular transformer, SoilFormer , using a BERT-style self-supervised objective based on feature masking (Devlin et al., 2019), enabling joint modeling across high-dimensional and heterogeneous variables. Our results show stable training at scale and strong predictive performance across multiple soil properties, while the learned representations reflect inherent measurement noise through heteroscedastic (aleatoric) uncertainty learning (Kendall and Gal, 2017) and recover relationships consistent with established soil processes. These findings highlight the effectiveness of LUCAS-MEGA as a reliable resource for integrated soil modeling. In parallel, the composable APIs and prompt-based interfaces built around LUCAS-MEGA enable retrieval-augmented, data-grounded reasoning with user-facing large language models, supporting both analytical and interactive workflows. 
+
+4The remainder of this paper is organized as follows. Section 2 describes the data sources and the dataset construction process, including our agent-driven pipeline, SoilFuser. Section 3 presents the LUCAS-MEGA dataset, detailing its sample structure, feature space, modality coverage, and key statistical characteristics. As downstream applications, Section 4 introduces data access interfaces for retrieval-augmented workflows, while Section 5 demonstrates the use of LUCAS-MEGA for multimodal representation learning. 
+
+2 Data Construction and Integration 2.1 Data Sources 
+
+We consider the full collection of 130 datasets hosted by ESDAC as the source pool for data fusion. ESDAC is selected for three main reasons: 1. It offers both centralization and breadth, hosting a large number of datasets spanning diverse domains, including soil properties, environmental covariates, land use and management, and geospatial products. 2. The datasets exhibit substantial heterogeneity in data formats (e.g., GeoTIFF, CSV, Excel, text, and binary), spatial resolution, data volume, and documentation quality, providing a realistic and challenging setting for developing a robust general-purpose data fusion pipeline. Developing the pipeline on ESDAC therefore helps ensure applicability to other data hosts with similar diversity and complexity. 3. ESDAC hosts the LUCAS soil survey (Orgiazzi et al., 2018), a cross-country, multi-year topsoil survey with standardized sampling and measurement protocols across Europe. LUCAS provides consistent and georeferenced observations at scale, forming the basis for constructing a sample-specific, ML-ready dataset. 
+
+2.2 Data Standardization and Fusion Pipeline 
+
+All the 130 datasets downloaded from ESDAC undergo three steps: screening, standardization and fusion. 
+
+2.2.1 Screening Criteria 
+
+The 130 datasets are manually reviewed prior to processing. We exclude datasets that (i) are not directly related to soil or soil– environment processes (e.g., policy-related datasets or auxiliary tools), (ii) are aggregated at coarse administrative levels (e.g., national or regional statistics), (iii) are fully covered by other datasets (e.g., rasters derived from vector databases), or (iv) are excessively large (on the order of tens to hundreds of gigabytes) with limited relevance to soil–environment characterization. This screening step ensures both relevance and diversity of the retained datasets while avoiding redundancy and impractical data volumes. After screening, 96 datasets are retained as candidates for data fusion. 
+
+52.2.2 Standardization Scheme 
+
+Despite differences in file formats and data organization, the retained raw data can be grouped into two structural types: sample-structured and map-structured , with some datasets containing both. Sample-structured data consist of georeferenced records associated with point locations, which will directly map to soil observations in our unified representation while contributing feature values. Map-structured data are defined on grids or polygons, which will be queried at sample locations to provide additional features, with resolution-induced uncertainty determined by spatial distance. In most cases, sample-structured data correspond to field measurements, while map-structured data are derived from statistical or machine learning models. All map-structured data are standardized into GeoTIFF format with a unified coordinate reference system and explicit no-data masking. Rendered image files are also generated for rapid inspection. All sample-structured data are standardized into CSV format with unified metadata, with particular attention to the following: 1. Categorical variables are harmonized by resolving and standardizing codebooks. In many cases, categorical labels are not directly interpretable or inconsistently documented, requiring cross-referencing with external source materials. These codebook-based mappings are curated to ensure semantic consistency across datasets. 2. Outlier detection is performed on numerical properties via out-of-distribution analyses; for example, values such as pH and bulk density reported as 0.0 are identified as invalid placeholders for missing measurements. 3. High-dimensional vector-valued properties (e.g., particle size distributions from LUCAS and water retention curves from EU-HYDI) are stored as “assets” and linked to samples. Based on these standardized representations, a lightweight viewer is developed to visualize data and metadata in a unified interface (Figure 1). Although fusion is not performed at this stage, this standardized collection of datasets already provides a consistent and accessible representation, offering value in addition to the final fused dataset. 
+
+2.2.3 Fusion Scheme 
+
+The target fused dataset is organized in a sample-based representation, where each sample corresponds to a soil observation associated with a georeferenced location and is linked to a set of features aggregated from multiple sources, forming an ML-ready configuration. Together with the standardized representations obtained in Section 2.2.2, the abstractions of both the input and output of the fusion process become well defined. We therefore adopt a schema-driven approach, in which each dataset is associated with a schema that specifies how its records are mapped into the unified target representation. The schema defines feature correspondence and cross-dataset alignment rules, including variable naming, rescaling and unit normalization, and consistency constraints across datasets. These schemas are then executed within a shared codebase to conduct fusion. This design separates dataset-specific knowledge from the execution layer, ensuring inter-dataset consistency and enabling efficient incorporation of new datasets via schema definitions. During fusion, three types of datasets are further excluded upon inspection of the standardized representations. First, map-structured datasets with very coarse spatial resolution ( > 5 km, e.g., global-scale products) are excluded, as they may introduce 
+
+6Invoke Resources 
+
+Input  Generate 
+
+Request Resources  Input 
+
+Feedback 
+
+Output 
+
+Production 
+
+Script 
+
+Standardized 
+
+Representation 
+
+External 
+
+References 
+
+Standardization 
+
+Pipeline 
+
+Input 
+
+Generate  Fusion 
+
+Schema 
+
+Request Clarification 
+
+Fusion 
+
+Codebase 
+
+Input 
+
+Apply 
+
+Output 
+
+Fused Samples and Features 
+
+Fusion Pipeline 
+
+#1  #2 
+
+Composable Tools  
+
+> Unzip Inspect
+> Transform
+> Classify
+> Anomaly
+
+…
+
+Proof Proof Figure 2. Overview of the SoilFuser system, consisting of a standardization pipeline and a fusion pipeline, with AI agents driving their execution. Left: In the standardization pipeline, the agent iteratively generates and executes processing scripts, invoking composable resources and requesting external support when needed to transform heterogeneous datasets into a unified representation. Right: In the fusion pipeline, the agent generates schema mappings that are executed within a shared codebase to integrate the standardized data into a sample–feature representation, forming the final dataset. For both pipelines, the results are examined and validated by human experts. 
+
+substantial uncertainty due to spatial interpolation. Second, datasets providing long-term past or future projections (typically spanning multiple decades to centuries) are excluded due to their strong dependence on model assumptions and associated uncertainty. Third, sample-structured datasets without precise georeferenced locations are excluded, as they cannot be reliably aligned within the unified sample representation. Finally, 68 datasets are integrated into LUCAS-MEGA. These fused datasets are listed in Table A1 and A2. 
+
+2.3 SoilFuser: A Multi-Agent, Human-in-the-Loop Implementation 
+
+While the above procedures define a consistent protocol for data standardization and fusion, their manual execution becomes impractical at the scale and heterogeneity considered in this work. The datasets vary widely in format, structure, and documentation quality, often requiring implicit conventions to be inferred from metadata and external references. We therefore introduce SoilFuser, as outlined in Figure 2, where AI agents drive the execution of these processes within a human-controlled framework, enabling scalable and consistent integration of heterogeneous data. In the standardization pipeline, we provide the agent with resources , including external references such as codebooks for categorical variables, and a toolbox of composable APIs covering file reading and inspection, data structure recognition, 
+
+7anomaly detection and correction, and file type conversion. Given a clear specification of the target format, the agent orchestrates these resources to generate end-to-end processing scripts for each dataset. Based on execution feedback, it may request additional support from human operators, e.g., to provide missing codebooks or extend available tools, as its ability to create new resources is intentionally restricted to ensure reliability (avoid hallucination). Through this process, heterogeneous data formats, codebooks, and value conventions are normalized into a consistent and inspectable representation. In the fusion pipeline, the process is similar, except that the agent generates schema definitions instead of processing scripts. Given the standardized representations, the agent specifies how source records are mapped to the unified sample–feature configuration. The generated schemas are then executed to integrate data across datasets. As in standardization, the agent may request external support when schema definitions are ambiguous or incomplete. The agent also attaches natural language annotations to features as part of the fusion process. 
+
+3 The LUCAS-MEGA Dataset 
+
+LUCAS-MEGA is organized in an ML-ready tabular representation, where rows correspond to soil samples and columns to features aggregated from multiple sources, while individual cells may contain structured, multimodal data beyond simple scalar values. Cell values span multiple modalities, including numerical variables (scalar and vector-valued), categorical attributes, textual descriptions, and images. 
+
+3.1 Sample Space 
+
+The sample space of LUCAS-MEGA is primarily populated by the LUCAS topsoil survey, a large-scale, harmonized monitoring program providing georeferenced soil observations across Europe (Orgiazzi et al., 2018), and is further enriched with complementary datasets including EU-HYDI, which provides hydraulic property measurements (Weynants et al., 2013), and SPADE/M, a European soil profile database with detailed morphological and analytical descriptions (Hiederer et al., 2006). In total, the dataset comprises 72,552 soil samples , dominated by multiple LUCAS campaigns (21,859 from 2015, 21,681 from 2009, and 18,984 from 2018), along with country-specific extensions from the 2012 campaign (1,369 samples from Romania and 661 from Bulgaria) and a Switzerland extension in 2015 (150 samples), complemented by 5,580 samples from EU-HYDI and 2,268 from SPADE/M. Each sample in LUCAS-MEGA corresponds to a single soil observation. Multiple samples may share the same geographic location. In the LUCAS survey, this occurs due to repeated visits over time, whereas in EU-HYDI and SPADE/M it arises from measurements at different soil depths. In total, the dataset contains 29,872 unique georeferenced locations . This design results in a structured long-table representation that avoids internal dimensionalities such as time and depth. Applications that require temporal or depth-aware analysis can be supported through aggregation over samples at the same location. 
+
+83.2 Feature Space 
+
+Features correspond to the columns of our tabular representation, aggregated from heterogeneous data sources (see Tables A1 and A2). In this section, we describe the feature space of LUCAS-MEGA from two complementary perspectives: their semantic meaning as soil and environmental properties, and their ML-related characteristics. 
+
+3.2.1 Properties, Themes and Modalities 
+
+LUCAS-MEGA comprises a total of 1017 features , covering a broad range of soil-related characteristics, including intrinsic soil properties (e.g., physical, chemical, biological, and hydrological) and site-specific attributes such as terrain, land cover, and climatic variables. Site-specific attributes are shared across samples collected at the same location. To facilitate data organization, these features are grouped into 23 themes . For example, the feature clay_percentage (%) 
+
+is categorized under the texture theme, organic_carbon_content (g/kg) under carbon , and annual_precipitation (mm) under 
+
+climate . It should be noted that this classification is intended solely for management and presentation purposes; a given feature may reasonably belong to multiple themes. Therefore, themes do not carry strict semantic meaning but instead serve as an organizational layer. Table 1 shows the feature counts in each theme. There are four modalities in LUCAS-MEGA: numerical features (either scalar or vector-valued), categorical features, textual descriptions, and images, with their distribution summarized in Table 1. Scalar features are single-valued attributes, such as                                                                                                                                                                           
+
+> Table 1. Distribution of feature modalities across themes in LUCAS-MEGA. Scalar Vector Cat. Text Image PScalar Vector Cat. Text Image P
+> ASSETS 030014land_degradation 4032 0036
+> biodiversity 15 000015 land_site 3017 4024
+> biomass 20 200022 management 6071014
+> carbon 43 110045 mass_density 13 030016
+> chemical 900009mineral 34 036043
+> climate 23 312029 organic_matter 200002
+> crop_plant 26 000026 radioactivity 400004
+> erosion 38 14 21 0073 soil_type 0113 5019
+> fertility 45 040049 texture 23 072032
+> function_suitability 447 0510453 topography_geology 7014 2023
+> greenhouse 500005trace_elements 40 000040
+> hydraulic 13 813 0034
+> P820 32 141 23 11017
+> Note: “Scalar” and “Vector” denote scalar- and vector-valued numerical variables, respectively, while “Cat.” denotes categorical variables. The ASSETS theme manages dense, high-volume data objects: the three vector-valued assets include particle size distributions (LUCAS) and hydraulic conductivity and water retention curves (EU-HYDI), while the image asset consists of site photographs from LUCAS.
+
+9organic carbon content and pH in water, whereas vector-valued features contain multiple entries, such as monthly temperature and precipitation. Categorical features include classifications such as texture class and soil group, textual features include site and sample descriptions, and image features correspond to site photographs. Scalar numerical features dominate the feature space. This multimodal and structurally heterogeneous feature space calls for models that jointly process diverse data types, including numerical encoding, categorical embedding, language understanding, and visual feature extraction. For semantically associated numerical features, the choice between scalar and vector representations is guided by the structure of the recorded features and their interpretation in modeling. For example, monthly precipitation is represented as a 12-dimensional vector because its monthly values jointly characterize a continuous climatic regime. By contrast, soil texture components, including clay, silt, sand, and coarse contents, are retained as independent scalars—although the texture components are compositionally related, keeping them as separate scalar features allows models to learn their distinct associations with other soil and environmental attributes. 
+
+3.2.2 Missingness and Uncertainty 
+
+Feature missingness refers to the absence of values for certain variables across samples, arising from incomplete measurements or heterogeneous data sources. It is a central challenge for data-driven methods, including machine learning, as it reduces effective sample size, disrupts cross-variable correlations, and introduces bias when missingness is structural. Proper handling of missingness is therefore essential for learning reliable and generalizable representations, particularly in high-dimensional and multimodal settings. Figure 3 shows the feature availability of LUCAS-MEGA across surveys and thematic groups. The availability exhibits strong heterogeneity across both features and samples (as reflected by different surveys), with some themes consistently well-covered while others remain sparsely observed. This pattern reflects practical constraints in soil data collection, where field sampling, laboratory measurements, and survey design lead to uneven coverage across variables. Uncertainty in the source data is sparsely quantified and cannot be systematically recovered. Most datasets lack repeated measurements and do not report measurement uncertainty, limiting direct assessment of observation-level noise. A few model-derived datasets provide uncertainty estimates, which are retained as features. For map-structured data, additional uncertainty arises from spatial alignment during fusion, for which we record the distance between the sample location and the corresponding grid cell. For coarse-resolution maps, this distance can reach several kilometers; note that datasets with excessively low resolution are excluded during fusion. While this distance serves as a proxy for the additional uncertainty introduced during fusion, the intrinsic modeling uncertainty of source data remains largely unquantified. 
+
+3.3 Final Data Formats 
+
+LUCAS-MEGA is released in two complementary formats: a sample-based dictionary stored as JSON and a tabular dataset stored as CSV with accompanying column metadata. The JSON format provides the most complete view of the dataset by organizing samples as dictionary entries, where each feature is stored together with detailed metadata (e.g., units, provenance, and fusion-related attributes), thereby preserving fine-grained information. The CSV format provides a flattened table with samples as rows and features as columns, where metadata are aggregated at the column level for simplicity. For example, 
+
+10 ASSETS           
+
+> biodiversity
+> biomass
+> carbon
+> chemical
+> climate
+> crop_plant
+> erosion
+> fertility
+> function_suitability
+> greenhouse
+> hydraulic
+> land_degradation
+> land_site
+> management
+> mass_density
+> mineral
+> organic_matter
+> radioactivity
+> soil_type
+> texture
+> topography_geology
+> trace_elements
+> Theme
+> EUHYDI
+> SPADEM
+> lucas2009
+> lucas2012BG
+> lucas2012RO
+> lucas2015
+> lucas2015CH
+> lucas2018
+> All Surveys
+> Survey
+> 0.0 0.2 0.4 0.6 0.8 1.0
+> Available Ratio
+> 0.0 0.2 0.4 0.6 0.8 1.0
+> Available Ratio
+> 0
+> 50
+> 100
+> 150
+> 200
+> 250
+> 300
+> Number of Features
+> Availability Distribution
+
+Figure 3. Missingness of LUCAS-MEGA features. Left: Heatmap of feature availability across surveys and thematic groups, where darker shades indicate higher data availability. Right: Histogram showing the distribution of availability across all features. 
+
+source datasets of a feature are consolidated, and spatial alignment distances are summarized using descriptive statistics. This tabular format improves usability and efficiency, at the cost of reduced metadata granularity. 
+
+4 Data-Augmented Reasoning with LUCAS-MEGA 
+
+Recent advances in large language models (LLMs) have enabled natural language to emerge as a general interface for interacting with complex systems and data. In this context, we develop a unified framework in which natural language serves as an interface for both data access and data-grounded reasoning. Users can directly retrieve soil data through intuitive queries, while the same system supports answering domain-specific questions by grounding responses in retrieved data, improving reliability and interpretability. To achieve this, LUCAS-MEGA is coupled with structured API layers and integrated into a data-augmented generation framework, in which LLMs act as a natural-language reasoning layer grounded in authoritative data sources. We provide three layers of APIs, all based on reliable data sources: 1. Geographic reasoning. This layer resolves user queries into precise spatial references. Natural language place names are first mapped to geographic coordinates via Nominatim (OpenStreetMap contributors, 2023), which are then associated with administrative regions through a hierarchical representation based on GADM (GADM contributors, 2024). This hierarchy enables consistent spatial grounding and supports reasoning across geographic levels, such as relating areas to their enclosing regions or comparing neighboring administrative units. 
+
+11 2. Feature screening. Given the high dimensionality of the dataset (over 1,000 features), directly selecting relevant variables from the full feature space is challenging for LLMs due to attention dispersion over long contexts. This layer performs an initial screening step using keyword- and embedding-based matching, mapping user queries to a small set of candidate features with high semantic relevance. By reducing the feature space to a manageable subset, it enables the LLM to make more reliable selections and ensures that subsequent data retrieval remains focused and interpretable. 3. Data retrieval. Once spatial context and target features are determined, this layer retrieves data from the dataset. Two complementary modes are provided: a sample-centric mode , which returns multiple features for a small number of nearby samples, and a feature-centric mode , which returns spatial distributions for a small set of features across many locations. This design reflects the practical constraint that queries large in both sample and feature dimensions are difficult to present and interpret in LLM-based interaction. By constraining one dimension, the two modes support common query patterns: detailed characterization at specific locations, or spatial analysis of a small set of variables. These APIs are exposed via the OpenAPI protocol, enabling integration with LLM-based interfaces. As an example, we deploy ERP-GPT-EU through OpenAI’s ChatGPT (see Section 7). 
+
+5 SoilFormer: A Multimodal Tabular Transformer 
+
+To demonstrate the utility of LUCAS-MEGA for data-driven modeling, we introduce SoilFormer , a multimodal transformer designed for representation learning on heterogeneous soil–environment data. The inclusion of model training in this work serves two purposes. First, it provides a systematic validation of the dataset by assessing whether meaningful and stable representations can be learned from its high-dimensional, multimodal, and partially observed feature space. Second, it reflects a broader research objective: enabling foundation-model-style learning for soil systems, where complex interactions among diverse variables are captured through large-scale pretraining. While the primary focus of this paper is on dataset construction, SoilFormer establishes a concrete modeling paradigm that leverages the structure and scale of LUCAS-MEGA. 
+
+5.1 Feature Selection 
+
+As the primary contribution of this work is dataset rather than modeling, we adopt a simplified feature selection strategy for pretraining. Specifically, we apply three filtering criteria. First, features with availability below 50% across samples are excluded to avoid instability caused by highly sparse variables. Second, textual modalities are omitted from the current modeling setup to limit model complexity, as their integration would require combining tabular transformers with large language models. Third, for map-based features, we exclude features whose maximum spatial alignment distance across samples exceeds 200 m to reduce uncertainty arising from spatial mismatch. After applying these filtering criteria, we obtain the final feature subset used for model training, consisting of 60 numerical features (including both scalar and vector-valued variables), 10 categorical features, and one visual feature, as summarized in Table B1 and B2. 
+
+12 These design choices control modeling complexity by excluding aspects that each require dedicated methodological treatment. In particular, learning under high missing ratios in tabular data often requires dedicated mechanisms that are robust to missingness patterns and missingness shifts (Lee et al., 2025; Samad et al., 2024). Likewise, incorporating textual attributes in a principled manner would require coupling tabular modeling with language modeling components (Hegselmann et al., 2023; Jaitly et al., 2023). Finally, explicitly handling uncertainty in the inputs would require explicit uncertainty embedding (Valdenegro-Toro et al., 2025; Buehler et al., 2024). These directions are active research topics and would require additional architectural innovations that are outside the main focus of this study. We therefore defer them to future studies to focus on a tractable setting. 
+
+5.2 Architecture 
+
+Transformer-based models (Vaswani et al., 2017) have become a general-purpose architecture for modeling heterogeneous and multimodal data, owing to their token-based representation and attention mechanism that naturally support variable-length inputs, cross-modal interactions, and partial observations. In particular, their ability to operate on sets of tokens without requiring fixed feature ordering makes them well suited for settings with structured missingness, where subsets of features may be absent or irregularly observed. Building on these advantages, a line of work on tabular transformers (Huang et al., 2020; Arik and Pfister, 2021; Gorishniy et al., 2021) has explored adapting transformer architectures to tabular data, typically by embedding numerical and categorical features as tokens and learning feature-wise interactions through self-attention. These models have demonstrated strong performance and flexibility, especially in capturing complex inter-feature dependencies. Based on these developments, we design SoilFormer, a multimodal tabular transformer that integrates numerical, categorical, and visual features within a unified token-based framework. Rather than proposing a fundamentally new architecture, we focus on incorporating structural inductive biases tailored to the characteristics of LUCAS-MEGA, while maintaining computational efficiency at scale. Specifically, we introduce the following modifications to improve efficiency and support multimodal inputs, as illustrated in Figure 4: 1. Grouped numerical feature encoding. In a transformer-based formulation, each feature typically requires its own encoding and decoding heads. We group numerical features by intrinsic dimensionality to enable batched encoding and decoding while preserving feature-wise independence. By avoiding explicit loops over dozens of per-feature heads, this approach improves computational efficiency by an order of magnitude. All numerical features are normalized to z-scores on a per-feature basis. 2. Grouped categorical embedding. Similarly, categorical features are embedded using a unified embedding table constructed from per-feature vocabularies, enabling efficient lookup while preserving feature-wise parameterization. Decoding logits are computed with separate prediction heads per feature to avoid unnecessary complexity. 3. Vision feature extraction and compression. Due to the limited scale of available image data, we do not train a vision encoder from scratch. Instead, we use the pretrained vision tower of Gemma3n (DeepMind, 2024) as a frozen feature extractor and treat the extracted visual features as conditioning signals. To align visual and tabular representations while 
+
+13 Vision Extraction & 
+
+> Compression
+> Grouped Categorical
+> Embedding
+> Grouped Numeric
+> Encoding
+
+• Bulk density 
+
+• Soil organic carbon 
+
+• Crop production index 
+
+• Monthly temperature 
+
+• …
+
+> Tabular Transformer Layers X 4
+> (Bidirectional Self-attention & Feed Forward)
+> Categorical
+> Decoding
+> Grouped Numeric
+> Decoding
+> Per-sample, Per-feature Heteroscedastic Loss
+
+Q & KV  Q & KV KV Only 
+
+Key Hyperparameters 
+
+> •Model
+> Layers: 4
+> Query heads: 8
+> Key-value heads: 2
+> Head dimension: 128
+> Hidden size: 768
+> Trainable parameters: 25 M
+> Vision backbone: Gemma3n
+> •Data
+> Train samples: 51763
+> Eval samples: 12941
+> Features: 71 (n:c:v=60:10:1)
+> Tokens: 160 (n:c:v=118:10:32)
+> Feature mask ratio: 15%
+> •Training
+> Batch size: 64
+> Peak learning rate: 0.0001
+> Weight decay: 0.02
+> Epochs: 200
+
+• USDA texture class 
+
+• WRB soil group 
+
+• Land cover 
+
+• Land use 
+
+• …
+
+Site photo Figure 4. Overview of the SoilFormer architecture. Numerical, categorical, and visual inputs are encoded into a unified token representation via grouped numerical encoding, grouped categorical embedding, and vision feature extraction with latent compression. The tokens are processed by stacked transformer layers, followed by feature-specific decoding heads. Training is driven by masked feature reconstruction, where 15% of features are randomly masked and reconstructed under a heteroscedastic loss. 
+
+controlling sequence length, we apply a Perceiver-style latent attention module (Jaegle et al., 2021) that compresses 256 visual tokens into 32 latent tokens. This keeps the visual tokens fewer than the tabular tokens (128), avoiding visual-modality dominance while preserving cross-modal interaction. 
+
+5.3 Masked Feature Modeling with Heteroscedastic Loss 
+
+We adopt masked feature modeling (MFM) as the self-supervised training objective, analogous to masked language modeling (MLM) in BERT (Devlin et al., 2019). Samples in LUCAS-MEGA already contain native missingness due to incomplete observations across heterogeneous sources. During training, we further mask 15% of the observed features at random and train the model to reconstruct them from the remaining context. Consequently, each training input contains two forms of absent features: native missing features and actively masked features. Both are presented as missing values at the input level, but supervision is applied only to the actively masked subset, for which ground-truth values are available. This formulation enables the model to learn cross-feature dependencies from partially observed multimodal inputs. A key design choice is that the model does not distinguish between native missingness and active masking at the encoding stage. For both numerical and categorical variables, all missing entries are represented using dedicated per-feature missing embeddings, yielding a unified representation of missingness. The distinction between the two types of missingness is retained only in the loss: reconstruction is supervised on actively masked features. This choice aligns training with inference: at 
+
+14 inference time, no artificial masking is applied, and native missing entries are encoded using the same per-feature missing embeddings as in training. To account for the varying noise levels across features and samples in LUCAS-MEGA, we further adopt a heteroscedastic objective (Kendall and Gal, 2017). In contrast to standard reconstruction losses that weight all targets equally, this formulation uses predicted uncertainty to adaptively weight reconstruction errors, down-weighting noisy or intrinsically difficult predictions. Specifically, SoilFormer predicts not only the reconstructed value or class logits, but also a scalar s for each masked feature in each sample. This scalar represents the per-feature, per-sample log-variance of the prediction, with the predictive variance given by σ2 = exp( s). This learned uncertainty serves two roles. During training, it stabilizes optimization by balancing contributions from masked targets with different noise levels and reconstruction difficulty. After training, it provides an uncertainty-aware characterization of the representation, indicating where the model considers reconstruction to be confident or ambiguous. The heteroscedastic objective is instantiated separately for numerical and categorical features. For numerical features, the decoder predicts a mean μ and a log-variance s, and the loss is given by the Gaussian negative log-likelihood 
+
+Lnum = ( y − μ)2/ exp( s) + s, (1) where y is the ground-truth target. The factor exp( s) adaptively rescales the reconstruction error, while the additive s term prevents the model from trivially inflating uncertainty. For categorical features, we use an analogous uncertainty-weighted form of cross-entropy, 
+
+Lcat = CE( p, y )/ exp( s) + s, (2) where p denotes the predicted class distribution. This formulation follows the heuristic approximation in Kendall and Gal (2017), which improves optimization stability compared to using exp( s) as a temperature parameter in the cross-entropy loss. The final objective sums Lnum and Lcat over all actively masked features in each sample. 
+
+5.4 Model Evaluation 5.4.1 Pretraining Behavior 
+
+Figure 5 shows stable pretraining dynamics over 200 epochs. For numerical features, both the heteroscedastic loss and the underlying reconstruction loss decrease smoothly on the training and evaluation sets, with a modest train-evaluation gap emerging at later epochs. This behavior indicates harmonized improvement in reconstruction accuracy and predictive confidence, suggesting that the numerical branch remains well calibrated under the heteroscedastic formulation throughout training. The categorical branch exhibits a different but still interpretable behavior. Its training loss continues to decrease, while the evaluation loss begins to rise slightly in later epochs, even as evaluation accuracy continues to improve. This combination indicates that categorical predictions become increasingly accurate in terms of top-1 classification, but less well calibrated probabilistically. In other words, the model increasingly identifies the correct class, yet assigns less concentrated probability mass to a subset of harder or noisier examples, causing cross-entropy to increase despite improving accuracy. This is precisely 
+
+15 0 50 100 150 200         
+
+> Epoch
+> 4
+> 3
+> 2
+> 1
+> 0
+> 1
+> Value
+> Heteroscedastic Loss
+> Train Total
+> Train Num.
+> Train Cat.
+> Eval Total
+> Eval Num.
+> Eval Cat.
+> 050 100 150 200
+> Epoch
+> 0.2
+> 0.4
+> 0.6
+> 0.8
+> 1.0
+> 1.2
+> 1.4
+> Reconstruction Loss
+> Train Num.
+> Train Cat.
+> Eval Num.
+> Eval Cat.
+> 050 100 150 200
+> Epoch
+> 0.60
+> 0.65
+> 0.70
+> 0.75
+> 0.80
+> 0.85
+> 0.90
+> 0.95
+> Categorical Accuracy
+> Train Cat.
+> Eval Cat.
+
+Figure 5. Convergence of losses and accuracy during pretraining. Left: Heteroscedastic losses correspond to the actual training objective, as defined in Eqs. (1) and (2). Middle: Reconstruction losses denote the underlying mean squared error (MSE) and cross-entropy (CE) terms in these equations, i.e., the reconstruction error before uncertainty reweighting. Right: Categorical accuracy measures the top-1 accuracy over masked categorical features. 
+
+where the heteroscedastic formulation becomes useful: by explicitly modeling prediction uncertainty, it allows training to remain stable and exposes the trade-off between accuracy and confidence at the checkpoint level. We therefore select 200 epochs as a practical operating point, where the model achieves high categorical accuracy while avoiding the stronger calibration drift observed in longer runs. 
+
+5.4.2 Predictive Performance 
+
+Figure 6 presents the distribution of evaluation samples in the error–uncertainty landscape. To construct this figure, we perform 100 random masking trials on the evaluation set, each with a masking ratio of 15%. In each trial, the model predicts the masked features and their associated heteroscedastic uncertainties. The resulting reconstruction errors and uncertainties are aggregated at the sample level across masked features and trials. Samples are then grouped into bins in the error–uncertainty space, and the number of samples in each bin is visualized as a 2D histogram. In this representation, the horizontal axis reflects predictive accuracy, whereas the vertical axis reflects predictive uncertainty. A dominant concentration of samples is observed in the low-error, low-uncertainty region (i.e., the lower-left corner). This pattern suggests that a large portion of the dataset admits accurate and confident reconstruction under partial observation, indicating strong statistical dependencies among features. From a data perspective, this supports the presence of a coherent underlying structure in soil–environment systems, where variables exhibit strong interdependencies. From a modeling perspective, it provides empirical evidence that the proposed architecture and heteroscedastic objective are well aligned with the data characteristics, enabling the model to learn representations that are both predictive and uncertainty-aware. 
+
+16 0.25 0.50 0.75 1.00 1.25    
+
+> Reconstruction Error (MAE in z-score space)
+> 0.2
+> 0.3
+> 0.4
+> 0.5
+> 0.6
+> Uncertainty (  )
+> Numeric Features
+> 0.0 0.2 0.4 0.6
+> Reconstruction Error (1 - Accuracy)
+> 0.4
+> 0.5
+> 0.6
+> 0.7
+> 0.8
+> 0.9
+> 1.0
+> Uncertainty (  )
+> Categorical Features
+> 10 0
+> 10 1
+> 10 2
+> 10 3
+> # Eval Samples
+> 10 0
+> 10 1
+> 10 2
+> # Eval Samples
+
+Figure 6. Distributions of evaluation samples in the error–uncertainty landscape. For each sample in the evaluation set, reconstruction errors and predictive uncertainties are aggregated over masked features across 100 random masking trials, each with a masking ratio of 15%. Left: 
+
+For numerical features, reconstruction error (x-axis) is measured as mean absolute error (MAE) in the z-score space. Right: For categorical features, reconstruction error (x-axis) is measured as classification error ( 1 − accuracy ). In both cases, uncertainty (y-axis) is given by the learned heteroscedastic standard deviation σ = exp( s/ 2) . The 2D histograms show the number of evaluation samples falling into each error– uncertainty bin, with color indicating sample counts on a logarithmic scale. 
+
+5.4.3 Feature Interaction Analysis 
+
+Beyond overall predictive performance, Figure 7 is designed to probe how SoilFormer captures the interdependencies among soil properties. We examine the directional sensitivity of each predicted feature to the available inputs. The resulting mask-conditioned Jacobian (MCJ) matrix provides a compact view of how strongly one variable influences another across the evaluation set, serving as a first lens into the feature interaction structure learned by the model. Several patterns in Figure 7 are consistent with established knowledge and provide a first validation that the model has learned meaningful structure: 1. Several near-trivial relationships are correctly recovered. pH_Ca and pH_W show strong positive mutual associations, 
+
+BD and PD are strongly positively related, and Clay , Silt , and Sand exhibit strong mutual trade-offs. These basic relationships serve as an immediate sanity check that the model has captured obvious data regularities. 2. The interaction patterns between SOC and soil texture are consistent with established soil knowledge. In particular, SOC 
+
+increases strongly with Clay , increases more weakly with Silt , and decreases with Sand , consistent with the stronger carbon stabilization capacity of finer-textured soils. 
+
+17 pH_Ca                                 
+
+> pH_W
+> EC
+> CaCO3
+> SOC
+> N-Ext
+> K-Ext
+> P-Ext
+> BD
+> PD
+> Clay
+> Silt
+> Sand
+> NPPC
+> Source Feature (Influencing)
+> pH_Ca
+> pH_W
+> EC
+> CaCO3
+> SOC
+> N-Ext
+> K-Ext
+> P-Ext
+> BD
+> PD
+> Clay
+> Silt
+> Sand
+> NPPC
+> Target Feature (Influenced)
+> List of Variables
+> pH_Ca: chemical:pH_in_CaCl2
+> pH_W: chemical:pH_in_H2O
+> EC: chemical:electrical_conductivity (mS/m)
+> CaCO3: carbon:CaCO3_content (g/kg)
+> SOC: carbon:organic_carbon_content (g/kg)
+> N-Ext: fertility:N_extractable (g/kg)
+> K-Ext: fertility:K_extractable (mg/kg)
+> P-Ext: fertility:P_extractable (mg/kg)
+> BD: mass_density:bulk_density (g/cm³)
+> PD: mass_density:packing_density (g/cm³)
+> Clay: texture:clay_percentage (%)
+> Silt: texture:silt_percentage (%)
+> Sand: texture:sand_percentage (%)
+> NPPC: function_suitability:net_primary_
+> productivity_mean_cropland
+> (g Cm²yr ¹) 0.4
+> 0.2
+> 0.0
+> 0.2
+> 0.4
+> Mean Gradient
+
+Figure 7. Mask-conditioned Jacobian (MCJ) matrix estimated from SoilFormer. For each target feature, its value is individually masked and predicted by the model from the remaining inputs on the evaluation set. The gradient of the predicted target with respect to each source feature is then computed by automatic differentiation in the z-score-normalized space and averaged across samples. Repeating this procedure over all considered target features yields the MCJ matrix, which summarizes sample-averaged directional sensitivities and is generally asymmetric. Rows denote target features, columns denote source features, and the feature name mapping is listed on the right. 
+
+3. The cropland productivity proxy NPPC shows strong positive dependence on SOC and N-Ext , weaker positive dependence on K-Ext and P-Ext , and a negative association with pH. This suggests that the model plausibly links soil carbon and nutrient status to productive ecosystem function. 4. N-Ext appears as a broad influencer across many target variables, suggesting that the model assigns concentrated predictive attention to nitrogen-related information. In particular, the strong coupling between N-Ext and SOC is notable and is consistent with the close linkage between soil organic matter status and nitrogen availability under management. This analysis should nevertheless be regarded as a preliminary exploration of model behavior. First, the MCJ matrix is based on sample-averaged local gradients evaluated at many different points in feature space, and therefore reflects only coarse global tendencies rather than the response at any individual sample. Second, these quantities represent local predictive sensitivities rather than causal effects. A causal analysis would require controlled interventions to test how the presence or absence of a variable changes both the predicted value and the associated uncertainty. More generally, relating learned model behavior to objective soil mechanisms would require designs tailored to specific variable relationships, including targeted sample selection (e.g., focusing on subsets where a variable spans informative ranges) and controlled masking schemes. Such investigations are problem-specific and are left for future modeling studies. 
+
+18 6 Conclusions 
+
+We introduced LUCAS-MEGA, a large-scale multimodal dataset for soil–environment systems constructed through systematic fusion of heterogeneous European soil–environment observations, with the LUCAS survey as its backbone. By integrating 68 datasets from ESDAC into a unified sample–feature representation, LUCAS-MEGA comprises over 70,000 samples and more than 1,000 features spanning numerical, categorical, textual, and visual modalities. To enable this construction at scale, we developed SoilFuser, a multi-agent, human-in-the-loop pipeline for data standardization and fusion. We further demonstrated the utility of LUCAS-MEGA for multimodal representation learning through SoilFormer, showing that stable self-supervised pretraining is feasible on this heterogeneous, partially observed feature space, and that the resulting representations capture meaningful soil–environment relationships. Together, these results establish LUCAS-MEGA as both a practical data resource for soil science and a useful testbed for multimodal learning under real-world missingness and uncertainty. Several directions follow from this work. First, the standardized and schema-driven design of SoilFuser makes LUCAS-MEGA readily extensible as new soil–environment data sources become available. Within Europe, for example, this includes the LUCAS 2022 topsoil survey, planned for release in Q4 2026. More broadly, the same framework could support expansion toward a global soil dataset by integrating regional and international data sources. Second, the present modeling study adopts a simplified setting to focus on the dataset contribution. Important next steps therefore include extending SoilFormer to handle the components that were excluded or simplified here, particularly textual modalities, features with very low availability, and variables associated with high input uncertainty. Addressing these aspects will require more advanced architectures for language–tabular integration, robust learning under extreme missingness, and explicit treatment of input uncertainty. These challenges provide a natural agenda for future research built upon LUCAS-MEGA. 
+
+7 Code and Data Availability – LUCAS-MEGA (https://huggingface.co/datasets/earthroverprogram/lucas-mega) Integrated sample–feature representations in tabular and dictionary formats, with unified metadata and asset files. Additional construction materials include intermediate standardization outputs, together with the scripts and schema definitions used to construct LUCAS-MEGA. 
+
+– SoilFormer (https://huggingface.co/earthroverprogram/soilformer) SoilFormer architecture, pretrained weights, and scripts for training, evaluation, and inference. 
+
+– ERP-GPT-EU (https://huggingface.co/datasets/earthroverprogram/erp-gpt-eu) Data-query APIs, prompts, knowledge files, and related resources for ERP-GPT-EU. 
+
+Appendix A: Source Datasets of LUCAS-MEGA 
+
+Table A1 and A2 contain all source datasets integrated into LUCAS-MEGA. 
+
+19 Table A1. Source datasets integrated into LUCAS-MEGA (Part I). Dataset ID 3d-soil-hydraulic-database-europe-1-km-and-250-m-resolution arsenic-european-topsoils bacterial-fungal-biomass-fatty-acid-methyl-esters biodiversity-factor-soil-erosion cadmium-topsoils-european-union caesium-137-and-plutonium-239240-european-topsoils carbon-budget-eu-agricultural-soils clay-mineral-inventory-soils-europe-based-lucas-2015-survey-soil-samples-2 copper-distribution-topsoils cover-crops-accross-europe cover-management-factor-c-factor-eu estimate-net-erosion-and-sediment-transport-using-watemsedem-european-union european-food-safety-authority-efsa-data-persam-software-tool european-hydropedological-data-inventory-eu-hydi-database-0 european-map-soil-suitability-provide-platform-most-human-activities-eu28 european-soil-database-derived-data european-soil-database-v2-raster-library-1kmx1km global-rainfall-erosivity global-soil-erodibility global-soil-organic-carbon-estimates glosem gully-erosion-based-lucas heavy-metals-topsoils land-degradation-europe land-suitability-temperate-europe ls-factor-slope-length-and-steepness-factor-eu lucas-2009-topsoil-data lucas-2015-topsoil-data-switzerland lucas-2018-topsoil-data lucas2015-topsoil-data map-indicating-availability-raw-material-soils-european-union-organic-soil-material-b-soil maps-heavy-metals-soils-eu-based-lucas-2009-hm-data-0 maps-indicators-soil-hydraulic-properties-europe maps-related-predicting-preservation-cultural-artefacts-and-buried-materials-soils-eu-0 
+
+20 Table A2. Source datasets integrated into LUCAS-MEGA (Part II). Dataset ID maps-storing-and-filtering-capacity-soils-europe mercury-content-european-union-topsoil multiple-concurrent-soil-erosion-processes n2o-emissions-agricultural-soils-europe natural-susceptibility-soil-compaction-europe observedtypical-soc-index octop-topsoil-organic-carbon-content-europe pan-european-soc-stock-agricultural-soils pan-european-soil-erosion-risk-assessment-pesera phosphorus-budget-and-p-stocks phosphorus-cycle-european-agricultural-soils potential-threats-soil-biodiversity-europe priming-effects-soils-across-europe rainfall-erosivity-european-union-and-switzerland SOC-changes-2009-18 soil-biomass-productivity-maps-grasslands-and-pasture-coplands-and-forest-areas-european soil-bulk-density-europe soil-carbon-risk-index soil-degradation-indicators-eu soil-erodibility-k-factor-high-resolution-dataset-europe soil-erosion-forestland-europe-using-rusle2015 soil-erosion-water-rusle2015 soil-function-data-measured-lucas-2018-sites-across-eu soil-ghg-fluxes-using-lucas-soil-daycent soil-loss-due-crop-harvesting-european-union soil-microbial-biomass-and-respiration soil-organic-carbon-saturation-capacity soil-organic-matter-som-fractions Soil_erosion_by_wind spadem support-practices-factor-p-factor-eu topsoil-soil-organic-carbon-lucas-eu25 un-sustainable-development-goal-1531-assessment-land-degradation-indicator-eu-scale zn-concentrations-eu-topsoils 
+
+Note: Dataset details can be accessed by appending the dataset ID to the URL https://esdac.jrc.ec.europa.eu/content/. 
+
+21 Appendix B: Features for Training SoilFormer 
+
+Table B1 and B1 show all features used for training SoilFormer. 
+
+Table B1. Feature subset used for training SoilFormer (Part I). 
+
+Theme Feature Modality # Tokens 
+
+carbon CaCO3_content (g/kg) Numeric (scalar) 1SOC_saturation_ratio Numeric (scalar) 1organic_carbon_content (g/kg) Numeric (scalar) 1chemical electrical_conductivity (mS/m) Numeric (scalar) 1pH_in_CaCl2 Numeric (scalar) 1pH_in_H2O Numeric (scalar) 1climate monthly_precipitation_JAN_to_DEC (mm) Numeric (vector) 12 monthly_temperature_JAN_to_DEC (°C) Numeric (vector) 12 crop_plant cover_crop_fraction_median ( ‱) Numeric (scalar) 1cover_crop_fraction_std ( ‱) Numeric (scalar) 1erosion c_factor_cover_management Numeric (scalar) 1ls_factor_slope_length_and_steepness Numeric (scalar) 1net_erosion_rate_WaTEM_SEDEM (t ha −1 yr −1) Numeric (scalar) 1p_factor_support_practices Numeric (scalar) 1soil_displacement_estimate (t ha −1 yr −1) Numeric (scalar) 1soil_loss_by_water (t ha −1 yr −1) Numeric (scalar) 1fertility K_extractable (mg/kg) Numeric (scalar) 1N_extractable (g/kg) Numeric (scalar) 1P_available_stock (kg ha −1) Numeric (scalar) 1P_extractable (mg/kg) Numeric (scalar) 1P_total_concentration_topsoil (mg/kg) Numeric (scalar) 1function_suitability cultural_material_preservation_capacity_index_bones (0-3) Numeric (scalar) 1cultural_material_preservation_capacity_index_metals (0-3) Numeric (scalar) 1cultural_material_preservation_capacity_index_organics (0-3) Numeric (scalar) 1cultural_material_preservation_capacity_index_stratigraphic_evidence (0-3) Numeric (scalar) 1filter_capacity_index_anion (0-10) Numeric (scalar) 1filter_capacity_index_cation (0-10) Numeric (scalar) 1filter_capacity_index_non_aqueous_phase_liquids (0-10) Numeric (scalar) 1filter_capacity_index_non_polar_organics (0-10) Numeric (scalar) 1filter_capacity_index_solids_pathogens (0-10) Numeric (scalar) 1net_primary_productivity_mean_cropland (g C m −2 yr −1) Numeric (scalar) 1raw_material_availability_index_construction_material (0-10) Numeric (scalar) 1raw_material_availability_index_organics (0-10) Numeric (scalar) 1storing_capacity_index_anion (0-10) Numeric (scalar) 1storing_capacity_index_cation (0-10) Numeric (scalar) 1
+
+22 Table B2. Feature subset used for training SoilFormer (Part II). 
+
+Theme Feature Modality # Tokens 
+
+function_suitability storing_capacity_index_non_aqueous_phase_liquids (0-10) Numeric (scalar) 1storing_capacity_index_non_polar_organics (0-10) Numeric (scalar) 1storing_capacity_index_solids_pathogens (0-10) Numeric (scalar) 1dominant_limitation_to_agricultural_use Categorical 1secondary_limitation_to_agricultural_use Categorical 1soil_structure_for_agricultural_use_subsoil Categorical 1soil_structure_for_agricultural_use_topsoil Categorical 1soil_suitability_for_human_activities Categorical 1geographic latitude (deg) Numeric (scalar) 1longitude (deg) Numeric (scalar) 1hydraulic available_water_capacity_profile (cm 3 cm −3 %) Numeric (vector) 7field_capacity_water_content_profile (cm 3 cm −3 %) Numeric (vector) 7hydraulic_conductivity_at_field_capacity_profile (cm/day) Numeric (vector) 7saturated_hydraulic_conductivity_profile (cm/day) Numeric (vector) 7saturated_water_content_profile (cm 3 cm −3 %) Numeric (vector) 7wilting_point_water_content_profile (cm 3 cm −3 %) Numeric (vector) 7land_site land_cover_primary Categorical 1land_use_primary Categorical 1mass_density bulk_density (g/cm 3) Numeric (scalar) 1bulk_density_0_10cm (g/cm 3) Numeric (scalar) 1bulk_density_10_20cm (g/cm 3) Numeric (scalar) 1packing_density (g/cm 3) Numeric (scalar) 1soil_type WRB_soil_group Categorical 1texture clay_percentage (%) Numeric (scalar) 1coarse_percentage (%) Numeric (scalar) 1sand_percentage (%) Numeric (scalar) 1silt_percentage (%) Numeric (scalar) 1ISSS_class Categorical 1USDA_class Categorical 1topography_geology elevation (m) Numeric (scalar) 1slope (deg) Numeric (scalar) 1trace_elements As_concentration_mean (log10 mg/kg) Numeric (scalar) 1Cd_concentration (mg/kg) Numeric (scalar) 1Hg_concentration ( μg/kg) Numeric (scalar) 1Zn_concentration (mg/kg) Numeric (scalar) 1ASSETS sample_site_photo Visual 32 Total 71 4 160 
+
+23 . KL constructed the dataset and conducted the transformer-based representation-learning experiments. SJ contributed domain expertise in soil science and data interpretation, and provided guidance on data selection, processing choices, model validation and interpretation. PP contributed through the long-term collection, curation and stewardship of ESDAC source datasets, and provided expertise on European soil data resources and their interpretation. TN provided senior scientific leadership for the overall project, helped define the data and modeling objectives, and contributed to the design of the representation-learning framework. KL wrote the initial manuscript draft. All authors contributed to manuscript review, editing and discussion of the results. 
+
+. We declare that no competing interests are present. 
+
+. LUCAS-MEGA is constructed from publicly available datasets provided by the European Soil Data Centre (ESDAC) and associated data contributors. The original data remain the responsibility of the respective providers. The authors assume no responsibility for errors or inconsistencies in the source data. 
+
+. The Earth Rover Program is a not-for-profit organization funded by the Bezos Earth Fund, Founders Pledge, and UBS Optimus Foundation. The authors gratefully acknowledge the European Soil Data Centre (ESDAC) and all contributing data providers for making a broad collection of European soil and environmental datasets publicly available. KL thanks Jiaoyao Meng and Tina Fallah for their assistance with requesting and downloading the source datasets. 
+
+24 References 
+
+Arik, S. and Pfister, T.: TabNet: Attentive Interpretable Tabular Learning, in: AAAI, 2021. Arrouays, D., Saby, N. P. A., Walter, C., Lemercier, B., and Schvartz, C.: The French Soil Quality Monitoring Network (RMQS): A tool for monitoring changes in soil properties at the national scale, Soil Use and Management, 34, 303–313, https://doi.org/10.1111/sum.12435, 2018. Batjes, N. H., Ribeiro, E., van Oostrum, A., Leenaars, J. G. B., Hengl, T., and Mendes de Jesus, J. S.: WoSIS: providing standardised soil profile data for the world, Earth System Science Data, 9, 1–14, https://doi.org/10.5194/essd-9-1-2017, 2017. Bommasani, R., Hudson, D. A., Adeli, E., Altman, R., Arora, S., von Arx, S., Bernstein, M. S., Bohg, J., Bosselut, A., Brunskill, E., Brynjolfsson, E., and et al.: On the Opportunities and Risks of Foundation Models, arXiv preprint arXiv:2108.07258, 2021. Buehler, M. et al.: Combining Input, Data and Model Uncertainty into a Single Neural Network, arXiv preprint arXiv:2406.18787, 2024. Chiaburu, T., Singh, V., Haußer, F., and Bießmann, F.: SoilNet: A Multimodal Multitask Model for Hierarchical Classification of Soil Horizons, https://doi.org/10.48550/arXiv.2508.03785, 2025. Corcoran, E., Bebber, D. P., Curceac, S., Efremova, N., Lashkari, A., Mead, A., Morris, R. J., Pywell, R. F., Redhead, J. W., and Ahnert, S. E.: A comprehensive UK crop yield dataset incorporating satellite, weather, and soil type information, Scientific Data, 13, 491, https://doi.org/10.1038/s41597-025-06528-x, 2026. DeepMind, G.: Gemma: Open Models Based on Gemini Research and Technology, 2024. Devlin, J., Chang, M.-W., Lee, K., and Toutanova, K.: BERT: Pre-training of Deep Bidirectional Transformers for Language Understanding, in: Proceedings of the 2019 Conference of the North American Chapter of the Association for Computational Linguistics (NAACL), pp. 4171–4186, 2019. FAO and IIASA: Harmonized World Soil Database (HWSD), version 1.2, 2012. GADM contributors: GADM database of Global Administrative Areas, https://gadm.org/, accessed: 2026-04-13, 2024. Gauba, A., Pi, I., Man, Y., Pang, Z., Adve, V. S., and Wang, Y.-X.: AgMMU: A Comprehensive Agricultural Multimodal Understanding Benchmark, in: Advances in Neural Information Processing Systems, https://openreview.net/forum?id=MQPZPtv8GG, datasets and Benchmarks Track, 2025. Gorishniy, Y., Rubachev, I., Khrulkov, V., and Babenko, A.: Revisiting Deep Learning Models for Tabular Data, Advances in Neural Information Processing Systems, 34, 18 932–18 943, 2021. Hegselmann, S., Buendia, A., Lang, H., Agrawal, M., Jiang, X., and Sontag, D.: TabLLM: Few-shot Classification of Tabular Data with Large Language Models, in: Proceedings of AISTATS, vol. 206, pp. 5549–5581, 2023. Hengl, T. e. a.: Mapping Soil Properties of Africa at 250 m Resolution, PLOS ONE, 10, e0125 814, https://doi.org/10.1371/journal.pone.0125814, 2015. Hiederer, R., Jones, R. J. A., and Daroussin, J.: Soil Profile Analytical Database for Europe (SPADE): Reconstruction and Validation of the Measured Data (SPADE/M), Geografisk Tidsskrift, 106, 71–85, https://doi.org/10.1080/00167223.2006.10649546, 2006. Huang, X. et al.: TabTransformer: Tabular Data Modeling Using Contextual Embeddings, in: arXiv preprint arXiv:2012.06678, 2020. Jaegle, A. et al.: Perceiver: General Perception with Iterative Attention, in: ICML, 2021. Jaitly, S., Shah, T., Shugani, A., and Grewal, R. S.: Towards Better Serialization of Tabular Data for Few-shot Classification with Large Language Models, arXiv preprint arXiv:2312.12464, 2023. 
+
+25 Jakubik, J., Yang, F., Blumenstiel, B., Scheurer, E., Sedona, R., Maurogiovanni, S., Bosmans, J., Dionelis, N., Marsocci, V., Kopp, N., Ramachandran, R., Fraccaro, P., Brunschwiler, T., Cavallaro, G., Bernabe-Moreno, J., and Longépé, N.: TerraMind: Large-Scale Generative Multimodality for Earth Observation, arXiv preprint arXiv:2504.11171, 2025. Jenny, H.: Factors of Soil Formation: A System of Quantitative Pedology, McGraw-Hill, New York, 1941. Johnson, A. E. W., Bulgarelli, L., Shen, L., Gayles, A., Shammout, A., Horng, S., Pollard, T. J., Hao, S., Moody, B., Gow, B., Lehman, L.-w. H., Mark, R. G., and Celi, L. A.: MIMIC-IV, a freely accessible electronic health record dataset, Scientific Data, 10, 1–16, 2023. Kendall, A. and Gal, Y.: What Uncertainties Do We Need in Bayesian Deep Learning for Computer Vision?, in: Advances in Neural Information Processing Systems, vol. 30, 2017. King, D., Daroussin, J., and Tavernier, R.: Development of a soil geographic database from the Soil Map of the European Communities, Catena, 21, 37–56, https://doi.org/10.1016/0341-8162(94)90030-2, 1994. Lam, R., Sanchez-Gonzalez, A., Willson, M., Wirnsberger, P., Fortunato, M., Alet, F., Ravuri, S., Ewalds, T., Eaton-Rosen, Z., Hu, W., Keenan, T., Clancy, E., Mohan, A., Clark, S., Deasy, D., Vinyals, O., Heess, N., Battaglia, P., Hassabis, D., and et al.: Learning skillful medium-range global weather forecasting, Science, 382, 1416–1421, https://doi.org/10.1126/science.adi2336, 2023. Lark, R. M., Bellamy, P. H., and Rawlins, B. G.: The National Soil Inventory of England and Wales: sampling design and monitoring of soil properties, European Journal of Soil Science, 63, 887–898, https://doi.org/10.1111/j.1365-2389.2012.01498.x, 2012. Lee, J., Kang, M., and Kim, D.: MIRRAMS: Learning Robust Tabular Models under Unseen Missingness Shifts, arXiv preprint arXiv:2507.08280, 2025. Mandal, N. C., Hoque, O. B., Wilson, M. L., Swarup, S., Nouwakpo, S. K., Adiga, A., and Marathe, M.: IRRISIGHT: A Large-Scale Multimodal Dataset and Scalable Pipeline to Address Irrigation and Water Management in Agriculture, in: Advances in Neural Information Processing Systems, https://openreview.net/forum?id=SRP9tz3hYs, datasets and Benchmarks Track, 2025. Minasny, B. and McBratney, A. B.: Machine learning and artificial intelligence applications in soil science, European Journal of Soil Science, 76, e70 093, 2025. Minasny, B., Bandai, T., Ghezzehei, T. A., Huang, Y.-C., Ma, Y., McBratney, A. B., Ng, W., Norouzi, S., Padarian, J., Sharififar, A., et al.: Soil science-informed machine learning, Geoderma, 452, 117 094, 2024. OpenStreetMap contributors: Nominatim, https://nominatim.org/, accessed: 2026-04-13, 2023. Orgiazzi, A., Ballabio, C., Panagos, P., Jones, A., and Fernández-Ugalde, O.: LUCAS Soil, the largest expandable soil dataset for Europe: a review, European Journal of Soil Science, 69, 140–153, 2018. Panagos, P., Van Liedekerke, M., Borrelli, P., Köninger, J., Ballabio, C., Orgiazzi, A., Lugato, E., Liakos, L., Hervas, J., Jones, A., and Montanarella, L.: European Soil Data Centre 2.0: Soil data and knowledge in support of the EU policies, European Journal of Soil Science, 73, e13 315, https://doi.org/10.1111/ejss.13315, 2022. Panagos, P., Broothaerts, N., Ballabio, C., Orgiazzi, A., De Rosa, D., Borrelli, P., Liakos, L., Vieira, D., Van Eynde, E., Arias Navarro, C., Breure, T., Fendrich, A., Köninger, J., Labouyrie, M., Matthews, F., Muntwyler, A., Jimenez, J. M., Wojda, P., Yunta, F., Marechal, A., Sala, S., and Jones, A.: How the EU Soil Observatory is providing solid science for healthy soils, European Journal of Soil Science, 75, e13 507, https://doi.org/10.1111/ejss.13507, 2024. Panagos, P., Jones, A., Lugato, E., and Ballabio, C.: A Soil Monitoring Law for Europe, Global Challenges, 9, 2400 336, https://doi.org/10.1002/gch2.202400336, 2025. 
+
+26 Pastorello, G., Trotta, C., Canfora, E., Chu, H., Christianson, D., Cheah, Y.-W., Poindexter, C., Chen, J., Elbashandy, A., Humphrey, M., et al.: The FLUXNET2015 dataset and the ONEFlux processing pipeline for eddy covariance data, Scientific Data, 7, 225, https://doi.org/10.1038/s41597-020-0534-3, 2020. Paudel, D., Kallenberg, M., Ofori-Ampofo, S., Baja, H., van Bree, R., Potze, A., Poudel, P., Saleh, A., Anderson, W., von Bloh, M., Castellano, A., Ennaji, O., Hamed, R., Laudien, R., Lee, D., Luna, I., Meroni, M., Mutuku, J. M., Mkuhlani, S., Richetti, J., Ruane, A. C., Sahajpal, R., Shai, G., Sitokonstantinou, V., de Souza Nóia Júnior, R., Srivastava, A. K., Strong, R., Sweet, L.-b., Vojnovic, P., and Athanasiadis, I. N.: CY-Bench: A comprehensive benchmark dataset for sub-national crop yield forecasting, Earth System Science Data Discussions, https://doi.org/10.5194/essd-2025-83, preprint, in review, 2025. Poggio, L., de Sousa, L. M., Batjes, N. H., Heuvelink, G. B. M., Kempen, B., Ribeiro, E., and Rossiter, D.: SoilGrids 2.0: producing soil information for the globe with quantified spatial uncertainty, SOIL, 7, 217–240, https://doi.org/10.5194/soil-7-217-2021, 2021. Samad, M. et al.: Imputation-free Learning of Tabular Data with Missing Values using Incremental Attention, in: ICLR Workshop / OpenReview preprint, 2024. Soil Survey Staff: National Cooperative Soil Survey Soil Characterization Database, available at https://ncsslabdatamart.sc.egov.usda.gov/, 2023. Su, Y., Gabrielle, B., and Makowski, D.: A global dataset for crop production under conventional tillage and no tillage systems, Scientific Data, 8, https://doi.org/10.1038/s41597-021-00817-x, 2021. Turner, B. L.: Soil as an Archetype of Complexity: A Systems Approach to Improve Insights, Learning, and Management of Coupled Biogeochemical Processes and Environmental Externalities, Soil Systems, 5, 39, https://doi.org/10.3390/soilsystems5030039, 2021. Valdenegro-Toro, M. et al.: Can Bayesian Neural Networks Explicitly Model Input Uncertainty?, arXiv preprint arXiv:2501.08285, 2025. Vaswani, A., Shazeer, N., Parmar, N., Uszkoreit, J., Jones, L., Gomez, A. N., Kaiser, Ł., and Polosukhin, I.: Attention Is All You Need, in: Advances in Neural Information Processing Systems, vol. 30, pp. 5998–6008, 2017. Weynants, M., Montanarella, L., and Tóth, G.: European HYdropedological Data Inventory (EU-HYDI), Tech. rep., Publications Office of the European Union, https://doi.org/10.2788/5936, 2013. Young, I. M. and Crawford, J. W.: Interactions and Self-Organization in the Soil-Microbe Complex, Science, 304, 1634–1637, https://doi.org/10.1126/science.1097394, 2004. Zhou, Y. and Ryo, M.: AgriBench: A Hierarchical Agriculture Benchmark for Multimodal Large Language Models, in: Computer Vision – ECCV 2024 Workshops, edited by Del Bue, A., Canton, C., Pont-Tuset, J., and Tommasi, T., vol. 15625 of Lecture Notes in Computer Science , pp. 207–223, Springer, Cham, https://doi.org/10.1007/978-3-031-91835-3_14, 2025. 
+
+27

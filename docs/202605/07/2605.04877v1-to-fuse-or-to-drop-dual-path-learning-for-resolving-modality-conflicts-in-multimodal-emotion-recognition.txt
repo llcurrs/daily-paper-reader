@@ -1,0 +1,765 @@
+Title: To Fuse or to Drop? Dual-Path Learning for Resolving Modality Conflicts in Multimodal Emotion Recognition
+
+URL Source: https://arxiv.org/pdf/2605.04877v1
+
+Published Time: Thu, 07 May 2026 00:57:51 GMT
+
+Number of Pages: 14
+
+Markdown Content:
+1
+
+# To Fuse or to Drop? Dual-Path Learning for Resolving Modality Conflicts in Multimodal Emotion Recognition 
+
+Yangchen Yu, Qian Chen, Jia Li, Zhenzhen Hu, Jinpeng Hu, Lizi Liao, Erik Cambria, Fellow, IEEE, and Richang Hong, Member, IEEE 
+
+Abstract —Multimodal emotion recognition (MER) benefits from combining text, audio, and vision, yet standard fusion often fails when modalities conflict. Crucially, conflicts differ in resolvability: benign conflicts stem from missing, weak, or ambiguous cues and can be mitigated by cross-modal calibration, while severe conflicts arise from intrinsically contradictory ( e.g. ,sarcasm) or misleading signals, for which forced fusion may amplify errors. Recognizing this, we propose Dual-Path Conflict Resolution (DCR), a unified framework that learns when to fuse and when to drop modalities. Path I (Affective Fusion Distiller, AFD) performs reverse distillation from audio/visual teachers to a textual student using temporally weighted class evidence, thereby enhancing representation-level calibration and improving fusion when alignment is beneficial. Path II (Affective Discernment Agent, ADA) formulates MER as a contextual bandit that selects among fusion and unimodal predictions based on a dual-view state and a calibration-aware reward, enabling decision-level arbitration under irreconcilable conflicts without requiring per-modality reliability labels. By taking into account the full multimodal context and coupling soft calibration with hard arbitration, DCR reconciles conflicts that can be aligned while bypassing misleading modalities when fusion is harmful. Across five benchmarks covering both dialogue-level and clip-level MER, DCR consistently outperforms competitive baselines or achieves highly competitive results. Further ablations, conflict-specific subset evaluation, and modality-selection analysis verify that AFD and ADA are complementary and jointly improve robust conflict-aware emotion recognition 1.
+
+Index Terms —Multimodal Emotion Recognition, Modality Conflict, Conflict Resolution, Knowledge Distillation, Reinforce-ment Learning, Affective Computing. 
+
+I. I NTRODUCTION 
+
+# MULTIMODAL Emotion Recognition (MER) is pivotal for advancing human-computer interaction, healthcare, and robotics [1], aiming to infer human affect by integrat-ing linguistic, visual, and acoustic cues [2], [3]. These het-
+
+Yangchen Yu, Qian Chen, Jia Li, Zhenzhen Hu, Jinpeng Hu and Richang Hong are with the School of Computer Science and Information Engineering, Hefei University of Technology, Hefei 230601, China (e-mail: shijie@mail.hfut.edu.cn; 2025170835@mail.hfut.edu.cn; jiali@hfut.edu.cn; huzhen.ice@gmail.com; 135858hjp@gmail.com; hongrc.hfut@gmail.com). Lizi Liao is with the School of Computing and Information Systems, Singapore Management University, Singapore (e-mail: lzliao@smu.edu.sg). Erik Cambria is with the College of Computing and Data Science, Nanyang Technological University, Singapore, and also with the MIT Media Lab, Cambridge, MA, USA (e-mail: cambria@ntu.edu.sg). Yangchen Yu and Qian Chen contributed equally to this work. Corresponding author: Jia Li. 
+
+> 1
+
+Source code and models will be released at https://github.com/MSA-LMC/ DCR 0.5 0.6 0.7 0.8 0.9        
+
+> 0
+> 20
+> 40
+> 60
+> 80
+> Ratio of Samples (%)
+> (a) Cumulative Confidence
+> MMML
+> TelME
+> FacialMMT
+> Benign Conflict
+> Severe Conflict
+> MMML TelME FacialMMT
+> 0
+> 20
+> 40
+> 60
+> 80
+> Accuracy (%)  59.2 61.8 58.9
+> 40.2 41.5 44.1
+> (b) Accuracy Comparison
+> Benign Conflict Severe Conflict
+
+Fig. 1. Empirical analysis of modality conflicts in common multimodal fusion for MER. The results illustrate the metrics of three representative and well-known fusion models, namely MMML [7], TelME [5], and FacialMMT [8], on the CH-SIMS [9] test dataset under different levels of modality conflicts. (a) Ratio of samples where the combined confidence of the top-k (with k = 2 )predictions exceeds varying thresholds. (b) Accuracy comparison on benign versus severe modality conflict subsets. 
+
+erogeneous modalities are theoretically complementary: text usually conveys semantic intent, while audio and vision cap-ture prosody and non-verbal affective dynamics. However, in practice, modalities often disagree due to semantic inconsis-tency, noise, missing cues, or misleading signals, resulting in modality conflicts that degrade performance [4]. For example, neutral utterances may become affectively clear only with supportive prosody, whereas sarcastic expressions may exhibit a direct contradiction between literal semantics and vocal or facial cues. Conventional fusion strategies, such as feature concatenation, frequently fail to reconcile these discrepancies and can even underperform strong unimodal baselines, because they indiscriminately aggregate all modalities regardless of their reliability [4]. To address this issue, recent work has explored cross-modal distillation and representation refine-ment, but most approaches rely on text-centric supervision [5] or uniform self-distillation across modalities [6], implicitly assuming that modality conflicts can always be resolved within a shared latent space. Such an assumption limits their ability to handle cases where certain modalities convey contradictory or misleading affective signals. We revisit this assumption from the perspective of conflict resolvability. Instead of regarding all cross-modal discrepan-cies as errors to be aligned, we categorize modality conflicts into benign and severe cases. Benign conflicts involve weak or ambiguous evidence that can be refined by complementary modalities (e.g., neutral text refined by positive prosody), whereas severe conflicts involve contradictory or misleading evidence where forced fusion may amplify errors (e.g., literal 
+
+> arXiv:2605.04877v1 [cs.MM] 6 May 2026 2
+
+semantics inverted by sarcastic affect). Although the ideal definition of severity would measure sample-level degradation under an oracle MER model, this is infeasible in practice; therefore, we adopt a simple heuristic approximation for empirical tractability (elaborated in Section III-A). This ab-straction provides the basis for the controlled simulations in Figure 1, enabling us to stress-test existing popular fusion models across conflict intensities and examine whether fusion remains reliable as conflicts become harder to reconcile. The simulation results reveal the vulnerability of common multimodal fusion. As shown in Figure 1, existing models remain relatively confident under benign conflicts, yet both confidence and accuracy decline substantially as conflicts become irreconcilable, with the mean accuracy decreasing from 60% to 42%. These results indicate that indiscriminate fusion may amplify cross-modal interference when modalities provide inconsistent or misleading affective evidence. There-fore, modality conflicts should not be treated as a uniform alignment problem, but should be addressed according to their resolvability. This distinction leads to two complementary principles. For benign conflicts, the model should calibrate the reliable textual branch with complementary non-verbal dynamics. Although text often provides stronger unimodal evidence, its affective meaning can vary across multimodal contexts [10], while acoustic and visual modalities capture temporal affective cues absent from transcripts. For severe conflicts, however, forced alignment may be counterproductive, as contradictory or mis-leading cues can introduce stronger interference. The model should therefore shift from representation-level alignment to decision-level arbitration, selecting the most reliable affective pathway when fusion becomes unreliable. To this end, we propose the Dual-Path Conflict Resolution (DCR) framework, which handles modality disagreements according to their resolvability. Path I, the Affective Fu-sion Distiller (AFD), mitigates benign conflicts by distilling temporally weighted audio-visual affective evidence into the textual branch, enabling calibrated fusion when alignment is beneficial. Path II, the Affective Discernment Agent (ADA), addresses severe conflicts through policy-driven pathway se-lection, choosing among multimodal and unimodal predictions when fusion becomes unreliable. Together, DCR forms a soft-calibration-to-hard-arbitration framework that learns when to fuse complementary cues and when to bypass misleading modalities. We summarize the primary contributions as follows:  
+
+> •
+
+Conflict-Aware Insight and Dual-Path Framework. 
+
+We identify that modality conflicts in MER differ in resolvability and divide them into benign and severe types. Based on this insight, we propose DCR, a unified dual-path framework that resolves them in a divide-and-conquer manner: aligning benign conflicts while adap-tively handling severe ones.  
+
+> •
+
+Affective Fusion Distiller (AFD) and Affective Dis-cernment Agent (ADA). AFD mitigates benign conflicts via reverse knowledge distillation of non-verbal temporal dynamics, while ADA addresses severe conflicts through RL-based (policy-driven) modality selection.  
+
+> •
+
+Comprehensive analysis and SOTA performance. DCR offers a novel principled analysis of benign versus severe conflicts and achieves SOTA performance on dialogue-level and clip-level MER benchmarks. II. R ELATED WORK 
+
+A. Multimodal Fusion for MER 
+
+Multimodal emotion recognition (MER) aims to infer af-fective states by integrating complementary cues from lan-guage, vision, and acoustics. Existing studies have mainly advanced MER through multimodal fusion and cross-modal alignment [11]. Early methods focus on explicitly modeling inter-modal correlations, typically through tensor-based fusion or other algebraic interaction operations, so as to capture high-order relationships among heterogeneous modalities [12]–[14]. These approaches demonstrate the effectiveness of multimodal integration, but they are often sensitive to noise, redundancy, and modality imbalance [10]. To alleviate these limitations, later studies introduce more structured representation learning strategies. A representative direction is to disentangle modality-invariant and modality-specific information, with the goal of preserving shared af-fective semantics while reducing irrelevant interference from individual modalities [15]–[17]. With the growing adoption of Transformer architectures, attention-based cross-modal in-teraction has further become a dominant paradigm in MER. For example, MulT [18] employs directional cross-modal attention to model unaligned sequences, while PMR [19] progressively reinforces inter-modal interaction to improve semantic consistency. These methods significantly enhance the capacity of MER models to capture complex dependencies across modalities. Despite such progress, most existing methods still follow a fusion-centric paradigm [10] and implicitly assume that multi-modal fusion is always beneficial. However, in realistic affec-tive scenarios, different modalities may provide inconsistent, weak, or even contradictory emotional evidence [9]. Under these cases, directly enforcing multimodal interaction may not always resolve discrepancies, and can even amplify misleading signals [4]. Therefore, existing fusion methods provide only limited treatment of modality conflicts. In this work, we revisit MER from a conflict-aware perspective that jointly considers both multimodal fusion and unimodal inference. 
+
+B. Beyond Conventional Fusion 
+
+Beyond conventional fusion, recent studies have explored guided learning and adaptive decision mechanisms to improve robustness in multimodal systems. One important direction is knowledge distillation (KD), which transfers knowledge from a teacher model to a student model [20]. KD has been extended from output-level logit matching to intermediate feature supervision and relational knowledge transfer [21], [22]. In multimodal learning, such strategies are often used to exploit complementary information across modalities, improve unimodal representations, and enhance cross-modal consis-tency [23]. These methods provide an effective way to inject additional supervision into multimodal representation learning. 3EN: He is such a typical good kid .                        
+
+> Labels:
+> M: 0.6
+> T: 1
+> A: 0.2
+> V: -0.4
+> Labels:
+> M: -0.2
+> T: 0.6
+> A: -0.6
+> V: -1
+> EN: All the evidence iscorrect. EN: You are not very photogenic.
+> Labels:
+> M: 1
+> T: -0.8
+> A: 0.6
+> V: 1
+> EN: I hit the referee with a javelin
+> and got banned for life .
+> Labels:
+> M: 0.4
+> T: -0.6
+> A: 0.2
+> V: 1
+> EN: So I can recall your goodness more
+> when I grow tired of you .
+> Labels:
+> M: -1
+> T: 0.6
+> A: 0
+> V: -1
+> Labels:
+> M: -0.2
+> T: -1
+> A: -0.4
+> V: 1
+> EN: The Smiling Proud Wanderer
+> doesn’t dare to raise a hand ?
+> EN: Can't find it, can you?
+> Labels:
+> M: 1
+> T: -0.6
+> A: 1
+> V: 1
+> Labels:
+> M: -1
+> T: 0.4
+> A: -1
+> V: -1
+> EN: I am going back to save him!
+
+Severe Conflict Samples 
+
+Benign Conflict Samples                                         
+
+> EN: We would like to have a
+> word with you.
+> Labels:
+> M: -0.6
+> T: 0
+> A: -0.2
+> V: -0.4
+> Labels:
+> M: 0
+> T: -0.4
+> A: 0
+> V: -0.2
+> EN: If we forgo the choice, how will
+> the thirty billion be allocated?
+> EN: I'll be in tomorrow morning; I have
+> all the necessary tools ready.
+> Labels:
+> M: 1
+> T: 0.4
+> A: 0.8
+> V: 1
+> EN: Where on earth did you get
+> so many fish?
+> Labels:
+> M: 1
+> T: 0.4
+> A: 1
+> V: 1
+> EN: What do you all think of this
+> place?
+> Labels:
+> M: 0.2
+> T: 0.6
+> A: 0.8
+> V: 0
+> Labels:
+> M: 1
+> T: 0.4
+> A: 0.4
+> V: 1
+> EN: How could I possibly miss such a
+> crucial moment?
+> EN: If there are no objections, let us
+> begin immediately.
+> Labels:
+> M: -0.8
+> T: 0
+> A: -0.2
+> V: -1
+> EN: Do you still recall what significance
+> today holds?
+> Labels:
+> M: 0
+> T: 0.6
+> A: 0
+> V: 0
+> CH: 我们想找你聊聊。 CH: 如果放弃选择，那这三百亿怎么处置？ CH: 明天早上我来上班，工具我那儿都齐。 CH: 如果没有不同意的，我们现在就开始啊。
+> CH: 你哪来那么多鱼呀？ CH: 大家觉得我这地方怎么样啊？ CH: 这么重要的时候，我怎么能不来啊。 CH: 还记得今天是什么日子吗？
+> CH: 这典型一好孩子。 CH: 所有的证据证人全是对的。 CH: 你不是很上镜。 CH: 找不到了吧？
+> CH: 我把标枪扎裁判身上了，然后
+> 就被终身禁赛了
+> CH: 能让我在厌倦你的时候多去回
+> 想你的好。
+> CH: 都笑傲江湖了，怎么还这么没种啊？
+> CH: 我回去救他！
+
+Fig. 2. Representative samples of benign and severe conflict cases under our heuristic conflict taxonomy. A, V , T , and M denote the ground-truth labels from unimodal (Acoustic, Visual, Textual) and multimodal annotations, respectively. Labels highlighted in red indicate polarity inversion relative to the multimodal annotation M , reflecting the presence of severe modality conflict. 
+
+In parallel, Reinforcement Learning (RL) has provided a principled framework for adaptive and discrete decision-making across various research fields, enabling models to dynamically select computation paths or input modalities [24], [25]. Recent studies have further applied RL to modality selection and reasoning under uncertainty, demonstrating its effectiveness in handling varying signal reliability [26], [27]. However, these approaches have rarely been explored in MER from the perspective of affective semantics across modalities. Existing methods usually improve fusion quality, but they do not explicitly distinguish between conflicts that can be mitigated through cross-modal calibration and those that require avoiding harmful fusion. As a result, they lack a unified mechanism for deciding when to fuse and when to rely on more reliable unimodal pathways [28], [29]. To address this gap, we explicitly model modality conflict as an inherent challenge in MER and propose a unified framework for conflict-aware resolution. III. M ETHODOLOGY 
+
+As illustrated in Figure 3, the DCR framework orchestrates two specialized pathways to resolve modality conflicts based on their resolvability. Our methodology proceeds in four stages. We begin by defining benign and severe conflicts in Section III-A, thereby establishing the conceptual basis of the proposed framework. Section III-B then presents the Affective Fusion Distiller (AFD) for fine-grained knowledge transfer and soft calibration, while Section III-C introduces the Affective Discernment Agent (ADA) for decision-level hard arbitration. Section III-D concludes the methodology by detailing their synergistic integration, through which the model transitions from soft calibration to hard arbitration for robust affective inference. 
+
+A. Benign and Severe Conflicts 
+
+To ground our framework conceptually, we categorize modality conflicts into benign and severe according to their resolvability. Let x = {xT , x A, x V } denote the multimodal input, where T , A, and V correspond to textual, acoustic, and visual modalities, respectively. We consider an ideal Oracle MER model F∗ that represents the upper bound of multimodal reasoning, and denote the ground-truth affective target as y.The severity of a modality conflict is defined by whether cross-modal disagreement causes the Oracle prediction to deviate from y beyond an acceptable tolerance: 
+
+ˆy∗
+
+M = F∗(xT , x A, x V ), s∗ = ℓ(ˆ y∗
+
+M , y ), (1) where ℓ(·, ·) is a task-specific discrepancy function, such as misclassification error for discrete labels or absolute error for continuous affective scores, and τ denotes a task-dependent tolerance threshold. A conflict is regarded as benign if s∗ ≤ τ , indicating that the disagreement remains reconcilable through complementary cues. In contrast, it is regarded as severe if s∗ > τ , suggesting 4Q
+
+Video 
+
+Text 
+
+Audio   
+
+> I’m desperate
+> for love!
+> Video
+> Encoder
+> Text
+> Encoder
+> Audio
+> Encoder
+> Sample 1
+> A: V:
+
+😐  
+
+> T: M:
+
+😐    
+
+> Sample N
+> A: V:
+> T: M:
+
+😭 😭 
+
+😭 
+
+😩 
+
+😀 
+
+😩 
+
+> ……
+> Strategic Inference
+> Dual -View State
+> Affective Feature:
+> General Feature:
+> Path Ⅱ ：Affective Discernment Agent
+
+Cross -
+
+Attention K&V 
+
+Self -
+
+Attention 
+
+Policy Head 
+
+Value Head           
+
+> Agent
+> VATM
+> 𝛿
+> Frozen
+> Fine -tuning
+> Rewards
+> Flow
+> Features
+> Feature
+> Flow
+> Action
+> Space
+> 𝐒 "!
+> 𝐒 ""
+> 𝐒 "#𝐇 $
+> 𝐇 !
+> "𝐇 #
+> "𝐇 $
+> "
+> 𝐇 !
+> %𝐇 #
+> %𝐇 "
+> %
+> 𝑟 −𝑣
+> Real
+> Emotion
+> Knowledge
+> Distillation
+> Path Ⅰ ：Affective Fusion Distiller
+
+Multimodal 
+
+Fusion Encoder 
+
+Text 
+
+Student 
+
+Video 
+
+Teacher 
+
+Audio 
+
+Teacher       
+
+> Temporal Affective Score
+> 𝑣
+> 𝐗 %!
+> 𝐗 %"
+> 𝐗 %!&𝐗 %"
+> 𝐗 %#
+> Fig. 3. The DCR framework consists of two specialized paths: (1) Path I (AFD), which reconciles modality conflicts via reverse knowledge distillation from frozen unimodal teachers to a text student for fusion-based prediction; and (2) Path II (ADA), which handles irreconcilable conflicts by employing a contextual bandit agent. Based on a dual-view state representation, the agent learns to select the most reliable modality or fusion result ( a∈ A ) and receives a reinforcement reward δby checking against the optimal outcomes from Path I.
+
+that the modality discrepancy is difficult to resolve through fusion (e.g., sarcasm where textual and nonverbal signals conflict). Since such an Oracle is unavailable in practice, we adopt a heuristic approximation to make the taxonomy empirically operational. Rather than estimating the true causal effect of each modality, we use observable annotation patterns as a proxy for conflict severity. Specifically, we assess the consis-tency between unimodal polarities and the final multimodal judgment. A sample is considered severe if any unimodal polarity contradicts the multimodal polarity, and benign other-wise. Although this approximation is not a universal definition, it remains consistent with the conceptual definition above and provides a simple, reproducible way to construct conflict subsets for empirical analysis, as illustrated in Figure 2 and Figure 1. 
+
+B. Path I: Affective Fusion Distiller 
+
+To handle benign conflicts defined above, we introduce the Affective Fusion Distiller (AFD), which leverages the rich temporal dynamics of non-verbal signals to calibrate and refine multimodal representations. Specifically, AFD targets benign conflicts by leveraging the rich temporal dynamics of non-verbal signals. By distilling these auxiliary cues, the module contextualizes static linguistic content into a nuanced emotional context, thereby fostering cross-modal synergy. 
+
+Reverse Affective Distillation. Starting with aligned multi-modal features ˜Xm ∈ RL×d for each modality m ∈ { V, A, T },where L and d denote the sequence length and feature dimen-sionality respectively, projected from pre-trained backbones via standard 1D temporal convolutions, we introduce a Reverse Affective Distillation strategy to address the manifold collapse triggered by cross-modal distribution discrepancies. Unlike conventional benchmark-driven methods [5], [6], we prioritize non-verbal modalities (Audio and Visual) as affective teachers due to their superior emotional granularity. In this framework, the text modality is reframed as a student (see Figure 3), supervised to inherit the rich temporal dynamics typically latent in static linguistic representations. Specifically, for each non-verbal modality n ∈ {A, V },AFD first derives raw class activation maps In ∈ RL×C via Grad-CAM [30] to quantify the contribution of each time step to the emotion categories, where L and C denote the sequence length and the number of emotion classes, respectively. By mapping these gradient-based importance scores, the model can pinpoint the pivotal moments that define specific emotions. Consequently, the localized prediction distribution Pn,l,c for category c at time step l is formulated as: 
+
+Pn,l,c = exp( In,l,c )
+
+PCk=1 exp( In,l,k ) . (2) However, Pn only captures relative scores within each time step and treats all segments equally, lacking an explicit mea-sure of temporal saliency. To refine the supervisory signal, we introduce Temporal Confidence Weighting, which derives a saliency weight wn by normalizing the activation trajectory of the ground-truth label y across the temporal dimension. For the t-th time step, the weight wnt is calculated as: 
+
+wnt = exp( In,t,y )
+
+PLj=1 exp( In,j,y ) . (3) Once high-confidence temporal cues are obtained from the teacher modalities, the textual student projects its features ˜XT5
+
+into the affective classification space to generate the prediction distribution Pt 
+
+> S
+
+. To bridge the cross-modal semantic gap, AFD transfers affective knowledge from both acoustic and visual teachers to the textual student through confidence-weighted distillation. The distillation objective is formulated as: 
+
+LKL = X 
+
+> n∈{ A,V }
+> L
+
+X
+
+> t=1
+
+wnt · D KL 
+
+ Ptn∥Pt
+
+> S
+
+, (4) where DKL (·∥· ) denotes the Kullback-Leibler divergence, and 
+
+wnt is the temporal confidence weight derived from teacher modality n. This objective encourages the textual student to absorb reliable affective cues from non-verbal modalities while accounting for cross-modal discrepancies. Through this process, the model learns not only what emotion is expressed but also when it is expressed, enabling a more fine-grained understanding of temporal emotional dynamics. 
+
+Multi-Tier Synergistic Objective in Path I. To foster cross-modal synergy and ensure unimodal reliability, we optimize a comprehensive multi-tier joint objective. Specifically, a cross-attention mechanism is employed to dynamically align and aggregate modality-specific features into a unified fused rep-resentation. From this integrated feature space, the model gen-erates a multimodal prediction, supervised by the multimodal classification loss LM . Meanwhile, to prevent over-reliance on a single modality and maintain independent discriminative power, we apply unimodal supervision to the textual, acoustic, and visual branches, where the corresponding unimodal clas-sification loss is denoted as LU . Both LM and LU are imple-mented using cross-entropy loss. Together with the confidence-weighted distillation loss LKL , the final training objective is formulated as: 
+
+LAF D = LM + γLU + λLKL , (5) where γ and λ are balancing coefficients for unimodal super-vision and distillation regularization, respectively. 
+
+C. Path II: Affective Discernment Agent 
+
+To address severe conflicts, where cross-modal discrepan-cies are strong enough to overturn the correct affective judg-ment, we introduce the Affective Discernment Agent (ADA) as a decision-level arbitration module. We reformulate the selection of the optimal inference path as a Contextual Multi-Armed Bandit (CMAB) problem [31]. In this framework, ADA serves as a decision-level arbiter (Path II), dynami-cally adjudicating between “synergistic fusion” and “unimodal selection” based on the joint multimodal context, thereby identifying the most reliable affective path. By strategically filtering out misleading signals from conflicting modalities, ADA ensures robust inference even in complex conversational contexts. 
+
+State Construction and Augmentation. As illustrated in Figure 3, we construct a Dual-view state space 2 to provide a 
+
+> 2An empirical observation supporting this design is discussed in Sec-tion IV-E, and its effectiveness is verified in Table VIII.
+
+reliable context for ADA. For each modality m, the state in-tegrates two complementary components: subjective affective features (Ham) and objective general features (Hgm). While 
+
+Ham captures specific emotional cues from the current task, 
+
+Hgm offers a stable background derived from large-scale pre-training. This design helps ADA balance specialized emotional signals with a broader context, ensuring a more generalizable basis for its decisions. To further improve the model’s robustness under cross-modal conflicts, we introduce a modality-level data aug-mentation strategy before feeding the state into the agent. Specifically, we apply stochastic modality dropout to each training sample, with probabilities p1 and p2 to mask one or two modalities, respectively. Additionally, Gaussian noise with standard deviation σ is injected into the feature representations to simulate environmental uncertainty. This scheme encour-ages the agent to learn robust decision policies even when confronted with incomplete or misleading signals, enhancing its performance across diverse conversational scenes. 
+
+Cognitive Calibration and Discrete Decision. To rectify potential empirical biases, ADA anchors subjective affec-tive insights against the objective context through Cognitive Calibration. This mechanism leverages the broad semantic knowledge embedded in general-purpose features to provide a stable reference for the task-specific emotional representations. Specifically, we employ a cross-attention mechanism where subjective affective features Ham act as the Query ( Qm) to retrieve and integrate supporting evidence from the objective counterparts Hgm, which serve as the Key ( Km) and Value (Vm): 
+
+˜Sm = Softmax 
+
+ QmK⊤
+
+> m
+
+√dk
+
+
+
+Vm, (6) where d denotes the projection dimension and ˜Sm ∈ Rd
+
+represents the bias-rectified state for each modality m. To maintain modality-specific identity during the fusion process, these rectified states are concatenated with modality identity embeddings before being processed by a Transformer Encoder. This encoder captures the complex inter-modal dependencies and generates a unified global context representation HM .Finally, a policy head πθ , typically implemented as a multi-layer perceptron (MLP) with a Softmax activation, maps this global context to a probability distribution over the discrete action space A = {aM , a T , a A, a V }, encompassing both the integrated multimodal path and independent unimodal branches: 
+
+πθ (a|HM ) = Softmax (MLP policy (HM )) . (7) This enables ADA to function as a dynamic routing agent: based on the joint multimodal context, it can either exploit syn-ergistic gains via the integrated path aM or activate a specific unimodal path when certain modalities become unreliable (see Figure 3). By making path selection from a holistic multimodal view, ADA strategically filters out misleading signals from conflicting modalities and ensures more credible and robust affective inference. 6
+
+Policy-Driven Arbitration Optimization in Path II. To optimize path selection while reducing gradient variance, we employ the Advantage Actor-Critic (A2C) framework [32]. Firstly, we define a Calibration-Aware Reward r to evaluate the immediate action of the policy network. This reward is scaled by the agent’s confidence in its decision: a correct prediction yields a positive reward amplified by high confidence, whereas an incorrect choice incurs a penalty that increases with the de-gree of overconfidence. This initial weighting scheme compels ADA to prioritize inference paths that are not only accurate but also consistently trustworthy: 
+
+r = I(ˆy = y) · p[y]
+
+| {z }
+
+> Positive Incentive
+
+− I(ˆy̸ = y) · p[ˆy]
+
+| {z }
+
+> Negative Penalty
+
+, (8) where y and ˆy denote the ground-truth label and the predicted emotion category of the selected path, respectively. I(·) is the indicator function, and p represents the prediction distribution, which softens the binary correctness signal into a confidence-aware reward for more informative policy learning. As illustrated in Figure 3, we compute the advantage signal 
+
+δ = r − v, where v denotes the state value estimated by the critic as a baseline for the current state. This follows the A2C paradigm, in which the actor (policy head) learns the optimal path selection while the critic (value head) evaluates the expected return of the state. By subtracting this baseline from the reward, the advantage signal δ reduces gradient variance and stabilizes the policy update. Consequently, the optimization objective for ADA is formulated as: 
+
+LADA = Lpg + αLval − βH(πθ ), (9) where Lpg = Ea∼πθ [− log πθ (a|HM )δ] denotes the pol-icy gradient loss, encouraging actions with positive advan-tages to refine modality discernment strategies; Lval =
+
+E[δ2] represents the value loss which constrains the value head to provide stable baseline estimates; and H(πθ ) =
+
+Ea∼πθ [− log πθ (a|HM )] denotes the policy entropy regular-izer conditioned on HM to maintain sufficient exploration across the heterogeneous modality space. The hyperparameters 
+
+α and β serve as trade-off coefficients to balance these optimization objectives. This objective compels ADA to identify the optimal affec-tive inference path by maximizing predictive reliability. 
+
+D. Synergistic Dual-Path Framework 
+
+The DCR framework addresses diverse multimodal conflicts by synergizing soft calibration with hard selection. We im-plement a hierarchical and complementary Sequential Depen-dency paradigm, where both pathways leverage their mutual strengths to resolve discrepancies across different granularity levels. This multi-stage architecture ensures that the model can adaptively handle a wide spectrum of conflicts, ranging from subtle feature noise to severe modality contradictions. 
+
+Path I: Feature-Level Calibration (AFD). The synergy begins with AFD, which addresses benign conflicts through feature-level soft calibration. Instead of simple feature align-ment, AFD distills the temporal emotional changes from non-verbal modalities into the textual space. This process enhances the fine-grained perception of both unimodal and multimodal features, resolving minor discrepancies and stabilizing the representations. Consequently, AFD outputs four refined pre-dictions including one multimodal and three unimodal results to serve as reliable candidates for the next stage. 
+
+Path II: Decision-Level Arbitration (ADA). Based on the calibrated modality representations and predictions, ADA then resolves severe conflicts through decision-level hard arbitra-tion. When modalities contradict each other (e.g., irony), ADA evaluates the joint multimodal context and cross-modal semantic consistency to determine which pathway provides more reliable affective evidence. It selects from four candidate channels: the multimodal fusion path or one of the three unimodal paths. This path-level arbitration allows the model to reduce the influence of misleading modalities and route inference through more credible affective cues, ensuring robust emotion recognition in complex scenarios. In summary, by combining representation-level refinement with decision-level selection, the joint optimization objective for the DCR framework is formulated as: 
+
+ˆΘAgent = arg min 
+
+> ΘAgent
+
+LADA 
+
+
+
+πθ , A( ˆΘAF D )
+
+
+
+s.t. ˆΘAF D = arg min 
+
+> ΘAF D
+
+LAF D , (10) where the optimal policy ˆΘAgent is learned over the fixed action space A spanned by the optimized experts ˆΘAF D .This staggered optimization ensures that the agent learns a robust decision policy over a group of well-calibrated experts. By sequentially aligning features and then arbitrating conflicts, the framework achieves stable and credible multimodal infer-ence on emotion. IV. E XPERIMENTS 
+
+A. Datasets 
+
+We evaluate DCR on five widely used MER benchmarks, including three dialogue-level datasets (MELD, IEMOCAP, and CMU-MOSEI) and two clip-level datasets (CH-SIMS and CH-SIMS v2). MELD [33], derived from the TV series 
+
+Friends , is a multi-party conversational emotion recognition dataset containing 13,708 utterances annotated with seven emotion categories. We follow its official split of 9,989 train-ing samples, 1,109 validation samples, and 2,610 test samples. 
+
+IEMOCAP [34] is a multimodal dataset consisting of dyadic conversations between ten professional actors. It contains 151 dialogues with 7,433 utterances annotated with six emotion categories, including Neutral, Happy, Sad, Angry, Frustrated, and Excited. Specifically, the dataset includes 5,163 utterances for training, 647 utterances for validation, and 1,623 utterances for testing. CMU-MOSEI [35] contains 22,856 YouTube video clips annotated with sentiment intensity scores ranging from -3 to +3, covering seven levels from highly negative to highly positive. Following the standard evaluation protocol, we use 16,326 samples for training, 1,871 for validation, and 4,659 for testing. CH-SIMS [9] is a Chinese multimodal benchmark with 2,281 video clips, each annotated with multi-modal labels, unimodal labels, and sentiment intensity scores 7
+
+in the range of -1 to +1. CH-SIMS v2 [36] extends CH-SIMS by including 4,403 labeled clips and 10,161 unlabeled clips; in our experiments, we use only the labeled portion. Detailed statistics and evaluation metrics of all datasets are summarized in Table I.                         
+
+> TABLE I STATISTICS AND EVALUATION METRICS OF THE DATASETS .
+> Dataset Train Valid Test Evaluation Metrics
+> MELD 9,989 1,109 2,610 Acc-7, WF1 IEMOCAP 5,163 647 1,623 Acc-6, WF1 CMU-MOSEI 16,326 1,871 4,659 F1, Acc-7, MAE, Corr CH-SIMS 1,368 456 457 Acc-2, MAE CH-SIMS V2 2,645 879 879 Acc-2, MAE
+
+B. Baselines 
+
+We compare DCR with representative MER baselines span-ning several mainstream paradigms: Recurrent-based methods (e.g., DialogueCRN [37], DialogueRNN [38], and SACL-LSTM [39]), which emphasize contextual temporal model-ing in conversational emotion recognition; Transformer-based methods (e.g., MulT [18], Self-MM [40], UniMSE [41], FacialMMT [8], SDT [6], TelME [5] and RMER-DT [42]), which leverage attention mechanisms to model multimodal interactions. Graph-based methods (e.g., MMGCN [43], GraphCFC [44], and ECERC [45]) capture relational de-pendencies among speakers or across modalities using graph structures. Additionally, we include competitive mod-els tailored to specific benchmarks: for CH-SIMS, we con-sider LMF [46], HFR-AME [47] and DashFusion [48]; for MELD, we include BC-LSTM [49], Joyful [50], Di-alogueGCN [51] and DQ-Former [52]; for CMU-MOSEI, we evaluate ConKI [53], CLGSI [54], KEBR [55], MAG-BERT [56], and MFON [57]. We further include controlled baselines under the same backbone setting as DCR, including simple concatenation-based fusion and vanilla cross-attention fusion. The corre-sponding results are reported together with the ablation com-parisons in Table VII. 
+
+C. Implementation Details 
+
+Evaluation Metrics. We follow the standard evaluation pro-tocols for each benchmark. For MELD, we report seven-class accuracy (Acc-7) and Weighted F1 score (WF1), and additionally provide per-class accuracy for fine-grained anal-ysis. For IEMOCAP, we report six-class accuracy (Acc-6) and Weighted F1 score (WF1) following common practice in conversational emotion recognition. For CMU-MOSEI, we report F1 score, Acc-7, Pearson correlation (Corr), and Mean Absolute Error (MAE). Following prior work, the F1 score on CMU-MOSEI is presented in two forms using the “-/-” split marker, where the first value corresponds to negative versus non-negative classification and the second to negative versus positive classification. For CH-SIMS and CH-SIMS v2, we report binary accuracy (Acc-2) and Mean Absolute Error (MAE). Detailed dataset statistics and the corresponding evaluation metrics are summarized in Table I. Among these metrics, lower values indicate better performance for MAE, while higher values are preferred for all the others. 
+
+Experimental Setup. All models are implemented in PyTorch and trained on a single NVIDIA RTX 4090 GPU with 24GB memory. To reduce the effect of stochastic initialization, we conduct experiments with three to five random seeds selected from {41, 42, 43, 44, 45 }, and report the averaged results. For feature extraction, we adopt RoBERTa-large as the linguistic encoder, Whisper-large-v3 as the acoustic encoder, and CLIP-ViT-B/16 as the visual encoder. Instead of using pooled global representations, we extract sequential features from all pre-trained backbones to preserve fine-grained temporal dynamics. For dialogue-level datasets, i.e., MELD, IEMOCAP and CMU-MOSEI, the entire conversation is fed into the tex-tual encoder to capture contextual dependencies, followed by utterance-level emotion inference. In contrast, for clip-level 
+
+datasets, i.e., CH-SIMS and CH-SIMS v2, the transcript of each clip is processed independently. For modality-level data augmentation in ADA, we set the dropout probabilities to 
+
+p1 = 0 .2 and p2 = 0 .05 for masking one and two modalities, respectively, and use Gaussian noise with σ = 0 .01 . Unless otherwise specified, all models are trained using the Adam optimizer with a learning rate of 1 × 10 −4 and a batch size of 32. 
+
+D. Comparison with the State of the Art 
+
+To comprehensively evaluate the effectiveness of DCR, we compare it with representative MER baselines on both dialogue-level and clip-level benchmarks, including MELD, IEMOCAP, CMU-MOSEI, CH-SIMS, and CH-SIMS v2. The quantitative comparisons are summarized in Tables II–V. Overall, DCR demonstrates strong and consistent performance across datasets with different annotation granularities, label spaces, and evaluation protocols. On the dialogue-level MELD benchmark, DCR achieves the best overall performance, reaching 69.81% in Acc-7 and 68.84% in WF1, as shown in Table II. Compared with strong recent baselines such as SDT [6], TelME [5], ECERC [45], EmoVerse [59], and RMER-DT [42], DCR establishes a new state of the art in both overall metrics. In particular, DCR improves WF1 by 1.47 points over TelME [5] and by 1.82 points over RMER-DT [42], indicating that the proposed framework is effective in handling complex conversational emotions under multi-party settings. At the class level, DCR also achieves the best accuracy on several major categories, including neutral and surprise , with 85.43 and 66.19, respec-tively. These gains suggest that DCR is particularly effective in capturing dominant conversational affect while maintaining robust discrimination under emotionally ambiguous dialogue contexts. On the IEMOCAP benchmark, DCR also achieves strong performance, as reported in Table III. Specifically, DCR ob-tains 69.85% in Acc-6 and 69.50% in WF1, outperforming all compared baselines on both metrics. Compared with the strongest baseline SACL-LSTM [39], DCR improves Acc-6 by 0.77 points and WF1 by 0.28 points. It also surpasses 8      
+
+> TABLE II COMPARISON ON THE MELD DIALOGUE -LEVEL MER BENCHMARK .BOLD INDICATES THE BEST RESULT .
+
+Methods Neutral Surprise Fear Sadness Joy Disgust Anger Acc-7 WF1 
+
+Recurrent-based 
+
+DialogueRNN [38] 82.17 46.62 - 21.15 49.50 - 48.41 60.27 57.95 BC-LSTM [49] - - - - - - - 65.87 64.87 EmoCaps [58] 77.12 63.19 3.03 42.52 57.50 7.69 57.54 - 64.00 DialogueCRN [37] 79.72 57.62 18.26 39.30 64.56 32.07 52.53 66.93 65.77 SACL-LSTM [39] 80.17 58.77 26.23 41.34 64.98 31.47 52.35 67.51 66.45 
+
+Graph-based 
+
+DialogueGCN [51] - - - - - - - 63.62 62.68 MMGCN [43] 84.32 47.33 2.00 14.90 56.97 1.47 42.61 61.34 58.41 GraphCFC [44] 76.98 49.36 - 26.89 51.88 47.59 - 61.42 58.86 Joyful [50] 76.80 51.91 - 41.78 56.89 - 50.71 62.53 61.77 ECERC [45] 79.80 58.98 26.12 40.95 64.95 31.43 53.89 66.46 67.32 
+
+Transformer-based 
+
+UniMSE [41] - - - - - - - 65.09 65.51 FacialMMT [8] 80.13 59.63 19.18 41.99 64.88 18.18 56.00 - 66.58 SDT [6] 83.22 61.28 13.80 34.90 63.24 22.65 56.93 67.55 66.60 DQ-Former [52] 80.05 60.71 19.51 38.15 61.72 22.22 54.60 65.77 66.97 RMER-DT [42] 81.55 63.70 25.15 52.65 73.25 25.95 57.85 - 67.02 TelME [5] 80.22 60.33 26.97 43.45 65.67 26.42 56.70 - 67.37 
+
+DCR (ours) 85.43 66.19 14.00 42.31 64.18 25.00 55.94 69.81 68.84     
+
+> TABLE III COMPARISON ON THE IEMOCAP BENCHMARK .BOLD INDICATES THE BEST RESULT .
+
+Methods Acc-6 WF1 DialogueRNN [38] 64.85 64.65 MMGCN [43] 65.80 65.73 DialogueCRN [37] 67.39 67.54 GraphCFC [44] 69.13 68.91 SACL-LSTM [39] 69.08 69.22 
+
+DCR (ours) 69.85 69.50     
+
+> TABLE IV COMPARISON ON THE CMU-MOSEI BENCHMARK .BOLD INDICATES THE BEST RESULT .
+
+Methods F1 Acc-7 Corr MAE (↓)
+
+MulT [18] 81.05/83.46 52.34 0.600 0.671 MAG-BERT [56] 82.77/84.71 52.67 0.755 0.543 Self-MM [40] 82.95/84.93 53.46 0.767 0.529 ConKI [53] 83.08/86.15 54.25 0.752 0.529 CLGSI [54] 84.21/86.18 54.56 0.763 0.532 KEBR [55] 84.25/86.68 54.37 0.799 0.517 MFON [57] 83.13/86.29 53.72 0.780 0.528 
+
+DCR (ours) 84.62 /87.19 54.26 0.807 0.510 
+
+GraphCFC [44] by 0.72 points in Acc-6 and 0.59 points in WF1. These results indicate that DCR remains effective in dyadic conversational emotion recognition and generalizes well to different dialogue-level MER settings. On the CMU-MOSEI benchmark, Table IV shows that DCR achieves the best F1 score, the highest correlation, and the lowest MAE among all compared methods. Specifically, DCR reaches 84.62/87.19 in F1, 0.807 in Corr, and 0.510    
+
+> TABLE V PERFORMANCE COMPARISON ON THE CHINESE CLIP -LEVEL MER
+> BENCHMARKS . T HE BEST RESULTS ARE HIGHLIGHTED IN BOLD .
+
+Methods CH-SIMS CH-SIMS v2 Acc-2 MAE (↓) Acc-2 MAE (↓)
+
+LMF [46] 77.77 0.441 74.18 0.367 MulT [18] 78.56 0.432 80.68 0.291 Self-MM [40] 80.04 0.425 79.69 0.311 DashFusion [48] 79.21 0.416 - -HFR-AME [47] 80.50 0.412 - -
+
+DCR (ours) 80.96 0.332 81.91 0.290 
+
+in MAE, surpassing strong baselines such as KEBR [55], MFON [57], and CLGSI [54] on most metrics. Although its Acc-7 is slightly below the best reported value, DCR remains highly competitive on this metric while showing clear advantages on the regression-oriented criteria. This result is particularly meaningful for CMU-MOSEI, where sentiment prediction requires not only correct polarity classification but also accurate estimation of sentiment intensity. The consistent gains in Corr and MAE indicate that DCR can better preserve fine-grained affective information and produce more reliable continuous sentiment predictions. On the clip-level Chinese benchmarks CH-SIMS and CH-SIMS v2, DCR consistently achieves the best results on all reported metrics, as summarized in Table V. On CH-SIMS, DCR obtains 80.96% in Acc-2 and 0.332 in MAE, outperforming the strongest baseline HFR-AME [47] by 0.46 points in Acc-2 and reducing MAE by a substantial margin of 0.080. On CH-SIMS v2, DCR further reaches 81.91% Acc-2 and 0.290 MAE, exceeding MulT [18] and Self-MM [40] on both metrics. These results demonstrate that DCR generalizes effectively to clip-level affective prediction in Chinese videos 9       
+
+> TABLE VI ABLATION STUDY OF THE DUAL -P ATH COMPONENTS IN DCR ON MELD
+> AND CMU-MOSEI. BOLD INDICATES THE BEST RESULT .
+
+AFD ADA MELD CMU-MOSEI Acc-7 WF1 Acc-7 MAE (↓)
+
+✓ ✓ 69.81 68.84 54.26 0.510 
+
+✓ 68.93 68.12 52.13 0.547 
+
+✓ 69.00 68.29 53.18 0.518 68.73 67.26 51.48 0.555 
+
+and remains robust under different data scales and annotation settings. Taken together, the above results show that DCR yields consistently strong performance across both dialogue-level and clip-level MER benchmarks. The improvements on MELD and IEMOCAP highlight its effectiveness in conversational emo-tion recognition, the gains on CMU-MOSEI demonstrate its strength in fine-grained sentiment regression, and the results on CH-SIMS and CH-SIMS v2 verify its robustness in clip-level multimodal affective analysis. This overall pattern suggests that the proposed Dual-Path framework provides a broadly effective solution for multimodal emotion recognition under diverse evaluation scenarios. 
+
+E. Ablation Study 
+
+To evaluate the contribution of each key component within the DCR framework, we conduct systematic ablation experi-ments by comparing the full model against several variants. The quantitative results are summarized in Tables VI-VIII. 
+
+Effectiveness of Dual-Path Architecture. To rigorously val-idate the contribution of each component, we compare the full DCR framework with its single-path variants and avanilla cross-attention fusion baseline. As shown in Table VI, the baseline without both AFD and ADA corresponds to a standard cross-attention-based multimodal fusion model, which performs prediction without either soft calibration or hard arbitration. Both the AFD-only and ADA-only variants consistently outperform this baseline, indicating that each path independently contributes to mitigating modality con-flicts. Specifically, the AFD-only variant improves WF1 on MELD from 67.26% to 68.12%, demonstrating the benefit of representation-level soft calibration. Meanwhile, the ADA-only variant further raises WF1 to 68.29%, highlighting the advantage of decision-level path selection in identifying more reliable affective cues. Notably, the full DCR framework achieves the best performance among all variants. This result suggests that AFD and ADA are not merely additive, but complementary: AFD refines the feature space by alleviating benign conflicts, while ADA provides flexible decision-level arbitration for severe conflicts. Their combination enables DCR to handle modality conflicts more effectively across different scenarios. 
+
+Modality Analysis and the Impact of AFD. We further analyze the contribution of each modality to evaluate the distillation strategy in AFD. As shown in Table VII, the        
+
+> TABLE VII PERFORMANCE COMPARISON OF UNIMODAL EXPERTS AND FUSION BASELINES ON MELD AND CMU-MOSEI. “C ONCAT ”AND
+> “C ROSS -A TTENTION ”DENOTE FEATURE -LEVEL CONCATENATION AND VANILLA CROSS -MODAL ATTENTION FUSION BASELINES ,RESPECTIVELY .
+> BOLD INDICATES THE BEST RESULT .
+
+Model MELD CMU-MOSEI Acc-7 WF1 Acc-7 MAE (↓)
+
+Text-Only 68.71 67.00 51.89 0.567 Audio-Only 57.93 53.64 48.67 0.594 Video-Only 48.14 40.33 40.47 0.802 Concat 66.01 64.45 50.01 0.581 Cross-Attention 68.73 67.26 51.48 0.555 
+
+AFD 68.93 68.12 52.13 0.547               
+
+> TABLE VIII ABLATION STUDY OF ADA COMPONENTS ON MELD AND CMU-MOSEI. GEN ., E MO ., C ALIB ., AND AUG .DENOTE GENERAL , E MOTION ,CALIBRATION -A WARE ,AND DATA AUGMENTATION ,RESPECTIVELY .
+> BOLD INDICATES THE BEST RESULT .
+
+Variant MELD MOSEI Acc-7 WF1 Acc-7 MAE ( ↓)
+
+Full DCR 69.81 68.84 54.26 0.510 
+
+w/o Gen. Feat. 68.58 67.76 52.9 0.533 w/o Emo. Feat. 68.74 66.11 53.1 0.556 w/o Calib. Reward 69.27 68.35 53.72 0.529 w/o Value Head 69.62 68.70 54.02 0.515 w/o Aug. 69.27 68.44 53.91 0.521 
+
+textual modality is the strongest unimodal predictor, achieving 67.00% WF1 on MELD and outperforming the audio-only (53.64%) and video-only (40.33%) variants. A similar trend is observed on CMU-MOSEI, where the text-only model also yields the best unimodal performance. However, conventional fusion does not necessarily improve over the dominant textual modality. Concat reduces performance to 64.45% WF1 on MELD and 0.581 MAE on CMU-MOSEI. We further include a vanilla cross-attention fusion baseline as a stronger con-trolled comparison. Although it performs better than Concat ,it still remains inferior to AFD. In contrast, AFD achieves the best results on both datasets, reaching 68.12% WF1 on MELD and 0.547 MAE on CMU-MOSEI. These results show that AFD can better exploit cross-modal information while preserving the reliability of the textual foundation. 
+
+Fine-Grained Analysis of ADA. We conduct a series of ablation experiments on MELD and CMU-MOSEI to evaluate how different internal components contribute to the policy-driven arbitration of ADA. As shown in Table VIII, the full DCR model achieves the best performance on both datasets, reaching 69.81% Acc-7 and 68.84% WF1 on MELD, and 54.26% Acc-7 and 0.510 MAE on CMU-MOSEI. The re-sults indicate that the dual-view state space, which integrates both subjective emotional features ( Ham) and objective gen-eral features ( Hgm), is a fundamental element for informed decision-making. Specifically, removing emotional features causes a clear performance drop on MELD, reducing WF1 10 MELD MOSEI CH-SIMS v1 CH-SIMS v2                     
+
+> 0
+> 20
+> 40
+> 60
+> 80
+> 100
+> Percentage (%)
+> 53
+> 67
+> 57 59
+> 31
+> 19 22 21
+> 87
+> 16 15
+> 8755
+> (a) Action Distribution across Dataset
+> Multimodal Text Audio Video
+> 020 40 60 70
+> Percentage (%)
+> M
+> T
+> A
+> V
+> 49 62
+> 19 25
+> 14 20
+> 46
+> (b) Action Distribution across Conflict
+> Benign Subset
+> Severe Subset
+> Fig. 4. Modality selection distribution of ADA across datasets and conflict types. (a) The stacked bars show the selection frequency of each action path on MELD, CMU-MOSEI, CH-SIMS, and CH-SIMS v2, where different colors correspond to multimodal, textual, acoustic, and visual paths. (b) The hori-zontal comparison shows how ADA changes its selection preference between benign and severe conflict subsets. M, T, A, and V denote multimodal, textual, acoustic, and visual paths, respectively.
+
+from 68.84% to 66.11%, and also degrades CMU-MOSEI from 0.510 to 0.556 in MAE. This suggests that specialized affective cues are critical for the agent to perceive nuanced emotional states. Removing general features also leads to con-sistent degradation on both datasets, indicating that objective pretrained representations provide useful contextual support for more stable arbitration. The reinforcement learning components further support the training process and policy stability. When the calibration-aware reward is removed, the performance drops to 68.35% WF1 on MELD and 0.529 MAE on CMU-MOSEI, showing that confidence-aware feedback helps the agent distinguish between reliable and misleading modality paths. Similarly, ex-cluding the value head reduces performance on both datasets, which points to the role of stable value estimation in pol-icy optimization. Furthermore, disabling data augmentation also leads to consistent degradation, with WF1 decreasing to 68.44% on MELD and MAE increasing to 0.521 on CMU-MOSEI. In our framework, this augmentation randomly masks modal information and injects perturbations to simulate incomplete or noisy inputs, encouraging the agent to learn a more flexible arbitration policy. Collectively, these results demonstrate that ADA functions as an adaptive arbitrator rather than a static selector, effectively suppressing misleading cues while preserving useful cross-modal gains. 
+
+F. Distribution of Modality Selection in ADA 
+
+To better understand the decision behavior of ADA, we analyze its modality selection distribution across different benchmarks and conflict scenarios. As shown in Figure 4, the multimodal pathway is selected most frequently overall, followed by the textual modality, while the audio and visual pathways are chosen less often. This distribution provides insight into how the agent prioritizes different inference paths under modality inconsistency. 
+
+Cross-dataset Analysis. As shown in Figure 4(a), the mul-timodal path remains the dominant choice across all four benchmarks, suggesting that ADA still prefers fusion when the modalities are sufficiently consistent. Meanwhile, the textual path is selected more frequently than the audio and visual ones, indicating that text often provides a more informative cue when cross-modal disagreement becomes harder to resolve. This trend is particularly evident on MELD, where the textual path is selected more often than on the other benchmarks, likely because richer dialogue context provides stronger se-mantic evidence for emotion inference. 
+
+Cross-conflict Type Analysis. We further examine ADA’s behavior under different conflict types, as shown in Fig-ure 4(b). For benign conflicts, the agent relies primarily on the multimodal pathway (62%), indicating that information inte-gration is still beneficial when modality disagreement remains reconcilable. In contrast, under severe conflicts, the selection frequency of the multimodal path decreases to 49%, while the reliance on unimodal paths increases, especially for the textual (25%) and audio (20%) branches. This shift indicates that ADA can adaptively reduce its dependence on fusion when modality contradictions become more pronounced, and instead route the prediction through more reliable unimodal cues.  
+
+> TABLE IX ACCURACY COMPARISON ON BENIGN AND SEVERE CONFLICT SUBSETS .
+> BOLD INDICATES THE BEST RESULT .
+
+Methods Benign Conflict Severe Conflict MMML [7] 59.2% 40.2% TelME [5] 61.8% 41.5% FacialMMT [8] 58.9% 44.1% 
+
+DCR (ours) 72.4% 50.3% 
+
+G. Performance on Conflict Subsets 
+
+We further evaluate DCR on conflict-specific subsets de-rived from CH-SIMS [9]. We use CH-SIMS here because its multimodal annotations allow us to construct conflict subsets following the heuristic definition in Section III-A. This re-sults in 308 benign-conflict samples and 149 severe-conflict samples for evaluation. As shown in Table IX, DCR achieves clear accuracy improvements on both subsets. Specifically, it reaches 72.4% accuracy on benign conflicts and 50.3% on severe conflicts, substantially outperforming representative baselines such as TelME, which attains 61.8% and 41.5%, re-spectively. Although the improvement is more pronounced on benign conflicts, DCR also maintains a consistent advantage on severe conflicts, where modality contradictions are stronger and conventional fusion is more prone to failure. These results indicate that DCR can effectively handle different degrees of modality conflict and remains robust under both reconcilable and irreconcilable disagreement scenarios. 
+
+H. Exploration of Expanded Action Space 
+
+In ADA, we primarily adopt an atomic action space, where the agent selects either a single modality or the full multimodal representation. To examine whether a finer-grained routing strategy could further improve performance, we additionally explore an expanded action space that includes pairwise 11 Atomic Expanded                                        
+
+> 0
+> 20
+> 40
+> 60
+> 80
+> 100
+> Accuracy (%)  69.8 68.8
+> Atomic Expanded
+> Atomic Expanded
+> 0
+> 20
+> 40
+> 60
+> 80
+> 100
+> WF1 (%)  68.8 68.0
+> Atomic Expanded
+> 020 40 60 80 100
+> Selection Distribution (%)
+> Atomic Expanded
+> 53
+> 55
+> 31
+> 7
+> 88
+> 26 10 2
+> MTAVAT VT AV
+> Atomic Expanded
+> 0
+> 20
+> 40
+> 60
+> 80
+> 100
+> Accuracy (%)
+> 54.3 54.2
+> Atomic Expanded
+> Atomic Expanded
+> 0.0
+> 0.2
+> 0.4
+> 0.6
+> 0.8
+> 1.0
+> MAE  0.5 0.5
+> Atomic Expanded
+> 020 40 60 80 100
+> Selection Distribution (%)
+> Atomic Expanded
+> 67
+> 54
+> 19
+> 15
+> 77
+> 24 42
+> MTAVAT VT AV
+> (a) Performance on MELD
+> (b) Action Distribution on MELD
+> (c) Performance on CMU-MOSEI
+> (d) Action Distribution on CMU-MOSEI
+
+Fig. 5. Comparison of atomic and expanded action spaces on MELD and CMU-MOSEI. (a) and (c) report the performance under the two action space designs, while (b) and (d) show the corresponding action selection distributions. Here, M, T, A, and V represent the original atomic actions, and AT, VT, and AV represent the additional pairwise actions in the expanded action space. 
+
+modality combinations, such as Text-Audio, Text-Video, and Audio-Video. The intuition is that these intermediate choices may help filter noise from specific modalities more flexibly. However, as shown in Figure 5, introducing such pairwise actions does not improve performance on either MELD or CMU-MOSEI. Instead, we observe a slight decline in the overall results, while the agent still overwhelmingly prefers the original atomic actions even when additional pairwise options are available. This result suggests that the original atomic action space already provides a sufficiently effective decision granularity for the current task. One possible reason is that expanding the action space increases the difficulty of policy learning, making optimization less stable under limited training data. In addition, the multimodal and unimodal experts in DCR already capture the major interaction patterns required for affective inference, so explicitly adding pairwise routes introduces lim-ited new information while increasing structural redundancy. As a result, the expanded action space brings extra complexity without yielding consistent performance gains. Therefore, we retain the original four-way atomic action space as the default design in ADA. 
+
+I. Additional Analysis on LLM-based Methods 
+
+To provide a broader perspective on the generalization ability of DCR, we further compare DCR with representative LLM-based methods, including EmoCaps [58], BiosERC [60], InstructERC [61], and DialogueMMT [62], on IEMOCAP and MELD. As reported in Table X, WF1 is used as the evaluation metric. Although DCR does not consistently outperform these LLM-based methods, it still achieves competitive results on both benchmarks. This performance gap is understandable, because dialogue-level emotion recognition relies heavily on contextual semantics, pragmatic cues, and implicit affective reasoning. LLM-based methods benefit from large-scale lan-
+
+TABLE X COMPARISON OF WF1 SCORES WITH LLM-BASED METHODS ON 
+
+IEMOCAP AND MELD. BOLD INDICATES THE BEST RESULT .
+
+Methods IEMOCAP MELD EmoCaps [58] 71.11 64.00 BiosERC [60] 69.02 68.72 InstructERC [61] 71.39 69.15 DialogueMMT [62] 72.71 70.66 
+
+DCR (ours) 69.50 68.84 
+
+guage pre-training and stronger textual understanding, which gives them an inherent advantage in modeling dialogue context and inferring emotions from complex linguistic expressions. By contrast, DCR is not designed to compete with LLM-based methods through model scale or textual reasoning ca-pacity. Instead, it focuses on a different and complementary problem: how to recognize and resolve modality conflicts when textual, acoustic, and visual cues provide inconsistent affective evidence. Therefore, the comparison does not weaken the motivation of conflict-aware modeling. Rather, it sug-gests that the proposed view of modality conflict remains meaningful, while stronger language backbones may further enhance the semantic understanding component of DCR. In this sense, DCR provides a lightweight and interpretable framework for conflict-aware multimodal emotion recognition, and its competitive performance indicates that explicit conflict resolution can bring useful gains even without relying on massive pretrained language models. Case 1: Benign Conflict     
+
+> Distillation
+> Soft Calibration (Path Ⅰ：AFD)
+> Case 2: Severe Conflict
+> Zhang Yang, Thank you.
+> Hard Arbitration (Path Ⅱ：ADA)
+> Temporal Step Sentiment Intensity
+> Video Audio Text TAV
+> Predictions: DCR ：Positive (0.9)
+> Our Baseline ：Positive (0.4)
+> Ground Truth ：Positive (1.0)
+> Dual-View State
+> Agent
+> Capability equals responsibility.
+> Predictions: DCR ：Negative (-0.7)
+> Our Baseline ：Positive (0.3)
+> Ground Truth ：Negative (-0.6)
+> Video Audio Text
+> VATMDecision Plot
+> 0.85 0.60 0.55 0.25
+
+Fig. 6. Illustration of DCR’s conflict resolution logic. Case 1 demonstrates AFD-based soft calibration for reconcilable discrepancies, while Case 2 showcases ADA-based hard arbitration for severe, misleading conflicts. 
+
+J. Case Study 
+
+To qualitatively validate the efficacy of DCR and provide a granular view of its decision-making logic, we analyze representative cases of modality conflicts (see Figure 6). This section demonstrates how our framework adaptively navigates varying conflict intensities through active discernment, thereby enhancing the overall reliability of emotion recognition. 12 
+
+The efficacy of DCR stems from the hierarchical synergy between AFD and ADA, enabling the model to transition from soft calibration to hard arbitration based on signal resolvability. In Case 1 ( “Capability equals responsibility.” ), the utterance presents a benign conflict where textual semantics alone lack sufficient resolution to capture the full sentiment intensity. AFD reconciles this discrepancy by distilling fine-grained temporal dynamics from non-verbal teachers into the textual student, yielding a high-confidence prediction (0.9) that aligns with the ground truth (1.0). Conversely, Case 2 ( “Zhang Yang, Thank you.” ) exemplifies a sarcastic severe conflict where linguistic cues are intrinsically misleading. ADA addresses this by “fact-checking” subjective features against objective context, effectively suppressing the deceptive textual stream in favor of more credible visual and acoustic pathways. This strategic selection yields an accurate negative prediction (-0.7). Ultimately, these findings suggest that DCR’s active discern-ment is indispensable for navigating the structural ambiguities and emotional complexities of human expression, promoting robust and credible inference across diverse scenarios. V. C ONCLUSION 
+
+In this paper, we challenge the long-standing convention of passive multimodal aggregation by introducing the Dual-Path Conflict Resolution (DCR) framework. We further show that modality conflicts in MER differ in their resolvabil-ity, and should be treated accordingly. Through extensive evaluations across five diverse benchmarks, we demonstrate that recasting multimodal emotion recognition as an adaptive decision-making task significantly enhances resilience against cross-modal contradictions. Our findings reveal that robust affective analysis requires a sophisticated interplay between harmonizing complementary nuances and adjudicating polar-ized discrepancies, which are respectively handled by the two paths in DCR. By shifting the focus from indiscriminate fusion to active and conflict-aware discernment, this work establishes a new paradigm for building affective computing systems capable of navigating the inherent structural ambiguities and emotional complexities of human expression. REFERENCES [1] Z. Liu, M. Wu, W. Cao, L. Chen, J. Xu, R. Zhang, M. Zhou, and J. Mao, “A facial expression emotion recognition based human-robot interaction system.” IEEE CAA J. Autom. Sinica , vol. 4, no. 4, pp. 668–676, 2017. [2] T. Liang, G. Lin, L. Feng, Y. Zhang, and F. Lv, “Attention is not enough: Mitigating the distribution discrepancy in asynchronous multi-modal sequence fusion,” in Proceedings of the IEEE/CVF International Conference on Computer Vision , 2021, pp. 8148–8156. [3] F. Lv, X. Chen, Y. Huang, L. Duan, and G. Lin, “Progressive modality re-inforcement for human multimodal emotion recognition from unaligned multimodal sequences,” in Proceedings of the IEEE/CVF conference on computer vision and pattern recognition , 2021, pp. 2554–2562. [4] Y. Li, Y. Wang, and Z. Cui, “Decoupled multimodal distilling for emotion recognition,” in Proceedings of the IEEE/CVF conference on computer vision and pattern recognition , 2023, pp. 6631–6640. [5] T. Yun, H. Lim, J. Lee, and M. Song, “TelME: Teacher-leading multimodal fusion network for emotion recognition in conversation,” in Proceedings of the 2024 Conference of the North American Chapter of the Association for Computational Linguistics: Human Language Technologies (Volume 1: Long Papers) , K. Duh, H. Gomez, and S. Bethard, Eds. Mexico City, Mexico: Association for Computational Linguistics, Jun. 2024, pp. 82–95. [Online]. Available: https://aclanthology.org/2024.naacl-long.5/ [6] H. Ma, J. Wang, H. Lin, B. Zhang, Y. Zhang, and B. Xu, “A transformer-based model with self-distillation for multimodal emotion recognition in conversations,” Trans. Multi. , vol. 26, pp. 776–788, Jan. 2024. [Online]. Available: https://doi.org/10.1109/TMM.2023.3271019 [7] Z. Wu, Z. Gong, J. Koo, and J. Hirschberg, “Multimodal multi-loss fusion network for sentiment analysis,” in Proceedings of the 2024 Conference of the North American Chapter of the Association for Computational Linguistics: Human Language Technologies (Volume 1: Long Papers) , K. Duh, H. Gomez, and S. Bethard, Eds. Mexico City, Mexico: Association for Computational Linguistics, Jun. 2024, pp. 3588–3602. [Online]. Available: https://aclanthology.org/ 2024.naacl-long.197/ [8] W. Zheng, J. Yu, R. Xia, and S. Wang, “A facial expression-aware multimodal multi-task learning framework for emotion recognition in multi-party conversations,” in Proceedings of the 61st Annual Meeting of the Association for Computational Linguistics (Volume 1: Long Papers) ,A. Rogers, J. Boyd-Graber, and N. Okazaki, Eds. Toronto, Canada: Association for Computational Linguistics, Jul. 2023, pp. 15 445–15 459. [Online]. Available: https://aclanthology.org/2023.acl-long.861/ [9] W. Yu, H. Xu, F. Meng, Y. Zhu, Y. Ma, J. Wu, J. Zou, and K. Yang, “CH-SIMS: A Chinese multimodal sentiment analysis dataset with fine-grained annotation of modality,” in Proceedings of the 58th Annual Meeting of the Association for Computational Linguistics , D. Jurafsky, J. Chai, N. Schluter, and J. Tetreault, Eds. Online: Association for Computational Linguistics, Jul. 2020, pp. 3718–3727. [Online]. Available: https://aclanthology.org/2020.acl-main.343/ [10] C. Gan, J. Zheng, Q. Zhu, Y. Cao, and Y. Zhu, “A survey of dialogic emotion analysis: Developments, approaches and perspectives,” Pattern Recognition , vol. 156, p. 110794, 2024. [11] Y. Shou, T. Meng, W. Ai, F. Fu, N. Yin, and K. Li, “A comprehensive survey on multi-modal conversational emotion recognition with deep learning,” ACM Trans. Inf. Syst. , vol. 44, no. 2, pp. 1–48, 2026. [12] A. Zadeh, M. Chen, S. Poria, E. Cambria, and L.-P. Morency, “Tensor fusion network for multimodal sentiment analysis,” in Proceedings of the 2017 Conference on Empirical Methods in Natural Language Processing , M. Palmer, R. Hwa, and S. Riedel, Eds. Copenhagen, Denmark: Association for Computational Linguistics, Sep. 2017, pp. 1103–1114. [Online]. Available: https://aclanthology.org/D17-1115/ [13] Z. Liu, Y. Shen, V. B. Lakshminarasimhan, P. P. Liang, A. B. Zadeh, and L.-P. Morency, “Efficient low-rank multimodal fusion with modality-specific factors,” in Proceedings of the 56th Annual Meeting of the Association for Computational Linguistics (Volume 1: Long Papers) ,2018, pp. 2247–2256. [14] A. Zadeh, P. P. Liang, N. Mazumder, S. Poria, E. Cambria, and L.-P. Morency, “Memory fusion network for multi-view sequential learning,” in Proceedings of the Thirty-Second AAAI Conference on Artificial In-telligence and Thirtieth Innovative Applications of Artificial Intelligence Conference and Eighth AAAI Symposium on Educational Advances in Artificial Intelligence , ser. AAAI’18/IAAI’18/EAAI’18. AAAI Press, 2018. [15] D. Hazarika, R. Zimmermann, and S. Poria, “Misa: Modality-invariant and-specific representations for multimodal sentiment analysis,” in Pro-ceedings of the 28th ACM international conference on multimedia , 2020, pp. 1122–1131. [16] G. Yin, Y. Liu, T. Liu, H. Zhang, F. Fang, C. Tang, and L. Jiang, “Token-disentangling mutual transformer for multimodal emotion recognition,” 
+
+Engineering Applications of Artificial Intelligence , vol. 133, p. 108348, 07 2024. [17] D. Yang, S. Huang, H. Kuang, Y. Du, and L. Zhang, “Disentangled representation learning for multimodal emotion recognition,” in 
+
+Proceedings of the 30th ACM International Conference on Multimedia ,ser. MM ’22. New York, NY, USA: Association for Computing Machinery, 2022, pp. 1642–1651. [Online]. Available: https://doi.org/ 10.1145/3503161.3547754 [18] Y.-H. H. Tsai, S. Bai, P. P. Liang, J. Z. Kolter, L.-P. Morency, and R. Salakhutdinov, “Multimodal transformer for unaligned multimodal language sequences,” in Proceedings of the 57th Annual Meeting of the Association for Computational Linguistics , A. Korhonen, D. Traum, and L. M` arquez, Eds. Florence, Italy: Association for Computational Linguistics, Jul. 2019, pp. 6558–6569. [Online]. Available: https://aclanthology.org/P19-1656/ [19] F. Lv, X. Chen, Y. Huang, L. Duan, and G. Lin, “Progressive modality re-inforcement for human multimodal emotion recognition from unaligned multimodal sequences,” in Proceedings of the IEEE/CVF Conference on Computer Vision and Pattern Recognition (CVPR) , June 2021, pp. 2554–2562. 13 
+
+[20] G. E. Hinton, O. Vinyals, and J. Dean, “Distilling the knowledge in a neural network,” ArXiv , vol. abs/1503.02531, 2015. [Online]. Available: https://api.semanticscholar.org/CorpusID:7200347 [21] A. Romero, N. Ballas, S. E. Kahou, A. Chassang, C. Gatta, and Y. Bengio, “Fitnets: Hints for thin deep nets,” CoRR , vol. abs/1412.6550, 2014. [Online]. Available: https://api.semanticscholar.org/CorpusID: 2723173 [22] P. Chen, S. Liu, H. Zhao, and J. Jia, “Distilling knowledge via knowledge review,” in IEEE Conference on Computer Vision and Pattern Recogni-tion (CVPR) , 2021. [23] Z. Zhang and G. Lu, “Multimodal knowledge distillation for emotion recognition,” Brain Sciences , vol. 15, no. 7, p. 707, 2025. [Online]. Available: https://www.mdpi.com/2076-3425/15/7/707 [24] Y. Han, G. Huang, S. Song, L. Yang, H. Wang, and Y. Wang, “Dynamic neural networks: A survey,” IEEE Transactions on Pattern Analysis and Machine Intelligence , vol. 44, pp. 7436–7456, 2021. [Online]. Available: https://api.semanticscholar.org/CorpusID:231855426 [25] X. Wang, F. Yu, Z.-Y. Dou, T. Darrell, and J. E. Gonzalez, “Skipnet: Learning dynamic routing in convolutional networks,” in Proceedings of the European Conference on Computer Vision (ECCV) , September 2018. [26] B. Hu, L. Xu, J. Moon, N. J. Yadwadkar, and A. Akella, “MOSEL: Inference serving using dynamic modality selection,” in 
+
+Proceedings of the 2024 Conference on Empirical Methods in Natural Language Processing , Y. Al-Onaizan, M. Bansal, and Y.-N. Chen, Eds. Miami, Florida, USA: Association for Computational Linguistics, Nov. 2024, pp. 8872–8886. [Online]. Available: https: //aclanthology.org/2024.emnlp-main.501/ [27] C. Zhang, Y. Zhang, and B. Cheng, “Rl-emo: A reinforcement learning framework for multimodal emotion recognition,” ICASSP 2024 -2024 IEEE International Conference on Acoustics, Speech and Signal Processing (ICASSP) , pp. 10 246–10 250, 2024. [Online]. Available: https://api.semanticscholar.org/CorpusID:268577764 [28] L. Christ, S. Amiriparian, A. Baird, P. Tzirakis, A. Kathan, N. M¨ uller, L. Stappen, E.-M. Meßner, A. K¨ onig, A. Cowen, E. Cambria, and B. W. Schuller, “The MuSe 2022 multimodal sentiment analysis challenge: Humor, emotional reactions, and stress,” in Proceedings of the 3rd In-ternational on Multimodal Sentiment Analysis Workshop and Challenge .New York, NY, USA: Association for Computing Machinery, 2022, pp. 5–14. [29] Z. Lian, H. Sun, L. Sun, Z. Wen, S. Zhang, S. Chen, H. Gu, J. Zhao, Z. Ma, X. Chen, J. Yi, R. Liu, K. Xu, B. Liu, E. Cambria, G. Zhao, B. W. Schuller, and J. Tao, “MER 2024: Semi-supervised learning, noise robustness, and open-vocabulary multimodal emotion recognition,” in Proceedings of the 2nd International Workshop on Multimodal and Responsible Affective Computing . New York, NY, USA: Association for Computing Machinery, 2024, pp. 41–48. [30] B. Zhou, A. Khosla, A. Lapedriza, A. Oliva, and A. Torralba, “Learning deep features for discriminative localization,” in Proceedings of the IEEE conference on computer vision and pattern recognition , 2016, pp. 2921– 2929. [31] J. Langford and T. Zhang, “The epoch-greedy algorithm for multi-armed bandits with side information,” Advances in neural information processing systems , vol. 20, 2007. [32] V. Mnih, A. P. Badia, M. Mirza, A. Graves, T. Lillicrap, T. Harley, D. Silver, and K. Kavukcuoglu, “Asynchronous methods for deep reinforcement learning,” in Proceedings of The 33rd International Conference on Machine Learning , ser. Proceedings of Machine Learning Research, M. F. Balcan and K. Q. Weinberger, Eds., vol. 48. New York, New York, USA: PMLR, 20–22 Jun 2016, pp. 1928–1937. [Online]. Available: https://proceedings.mlr.press/v48/mniha16.html [33] S. Poria, D. Hazarika, N. Majumder, G. Naik, E. Cambria, and R. Mihalcea, “MELD: A multimodal multi-party dataset for emotion recognition in conversations,” in Proceedings of the 57th Annual Meeting of the Association for Computational Linguistics ,A. Korhonen, D. Traum, and L. M` arquez, Eds. Florence, Italy: Association for Computational Linguistics, Jul. 2019, pp. 527–536. [Online]. Available: https://aclanthology.org/P19-1050/ [34] C. Busso, M. Bulut, C.-C. Lee, A. Kazemzadeh, E. Mower, S. Kim, J. N. Chang, S. Lee, and S. S. Narayanan, “Iemocap: Interactive emotional dyadic motion capture database,” Language resources and evaluation ,vol. 42, no. 4, pp. 335–359, 2008. [35] A. Bagher Zadeh, P. P. Liang, S. Poria, E. Cambria, and L.-P. Morency, “Multimodal language analysis in the wild: CMU-MOSEI dataset and interpretable dynamic fusion graph,” in Proceedings of the 56th Annual Meeting of the Association for Computational Linguistics (Volume 1: Long Papers) , I. Gurevych and Y. Miyao, Eds. Melbourne, Australia: Association for Computational Linguistics, Jul. 2018, pp. 2236–2246. [Online]. Available: https://aclanthology.org/P18-1208/ [36] Y. Liu, Z. Yuan, H. Mao, Z. Liang, W. Yang, Y. Qiu, T. Cheng, X. Li, H. Xu, and K. Gao, “Make acoustic and visual cues matter: Ch-sims v2.0 dataset and av-mixup consistent module,” in 
+
+Proceedings of the 2022 International Conference on Multimodal Interaction , ser. ICMI ’22. New York, NY, USA: Association for Computing Machinery, 2022, pp. 247–258. [Online]. Available: https://doi.org/10.1145/3536221.3556630 [37] D. Hu, L. Wei, and X. Huai, “Dialoguecrn: Contextual reasoning networks for emotion recognition in conversations,” in Proceedings of the 59th Annual Meeting of the Association for Computational Linguistics and the 11th International Joint Conference on Natural Language Processing (Volume 1: Long Papers) , 2021, pp. 7042–7052. [38] N. Majumder, S. Poria, D. Hazarika, R. Mihalcea, and E. Cambria, “Di-alogueRNN: An attentive RNN for emotion detection in conversations,” 
+
+Proceedings of the AAAI Conference on Artificial Intelligence , vol. 33, pp. 6818–6825, 2019. [39] D. Hu, Y. Bao, L. Wei, W. Zhou, and S. Hu, “Supervised adversarial contrastive learning for emotion recognition in conversations,” in 
+
+Proceedings of the 61st Annual Meeting of the Association for Computational Linguistics (Volume 1: Long Papers) , A. Rogers, J. Boyd-Graber, and N. Okazaki, Eds. Toronto, Canada: Association for Computational Linguistics, Jul. 2023, pp. 10 835–10 852. [Online]. Available: https://aclanthology.org/2023.acl-long.606/ [40] W. Yu, H. Xu, Y. Ziqi, and W. Jiele, “Learning modality-specific representations with self-supervised multi-task learning for multimodal sentiment analysis,” in Proceedings of the AAAI Conference on Artificial Intelligence , 2021. [41] G. Hu, T.-E. Lin, Y. Zhao, G. Lu, Y. Wu, and Y. Li, “UniMSE: Towards unified multimodal sentiment analysis and emotion recognition,” in Proceedings of the 2022 Conference on Empirical Methods in Natural Language Processing , Y. Goldberg, Z. Kozareva, and Y. Zhang, Eds. Abu Dhabi, United Arab Emirates: Association for Computational Linguistics, Dec. 2022, pp. 7837–7851. [Online]. Available: https://aclanthology.org/2022.emnlp-main.534/ [42] X. Zhu, Y. Wang, E. Cambria, I. Rida, J. S. L´ opez, L. Cui, and R. Wang, “RMER-DT: Robust multimodal emotion recognition in conversational contexts based on diffusion and transformers,” 
+
+Information Fusion , vol. 123, p. 103268, 2025. [Online]. Available: https://www.sciencedirect.com/science/article/pii/S1566253525003410 [43] J. Hu, Y. Liu, J. Zhao, and Q. Jin, “MMGCN: Multimodal fusion via deep graph convolution network for emotion recognition in conversation,” in Proceedings of the 59th Annual Meeting of the Association for Computational Linguistics and the 11th International Joint Conference on Natural Language Processing (Volume 1: Long Papers) , C. Zong, F. Xia, W. Li, and R. Navigli, Eds. Online: Association for Computational Linguistics, Aug. 2021, pp. 5666–5675. [Online]. Available: https://aclanthology.org/2021.acl-long.440/ [44] J. Li, X. Wang, G. Lv, and Z. Zeng, “Graphcfc: A directed graph based cross-modal feature complementation approach for multimodal conversational emotion recognition,” IEEE Transactions on Multimedia ,vol. 26, pp. 77–89, 2023. [45] T. Zhang and Z. Tan, “ECERC: Evidence-cause attention network for multi-modal emotion recognition in conversation,” in Proceedings of the 63rd Annual Meeting of the Association for Computational Linguistics (Volume 1: Long Papers) , W. Che, J. Nabende, E. Shutova, and M. T. Pilehvar, Eds. Vienna, Austria: Association for Computational Linguistics, Jul. 2025, pp. 2064–2077. [Online]. Available: https: //aclanthology.org/2025.acl-long.102/ [46] Z. Liu, Y. Shen, V. B. Lakshminarasimhan, P. P. Liang, A. Bagher Zadeh, and L.-P. Morency, “Efficient low-rank multimodal fusion with modality-specific factors,” in Proceedings of the 56th Annual Meeting of the Association for Computational Linguistics (Volume 1: Long Papers) ,I. Gurevych and Y. Miyao, Eds. Melbourne, Australia: Association for Computational Linguistics, Jul. 2018, pp. 2247–2256. [Online]. Available: https://aclanthology.org/P18-1209/ [47] W. Xie, H. Liang, Z. Niu, X. Hou, S. Song, Z. Yu, and L. Shen, “Frequency restoration and modality enforcement towards resisting-corruption multimodal sentiment analysis,” ACM Transactions on Multi-media Computing, Communications, and Applications , vol. 21, 10 2025. [48] Y. Wen, Q. Li, Y. Zhou, Y. Gao, Z. Wen, J. Tao, and Y. Li, “Dash-fusion: Dual-stream alignment with hierarchical bottleneck fusion for multimodal sentiment analysis,” IEEE Transactions on Neural Networks and Learning Systems , vol. 36, no. 10, pp. 17 941–17 952, 2025. [49] S. Poria, E. Cambria, D. Hazarika, N. Majumder, A. Zadeh, and L.-P. Morency, “Context-dependent sentiment analysis in user-generated 14 
+
+videos,” in Proceedings of the 55th annual meeting of the association for computational linguistics (volume 1: Long papers) , 2017, pp. 873– 883. [50] D. Li, Y. Wang, K. Funakoshi, and M. Okumura, “Joyful: Joint modality fusion and graph contrastive learning for multimoda emotion recognition,” in Proceedings of the 2023 Conference on Empirical Methods in Natural Language Processing , H. Bouamor, J. Pino, and K. Bali, Eds. Singapore: Association for Computational Linguistics, Dec. 2023, pp. 16 051–16 069. [Online]. Available: https://aclanthology.org/2023.emnlp-main.996/ [51] D. Ghosal, N. Majumder, S. Poria, N. Chhaya, and A. Gelbukh, “Dia-loguegcn: A graph convolutional neural network for emotion recognition in conversation,” in Proceedings of the 2019 conference on empirical methods in natural language processing and the 9th International Joint Conference on Natural Language Processing (EMNLP-IJCNLP) , 2019, pp. 154–164. [52] J. Ye, L. Xiang, X. Zhao, and C. Zong, “Dq-former: Layer-wise querying transformer with dynamic modality priority for conversational multi-modal emotion recognition,” IEEE Transactions on Affective Computing ,pp. 1–17, 2026. [53] Y. Yu, M. Zhao, S.-a. Qi, F. Sun, B. Wang, W. Guo, X. Wang, L. Yang, and D. Niu, “ConKI: Contrastive knowledge injection for multimodal sentiment analysis,” in Findings of the Association for Computational Linguistics: ACL 2023 , A. Rogers, J. Boyd-Graber, and N. Okazaki, Eds. Toronto, Canada: Association for Computational Linguistics, Jul. 2023, pp. 13 610–13 624. [Online]. Available: https://aclanthology.org/2023.findings-acl.860/ [54] Y. Yang, X. Dong, and Y. Qiang, “CLGSI: A multimodal sentiment analysis framework based on contrastive learning guided by sentiment intensity,” in Findings of the Association for Computational Linguistics: NAACL 2024 , K. Duh, H. Gomez, and S. Bethard, Eds. Mexico City, Mexico: Association for Computational Linguistics, Jun. 2024, pp. 2099–2110. [Online]. Available: https://aclanthology.org/2024. findings-naacl.135/ [55] A. Zhu, M. Hu, X. Wang, J. Yang, Y. Tang, and F. Ren, “Kebr: Knowledge enhanced self-supervised balanced representation for multimodal sentiment analysis,” in Proceedings of the 32nd ACM International Conference on Multimedia , ser. MM ’24. New York, NY, USA: Association for Computing Machinery, 2024, pp. 5732–5741. [Online]. Available: https://doi.org/10.1145/3664647.3681163 [56] W. Rahman, M. K. Hasan, S. Lee, A. Bagher Zadeh, C. Mao, L.-P. Morency, and E. Hoque, “Integrating multimodal information in large pretrained transformers,” in Proceedings of the 58th Annual Meeting of the Association for Computational Linguistics , D. Jurafsky, J. Chai, N. Schluter, and J. Tetreault, Eds. Online: Association for Computational Linguistics, Jul. 2020, pp. 2359–2369. [Online]. Available: https://aclanthology.org/2020.acl-main.214/ [57] X. Zhang, W. Wei, and S. Zou, “Modal feature optimization network with prompt for multimodal sentiment analysis,” in Proceedings of the 31st International Conference on Computational Linguistics ,O. Rambow, L. Wanner, M. Apidianaki, H. Al-Khalifa, B. D. Eugenio, and S. Schockaert, Eds. Abu Dhabi, UAE: Association for Computational Linguistics, Jan. 2025, pp. 4611–4621. [Online]. Available: https://aclanthology.org/2025.coling-main.309/ [58] Z. Li, F. Tang, M. Zhao, and Y. Zhu, “EmoCaps: Emotion capsule based model for conversational emotion recognition,” in Findings of the Association for Computational Linguistics: ACL 2022 , S. Muresan, P. Nakov, and A. Villavicencio, Eds. Dublin, Ireland: Association for Computational Linguistics, May 2022, pp. 1610–1618. [Online]. Available: https://aclanthology.org/2022.findings-acl.126/ [59] A. Li, L. Xu, C. Ling, J. Zhang, and P. Wang, “Emoverse: Enhancing multimodal large language models for affective computing via multitask learning,” Neurocomputing , vol. 650, p. 130810, 2025. [Online]. Available: https://www.sciencedirect.com/science/article/pii/ S0925231225014821 [60] J. Xue, P. M. Nguyen, B. Matheny, and L. M. Nguyen, “Bioserc: Integrating biography speakers supported by llms for erc tasks,” in 
+
+International Conference on Artificial Neural Networks , 2024. [Online]. Available: https://api.semanticscholar.org/CorpusID:271038809 [61] S. Lei, G. Dong, X. Wang, K. Wang, and S. Wang, “Instructerc: Reforming emotion recognition in conversation with a retrieval multi-task llms framework,” CoRR , vol. abs/2309.11911, 2023. [Online]. Available: https://doi.org/10.48550/arXiv.2309.11911 [62] C. He, S. Zhu, H. Liu, F. Gao, Y. Jia, H. Zan, and M. Peng, “DialogueMMT: Dialogue scenes understanding enhanced multi-modal multi-task tuning for emotion recognition in conversations,” in 
+
+Proceedings of the 31st International Conference on Computational Linguistics , O. Rambow, L. Wanner, M. Apidianaki, H. Al-Khalifa, B. D. Eugenio, and S. Schockaert, Eds. Abu Dhabi, UAE: Association for Computational Linguistics, Jan. 2025, pp. 2497–2512. [Online]. Available: https://aclanthology.org/2025.coling-main.170/

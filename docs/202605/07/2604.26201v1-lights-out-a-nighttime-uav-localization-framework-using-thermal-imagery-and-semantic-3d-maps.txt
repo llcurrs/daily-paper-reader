@@ -1,0 +1,233 @@
+Title: Lights Out: A Nighttime UAV Localization Framework Using Thermal Imagery and Semantic 3D Maps
+
+URL Source: https://arxiv.org/pdf/2604.26201v1
+
+Published Time: Thu, 30 Apr 2026 00:24:20 GMT
+
+Number of Pages: 8
+
+Markdown Content:
+# Lights Out: A Nighttime UAV Localization Framework Using Thermal Imagery and Semantic 3D Maps 
+
+Ryan Allen and Melissa Greeff 
+
+Abstract — Reliable backup localization for unmanned aerial vehicles (UAVs) operating in GNSS-denied nighttime conditions remains an open challenge due to the severe modality gap between daytime RGB maps and nighttime thermal imagery. This work presents a semantic reprojection framework for map-relative nighttime UAV localization by aligning segmented thermal observations with a globally referenced, semantically labeled 3D map constructed from daytime RGB data. Rather than relying on appearance-based correspondence, localization is formulated in a shared semantic domain and solved via a symmetric bidirectional reprojection objective with confusion-aware weighting to improve robustness under segmentation uncertainty. The approach is evaluated offline across 6.5 km of nighttime, real-world UAV flight trajectories in urban and semi-structured environments. Relative to RTK GNSS ground truth, the system achieves a bias-corrected RMSE 2D of 2.18 m and a median RMSE 2D of 1.52 m. Results show that localiza-tion performance is strongly correlated with the availability of semantic edge evidence and that large-error events are spatially localized to semantically ambiguous areas rather than uniformly distributed. These findings indicate that semantic reprojection offers a promising pathway toward globally refer-enced nighttime UAV localization using thermal imagery alone. 
+
+I. I NTRODUCTION 
+
+Autonomous navigation of unmanned aerial vehicles (UAVs) is expanding into safety-critical domains includ-ing parcel delivery [1], infrastructure inspection [2], and public safety response, where reliable global localization is essential. In practice, most UAV navigation stacks depend on GNSS as the primary source of global reference, using visual–inertial odometry (VIO) or IMU-based dead reckon-ing for short-term stabilization. However, GNSS signals are vulnerable to occlusion, multipath interference, jamming, and spoofing, making exclusive reliance on satellite positioning unacceptable for many safety-critical deployments. UAV localization methods broadly fall into two categories: (1) online SLAM, which estimates pose while incrementally building a map, and (2) map-relative localization, which aligns onboard observations to a pre-built global reference map [3], [4]. Under daylight conditions, both paradigms perform reliably because visual–inertial pipelines can exploit stable RGB texture, photometric gradients, and appearance-based feature correspondences [5]. At night, however, these cues degrade dramatically. RGB-based registration to daytime maps becomes unre-liable because feature detection and data association as-sume illumination-consistent appearance [6]. This exposes 
+
+> The authors are with Robora Lab (www.roboralab.com), Queen’s Uni-versity; and affiliated with Ingenuity Labs Research Institute. E-mails: 19rca4@queensu.ca, melissa.greeff@queensu.ca.
+
+Fig. 1: Overview of the proposed nighttime localization pipeline with the Vic dataset. A semantically labeled 3D map is constructed from daytime RGB imagery during pre-flight mapping (right). At night, segmented thermal imagery (left) is aligned to this map via edge-aware reprojection, enabling globally referenced localization without appearance-based matching. 
+
+a fundamental modality mismatch: global maps are typically constructed from RGB satellite imagery or RGB structure-from-motion (SfM) reconstructions [7], while nighttime UAV operation frequently relies on thermal sensing, which en-codes scene structure through heat patterns rather than color or texture. Alternative sensing modalities provide only partial solu-tions. LiDAR offers illumination-invariant geometric regis-tration but introduces substantial size, weight, and power (SWaP) penalties that limit scalability for many UAV plat-forms [8]. Thermal-inertial odometry and thermal SLAM methods mitigate lighting dependence but accumulate drift over long trajectories and remain challenging in large-scale outdoor environments [5], [9], [10]. Multi-spectral RGB–thermal fusion improves perception robustness but typically assumes concurrent visible-spectrum sensing and does not address operation in complete darkness [11]. This work addresses the nighttime localization problem by reformulating map-relative UAV localization as a semantic 
+
+> arXiv:2604.26201v1 [cs.RO] 29 Apr 2026
+
+Fig. 2: Overview of the proposed thermal semantic localization pipeline with the City dataset. Daytime preprocessing (top): synchronized RGB–thermal data with RTK ground truth are used to train a thermal segmentation model and construct a georeferenced point cloud. Semantic labels are reprojected into the 3D reconstruction to produce a semantically labeled map, which is refined through pruning and edge extraction. Nighttime operation (bottom): incoming thermal images are segmented and aligned with the semantic 3D map via reprojection, enabling globally referenced, map-relative localization under nighttime conditions. 
+
+reprojection problem. Instead of relying on appearance simi-larity, we align thermal observations and daytime RGB maps in a shared semantic domain. A semantically labeled 3D map is constructed offline from daytime RGB data. During nighttime flight, thermal imagery is segmented and aligned to this map via semantic reprojection in the global frame. By operating on semantic structure rather than photometric texture, the method bridges the RGB–thermal modality gap and enables structural matching across sensing domains. Unlike pixel-level alignment methods, semantic alignment is invariant to illumination changes, contrast inversion, and radiometric differences between RGB and thermal modal-ities, enabling consistent structural correspondence without requiring photometric agreement. Unlike prior nighttime localization approaches that either (i) rely on thermal SLAM or (ii) align thermal imagery to 2D satellite maps via appearance-based descriptors and homography estimation, we perform cross-modal, globally referenced alignment in a persistent 3D semantic map .Nighttime thermal observations are aligned by projecting this map into the thermal image under candidate global poses, and localization is formulated as a symmetric semantic reprojection objective with confusion-aware marginalization. This formulation replaces appearance consistency with struc-tural semantic consistency enforced directly in the global 3D frame and enables GNSS-denied nighttime localization using thermal imagery alone at inference time. The contributions of this work are three-fold: 1) We introduce a map-relative nighttime localization formulation that aligns thermal semantic edges to a globally referenced semantically labeled 3D map via a bidirectional (symmetric) semantic reprojection loss. The method enables global pose correction without appearance-based matching or LiDAR at inference time. 2) We propose a confusion-marginalized weighting of the semantic loss objective that explicitly accounts for thermal segmentation ambiguity, significantly reducing large-error outliers under nighttime degradation. 3) Across 6.5 km of nighttime flight (1,373 frames), the system achieves a 2D root-mean-square error (RMSE) of 2.18 m relative to RTK ground truth. We further demonstrate that localization error is strongly corre-lated with semantic edge density and that large-error events are spatially localized. II. R ELATED WORK 
+
+A. Localization 1) Visual and LiDAR SLAM in Low-Light Environ-ments: Visual SLAM systems achieve high accuracy in well-illuminated environments by exploiting photometric texture and feature correspondences. Methods such as ORB-SLAM3, Ground-VIO [12], and tightly coupled vi-sual–inertial systems including VINS-Mono [13] demon-strate strong performance in daylight but degrade substan-tially as illumination decreases due to reduced feature con-trast and unstable data association. LiDAR-based systems circumvent illumination depen-dence by relying on geometric registration. Approaches such as LOAM [14], LeGO-LOAM [15], LIO-SAM [16], and FAST-LIO2 [17] provide lighting-invariant localization but have limited scalability for lightweight UAV platforms. While effective, these systems rely on active sensing rather than passive thermal imaging. 
+
+2) Thermal-Based Localization: Thermal sensing pro-vides illumination-independent observations and has been explored for nighttime navigation. Thermal-inertial odometry and SLAM methods [18], [19], [20] enable short-range state estimation but accumulate drift over long trajectories, limiting their ability to provide persistent global reference. Recent thermal–satellite geo-localization approaches [21], [22] focus on aligning UAV thermal imagery with 2D satellite maps using learned cross-domain descriptors and deep homography estimation. These methods are primarily designed for mid- to high-altitude flight regimes where UAV imagery approximates nadir satellite views and global position is inferred through image-to-image matching within a bounded search region. In contrast, our work targets lower-altitude UAV operation and aligns thermal observations to a persistent semantically labeled 3D map constructed from daytime RGB data. Rather than estimating 2D homographies based on appearance similarity, we enforce structural consis-tency through semantic reprojection in a global 3D frame. 
+
+B. Semantic Segmentation 
+
+Semantic segmentation provides an illumination-robust representation of scene structure and has been widely stud-ied for both RGB and thermal imagery. Cross-modal ap-proaches such as HeatNet [23] demonstrate that semantic features remain more stable across sensing domains than raw appearance, enabling supervision transfer between RGB and thermal data. Subsequent work explores RGB–thermal perception using dual-camera systems and synthetic data generation [24], [25], [26]. However, these works focus primarily on segmentation accuracy and perception tasks rather than globally referenced localization. 
+
+C. Semantic Representations for Localization 
+
+Semantic representations have been incorporated into lo-calization pipelines to improve robustness under lighting and seasonal variation, particularly in ground robotics [27], [28], [29]. These approaches often combine semantics with RGB or LiDAR sensing and operate within a single sensing modality. III. M ETHODOLOGY 
+
+The key idea is to bridge the RGB–thermal modality gap by performing localization in a shared semantic domain. Both modalities are converted into semantically labeled structural representations and geometric consistency is en-forced in a global 3D frame, enabling cross-modal alignment without appearance consistency. The overall pipeline consists of four stages: (A) RGB semantic segmentation: Daytime RGB imagery is segmented to produce dense semantic labels used to supervise cross-modal transfer and to construct a persistent semantic map. (B) Thermal semantic segmentation: A thermal segmenta-tion model is trained using aligned RGB–thermal data, enabling nighttime thermal imagery to be converted into semantically labeled observations. (C) Semantic map construction through reprojection and pruning: A geo-referenced 3D map is reconstructed from daytime RGB data, semantic labels are repro-jected into the 3D point cloud, and structural class boundaries are retained through edge-aware pruning to produce a semantically labeled 3D edge map. (D) Nighttime semantic map-based localization: During nighttime operation, segmented thermal observations are aligned with the semantic 3D map and the UAV translation is estimated by minimizing a symmetric semantic alignment objective. Stages (A)–(C) are performed offline to construct asemantically-labeled 3D map and to supplement training of the thermal semantic segmentation model, while Stage (D) performs map-relative localization using thermal imagery alone at inference time. 
+
+A. RGB Semantic Segmentation 
+
+A semantic segmentation network was trained on 78,162 aerial image patches from four datasets: FLAIR [30], Se-mantic Drone [31], UAVid [32], and VDD [33]. All images were standardized to 512 × 512 , and classes were consoli-dated into localization-relevant categories using the FLAIR taxonomy as the primary reference due to its scale and annotation consistency. Dataset contributions were: FLAIR (54,188 patches), VDD (280 originals ×35 tiling), UAVid (70 originals ×30 tiling), and Semantic Drone (400 originals ×2tiling). Augmentation was applied inversely to dataset size to balance representation across datasets. Source labels were mapped into eight unified semantic classes: Animal, Building, Impervious Surface, Pervious Sur-face, Tree Vegetation, Low Vegetation, Water, and Vehicle. These classes correspond to persistent structural elements commonly observed in aerial environments and were selected to preserve semantic consistency while maximizing cross-dataset compatibility. The model uses DeepLabV3+ [34] with a ResNet [35] backbone and MiT-B5 [36] encoder pretrained on ImageNet [37]. Training is performed using Adam and class-weighted cross-entropy, retaining the best validation checkpoint. 
+
+B. Thermal Semantic Segmentation and RGB–Thermal Alignment 
+
+This cross-modal teacher–student distillation is concep-tually similar to HeatNet [23], which transfers semantic supervision across RGB and thermal domains so that a model trained with daytime-aligned labels can generalize to nighttime thermal imagery. In our case, we use only daytime TABLE I: Summary of Flight Operations Across Test Sites                                                  
+
+> Location Photos Duration Distance Above Ground Date Day Start Night Start Sunset Taken (min) (m) Level (m) Time Time Time
+> Pier 542 21 2579 150 03-Jul-25 5:27 PM 10:18 PM 8:54 PM Vic 523 20 2490 175 23-Jun-25 8:36 PM 10:18 PM 8:55 PM City 447 17 2143 100 21-Jun-25 8:28 PM 10:37 PM 8:55 PM West 715 28 3459 50 02-Jun-25 4:38 PM 10:21 PM 8:45 PM
+> Total 2227 86 10671
+
+synchronized RGB–thermal pairs to generate aligned pseudo-labels (via the RGB teacher) for training, and the resulting thermal student is then deployed on nighttime thermal frames at test time. 
+
+a) Data collection and cross-modal supervision: We collected 2,270 daytime RGB–thermal frame pairs using co-mounted RGB and thermal cameras across flights at 30– 175 m AGL. We first train an RGB semantic segmentation network (teacher) on RGB imagery from the aggregated dataset (Sec. III-A). We then use its predictions on the collected RGB–thermal pairs to supervise a thermal seg-mentation network (student) with the same architecture and identical class set (Fig. 2), avoiding manual pixel-level annotation in thermal imagery. 
+
+b) RGB–thermal alignment: To transfer labels across modalities, we register RGB pixels into the thermal im-age plane. Since the RGB and thermal sensors are rigidly mounted on the same gimbal with a small baseline relative to flight altitude, the mapping is approximately constant across the dataset; we therefore estimate a single global projective transform. Specifically, 120 corresponding feature points were manually annotated across representative paired frames and used to fit a homography HT ←R ∈ R3×3.For each paired sample, the RGB image is warped us-ing HT ←R (nearest-neighbor interpolation) and cropped to 
+
+512 × 512 to align the images and then is pushed through the teacher model to produce aligned pseudo-labels. These aligned masks provide supervisory targets for training the thermal student network. Using the aligned pairs, thermal images are provided to the student as single-channel (grayscale) inputs. Pixels outside the overlapping field of view and cropping region are ignored during training. 
+
+C. Semantic Map Construction via Reprojection and Prun-ing 
+
+Structure-from-Motion reconstruction from daytime RGB flight, performed using RealityCapture [38] produces a geo-referenced colored point cloud X = {(xiw, ci)}, where xiw ∈
+
+R3 is a 3D point in the world frame and ci ∈ R3 is its RGB color. To assign semantic labels, each 3D point is projected into segmented RGB images in which it is visible. Given camera intrinsics K and extrinsics (Rwc , twc ), the projection opera-tor p(·) maps xiw to pixel coordinates (u, v ). Occlusions are handled via z-buffering, retaining only the closest point per pixel. The per-view semantic label is read as seg I (p(xiw)) .For points observed in multiple views, labels are fused via majority voting: 
+
+ˆyi = arg max 
+
+> y∈Y
+
+X
+
+> I∈V i
+
+1seg I (p(xiw)) = y, (1) where Vi denotes the set of images in which point i is visible and Y is the semantic class set. The resulting semantically labeled map is M = {(xiw, ˆyi)}.To emphasize structural information relevant for align-ment, the labeled cloud is voxelized and voxels exhibiting class transitions between neighboring cells are retained while large single-class regions are pruned. This produces a seman-tically labeled 3D edge map used for downstream registration (Figure 2). 
+
+D. Nighttime Semantic Map-Based Localization 
+
+Nighttime localization registers a segmented thermal im-age to the semantic 3D map M. We assume camera intrin-sics K, camera-to-body extrinsics (Rcb , tcb ), and the body attitude estimate ˆRwb ∈ SO (3) are available from onboard state estimation (IMU and Barometer). Similarly, the camera height ˆh is assumed known. The only unknown is the planar translation 
+
+t = ( tx, t y ) ∈ R2. (2) 
+
+a) Semantic map projection: Let (xiw, y i) ∈ M denote a labeled 3D map point. For a candidate translation t, the point is transformed into the camera frame and projected into the image using the known camera model, yielding pixel coordinates pi(t) ∈ R2. The set of projected semantic points is 
+
+Π( t) = {(pi(t), y i)}. (3) 
+
+b) Thermal segmentation edges: Let the segmented thermal image yield class-specific edge sets 
+
+Ek = {ej ∈ R2 | edge pixel predicted as class k}, (4) with E = SKk=1 Ek. Each edge pixel ej has predicted label yj . Localization is formulated as minimizing geometric inconsistency between projected map structure Π( t) and segmentation edges E.
+
+c) Bidirectional Semantic Alignment Loss: For any point q ∈ R2 and finite set S ⊂ R2, define the point-to-set distance 
+
+d(q, S ) = min  
+
+> s∈S
+
+∥q − s∥2. (5) TABLE II: Performance Comparison of RGB and Thermal Segmentation Models                                                                                                    
+
+> Classes RGB Model Thermal Model Pixels for Each Class (%) Name Colour Prec. Rec. F1 IoU Prec. Rec. F1 IoU Thermal Set RGB Set
+> Building Yellow 91.8 93.0 92.4 85.9 67.9 79.7 73.3 57.9 8.9 2.7 Impervious Surface Grey 84.7 84.1 84.4 73.0 82.5 79.7 81.1 68.2 28.6 10.0 Pervious Surface Brown 92.3 91.9 92.1 85.4 69.2 56.7 62.3 45.3 4.3 19.3 Tree Vegetation Dark Green 90.5 91.2 90.9 83.2 86.6 88.3 87.4 77.6 26.7 23.1 Low Vegetation Light Green 91.5 91.3 91.4 84.2 81.3 78.8 80.0 66.7 29.0 37.9 Water Blue 91.1 91.6 91.3 84.1 78.3 73.7 76.0 61.2 1.2 6.9 Vehicle Red 93.0 91.5 92.2 85.6 37.4 65.7 47.6 31.3 0.1 0.1
+> Average 90.7 90.7 90.7 83.1 71.9 74.7 72.5 58.3
+
+Localization is formulated as minimizing a symmetric semantic Chamfer objective: 
+
+L(t) = λf Lf (t) + λr Lr (t), (6) with weights λf , λ r > 0. The forward term enforces that projected semantic map boundaries coincide with observed segmentation edges of the same class: 
+
+Lf (t) = 1
+
+|Π( t)|
+
+X
+
+> (pi(t),y i)∈Π( t)
+
+ρδ (d(pi(t), Eyi )) , (7) where ρδ (·) denotes the Huber penalty. The reverse term enforces that observed edges are explained by projected map geometry: 
+
+Lr (t) = 1
+
+|E| 
+
+X  
+
+> (ej,ˆyj)∈E
+
+ρδ
+
+ d ej , P ˆyj (t) , (8) where Pk(t) = {pi(t) | yi = k}. Together, Lf and 
+
+Lr approximate a symmetric semantic Chamfer distance, enforcing mutual geometric consistency between projected map structure and observed thermal edges. 
+
+d) Confusion-Aware Semantic Matching: Thermal seg-mentation exhibits systematic inter-class ambiguity. Let 
+
+Cy,k = Pr(ˆ y = k | y),
+
+> K
+
+X
+
+> k=1
+
+Cy,k = 1 , (9) denote the empirical confusion matrix computed on the aligned daytime RGB–thermal supervision set. We replace hard same-class matching with confusion-marginalized matching. The forward term becomes 
+
+Lf (t) = 1
+
+|Π( t)|
+
+X
+
+> (pi(t),y i)∈Π( t)
+> K
+
+X
+
+> k=1
+
+Cyi,k ρδ (d(pi(t), Ek)) ,
+
+(10) and the reverse term is weighted analogously. This marginal-ization reduces brittleness under nighttime degradation by al-lowing alignment to fall back to statistically likely substitute classes. 
+
+e) Optimization: The translation estimate is obtained as 
+
+t⋆ = arg min  
+
+> t∈T
+
+L(t), (11) where T = [ −r, r ] × [−r, r ] is a bounded search region (in metres) centered at the onboard navigation prior. In our experiments, we select r = 30 m. Because L(t) is nonconvex and involves point-to-set minima, we employ a coarse-to-fine discrete search. The objective is evaluated on a sequence of grids with progressively decreasing spacings 
+
+∆0 > ∆1 > · · · > ∆S , each stage re-centered around the best candidate from the previous level. This provides deterministic computation cost and robust convergence under segmentation noise and partial map visibility. IV. R ESULTS AND EVALUATION 
+
+A. Hardware Configuration 
+
+All flight trials and data collection were conducted using a DJI Matrice 350 RTK UAV equipped with a Zenmuse H20T multi-sensor payload. The wide-angle RGB and thermal (40.6° DFOV, LWIR 8–14 μm) sensors were used for data acquisition. A summary of flight sites, trajectory lengths, altitudes, and dataset statistics is provided in Table I. Flights were preplanned at fixed altitudes that varied by site to evaluate robustness across operating conditions. RTK positioning was used during both daytime and nighttime flights to geo-reference the map and to generate ground-truth trajectories for quantitative evaluation. Importantly, RTK measurements were used solely for map construction and performance benchmarking and were not provided as input to the nighttime localization pipeline. 
+
+B. Semantic Segmentation Performance 
+
+Semantic segmentation results for the RGB teacher and thermal student models are summarized in Table II. The RGB model achieved an average IoU of 83.1%, with all classes exceeding 73% IoU. The thermal model obtained an average IoU of 58.3%, with higher performance on structurally dominant classes such as tree vegetation (77.6%), low vegetation (66.7%), and impervious surfaces (68.2%). Buildings achieved 57.9% IoU, while vehicles remained the most challenging class (31.3%) due to low representation and weak thermal contrast. Despite lower overall accuracy, the thermal model pre-served the primary structural classes used for localization; impervious surfaces, vegetation, and buildings, which to-gether account for over 90% of thermal pixels. These results indicate that segmentation quality is sufficient to support semantic alignment and downstream localization. The West environment, flown at the lowest altitude (50 m AGL), exposed an observability limit of the method: images Fig. 3: Pier flight trajectory overlaid on the semantically labeled global map. Localization error relative to RTK ground truth is color-coded along the path: white indicates high-accuracy estimates (0–2 m), grey denotes moderate error (2–5 m), and black highlights failure regions exceeding 5 m. Regions P1–P3 mark regions where large errors are concentrated. The figure illustrates that localization failures are confined to specific scene configurations. 
+
+were dominated by single semantic classes, providing insuf-ficient edge structure for reliable alignment. This confirms that semantic edge diversity is a necessary condition for the reprojection-based approach. 
+
+C. Semantic Point Cloud Construction 
+
+Semantic labeling of the reconstructed point cloud was evaluated qualitatively. Reprojection-based label fusion pro-duced consistent semantic structure across views, improving robustness compared to single-image inference. Pruning reduced the point count to approximately 4% of its original size while preserving structural edges critical for localization. The City dataset was reduced from 64M to 3M points, significantly lowering computational cost without degrading alignment quality (Figure 1). 
+
+D. Localization Performance and Analysis 
+
+Localization accuracy was evaluated against RTK ground truth (reported error 1–3 cm) across all datasets. Horizontal localization error is computed in the x–y plane and reported as RMSE 2D . Over 1,373 frames spanning 6.5 km of night-time flight, the system achieved a combined RMSE 2D of 2.18 m with a median horizontal error of 1.52 m (Table III). Overall, 68% of frames localized within 2 m, while 6% exceeded 5 m. Performance varied by environment. Pier achieved the lowest RMSE 2D (1.83 m), followed by City (2.13 m). Vic showed higher error (2.59 m), likely due to increased se-mantic ambiguity. Because alignment is performed over a bounded spatial region and relies on edge-based reprojection, moderate attitude errors primarily manifest as consistent spatial shifts in projected map structure. In practice, attitude estimates from IMU/VIO pipelines are significantly more accurate than meter-level translation errors over short time horizons, making translation the dominant uncertainty term in the global correction step. Typical drift in monocular VIO on kilometer-scale trajectories can exceed 1–3% of the distance traveled, corresponding to 20–60 m over 2 km without loop closure. The proposed method reduces global error to a meters-level accuracy using thermal imagery alone. An ablation study assessed the influence of key framework components. 
+
+a) Bidirectional alignment: The symmetric formulation combining forward (projection-to-edge) and reverse (edge-to-projection) terms proved critical for stable convergence. Using either term alone increased both mean error and variance. The forward-only formulation showed suscepti-bility to sparse projected-point attraction despite sharper local alignment in well-constrained regions. The combined formulation reduced error dispersion by approximately 1.5 m across datasets and consistently produced the most stable convergence behavior. 
+
+b) Huber loss parameters: Huber thresholds were eval-uated across a range of values. A setting of δ = 2 px with a 5 px clamp provided the best balance between sensitivity to small misalignments and robustness to outliers. All reported results use this configuration. 
+
+c) Confusion-aware weighting: Incorporating class-confusion statistics into the symmetric loss reduced mean horizontal error by 12.1% and standard deviation by 17.5% across datasets, while median error improved by 2%. Im-provements were strongest in semantically ambiguous envi-ronments: City mean error decreased from 2.52 m to 2.13 m (15.5%), and Vic from 3.14 m to 2.59 m (17.5%). These results indicate that confusion-aware weighting primarily suppresses large-error outliers. Runtime performance. Run-time on an NVIDIA GeForce RTX 4070 GPU averages 0.95 s per update, sufficient for periodic global correction when coupled with high-rate VIO. 
+
+d) Effect of Semantic Edges: Localization accuracy was strongly correlated with available semantic edge evidence. Applying an evidence threshold of 8,000 edge points retained TABLE III: Bias-corrected horizontal localization accuracy across datasets. 
+
+Dataset Frames RMSE x RMSE y RMSE 2D Median 2D P75 2D %< 2m %> 5mCity Park 402 1.151 1.526 2.126 1.499 2.162 70% 5% Vic Park 482 1.472 1.779 2.589 1.815 2.666 56% 8% Pier 489 1.265 1.020 1.831 1.334 1.884 55% 6% Total 1373 1.305 1.435 2.184 1.519 2.299 68% 6% Total (Gated 8000, 90%) 1247 1.216 1.357 2.053 1.493 2.186 70% 5% Total (Gated 10000, 70%) 1102 1.171 1.309 1.979 1.465 2.141 72% 5% 
+
+TABLE IV: Localization error versus edge-point count bin. 
+
+Edge Pixels (bin) Std. Dev. (m) Mean (m) N
+
+1749–7248 3.847 3.799 88 7249–12748 2.773 2.446 487 12749–18248 2.171 1.953 586 18249–23748 2.167 1.611 184 23749–29248 0.434 1.131 28 Total 2.566 2.184 1373 
+
+approximately 90% of frames ( N = 1 ,247 ) while improving 
+
+RMSE 2D from 2.18 m to 2.05 m by effectively reducing outliers (Table IV). These results indicate that semantic reprojection localization exhibits a structural observability dependence: when semantic edge density is low, the align-ment objective becomes weakly conditioned and multiple translations yield similar loss values. 
+
+e) Spatial Distribution of Large-Error Estimates: We categorize large-error events into three classes: (i) low se-mantic edge density, (ii) systematic class confusion (e.g., water/impervious), (iii) map–environment mismatch (e.g., vegetation changes). Fig. 3 highlights all frames exceeding 5 m horizontal error in black along a representative Pier nighttime trajectory and Fig. 4 shows corresponding semantic segmentation examples for three challenging regions P1–P3 marked on Fig. 3. Across the Pier trajectory ( N = 489 ), only 27 frames (5.5%) exceed 5 m error, and 25 occur within three compact regions (P1–P3) corresponding to areas of limited structural diversity, large homogeneous surfaces or ambiguous class boundaries. Specifically P3 is shifted due to inaccurate shorelines resulting from its under representation in the thermal training (Table II). V. C ONCLUSION AND FUTURE WORK 
+
+This work presents a map-relative nighttime UAV local-ization framework that bridges the RGB–thermal modality gap through semantic reprojection in a global 3D frame. By aligning segmented thermal observations with a semantically labeled 3D map constructed from daytime RGB data, the method replaces appearance-based matching with structural consistency constraints. Across 6.5 km of real-world night-time flight (1,373 frames), the system achieves an RMSE 2D
+
+of 2.18 m relative to RTK ground truth. Performance analysis shows that symmetric bidirectional alignment and confusion-aware weighting significantly reduce error dispersion and suppress large-error outliers. Furthermore, localization per-formance is strongly correlated with semantic edge density, consistent with the structural observability analysis in Sec-tion III. The current work focuses on the global correction mod-ule; onboard integration with high-rate thermal odometry remains as future work. Future improvements are expected to arise primarily from advances in segmentation fidelity. Frames with limited structural diversity or ambiguous class boundaries dominate failure cases, suggesting that improved boundary accuracy, altitude-balanced training data, and better representation of under-sampled classes (e.g., water) could directly enhance localization robustness. The current imple-mentation is also constrained by the narrow thermal field of view and the cropped 512 ×512 input resolution, which limit the observable context for alignment. REFERENCES [1] S. N. Lingam, R. Verstegen, S. M. Petermeijer, and M. Martens, “Human interactions with delivery drones in public spaces: design recommendations from recipient and bystander perspectives,” Fron-tiers in Robotics and AI , vol. 12, 2025. [2] N. Chodura, D. Boase, J. Woods, and M. Greeff, “Cold region building inspection using UAV-based three-dimensional reconstruction,” ISPRS Annals of the Photogrammetry, Remote Sensing and Spatial Infor-mation Sciences , vol. X-2-W2-2025, pp. 15–22, 2025, uAV-g 2025, Espoo, Finland. [3] M. Warren, M. Greeff, B. Patel, J. Collier, A. P. Schoellig, and T. D. Barfoot, “There’s no place like home: Visual teach and repeat for emergency return of multirotor UAVs during GPS failure,” IEEE Robotics and Automation Letters , vol. 4, no. 1, pp. 161–168, 2019. [4] M. Bianchi and T. D. Barfoot, “UAV localization using autoencoded satellite images,” IEEE Robotics and Automation Letters , vol. 6, no. 2, pp. 1761–1768, 2021. [5] Y. Xu, Q. Hao, L. Zhang, J. Mao, X. He, W. Wu, and C. Chen, “SLAM in the dark: Self-supervised learning of pose, depth and loop-closure from thermal images,” 2025. [6] B. Patel, T. D. Barfoot, and A. P. Schoellig, “Visual localization with google earth images for robust global pose estimation of UAVs,” in 
+
+2020 IEEE International Conference on Robotics and Automation (ICRA) . IEEE, 2020, pp. 6491–6497. [7] S. Jiang, C. Jiang, and W. Jiang, “Efficient structure from motion for large-scale UAV images: A review and a comparison of SfM tools,” 
+
+ISPRS Journal of Photogrammetry and Remote Sensing , vol. 167, pp. 230–251, 2020. [8] M. Storch, B. Kisliuk, T. Jarmer, B. Waske, and N. de Lange, “Comparative analysis of UAV-based LiDAR and photogrammetric systems for the detection of terrain anomalies in a historical conflict landscape,” Science of Remote Sensing , vol. 11, p. 100191, 2025. [9] Y. Wu, L. Wang, L. Zhang, M. Chen, W. Zhao, D. Zheng, and Y. Cai, “Monocular thermal SLAM with neural radiance fields for 3d scene reconstruction,” Neurocomputing , vol. 617, p. 129041, 2025. [10] J. Jiang, X. Chen, W. Dai, Z. Gao, and Y. Zhang, “Thermal-inertial SLAM for the environments with challenging illumination,” IEEE Robotics and Automation Letters , vol. 7, no. 4, pp. 8767–8774, 2022. [11] M. Brenner, N. H. Reyes, T. Susnjak, and A. L. C. Barczak, “RGB-d and thermal sensor fusion: A systematic literature review,” IEEE Access , vol. 11, pp. 82 410–82 442, 2023. [12] Y. Zhou, X. Li, S. Li, X. Wang, and Z. Shen, “Ground-VIO: Monocular visual-inertial odometry with online calibration of camera-ground ge-ometric parameters,” IEEE Transactions on Intelligent Transportation Systems , vol. 25, no. 10, pp. 14 328–14 343, 2024. (a) Top 10% performance. Strong semantic detail and clear struc-tural boundaries, resulting in 0.4 m RMSE 2D .
+
+(b) Region P1. Large building dominates the view, limiting se-mantic diversity and yielding 8.8 m RMSE 2D .
+
+(c) Region P2. Large building dominates the view, leading to incorrect classification and yielding 11.0 m RMSE 2D
+
+(d) Region P3. Ambiguity in the water class induces both ver-tical and horizontal alignment shifts despite otherwise consistent semantic classification, resulting in 5.5 m RMSE 2D .
+
+Fig. 4: Qualitative localization examples shown as row-wise triplets (Left: thermal image. Middle: thermal semantic segmentation. Right: reprojected RGB semantic map) from Pier failure regions. Reprojections are computed using RTK ground-truth poses to isolate segmentation effects from localization error. 
+
+[13] H. Luo, Y. Liu, C. Guo, Z. Li, and W. Song, “SuperVINS: A real-time visual-inertial SLAM framework for challenging imaging conditions,” 
+
+IEEE Sensors Journal , vol. 25, no. 13, pp. 26 042–26 050, 2025. [14] J. Zhang and S. Singh, “LOAM: Lidar odometry and mapping in real-time,” in Robotics: Science and Systems X . Robotics: Science and Systems Foundation, 2014. [15] T. Shan and B. Englot, “LeGO-LOAM: Lightweight and ground-optimized lidar odometry and mapping on variable terrain,” in 2018 IEEE/RSJ International Conference on Intelligent Robots and Systems (IROS) , 2018, pp. 4758–4765. [16] T. Shan, B. Englot, D. Meyers, W. Wang, C. Ratti, and D. Rus, “LIO-SAM: Tightly-coupled lidar inertial odometry via smoothing and mapping,” in 2020 IEEE/RSJ International Conference on Intelligent Robots and Systems (IROS) , 2020, pp. 5135–5142. [17] W. Xu, Y. Cai, D. He, J. Lin, and F. Zhang, “FAST-LIO2: Fast direct LiDAR-inertial odometry,” IEEE Transactions on Robotics , vol. 38, no. 4, pp. 2053–2073, 2022. [18] J. Delaune, R. Hewitt, L. Lytle, C. Sorice, R. Thakker, and L. Matthies, “Thermal-inertial odometry for autonomous flight throughout the night,” in 2019 IEEE/RSJ International Conference on Intelligent Robots and Systems (IROS) , 2019, pp. 1122–1128. [19] S. Li, X. Ma, R. He, Y. Shen, H. Guan, H. Liu, and F. Li, “WTI-SLAM: a novel thermal infrared visual SLAM algorithm for weak texture thermal infrared images,” Complex & Intelligent Systems , vol. 11, no. 6, p. 242, 2025. [20] C. Lv, L. Li, R. Wei, X. Wang, and T. Zuo, “Visual-inertial SLAM technology based on monocular infrared camera,” in 2024 36th Chi-nese Control and Decision Conference (CCDC) , 2024, pp. 2009–2014. [21] J. Xiao, D. Tortei, E. Roura, and G. Loianno, “Long-Range UAV Thermal Geo-Localization with Satellite Imagery,” in 2023 IEEE/RSJ International Conference on Intelligent Robots and Systems (IROS) ,Oct. 2023, pp. 5820–5827. [22] J. Xiao and G. Loianno, “UASTHN: Uncertainty-aware deep homog-raphy estimation for UAV satellite-thermal geo-localization,” in 2025 IEEE International Conference on Robotics and Automation (ICRA) ,2025, pp. 14 066–14 072. [23] J. Vertens, J. Z¨ urn, and W. Burgard, “HeatNet: Bridging the day-night domain gap in semantic segmentation with thermal images,” in 2020 IEEE/RSJ International Conference on Intelligent Robots and Systems (IROS) , 2020, pp. 8461–8468, ISSN: 2153-0866. [24] L. Meng, J. Zhou, S. Liu, Z. Wang, X. Zhang, L. Ding, L. Shen, and S. Wang, “A robust registration method for UAV thermal infrared and visible images taken by dual-cameras,” ISPRS Journal of Photogram-metry and Remote Sensing , vol. 192, pp. 189–214, 2022. [25] Y. Ji, K. Song, H. Wen, X. Xue, Y. Yan, and Q. Meng, “UAV applications in intelligent traffic: RGBT image feature registration and complementary perception,” Advanced Engineering Informatics ,vol. 63, p. 102953, 2025. [26] A. Upadhyay, M. Sharma, P. Mukherjee, A. Singhal, and B. Lall, “A comprehensive survey on synthetic infrared image synthesis,” Infrared Physics & Technology , vol. 147, p. 105745, 2025. [27] A. Cramariuc, F. Tschopp, N. Alatur, S. Benz, T. Falck, M. Br¨ uhlmeier, B. Hahn, J. Nieto, and R. Siegwart, “SemSegMap – 3d segment-based semantic localization,” in 2021 IEEE/RSJ International Conference on Intelligent Robots and Systems (IROS) , 2021, pp. 1183–1190. [28] C. Zhang, H. Zhao, C. Wang, X. Tang, and M. Yang, “Cross-modal monocular localization in prior LiDAR maps utilizing semantic consistency,” in 2023 IEEE International Conference on Robotics and Automation (ICRA) , 2023, pp. 4004–4010. [29] K. Li, X. Zhang, K. LI, and S. Zhang, “Vision global localization with semantic segmentation and interest feature points,” in 2020 IEEE/RSJ International Conference on Intelligent Robots and Systems (IROS) ,2020, pp. 4581–4587. [30] A. Garioud, N. Gonthier, L. Landrieu, A. D. Wit, M. Valette, M. Poup´ ee, S. Giordano, and B. Wattrelos, “FLAIR: a country-scale land cover semantic segmentation dataset from multi-source optical imagery,” in Advances in Neural Information Processing Systems (NeurIPS) , 2023. [31] A. Rahman. Aerial semantic drone dataset. [32] Y. Lyu, G. Vosselman, G.-S. Xia, A. Yilmaz, and M. Y. Yang, “UAVid: A semantic segmentation dataset for UAV imagery,” ISPRS Journal of Photogrammetry and Remote Sensing , vol. 165, pp. 108–119, 2020. [33] W. Cai, K. Jin, J. Hou, C. Guo, L. Wu, and W. Yang, “VDD: Varied drone dataset for semantic segmentation,” Journal of Visual Communication and Image Representation , vol. 109, p. 104429, 2025. [34] L.-C. Chen, Y. Zhu, G. Papandreou, F. Schroff, and H. Adam, “Encoder-decoder with atrous separable convolution for semantic image segmentation,” in Computer Vision – ECCV 2018 , V. Ferrari, M. Hebert, C. Sminchisescu, and Y. Weiss, Eds. Springer International Publishing, 2018, vol. 11211, pp. 833–851, series Title: Lecture Notes in Computer Science. [35] K. He, X. Zhang, S. Ren, and J. Sun, “Deep residual learning for image recognition,” in 2016 IEEE Conference on Computer Vision and Pattern Recognition (CVPR) . IEEE, 2016, pp. 770–778. [36] E. Xie, W. Wang, Z. Yu, A. Anandkumar, J. M. Alvarez, and P. Luo, “SegFormer: Simple and efficient design for semantic segmentation with transformers,” in Advances in Neural Information Processing Systems , vol. 34. Curran Associates, Inc., 2021, pp. 12 077–12 090. [37] O. Russakovsky, J. Deng, H. Su, J. Krause, S. Satheesh, S. Ma, Z. Huang, A. Karpathy, A. Khosla, M. Bernstein, A. C. Berg, and L. Fei-Fei, “ImageNet large scale visual recognition challenge,” Inter-national Journal of Computer Vision , vol. 115, no. 3, pp. 211–252, 2015. [38] E. Games, “Reality capture,” 2025.
