@@ -1,0 +1,1203 @@
+Title: Robust Multimodal Recommendation via Graph Retrieval-Enhanced Modality Completion
+
+URL Source: https://arxiv.org/pdf/2605.00670v1
+
+Published Time: Mon, 04 May 2026 00:52:56 GMT
+
+Number of Pages: 12
+
+Markdown Content:
+# Robust Multimodal Recommendation via Graph Retrieval-Enhanced Modality Completion 
+
+# Yuan Li 
+
+National University of Singapore Singapore li.yuan@u.nus.edu 
+
+# Jun Hu ∗
+
+National University of Singapore Singapore jun.hu@nus.edu.sg 
+
+# Jiaxin Jiang 
+
+National University of Singapore Singapore jxjiang@nus.edu.sg 
+
+# Bryan Hooi 
+
+National University of Singapore Singapore dcsbhk@nus.edu.sg 
+
+# Bingsheng He 
+
+National University of Singapore Singapore dcsheb@nus.edu.sg 
+
+## Abstract 
+
+Multimodal data plays a critical role in web-based recommendation systems, where information from diverse modalities such as vision and text enhances representation learning. However, real-world multimodal datasets often suffer from modality incompleteness due to sensor failures, annotation scarcity, or privacy constraints, which substantially degrade model performance and reliability. One effective solution to address this issue is modality completion, which reconstructs missing features to provide modality-complete graphs for downstream tasks. Given a query node with missing multimodal features, existing modality completion methods typ-ically infer information from the node itself or its neighbors to reconstruct the missing modality. However, these methods may overlook semantically relevant context in the graph, which con-tains valuable cues that are non-trivial to capture through simple methods like neighborhood aggregation. In this work, we propose GRE-MC, a Graph Retrieval–Enhanced Modality Completion frame-work, to overcome these limitations. By introducing a modality-aware subgraph retrieval mechanism, GRE-MC selects semanti-cally relevant subgraphs from the entire graph, providing richer contextual information for completing missing modalities. Subse-quently, a graph transformer jointly encodes the query node and the retrieved subgraph via global attention to complete the missing features, while a learnable sparse-routing codebook regularizes latent embeddings into compact bases for improved robustness. Ex-tensive experiments on multimodal recommendation benchmarks demonstrate that GRE-MC consistently outperforms state-of-the-art methods, validating the effectiveness of subgraph retrieval and joint-encoding graph transformer for robust modality completion. 
+
+## CCS Concepts 
+
+• Information systems → Multimedia and multimodal re-trieval ; Recommender systems ; • Computing methodologies  
+
+> ∗Corresponding author.
+> This work is licensed under a Creative Commons Attribution 4.0 International License.
+> SIGIR ’26, Melbourne, VIC, Australia
+> ©2026 Copyright held by the owner/author(s). ACM ISBN 979-8-4007-2599-9/2026/07 https://doi.org/10.1145/3805712.3809607
+
+→ Neural networks ; • Mathematics of computing → Graph algorithms .
+
+## Keywords 
+
+Multimodal Recommendation, Data Completion, Graph Retrieval 
+
+ACM Reference Format: 
+
+Yuan Li, Jun Hu, Jiaxin Jiang, Bryan Hooi, and Bingsheng He. 2026. Ro-bust Multimodal Recommendation via Graph Retrieval-Enhanced Modality Completion. In Proceedings of the 49th International ACM SIGIR Conference on Research and Development in Information Retrieval (SIGIR ’26), July 20– 24, 2026, Melbourne, VIC, Australia. ACM, New York, NY, USA, 12 pages. https://doi.org/10.1145/3805712.3809607 
+
+## 1 Introduction 
+
+Multimodal data, which integrates information from diverse modal-ities such as vision and text, has greatly advanced web-based rec-ommendation applications [ 41 , 42 ]. Despite these advances, multi-modal recommendation systems often face modality incomplete-ness caused by sensor malfunctions, limited annotations, or privacy constraints [ 1 , 21 , 26 ]. As illustrated in Figure 1a, a real-world graph may contain nodes with missing textual features (e.g., node 𝑣 2) or missing visual features (e.g., node 𝑣 3). Most existing multimodal rec-ommendation models [ 2 , 42 , 47 ] assume that all modalities are fully available (e.g., node 𝑣 1), without considering nodes with missing modalities during either training or evaluation, leading to substan-tial performance degradation [ 21 , 26 ] in real-world scenarios where certain modalities may be absent. A range of solutions have been explored to mitigate the issue of missing modalities in web-based recommendation systems. Existing approaches focus on designing modality-robust models or lever-aging auxiliary signals, often inspired by advances in multimodal learning such as learning modality-aligned representations [ 1, 35 ]and knowledge distillation to transfer information from complete-modality data [ 38 , 40 ]. While effective, such model-centric methods require modifying each downstream model to handle incomplete inputs, which introduces substantial implementation overhead and is impractical for large-scale deployments. An alternative approach is modality completion , which aims to generate the missing modality data before passing inputs to the downstream model, as illustrated in Figure 1b. By reconstructing a complete set of modali-ties—using techniques such as graph-based feature propagation [ 26 ]   
+
+> arXiv:2605.00670v1 [cs.IR] 1 May 2026 SIGIR ’26, July 2024, 2026, Melbourne, VIC, Australia Yuan Li, Jun Hu, Jiaxin Jiang, Bryan Hooi, and Bingsheng He Recommendation Model Incomplete Graph Textual
+> Visual
+> v2
+> v3
+> v1 Train GNNs on
+> incomplete graphs
+> for recommendation
+> (a) Training GNNs for recommendation with missing modalities, which degrade the performance of downstream recommendation models. Recommendation Incomplete Graph Completed Graph
+> v2
+> v3
+> v1
+> v2
+> v3
+> v1
+> Textual
+> Visual
+> Complete
+> Missing
+> Features
+> (b) Training GNNs for recommendation with completed modalities, where enriched features provide informative signals for improved predictions.
+
+Figure 1: Illustration of modality completion in recommen-dation tasks, where recovering missing features can improve downstream recommendation performance. 
+
+or conditional generative models [ 21 ]—modality completion en-ables the use of existing multimodal models without architectural modifications. In this work, we focus on modality completion for multimodal recommendation systems, aiming to handle missing modalities in practical recommendation scenarios. Extensive prior work has advanced modality completion as a pre-processing strategy to reconstruct missing modalities before downstream learning, enabling seamless integration with exist-ing multimodal architectures without the need for architectural modifications [ 1, 21 , 26 ]. Broadly, these approaches can be cate-gorized into two main paradigms: (1) self-based methods , such as MoDiCF [ 21 ] and LRMM [ 37 ], which exploit intra-instance correla-tions between available modalities (e.g., using textual features to reconstruct visual features). These models typically employ cross-modal attention or conditional generation networks to infer the missing modality from the available ones; and (2) neighbor-based methods , such as Imputed [ 26 ], which leverage inter-instance depen-dencies—often captured through graph structures like co-purchase or co-click networks—to impute missing features by aggregating signals from related entities. Both paradigms have demonstrated promising results in improving the completeness and quality of multimodal representations. 
+
+Subgraph Retrieval for Modality Completion. As depicted in Figure 2(i), given a query node 𝑣 1 (a shirt) with missing textual features, neighbor-based methods consider its neighbors within 
+
+𝐾 𝑁 hops as information relevant to 𝑣 1 and use them for modality completion. In this paper, we consider a new paradigm, subgraph retrieval, to extract information relevant to the query nodes. Specif-ically, as shown in Figure 2(ii), our subgraph retrieval approach (detailed in Section 4.2) extracts a subgraph from the entire graph by leveraging both graph semantics derived from the available modal-ities of the query nodes and structural information, ensuring that the retrieved subgraph is semantically relevant. Figure 3 compares two strategies for obtaining nodes relevant to a query node: (i) its 
+
+𝐾 𝑁 -hop neighbor nodes (we set 𝐾 𝑁 = 2 for illustration), and (ii) (i) Neighbor -based Completion  (ii) Graph Retrieval -Enhanced Completion (Ours )     
+
+> Casual
+> blue tee…
+> (Text Missing)
+> v1
+> v2 v3
+> (Text Missing)
+> Black hat…
+> (Image Missing)
+> Casual
+> blue tee…
+> v1
+> v2 v3
+> Completed Text Feature Completed Text Feature
+> Textual Feature Visual Feature Query Node
+> Neighbors within K N-hops
+> Retrieved Subgraph
+> Black hat…
+> (Image Missing)
+
+Figure 2: Motivation for graph retrieval–enhanced modality completion. (i) Neighbor-based completion may aggregate neighbors with less semantically relevant features. (ii) Graph retrieval–enhanced completion retrieves a distant yet seman-tically relevant subgraph. 
+
+the nodes in its retrieved subgraph obtained through our subgraph retrieval approach. Importantly, while the retrieval process relies on the available modalities of the query node, the relevance met-ric measures the average similarity between nodes obtained from each strategy and the missing modality of the query node. The re-sults demonstrate that the retrieved subgraphs achieve significantly higher relevance scores than the neighborhood, indicating that our retrieval approach provides richer and more complementary con-textual information for robust modality completion in scenarios with missing modalities. 
+
+Graph Transformer for Joint Encoding. In neighbor-based methods, the self-information of the query node and that of its neighboring nodes are jointly encoded to infer the missing modal-ity. Typically, the query node and its neighbors are connected (e.g., including 𝐾 𝑁 -hop neighbors), and message passing is employed during encoding to mutually enrich their representations. However, in our framework, the neighboring nodes are replaced by a retrieved subgraph, where the query node may not be directly connected to any node within this subgraph, making conventional message passing between them infeasible. To address this, we introduce a graph transformer [ 13 , 48 ] that enables the joint encoding of the query node and its retrieved subgraph through global attention, allowing information exchange regardless of graph connectivity. Global positional encodings are incorporated to provide global structural information for both the query node and the retrieved subgraph, thereby enabling the model to capture long-range de-pendencies even across disconnected components. Furthermore, we introduce a learnable sparse-routing codebook that discretizes latent embeddings into a compact set of basis vectors, regularizing the representation space and enhancing robustness to incomplete modalities. In this paper, we propose GRE-MC , a graph retrieval–enhanced framework for modality completion. By retrieving semantically relevant subgraphs and encoding them jointly with the query node via a graph transformer, GRE-MC effectively leverages distant yet informative context to complete missing modalities. Extensive ex-periments demonstrate that GRE-MC consistently outperforms existing approaches across multiple multimodal recommendation benchmarks. The contributions are summarized as follows: Robust Multimodal Recommendation via Graph Retrieval-Enhanced Modality Completion SIGIR ’26, July 2024, 2026, Melbourne, VIC, Australia 0 500 1000 1500 2000 2500 
+
+> Query Node (Sorted by Mean Cosine Similarity)
+> 0.2
+> 0.4
+> Mean Cosine Similarity
+> (i) Neighbor-based Completion
+> (ii) Graph Retrieval-Enhanced Completion (Ours)
+
+Figure 3: Comparison of subgraph relevance between neighborhoods and semantically retrieved subgraphs under missing-modality scenarios. 
+
+• We propose GRE-MC, a graph retrieval–enhanced frame-work for modality completion. By introducing a dual-stage subgraph retrieval mechanism, GRE-MC retrieves semanti-cally relevant subgraphs for more informed completion. 
+
+• We introduce a graph transformer that jointly encodes the query node and the retrieved subgraph to capture long-range dependencies. A sparse-routing codebook further discretizes latent representations into compact bases, improving robust-ness under incomplete modalities. 
+
+• Extensive experiments on multimodal recommendation bench-marks demonstrate that GRE-MC enhances downstream per-formance, outperforming state-of-the-art (SOTA) methods under missing-modality scenarios. 
+
+## 2 Preliminaries 
+
+Multimodal Recommendation (MMRec) systems aim to enhance recommendation performance by incorporating diverse modali-ties, such as textual descriptions, images, acoustic features, and more [ 14 , 21 ]. Each instance can be described by multiple modality-specific features, enabling richer user–item semantic modeling. Formally, let M denote the set of available modalities, where each modality 𝑚 ∈ M is associated with a feature space. For each in-stance 𝑖 , its multimodal features are denoted as {x(𝑚 ) 
+
+> 𝑖
+
+}𝑚 ∈ M . Unlike traditional recommenders that rely solely on user–item interactions, MMRec frameworks learn representations by integrating content from multiple modalities to better capture their characteristics. 
+
+Graph-based Recommendation. Many SOTA recommenda-tion systems model the recommendation problem using a user-item interaction graph G = (V , E) , where nodes V represent users and items, and edges E indicate observed interactions [ 14 ]. We denote the number of nodes as 𝑁 and the number of edges as 𝐸 , where the nodes consist of 𝑁 𝑈 users and 𝑁 𝐼 items. These interactions are typically represented by an adjacency matrix A ∈ { 0, 1}| V | × | V | .Graph Neural Networks (GNNs) [ 9, 19 ] and more graph learning approaches[ 12 , 22 ] are then employed to propagate information through the graph, modeling higher-order dependencies among users and items [42]. We further construct an item graph G𝐼 = (V 𝐼 , E𝐼 ) induced from the user-item interaction graph G. The node set V𝐼 consists of all items, i.e., |V 𝐼 | = 𝑁 𝐼 . Two items 𝑖, 𝑗 ∈ V 𝐼 are connected if they share at least one common user in G:
+
+(𝑖, 𝑗 ) ∈ E 𝐼 ⇐⇒ ∃ 𝑢 ∈ V 𝑈 s.t. (𝑢, 𝑖 ) ∈ E , (𝑢, 𝑗 ) ∈ E (1) where V𝑈 denotes the user set. This induced graph provides an item-centric view, enabling modality-complete items to propagate information to missing-modality nodes for more effective comple-tion. Since item information is generally more publicly accessible, while user information tends to be more private, we focus on item completion in this work and hereafter use the symbol G = G𝐼 to denote the item graph, and similarly let V = V𝐼 and E = E𝐼 .
+
+Missing Modalities and Completion. In real-world applica-tions, item modalities are often incomplete due to privacy concerns, data sparsity, or acquisition costs [ 21 ]. This results in missing-modality scenarios, where some items are associated with only a subset of modalities. Formally, we define a modality indicator matrix E ∈ { 0, 1}𝑁 𝐼 × | M | , where E𝑖,𝑚 = 1 if modality 𝑚 is observed for item 𝑖 , and E𝑖,𝑚 = 0 otherwise. Given the observed modalities, the item’s available feature set is {x(𝑚 ) 
+
+> 𝑖
+
+: E𝑖,𝑚 = 1}. The objective of modality completion is to learn a conditional completion function: 
+
+C : (G , {x(𝑚 ) 
+
+> 𝑖
+
+: E𝑖,𝑚 = 1}, E𝑖 ) −→ { ˆx(𝑚 ) 
+
+> 𝑖
+
+: E𝑖,𝑚 = 0} (2) 
+
+## 3 Related Work 3.1 Multimodal Recommendation Models 
+
+Multimodal recommendation enhances user or item embeddings with auxiliary modalities (e.g., text, images) to complement inter-action signals. Traditional baselines such as BPR [ 32 ] and Light-GCN [ 11 ] rely solely on interaction graphs and serve as unimodal benchmarks. More recent approaches incorporate multimodal in-formation: SLMRec [ 34 ] applies self-supervised tasks to align and denoise multimodal views; BM3 [ 54 ] uses contrastive alignment across modalities. Despite their strong performance under complete modality settings, these models largely assume that all modalities are observed. As a result, they experience significant degradation in real-world scenarios where item modalities are missing or in-complete, motivating research into modality-aware completion. 
+
+## 3.2 Self-Based Modality Completion 
+
+Previous work has explored self-based modality completion, which leverages a node’s own observed modalities to infer its missing ones, either by imputing features or by learning modality-invariant representations [ 43 , 50 ]. For example, SDR-GNN [ 7 ] reconstructs missing signals in the spectral domain, while MMImputeDiff [ 20 ]employs diffusion models to synthesize missing imaging modali-ties. Although effective, these approaches mainly operate at the instance level and do not leverage structural signals available in recommendation graphs. As a result, they struggle when items lack strong intra-instance modality correlations or when the observed modalities provide weak guidance. Our work addresses this lim-itation by augmenting self-based completion with retrieval from semantically related subgraphs, enabling completion that is both structure-aware and robust under modality missingness. 
+
+## 3.3 Neighbor-Based Modality Completion 
+
+GNNs are widely used to model user–item relations in multimodal recommendation, as they capture higher-order dependencies through SIGIR ’26, July 2024, 2026, Melbourne, VIC, Australia Yuan Li, Jun Hu, Jiaxin Jiang, Bryan Hooi, and Bingsheng He 
+
+message passing [ 3 , 45 , 49 ]. However, prior graph-based modality completion methods largely rely on neighbor aggregation [ 26 ], as-suming that neighbors provide informative signals for reconstruct-ing missing modalities. As illustrated in Figure 2, this assumption can be fragile: 𝐾 𝑁 -hop neighbors may be incomplete or semanti-cally irrelevant, leading to error propagation and poor completion quality. Our approach overcomes this shortcoming by introduc-ing a graph retrieval mechanism that adaptively selects globally relevant subgraphs instead of restricting completion to 𝐾 𝑁 -hop neighborhoods. This retrieval step ensures that modality comple-tion is guided by higher-quality, semantically relevant contexts even when neighbor nodes are unreliable. In summary, existing modality completion approaches either focus on self-based feature recovery without leveraging structural signals or rely heavily on neighborhood aggregation in graphs, which is often brittle in noisy contexts. These limitations motivate a new paradigm that jointly exploits global graph semantics and structural retrieval for robust modality completion. 
+
+## 4 Methodology 
+
+In this section, we introduce a graph retrieval-enhanced modality completion framework designed to address the challenge of missing modalities in recommendation systems. 
+
+## 4.1 Overview 
+
+Unlike prior methods that either (i) infer missing modalities from self-information or (ii) rely on neighbor aggregation, we propose GRE-MC, a graph retrieval–enhanced framework for modality com-pletion in recommendation systems. As depicted in Figure 4, it con-sists of two main components that jointly enable graph semantic-and structure-aware modality completion: 
+
+• Modality-Aware Subgraph Retrieval identifies a set of semantically related nodes based on available modalities and expands them into a structurally coherent subgraph through modality-aware graph expansion. 
+
+• Joint-Encoding Graph Transformer encodes the retrieved subgraph with Laplacian positional encodings to capture higher-order dependencies and cross-modal interactions, and employs a sparse-routing codebook to discretize latent representations for robust modality completion. 
+
+## 4.2 Modality-Aware Subgraph Retrieval 
+
+This component first performs anchor set retrieval to identify a set of semantically relevant nodes, i.e., anchors, and then applies modality-aware graph expansion to integrate these anchors into a structurally coherent subgraph that captures both graph semantic and structural signals. 
+
+Anchor Set Retrieval. To retrieve informative context for reli-able completion, GRE-MC leverages the entire graph, which con-tains abundant semantically relevant nodes, i.e., anchors. By retriev-ing such anchors, the model injects external signals beyond the query node’s self-information or 𝐾 𝑁 -hop neighborhood [ 23 , 28 ]. Specifically, consider query node 𝑖 and its available modality 𝑚 such that E𝑖,𝑚 = 1, we perform nearest-neighbor search [ 4, 15 ] using modality 𝑚 to retrieve a set of anchors: 
+
+A (𝑚 ) 
+
+> 𝑖
+
+= TopK 
+
+
+
+x(𝑚 ) 
+
+> 𝑖
+
+, {x(𝑚 ) 
+
+> 𝑗
+
+| E𝑗,𝑚 = 1}
+
+
+
+(3) The retrieved anchors serve as context that shares semantic simi-larity with the query node’s observed modalities, ensuring that the signals guiding completion are content-aware rather than purely structural. However, anchor nodes may be scattered across the graph without forming cohesive structures, which fail to express the underlying structural signals. 
+
+Modality-Aware Graph Expansion. Drawing inspiration from lowest common ancestors [ 46 ], we enrich the semantic anchors with structural context by expanding them into an Anchor-Connecting Subgraph (ACS in Algorithm 1) via multi-source breadth-first search: 
+
+𝑆 0 = ACS (G , A (𝑚 ) 
+
+> 𝑖
+
+) (4) The initial set 𝑆 0 connects the anchors through shortest paths. This expansion integrates higher-order structure with semantically re-trieved nodes. We then refine this subgraph using a modality-aware iterative approach that maximizes the overall semantic correlation between the query node and the connected subgraph. For any node 𝑣 , we define a pair-wise relevance score that ag-gregates cosine similarities over the modalities jointly observed between the query node 𝑖 and node 𝑣 :                 
+
+> 𝑟 (𝑖, 𝑣 )=
+> Í𝑚 ∈M E𝑖,𝑚 E𝑣,𝑚 cos  x(𝑚 )
+> 𝑖 ,x(𝑚 )
+> 𝑣
+> Í𝑚 ∈M E𝑖,𝑚 E𝑣,𝑚
+> ,if Í𝑚 ∈M E𝑖,𝑚 E𝑣,𝑚 >0
+> −∞ ,otherwise (5)
+
+Consequently, we define the mean relevance score between query node 𝑖 and node set 𝑆 as Φ(𝑖, 𝑆 ) = 1 
+
+> |𝑆 |
+
+Í𝑣 ∈𝑆 𝑟 (𝑖, 𝑣 ).Subject to the constraints that 𝑆 remains connected and contains all anchors, we refine the subgraph by improving its mean relevance. Starting from 𝑆 0, we iteratively apply two local moves to improve 
+
+Φ(𝑖, 𝑆 ): (i) add a boundary neighbor 𝑐 ∉ 𝑆 if Φ(𝑖, 𝑆 ∪ { 𝑐 }) > Φ(𝑖, 𝑆 );(ii) remove a non-bridging node 𝑢 ∈ 𝑆 \ A (𝑚 ) 
+
+> 𝑖
+
+if Φ(𝑖, 𝑆 \ { 𝑢 }) >
+
+Φ(𝑖, 𝑆 ). At each step, we take the better of the two improvements and stop when neither addition nor removal can increase Φ. This iterative process couples semantic relevance with connectivity: low-similarity non-bridging nodes are pruned, while highly relevant neighbors are greedily absorbed, yielding a semantically informa-tive subgraph for downstream encoding. Combining the steps above, we obtain a subgraph via modality-aware graph expansion (MAGE in Algorithm 2) with up to 𝑇 iterations: 
+
+𝑆 = MAGE (G , A (𝑚 ) 
+
+> 𝑖
+
+,𝑇 ) (6) Overall, our modality-aware subgraph retrieval integrates global graph semantics and structure, providing a robust foundation for subsequent graph encoding and modality completion. 
+
+## 4.3 Joint-Encoding Graph Transformer 
+
+After subgraph retrieval, we obtain a semantically relevant and structurally coherent subgraph. The next step is to transform this context into reliable representations for modality completion. We achieve this through a combination of graph transformer encoding and sparse-routing codebook discretization. 
+
+Graph Transformer for Joint Encoding. To capture rich de-pendencies within the retrieved subgraph, we represent each node Robust Multimodal Recommendation via Graph Retrieval-Enhanced Modality Completion SIGIR ’26, July 2024, 2026, Melbourne, VIC, Australia Query Node 1 
+
+Node 2 
+
+Node 5 
+
+Sparse -Routing Codebook  Completed 
+
+Query Node 
+
+> Downstream
+> Recommendation
+> v1
+> v1
+> v2
+> v3
+
+Input Graph 
+
+Anchor Retrieval  Modality -Aware Graph Expansion (MAGE) 
+
+> Find common root
+> via multi -source BFS
+> Vibrant
+> orange tee…
+> Casual
+> blue shirt…
+
+Node 3 
+
+Node 4    
+
+> Text Feature Visual Feature Query Node Anchor Node Laplacian Positional Encoding
+> Encoder
+> Textual
+> Decoder
+> Visual
+> Decoder
+> Reconstruction Loss
+> Regularization Loss
+
+① Modality -Aware Subgraph Retrieval 
+
+② Joint -Encoding Graph Transformer  Self -Attention Layers 
+
+> (Text Missing)
+> Completed
+> Text Feature
+> v2
+> v4
+> v3
+> v5
+> v1
+> Retrieved Graph
+> Expanded Node
+> v2
+> v4
+> v3
+> v5
+> v6
+> v7
+> v8
+> Backtrack to find shortest
+> paths from root to anchors
+> Expand subgraph if mean
+> relevance is increased
+> v2
+> v4
+> v3
+> v5
+> v6
+> v7
+> v8
+> v2
+> v4
+> v3
+> v5
+> v6
+> v7
+> v8
+> Node 4 increases mean relevance
+
+Figure 4: Overview of GRE-MC for graph retrieval-enhanced modality completion. The framework consists of two modules: (1) Modality-aware subgraph retrieval identifies semantically relevant anchor nodes and expands them into a structurally coherent subgraph via modality-aware graph expansion, integrating both semantic and structural signals; (2) Joint-encoding graph transformer encodes the retrieved subgraph to capture higher-order dependencies and cross-modal interactions, followed by sparse-routing codebook discretization to produce robust and compact modality representations. 
+
+as a token equipped with Laplacian positional encodings [ 27 ] and process them with a Transformer [ 36 ]. Compared with GCNs, this design preserves long-range, position-aware signals for the query node and the potentially disconnected retrieved subgraph. Formally, for adjacency matrix A and degree matrix D, the normalized Lapla-cian matrix is defined as L = I −D−1/2AD −1/2. Let U𝑘 = [u1, . . . , u𝑘 ]
+
+denote the bottom 𝑘 nontrivial eigenvectors. The Laplacian posi-tional encoding for node 𝑗 is p𝑗 = [𝑢 𝑗 1, 𝑢 𝑗 2, . . . , 𝑢 𝑗𝑘 ]. We process the input embeddings for all nodes in the retrieved subgraph 𝑆 and the query node 𝑖 as: 
+
+h(0) 
+
+> 𝑣
+
+= MLP 
+
+ h 
+
+⊕𝑚 ∈ M ˜x(𝑚 ) 
+
+> 𝑣
+
+; p𝑣 
+
+i  
+
+, 𝑣 ∈ 𝑆 ∪ { 𝑖 } (7) where ⊕ denotes concatenation, and we handle missing modalities by defining ˜x(𝑚 ) 
+
+> 𝑣
+
+= x(𝑚 ) 
+
+> 𝑣
+
+if E𝑣,𝑚 = 1 and ˜x(𝑚 ) 
+
+> 𝑣
+
+= 0 otherwise. Then, we adopt an 𝐿 -layer Transformer to model long-range dependencies across the query node and the retrieved subgraph, allowing the query node to attend to the retrieved nodes and build context-aware representations: 
+
+H(𝑙 ) = TransformerLayer (H(𝑙 −1) ), 𝑙 = 1, . . . , 𝐿 (8) where H(𝐿 ) = [h(𝐿 ) 
+
+> 1
+
+, . . . , h(𝐿 ) 
+
+> 𝑛
+
+] and 𝑛 = |𝑆 | + 1 denotes the total number of nodes, including the query node 𝑖 and the retrieved sub-graph 𝑆 . Finally, the query embedding is computed by aggregating contextualized node representations with attention scores: 
+
+z𝑖 =
+
+> 𝑛
+
+∑︁ 
+
+> 𝑗 =1
+
+𝛼 𝑖 𝑗 h(𝐿 ) 
+
+> 𝑗
+
+, where 𝛼 𝑖 𝑗 =
+
+exp 
+
+
+
+(q𝑖 · k𝑗 )/ √𝑑 𝑘 
+
+Í𝑛 𝑗 ′=1 exp 
+
+
+
+(q𝑖 · k𝑗 ′ )/ √𝑑 𝑘 
+
+ (9) This encoding scheme integrates structural positions and long-range dependencies, enabling the query embedding to capture rich contextual information from the retrieved subgraph. 
+
+Sparse-Routing Codebook. To discretize the latent features for robust completion, we adopt a sparse-routing codebook mechanism with Gumbel–Softmax reparameterization [ 16 , 25 ]. Given query embedding z𝑖 , we compute the routing weights: 
+
+g𝑖 = Softmax (( 𝑾 z𝑖 + 𝝐 )/ 𝜏 ) (10) where 𝑾 is a learnable projection, 𝜏 is the temperature, and 𝝐 =
+
+− log (− log u) with u ∈ R𝐶 and 𝑢 ∼Uniform (0, 1) denote the stan-dard elementwise Gumbel perturbations used during training to enable differentiable sampling. Each g𝑖 softly selects a few entries from the codebook {c𝑒 }𝐶 𝑒 =1, yielding a weighted sum of the top-𝑃 
+
+discretized representations: 
+
+q𝑖 =∑︁   
+
+> 𝑒 ∈TopP (g𝑖 )
+
+g𝑖,𝑒 c𝑒 (11) During inference, we set 𝝐 = 0 for deterministic routing. This dis-cretized and sparse formulation promotes the reuse of prototypical factors and enables robust cross-modal reconstruction: 
+
+ˆx(𝑚 ) 
+
+> 𝑖
+
+= Decode  q𝑖 , 𝑚  = MLP (𝑚 ) (q𝑖 ) (12) 
+
+Codebook Regularization. To avoid code collapse and en-courage balanced codebook usage, we adopt regularization terms inspired by mixture-of-experts techniques [ 6, 33 ], which employ auxiliary losses to promote balanced code assignments. Given a batch of size 𝐵 , and letting g𝑖 ∈ R𝐶 denote the soft routing probabil-ity over the 𝐶 codebook entries for the 𝑖 -th sample, the mean soft distribution ¯g = 1
+
+> 𝐵
+
+Í𝐵 𝑖 =1 g𝑖 and the uniform distribution u = 1 
+
+> 𝐶
+
+1, we define a uniform-usage regularization term to encourage a globally balanced routing probability: 
+
+Lusage = KL (¯g ∥ u) =
+
+> 𝐶
+
+∑︁ 
+
+> 𝑒 =1
+
+¯𝑔 𝑒 log ¯𝑔 𝑒 
+
+1/𝐶 (13) where ¯𝑔 𝑒 denotes the 𝑒 -th element of ¯g.SIGIR ’26, July 2024, 2026, Melbourne, VIC, Australia Yuan Li, Jun Hu, Jiaxin Jiang, Bryan Hooi, and Bingsheng He 
+
+Furthermore, after applying TopP (g𝑖 ) routing with capacity con-trol, we obtain discrete assignments ˆg𝑖 ∈ { 0, 1}𝐶 . We compute the empirical load of each code as ¯ˆg = 1
+
+> 𝐵
+
+Í𝐵 𝑖 =1 ˆg𝑖 , and introduce a load-balancing loss to encourage uniform discrete assignments: 
+
+Lload = 𝐶 
+
+> 𝐶
+
+∑︁ 
+
+> 𝑒 =1
+
+¯ˆ𝑔 2 
+
+> 𝑒
+
+(14) 
+
+Final Objective. The overall training objective combines the reconstruction loss with two codebook regularization terms: 
+
+L = Lrecon + 𝜆 usage Lusage + 𝜆 load Lload 
+
+where Lrecon =∑︁ 
+
+> 𝑚 ∈ M
+
+∑︁ 𝑖 
+
+ˆx(𝑚 ) 
+
+> 𝑖
+
+− x(𝑚 ) 
+
+> 𝑖
+> 2
+
+(15) This joint objective enforces both soft uniform usage and hard load balancing across the codebook, ensuring stable training and reducing the risk of underutilized or collapsed codes. Overall, by retrieving a semantically and structurally relevant subgraph, leveraging graph transformer for joint encoding, and em-ploying a discrete sparse-routing codebook, GRE-MC produces ro-bust completions that are modality-aware and structurally grounded. 
+
+## 4.4 Complexity Analysis 
+
+Time Complexity. In practical recommendation graphs, effectively managing the computational footprint is crucial for scalable learn-ing [ 24 , 44 ]. We provide the upper bounds for a single query node 
+
+𝑖 . Without loss of generality, we assume |M| = 2, E𝑖, 0 = 1, E𝑖, 1 = 0,and a uniform feature and hidden dimension 𝑑 , so node 𝑖 ’s first modality is observed while the second is missing. Let 𝐷 = diam (G) 
+
+be the graph diameter. First, the anchor set retrieval step uses near-est neighbor search to retrieve the top 𝐾 anchors for the observed modality, which costs 𝑂  𝑁𝑑 + 𝑁 log 𝐾  and is thus dominated by 
+
+𝑂 (𝑁𝑑 ) when 𝐾 ≪ 𝑁 . Then, the ACS graph expansion (Algorithm 1) consists of root finding and graph construction. Finding a root that connects all anchors costs 𝑂 (𝐸 ), while building the union of at most 
+
+𝐾 shortest paths of length at most 𝐷 costs 𝑂 (𝐾𝐷 ). The subsequent MAGE step (Algorithm 2) with an iteration cap 𝑇 takes 𝑂 (𝑇 𝐾𝐷 ).We note that the expansion frontier size can increase rapidly with large node degrees; however, this effect is not severe in practice, as we observe that the maximum node degree in the evaluated graphs is typically much smaller than the total number of nodes. Then, the Laplacian positional encoding with 𝑘 eigenvectors costs 𝑂 (𝑘𝐾𝐷 ).A graph transformer with token length 𝑂 (𝐾𝐷 ) and 𝐿 layers takes 
+
+𝑂  𝐿 (𝐾𝐷 )2𝑑 + 𝐿 (𝐾𝐷 ) 𝑑 2 . Finally, the codebook router with size 
+
+𝐶 costs 𝑂 (𝐶𝑑 ), the top-𝑃 selection takes 𝑂 (𝐶 +𝑃 log 𝑃 ), and 𝐿 -layer MLP decoder costs 𝑂 (𝐿𝑑 2). In summary, the overall time complex-ity is 𝑂 (𝑁𝑑 + 𝐸 + 𝐾𝐷 (1 +𝑘 +𝑇 ) + 𝐿  (𝐾𝐷 )2𝑑 + ( 𝐾𝐷 )𝑑 2  +𝐶𝑑 + 𝐿𝑑 2).In real-world recommendation graphs, most of the above factors are constrained (typically 𝐷, 𝐾, 𝑘,𝑇 , 𝐶, 𝐿 < 10 and 𝑑 ≤ 512 ). Although the worst-case BFS cost can reach 𝑂 (𝐸 ), in practice, the expansion usually terminates early once anchors meet within a few hops. 
+
+Space Complexity. Following the analysis above, the memory consumption involves storing the retrieved subgraph of size 𝑂 (𝐾𝐷 ),the Laplacian positional encodings 𝑂 (𝑘𝐾𝐷 ), and the Transformer requires 𝑂 (( 𝐾𝐷 )𝑑 + 𝐿 (𝐾𝐷 )2) due to token features and attention maps. The sparse-routing codebook and router add 𝑂 (𝐶𝑑 ) parame-ters and 𝑂 (𝐶 ) temporary storage, while the decoder adds 𝑂 (𝐿𝑑 2)
+
+Algorithm 1: Anchor-Connecting Subgraph (ACS) 
+
+Input : Graph G = (V , E) , seed nodes S ⊆ V 
+
+Output : Connected subgraph 𝑆  
+
+> 1
+
+foreach 𝑣 ∈ V do  
+
+> 2
+
+dist [𝑣 ] ← +∞ ; parent [𝑣 ] ← − 1; 
+
+> 3
+
+mask [𝑣 ] ← 0 // bitmask of seed reachability  
+
+> 4
+
+index : S → { 0, . . . , |S| − 1} // encode seeds as bits  
+
+> 5
+
+full_mask ← ( 1 ≪ |S|) − 1 // reach all seeds  
+
+> 6
+
+𝑄 ← ∅ // FIFO queue  
+
+> 7
+
+foreach 𝑠 ∈ S do  
+
+> 8
+
+𝑖 ← index (𝑠 ); dist [𝑠 ] ← 0;
+
+mask [𝑠 ] ← mask [𝑠 ] or (1 ≪ 𝑖 ); 𝑄. push (𝑠 ) // init  
+
+> 9
+
+root ← − 1 
+
+> 10
+
+while 𝑄 not empty do  
+
+> 11
+
+𝑢 ← 𝑄. pop ()  
+
+> 12
+
+if mask [𝑢 ] = full_mask then  
+
+> 13
+
+root ← 𝑢 ; break // all waves collided here  
+
+> 14
+
+foreach 𝑤 : (𝑢, 𝑤 ) ∈ E do  
+
+> 15
+
+𝑑 ← dist [𝑢 ] + 1 
+
+> 16
+
+if 𝑑 < dist [𝑤 ] then  
+
+> 17
+
+dist [𝑤 ] ← 𝑑 ; 
+
+> 18
+
+parent [𝑤 ] ← 𝑢 ; 
+
+> 19
+
+mask [𝑤 ] ← mask [𝑢 ]; 
+
+> 20
+
+𝑄. push (𝑤 ) 
+
+> 21
+
+else if 𝑑 = dist [𝑤 ] then  
+
+> 22
+
+𝑚 ← mask [𝑤 ] or mask [𝑢 ] 
+
+> 23
+
+if 𝑚 ≠ mask [𝑤 ] then  
+
+> 24
+
+mask [𝑤 ] ← 𝑚 ; 
+
+> 25
+
+𝑄. push (𝑤 ) // merge reachability  
+
+> 26
+
+if root = −1 then  
+
+> 27
+
+return Ð𝑠 ∈ S {𝑣 | dist 𝑠 (𝑣 ) ≤ 𝑑 } 
+
+> 28
+
+foreach 𝑣 ∈ V do  
+
+> 29
+
+parent [𝑣 ] ← − 1; visited [𝑣 ] ← false // re-rooted BFS  
+
+> 30
+
+𝐵 ← ∅ ; 𝐵. push (root ); visited [root ] ← true  
+
+> 31
+
+while 𝐵 not empty do  
+
+> 32
+
+𝑢 ← 𝐵. pop ()  
+
+> 33
+
+foreach 𝑤 : (𝑢, 𝑤 ) ∈ E do  
+
+> 34
+
+if visited [𝑤 ] = false then  
+
+> 35
+
+visited [𝑤 ] ← true; parent [𝑤 ] ← 𝑢 ; 𝐵. push (𝑤 ) 
+
+> 36
+
+𝑆 ← ∅ // backtrack all seeds to root  
+
+> 37
+
+foreach 𝑠 ∈ S do  
+
+> 38
+
+𝑥 ← 𝑠  
+
+> 39
+
+while 𝑥 ≠ −1 do  
+
+> 40
+
+𝑆 ← 𝑆 ∪ { 𝑥 } 
+
+> 41
+
+if 𝑥 = root then  
+
+> 42
+
+break  
+
+> 43
+
+𝑥 ← parent [𝑥 ] 
+
+> 44
+
+return 𝑆 Robust Multimodal Recommendation via Graph Retrieval-Enhanced Modality Completion SIGIR ’26, July 2024, 2026, Melbourne, VIC, Australia 
+
+Algorithm 2: Modality-Aware Graph Expansion (MAGE) 
+
+Input : Graph G = (V , E) , anchors A (𝑚 ) 
+
+> 𝑖
+
+for query node 𝑖 
+
+and modality 𝑚 , iteration cap 𝑇 , modality indicator 
+
+E ∈ { 0, 1}| V | × | M | 
+
+Output : Retrieved subgraph 𝑆  
+
+> 1
+
+𝑆 ← ACS (G , A (𝑚 ) 
+
+> 𝑖
+
+) // Anchor-Connecting Subgraph  
+
+> 2
+
+foreach 𝑣 ∈ V do  
+
+> 3
+
+𝑑 𝑖𝑣 ← Í𝑚 ∈ M E𝑖,𝑚 E𝑣,𝑚 // jointly observed  
+
+> 4
+
+if 𝑑 𝑖𝑣 = 0 then  
+
+> 5
+
+𝑟 (𝑖, 𝑣 ) ← −∞  
+
+> 6
+
+else  
+
+> 7
+
+𝑟 (𝑖, 𝑣 ) ← 
+
+Í𝑚 ∈ M E𝑖,𝑚 E𝑣,𝑚 cos  x(𝑚 ) 
+
+> 𝑖
+
+, x(𝑚 )
+
+> 𝑣
+
+
+
+𝑑 𝑖𝑣  
+
+> 8
+
+𝜇 ← 1
+
+|𝑆 |
+
+Í𝑣 ∈𝑆 𝑟 (𝑖, 𝑣 ) // current mean relevance  
+
+> 9
+
+repeat  
+
+> 10
+
+N ( 𝑆 ) ← { 𝑐 ∉ 𝑆 | ∃ 𝑢 ∈ 𝑆, (𝑢, 𝑐 ) ∈ E }  
+
+> 11
+
+𝑐 ★ ← arg max   
+
+> 𝑐 ∈ N ( 𝑆 )
+
+ |𝑆 | 𝜇 + 𝑟 (𝑖, 𝑐 )|𝑆 | + 1 − 𝜇 
+
+ 
+
+> 12
+
+Δ+ ← |𝑆 | 𝜇 + 𝑟 (𝑖, 𝑐 ★)|𝑆 | + 1 − 𝜇  
+
+> 13
+
+R ( 𝑆 ) ← { 𝑢 ∈ 𝑆 \ A (𝑚 ) 
+
+> 𝑖
+
+| 𝑆 \ { 𝑢 } is connected } 
+
+> 14
+
+if R ( 𝑆 ) ≠ ∅ then  
+
+> 15
+
+𝑢 ★ ← arg max   
+
+> 𝑢 ∈ R ( 𝑆 )
+
+ |𝑆 | 𝜇 − 𝑟 (𝑖, 𝑢 )|𝑆 | − 1 − 𝜇 
+
+ 
+
+> 16
+
+Δ− ← |𝑆 | 𝜇 − 𝑟 (𝑖, 𝑢 ★)|𝑆 | − 1 − 𝜇  
+
+> 17
+
+else  
+
+> 18
+
+Δ− ← −∞  
+
+> 19
+
+if max (Δ+, Δ− ) > 0 then  
+
+> 20
+
+if Δ+ ≥ Δ− then  
+
+> 21
+
+𝑆 ← 𝑆 ∪ { 𝑐 ★} 
+
+> 22
+
+else  
+
+> 23
+
+𝑆 ← 𝑆 \ { 𝑢 ★} 
+
+> 24
+
+𝜇 ← 1
+
+|𝑆 |
+
+Í𝑣 ∈𝑆 𝑟 (𝑖, 𝑣 ) 
+
+> 25
+
+else  
+
+> 26
+
+stop // no improvement  
+
+> 27
+
+until no improvement or iteration cap 𝑇 reached  
+
+> 28
+
+return 𝑆 
+
+parameters but only 𝑂 (𝑑 ) activations per query. Overall, the space complexity is 𝑂 (𝐿 (𝐾𝐷 )2 + 𝐾𝐷𝑑 +𝑘𝐾𝐷 +𝐶 + 𝐿𝑑 2 +𝐶𝑑 ). In practical recommendation graphs, both the subgraph size and the parameter size remain relatively small, so the overall memory consumption is within manageable limits. 
+
+## 5 Experiments 
+
+In this section, we evaluate the effectiveness and efficiency of GRE-MC on public benchmarks under missing-modality settings. 
+
+Table 1: Statistics of the datasets with a missing rate of 40%. 
+
+𝑛 full , 𝑛 𝑣 -miss , and 𝑛 𝑡 -miss denote the numbers of items with full modalities, missing visual modality, and missing textual modality, respectively.                         
+
+> Dataset Users Items 𝑛 full /𝑛 𝑣 -miss /𝑛 𝑡 -miss Interactions Sparsity Baby 19,445 7,050 1,410 / 2,833 / 2,807 160,792 99.88% Sports 35,598 18,357 3,672 / 7,403 / 7,282 296,337 99.95% Clothing 39,387 23,033 4,607 / 9,251 / 9,175 278,677 99.97%
+
+## 5.1 Experimental Setup 
+
+We conduct experiments on three public benchmarks using a Linux system equipped with 64 Intel(R) Xeon(R) Gold 6226R CPUs @ 2.90GHz, 376GB of RAM, and a single GeForce RTX 3090 GPU (24GB). The model is implemented in PyTorch [30] and DGL [39]. 
+
+Data Preparation. Following prior studies [ 14 , 53 ], we conduct experiments on three public datasets—Baby, Sports, and Cloth-ing—from the Amazon review corpus [ 29 ]. Each dataset contains user–item interactions, item images, and textual descriptions. Fol-lowing prior work [ 53 ], we adopt 4,096-dimensional visual embed-dings encoded by Convolutional Neural Networks [ 10 ] and 384-dimensional text embeddings encoded by sentence-transformers [ 31 ]. Following prior practice [ 21 ], we simulate missing modalities by randomly masking a proportion of item modalities, leaving 𝑚 ∈[1, 𝑀 − 1] available modalities (where 𝑀 = 2 for the evaluated datasets), ensuring that at least one modality remains. Masked modalities are initialized as zero vectors. The dataset statistics are shown in Table 1. 
+
+Baselines. To evaluate the effectiveness of GRE-MC, we com-pare it against two categories of methods: (1) General multimodal recommendation models. BPR [ 32 ], LightGCN [ 11 ], SLMRec [ 34 ], FREEDOM [ 53 ], BM3 [ 54 ], DRAGON [ 51 ], PGL [ 47 ], and MIG-GT [ 14 ]. Notably, as these baselines assume full modalities during both training and evaluation, we adopt a simple imputation strat-egy by replacing missing modality features with zero vectors. (2) Missing-modality-aware models. Imputed [ 26 ], MILK [ 1], and MoD-iCF [ 21 ]. Among them, Imputed and MoDiCF explicitly perform modality completion. For Imputed, we adopt the default down-stream recommendation model, i.e., MIG-GT, in our experiments. For MoDiCF, we employ its proposed counterfactual multimodal recommendation module. 
+
+Evaluation Scheme. To ensure a consistent comparison, we fol-low the evaluation scheme commonly adopted in prior work [ 14 , 21 ]. We use two standard metrics: Recall (R) and Normalized Discounted Cumulative Gain (NDCG), and report performance at cutoffs 𝐾 = 10 
+
+and 20 , denoted as R@10, R@20, N@10, and N@20, respectively. For completion-only models (Imputed and GRE-MC), we uniformly adopt MIG-GT as the recommendation backbone. We split the datasets by allocating 80% of user interactions for training, 10% for validation, and 10% for testing. We report the mean and stan-dard deviation over five runs with different random seeds. 
+
+Hyperparameter Settings. By default, we tune a set of hyper-parameters via grid search on the validation set and fix the others following established work. We set the missing rate 𝑟 = 40% and hidden dimension 𝑑 = 128 . For GRE-MC, the number of anchors and SIGIR ’26, July 2024, 2026, Melbourne, VIC, Australia Yuan Li, Jun Hu, Jiaxin Jiang, Bryan Hooi, and Bingsheng He 
+
+Table 2: Recommendation performance (%) across methods (MM.: multimodal; MA.: missing-modality-aware). The best results are shown in bold. The Improve row denotes the relative improvement (%) of our method over the second-best result. An asterisk (∗) indicates a significant improvement with 𝑝 < 0.05 .                                                                                                                                                                                                      
+
+> Methods MM. MA. Baby Sports Clothing R@10 R@20 N@10 N@20 R@10 R@20 N@10 N@20 R@10 R@20 N@10 N@20 BPR ✗✗3.57 ±0.35 5.75 ±0.30 1.92 ±0.27 2.49 ±1.01 4.32 ±1.00 6.53 ±0.34 2.41 ±0.68 2.98 ±0.63 1.99 ±0.95 2.98 ±0.35 1.06 ±1.19 1.32 ±1.19 LightGCN ✗✗4.79 ±0.21 7.54 ±0.61 2.57 ±0.69 3.28 ±0.30 5.69 ±0.25 8.64 ±0.03 3.11 ±0.02 3.87 ±0.14 2.99 ±0.69 4.49 ±0.84 1.67 ±0.63 2.05 ±0.16 SLMRec ✓✗5.31 ±0.74 7.73 ±1.09 2.93 ±0.86 3.55 ±0.79 6.46 ±0.54 9.74 ±0.83 3.46 ±0.36 4.27 ±0.11 4.38 ±0.43 6.29 ±0.24 2.39 ±0.07 2.87 ±0.14 FREEDOM ✓✗4.60 ±0.40 7.51 ±0.89 2.41 ±0.90 3.15 ±0.19 5.94 ±0.37 8.98 ±0.16 3.26 ±0.92 4.05 ±0.26 3.62 ±0.26 5.37 ±0.64 2.01 ±0.48 2.46 ±0.36 BM3 ✓✗4.99 ±0.38 8.01 ±0.20 2.62 ±0.87 3.39 ±0.63 5.82 ±0.09 9.06 ±0.16 3.18 ±0.79 4.01 ±0.28 4.38 ±0.38 6.29 ±0.55 2.39 ±0.45 2.87 ±0.47 DRAGON ✓✗5.36 ±0.22 8.70 ±0.74 2.89 ±0.56 3.75 ±0.93 6.28 ±1.18 9.34 ±0.15 3.46 ±0.34 4.24 ±0.27 4.40 ±0.90 6.58 ±1.14 2.45 ±0.44 3.00 ±0.93 PGL ✓✗5.15 ±0.78 8.21 ±0.96 2.73 ±1.13 3.52 ±0.13 5.70 ±0.90 8.67 ±0.86 3.12 ±0.35 3.88 ±0.12 4.38 ±0.86 6.29 ±0.22 2.39 ±0.41 2.87 ±0.36 MIG-GT ✓✗5.48 ±0.83 8.65 ±1.13 2.86 ±0.58 3.74 ±0.83 6.31 ±1.11 9.57 ±0.80 3.42 ±0.02 4.27 ±0.60 4.43 ±0.12 6.64 ±0.42 2.42 ±0.20 2.99 ±0.25 Imputed ✓✓5.13 ±0.47 8.29 ±0.75 2.76 ±0.08 3.58 ±0.76 6.21 ±0.15 9.68 ±0.19 3.30 ±0.71 4.37 ±0.31 4.49 ±0.23 6.08 ±0.80 2.39 ±0.14 3.01 ±0.23 MILK ✓✓4.81 ±0.74 8.28 ±0.44 2.15 ±0.52 2.97 ±0.09 6.22 ±1.20 9.45 ±0.08 3.12 ±0.66 4.18 ±0.04 4.36 ±0.42 5.75 ±0.39 2.18 ±0.21 2.98 ±1.16 MoDiCF ✓✓5.51 ±0.17 8.76 ±0.21 2.95 ±0.10 3.78 ±0.10 6.51 ±0.66 9.83 ±0.59 3.54 ±1.04 4.42 ±1.05 4.52 ±0.74 6.86 ±0.36 2.50 ±0.77 3.04 ±0.63 GRE-MC ✓✓5.84 ±0.21 9.21 ±0.32 3.16 ±0.30 4.03 ±0.21 6.66 ±0.37 10.28 ±0.31 3.70 ±0.23 4.63 ±0.31 4.72 ±0.43 7.15 ±0.29 2.60 ±0.35 3.21 ±0.24
+> Improv. --*5.99% *5.14% *7.12% *6.61% 2.30% *4.58% *4.52% *4.75% *4.42% *4.23% *4.00% *5.59%
+
+codebook size are tuned over 𝐾 ∈ { 5, 10 , 20 } and 𝐶 ∈ { 10 , 50 , 100 },respectively. We set the MAGE iteration cap 𝑇 = 10 to avoid sig-nificant overhead. The LPE dimension is fixed at 𝑘 = 20 following established work [ 5 ], and we use 𝐿 = 2 Transformer layers with 4
+
+heads following prior work [ 52 ]. For the sparse-routing codebook, we set the top 𝑃 = 4 entry selection, routing temperature 𝜏 = 0.5,and noise standard deviation 0.1, following prior practices [ 16 ]. We tune the regularization weights 𝜆 usage , 𝜆 load ∈ { 0.5, 1.0, 2.0}.Models are trained with the Adam optimizer [ 18 ], learning rate 
+
+𝜂 ∈ { 0.01 , 0.003 , 0.001 , 0.0003 , 0.0001 }, L2 regularization weight 
+
+𝜆 L2 ∈ { 1𝑒 − 4, 1𝑒 − 5, 1𝑒 − 6}, batch size 512 , and dropout rate 0.5,following common settings [17]. 
+
+## 5.2 Performance Analysis 
+
+From Table 2, several clear trends emerge across datasets and met-rics. We summarize the key observations as follows: 
+
+• Structure-based models (BPR and LightGCN) rely solely on user–item interactions without incorporating multimodal features and thus underperform across all datasets. Their lim-ited representational capacity underscores the importance of leveraging multimodal data for recommendation. 
+
+• General multimodal recommendation models that are not specifically designed to handle missing modalities (e.g., SLM-Rec, FREEDOM) consistently exhibit suboptimal performance. This highlights the limitations of traditional multimodal fu-sion methods, which assume fully observed modalities. Their degraded performance emphasizes the necessity of address-ing missing modalities. 
+
+• Missing-modality-aware methods (e.g., Imputed and MoD-iCF) demonstrate strong performance even with incomplete features. These methods effectively manage missing modali-ties, maintaining stable and high-quality recommendation performance under missing-modality scenarios. 
+
+• GRE-MC consistently achieves SOTA results with 2.3%–7.1% improvements over the strongest baselines. Unlike methods based on self information (e.g., MoDiCF), our approach in-tegrates graph semantics and structure for more informed completion. Compared with neighbor-based methods (e.g., Imputed), GRE-MC employs modality-aware graph retrieval to construct more relevant subgraphs, leading to higher-quality completion and robust recommendations. 
+
+## 5.3 Detailed Analysis 
+
+5.3.1 Ablation Study. Figure 5 presents ablation results that high-light the contribution of each core component in GRE-MC. Remov-ing the retrieval module generally results in the most significant performance drop. This supports our intuition that local aggrega-tion fails under limited observations and that subgraph expansion from semantically similar nodes plays a pivotal role in completion. Removing the graph transformer or the sparse-routing codebook also leads to performance degradation, albeit more moderately. The graph transformer plays a crucial role for integrating semantic and structural information from the retrieved subgraph. Although the sparse-routing codebook provides a relatively small contribution to the final performance, it effectively captures high-level multimodal semantics with fewer parameters, contributing to both generaliza-tion and performance. 
+
+5.3.2 Impact of Number of Anchors and Codebook Size. In Figure 6, we examine the impact of the number of anchors 𝐾 and the code-book size 𝐶 . Increasing the number of anchors initially leads to noticeable performance gains, but the improvement plateaus and may slightly decline when too many anchors are used, likely due to the inclusion of noisy neighbors. Similarly, the codebook size exhibits a non-linear effect: both overly small and overly large codebooks underperform, while moderate sizes strike an effective balance. Overall, using a moderate number of anchors and a com-pact codebook yields strong results with minimal overhead. 
+
+5.3.3 Impact of Graph Retrieval Methods. We compare graph re-trieval strategies: MAGE (Algorithm 2), ACS (Algorithm 1), the Steiner tree implemented by NetworkX [ 8 ], and the anchor-only setting. As shown in Figure 7, MAGE achieves the best perfor-mance, with ACS and the Steiner tree offering improvements over the anchor-only setting. Both ACS and the Steiner tree focus on constructing small connected subgraphs that link the anchor nodes, which makes them effective at preserving local connectivity but Robust Multimodal Recommendation via Graph Retrieval-Enhanced Modality Completion SIGIR ’26, July 2024, 2026, Melbourne, VIC, Australia Baby Sports Clothing 
+
+> 4.00
+> 5.00
+> 6.00
+> GRE-MC
+> w/o GR
+> w/o GT
+> w/o SRC
+
+(a) R@10 Baby Sports Clothing  
+
+> 8.00
+> 10.00
+
+(b) R@20 Baby Sports Clothing 
+
+> 2.00
+> 3.00
+
+(c) N@10 Baby Sports Clothing  
+
+> 3.00
+> 4.00
+
+(d) N@20 
+
+Figure 5: Ablation study of the main components: modality-aware graph retrieval (GR), graph transformer (GT), and sparse-routing codebook (SRC). 1 10 50 100             
+
+> Codebook Size
+> 20 10 51
+> Num of Anchors
+> 8.91 9.14 9.15 9.15
+> 9.08 9.04 9.21 9.16
+> 8.93 9.11 9.20 9.13
+> 9.03 9.06 8.97 8.90
+> 8.9
+> 9.0
+> 9.1
+> 9.2
+
+(a) Baby R@20 1 10 50 100              
+
+> Codebook Size
+> 20 10 51
+> Num of Anchors
+> 3.92 3.95 3.98 3.95
+> 3.96 4.01 4.03 3.95
+> 3.81 3.91 4.01 3.95
+> 3.92 3.94 3.90 3.90
+> 3.9
+> 4.0
+
+(b) Baby N@20 1 10 50 100             
+
+> Codebook Size
+> 20 10 51
+> Num of Anchors
+> 7.05 7.13 7.15 6.99
+> 7.06 7.12 7.11 7.10
+> 7.09 7.08 7.00 7.04
+> 7.07 7.05 7.08 6.92
+> 7.0
+> 7.1
+
+(c) Clothing R@20 1 10 50 100              
+
+> Codebook Size
+> 20 10 51
+> Num of Anchors
+> 3.17 3.16 3.21 3.16
+> 3.17 3.21 3.20 3.17
+> 3.17 3.18 3.13 3.16
+> 3.14 3.15 3.15 3.11
+> 3.15
+> 3.20
+
+(d) Clothing N@20 
+
+Figure 6: Impact of the number of anchors and codebook size. 
+
+limits their ability to capture richer contextual signals. In contrast, MAGE extends ACS by iteratively retrieving nodes with higher semantic relevance and removing less relevant nodes, thereby en-riching the subgraph with more informative features. This enhanced graph context leads to better modality completion quality, account-ing for MAGE’s consistently superior performance. 
+
+5.3.4 Performance under Different Missing Rates. We evaluate per-formance on three datasets under different missing rates using the N@20 metric. As illustrated in Figure 8, GRE-MC consistently surpasses the baseline, demonstrating both effectiveness and ro-bustness in handling diverse incomplete scenarios. 
+
+5.3.5 Relevance Comparison between Neighbor and Retrieved Sub-graphs. Figure 9 compares the subgraphs either obtained from a query node’s neighborhood or its retrieved subgraph. When a Baby Sports Clothing 
+
+> 4.0
+> 5.0
+> 6.0
+> MAGE
+> LCA
+> Steiner
+> Anchor
+
+(a) R@10 Baby Sports Clothing  
+
+> 8.0
+> 10.0
+
+(b) R@20 Baby Sports Clothing 
+
+> 2.0
+> 3.0
+
+(c) N@10 Baby Sports Clothing  
+
+> 3.0
+> 4.0
+
+(d) N@20 
+
+Figure 7: Impact of different graph retrieval methods. Anchor 
+
+refers to the setting without graph retrieval. 0.1 0.2 0.3 0.4  
+
+> Missing Rate (MR)
+> 3.75
+> 4.00
+> 4.25
+> GRE-MC MoDiCF
+
+(a) Baby N@20 0.1 0.2 0.3 0.4   
+
+> Missing Rate (MR)
+> 4.4
+> 4.6
+> 4.8
+> GRE-MC MoDiCF
+
+(b) Sports N@20 0.2 0.4   
+
+> Missing Rate (MR)
+> 3.0
+> 3.5
+> 4.0
+> GRE-MC MoDiCF
+
+(c) Clothing N@20 
+
+Figure 8: Performance under different missing rates. Table 3: Runtime (seconds) across different stages. 
+
+Method Stage Baby Sports Clothing GRE-MC Graph Retrieval 22 119 162 Completion 880 1,269 1,601 Recommendation 200 473 1,015 Total 1,102 1,861 2,778 
+
+MoDiCF Completion 1,188 2,826 4,280 Recommendation 14,996 15,352 16,193 Total 16,184 18,178 20,473 
+
+modality is missing, neighbor subgraphs often contain items that are structurally close but semantically less informative. In contrast, retrieved subgraphs bring in globally relevant items with similar observed modalities, providing more informative context for com-pletion. This observation motivates our graph retrieval-enhanced approach to modality completion. 
+
+5.3.6 Runtime and Scalability. Table 3 reports the runtime break-down across different stages. We observe that graph retrieval is consistently efficient, incurring only negligible overhead, which shows that the worst-case complexity of 𝑂 (| 𝐸 |) for MAGE is not a practical bottleneck in real-world graphs. In contrast, modality completion introduces an additional cost of less than 800 seconds compared to the downstream recommendation stage. This overhead increases only mildly with graph size, indicating good scalability. SIGIR ’26, July 2024, 2026, Melbourne, VIC, Australia Yuan Li, Jun Hu, Jiaxin Jiang, Bryan Hooi, and Bingsheng He 0 500 1000 1500 2000 2500 
+
+> Query Node (Sorted by Mean Cosine Similarity)
+> 0.2
+> 0.4
+> Mean Cosine Similarity
+> (i) Neighbor-based Completion
+> (ii) Graph Retrieval-Enhanced Completion (Ours)
+
+(a) Baby (image missing) 0 500 1000 1500 2000 2500  
+
+> Query Node (Sorted by Mean Cosine Similarity)
+> 0.2
+> 0.4
+> 0.6
+> Mean Cosine Similarity
+> (i) Neighbor-based Completion
+> (ii) Graph Retrieval-Enhanced Completion (Ours)
+
+(b) Baby (text missing) 0 2000 4000 6000 
+
+> Query Node (Sorted by Mean Cosine Similarity)
+> 0.2
+> 0.4
+> 0.6
+> Mean Cosine Similarity
+> (i) Neighbor-based Completion
+> (ii) Graph Retrieval-Enhanced Completion (Ours)
+
+(c) Sports (image missing) 0 2000 4000 6000  
+
+> Query Node (Sorted by Mean Cosine Similarity)
+> 0.0
+> 0.2
+> 0.4
+> 0.6
+> 0.8
+> Mean Cosine Similarity
+> (i) Neighbor-based Completion
+> (ii) Graph Retrieval-Enhanced Completion (Ours)
+
+(d) Sports (text missing) 
+
+Figure 9: Relevance comparison between neighbor and re-trieved subgraphs. 0.0 0.5 1.0 2.0 
+
+2.50 
+
+3.00 
+
+3.50 
+
+Baby Sports Clothing 
+
+(a) N@10 0.0 0.5 1.0 2.0 
+
+3.50 
+
+4.00 
+
+4.50 
+
+Baby Sports Clothing (b) N@20 0.0 0.5 1.0 2.0 
+
+5.00 
+
+6.00 
+
+Baby Sports Clothing 
+
+(c) R@10 0.0 0.5 1.0 2.0 
+
+8.00 
+
+10.00 
+
+Baby Sports Clothing (d) R@20 
+
+Figure 10: Impact of codebook soft usage weight 𝜆 usage .
+
+Notably, compared with MoDiCF, our GRE-MC incurs significantly lower computational costs in both completion and recommenda-tion, as MoDiCF relies on computationally intensive modules such as diffusion-based completion and counterfactual recommendation. 
+
+5.3.7 Impact of Codebook Regularization. We analyze how the two regularization terms, i.e., Lusage and Lload , influence the fi-nal recommendation performance. As shown in Figs. 10 and 11, both usage and load-balancing regularization consistently improve performance compared to the model without the corresponding regularization terms. Moreover, the results remain smooth and sta-ble across a wide range of weight values, indicating that the model is relatively insensitive to these hyperparameters. 0.0 0.5 1.0 2.0 
+
+2.50 
+
+3.00 
+
+3.50 
+
+Baby Sports Clothing 
+
+(a) N@10 0.0 0.5 1.0 2.0 
+
+3.50 
+
+4.00 
+
+4.50 
+
+Baby Sports Clothing (b) N@20 0.0 0.5 1.0 2.0 
+
+5.00 
+
+6.00 
+
+Baby Sports Clothing 
+
+(c) R@10 0.0 0.5 1.0 2.0 
+
+8.00 
+
+10.00 
+
+Baby Sports Clothing (d) R@20 
+
+Figure 11: Impact of codebook load balancing weight 𝜆 load .
+
+## 6 Conclusion 
+
+In this paper, we proposed GRE-MC, a graph retrieval–enhanced framework for modality completion. GRE-MC introduces a modality-aware subgraph retrieval mechanism that selects semantically rel-evant subgraphs to provide richer contextual signals for recon-structing missing modalities. A graph transformer is further em-ployed to jointly encode the query node and retrieved subgraph for modality completion, while a sparse-routing codebook regu-larizes latent representations for improved robustness. Extensive experiments on benchmark datasets demonstrate that GRE-MC consistently outperforms SOTA approaches, validating the effec-tiveness of retrieval-enhanced and codebook-regularized modeling for multimodal completion. 
+
+## Acknowledgments 
+
+This research is supported by the National Research Foundation, Singapore and Infocomm Media Development Authority under its Trust Tech Funding Initiative, and Ministry of Education AcRF Tier 1 grant (No. T1 251RES2315) in Singapore. Any opinions, findings and conclusions or recommendations expressed in this material are those of the author(s) and do not reflect the views of National Research Foundation, Singapore and Infocomm Media Development Authority. 
+
+## References 
+
+[1] Haoyue Bai, Le Wu, Min Hou, Miaomiao Cai, Zhuangzhuang He, Yuyang Zhou, Richang Hong, and Meng Wang. 2024. Multimodality invariant learning for multimedia-based new item recommendation. In Proceedings of the 47th Inter-national ACM SIGIR Conference on Research and Development in Information Retrieval . 677–686. [2] Desheng Cai, Shengsheng Qian, Quan Fang, Jun Hu, and Changsheng Xu. 2022. Adaptive anti-bottleneck multi-modal graph learning network for personalized micro-video recommendation. In Proceedings of the 30th ACM International Con-ference on Multimedia . 581–590. [3] L. Chen, M. Wang, and Y. Li. 2024. Graph-Based Multimodal Contrastive Learning for Chart Question Answering. arXiv preprint arXiv:2501.04303 (2024). [4] Matthijs Douze, Alexandr Guzhva, Chengqi Deng, Jeff Johnson, Gergely Szilvasy, Pierre-Emmanuel Mazaré, Maria Lomeli, Lucas Hosseini, and Hervé Jégou. 2024. The Faiss library. (2024). arXiv:2401.08281 [cs.LG] Robust Multimodal Recommendation via Graph Retrieval-Enhanced Modality Completion SIGIR ’26, July 2024, 2026, Melbourne, VIC, Australia 
+
+[5] Vijay Prakash Dwivedi, Chaitanya K Joshi, Anh Tuan Luu, Thomas Laurent, Yoshua Bengio, and Xavier Bresson. 2023. Benchmarking graph neural networks. 
+
+Journal of Machine Learning Research 24, 43 (2023), 1–48. [6] William Fedus, Barret Zoph, and Noam Shazeer. 2022. Switch Transformers: Scaling to Trillion Parameter Models with Simple and Efficient Sparsity. Journal of Machine Learning Research (2022). [7] Fangze Fu, Wei Ai, Fan Yang, Yuntao Shou, Tao Meng, and Keqin Li. 2024. SDR-GNN: Spectral Domain Reconstruction Graph Neural Network for Incomplete Multimodal Learning in Conversational Emotion Recognition. In Proceedings of the 2024 Conference on Empirical Methods in Natural Language Processing (EMNLP) .[8] Aric Hagberg, Pieter J Swart, and Daniel A Schult. 2008. Exploring network structure, dynamics, and function using NetworkX . Technical Report. Los Alamos National Laboratory (LANL), Los Alamos, NM (United States). [9] William L. Hamilton, Rex Ying, and Jure Leskovec. 2017. Inductive Representation Learning on Large Graphs. In Advances in Neural Information Processing Systems ,Vol. 30. Curran Associates, Inc. [10] Ruining He and Julian McAuley. 2016. Ups and downs: Modeling the visual evolution of fashion trends with one-class collaborative filtering. In proceedings of the 25th international conference on world wide web . 507–517. [11] Xiangnan He, Kuan Deng, Xiang Wang, Yan Li, Yongdong Zhang, and Meng Wang. 2020. Lightgcn: Simplifying and powering graph convolution network for recommendation. In Proceedings of the 43rd International ACM SIGIR conference on research and development in Information Retrieval . 639–648. [12] Jun Hu, Shangheng Chen, Yufei He, Yuan Li, Bryan Hooi, and Bingsheng He. 2026. Echoless Label-Based Pre-computation for Memory-Efficient Heterogeneous Graph Learning. In Proceedings of the AAAI Conference on Artificial Intelligence ,Vol. 40. 14865–14873. [13] Jun Hu, Yufei He, Yuan Li, Bryan Hooi, and Bingsheng He. 2026. NTSFormer: A Self-Teaching Graph Transformer for Multimodal Isolated Cold-Start Node Classification. In Proceedings of the AAAI Conference on Artificial Intelligence ,Vol. 40. 14856–14864. [14] Jun Hu, Bryan Hooi, Bingsheng He, and Yinwei Wei. 2025. Modality-Independent Graph Neural Networks with Global Transformers for Multimodal Recommen-dation. In Proceedings of the AAAI Conference on Artificial Intelligence , Vol. 39. 11790–11798. [15] Piotr Indyk and Rajeev Motwani. 1998. Approximate nearest neighbors: towards removing the curse of dimensionality. In Proceedings of the thirtieth annual ACM symposium on Theory of computing . 604–613. [16] Eric Jang, Shixiang Gu, and Ben Poole. 2017. Categorical Reparameterization with Gumbel-Softmax. In International Conference on Learning Representations .[17] Wei Jin, Lingxiao Zhao, Shichang Zhang, Yozen Liu, Jiliang Tang, and Neil Shah. 2022. Graph Condensation for Graph Neural Networks. In International Confer-ence on Learning Representations .[18] Diederik P. Kingma and Jimmy Ba. 2017. Adam: A Method for Stochastic Opti-mization. arXiv:1412.6980 [cs.LG] [19] Thomas N. Kipf and Max Welling. 2017. Semi-Supervised Classification with Graph Convolutional Networks. In International Conference on Learning Repre-sentations . https://openreview.net/forum?id=SJU4ayYgl [20] H. Li, Y. Zhang, and X. Wang. 2024. A missing multimodal imputation diffusion model for 2D X-ray and CT images. Expert Systems with Applications 213 (2024), 119174. [21] Jin Li, Shoujin Wang, Qi Zhang, Shui Yu, and Fang Chen. 2025. Generating with fairness: A modality-diffused counterfactual framework for incomplete multimodal recommendations. In Proceedings of the ACM on Web Conference 2025 .2787–2798. [22] Yuan Li, Jun Hu, Bryan Hooi, Bingsheng He, and Cheng Chen. 2026. DGP: A Dual-Granularity Prompting Framework for Fraud Detection with Graph-Enhanced LLMs. In Proceedings of the AAAI Conference on Artificial Intelligence , Vol. 40. 15171–15179. [23] Yuan Li, Jun Hu, Jiaxin Jiang, Zemin Liu, Bryan Hooi, and Bingsheng He. 2025. RGL: A Graph-Centric, Modular Framework for Efficient Retrieval-Augmented Generation on Graphs. arXiv preprint arXiv:2503.19314 (2025). [24] Yuan Li, Jun Hu, Zemin Liu, Bryan Hooi, Jia Chen, and Bingsheng He. 2025. Adapting Precomputed Features for Efficient Graph Condensation. In Forty-second International Conference on Machine Learning .[25] Chris J Maddison, Andriy Mnih, and Yee Whye Teh. 2016. The concrete distri-bution: A continuous relaxation of discrete random variables. arXiv preprint arXiv:1611.00712 (2016). [26] Daniele Malitesta, Emanuele Rossi, Claudio Pomo, Tommaso Di Noia, and Fragkiskos D Malliaros. 2024. Do We Really Need to Drop Items with Miss-ing Modalities in Multimodal Recommendation?. In Proceedings of the 33rd ACM International Conference on Information and Knowledge Management . 3943–3948. [27] Sohir Maskey, Ali Parviz, Maximilian Thiessen, Hannes Stärk, Ylli Sadikaj, and Haggai Maron. 2022. Generalized laplacian positional encoding for graph repre-sentation learning. arXiv preprint arXiv:2210.15956 (2022). [28] Costas Mavromatis and George Karypis. 2025. GNN-RAG: Graph neural retrieval for efficient large language model reasoning on knowledge graphs. In Findings of the Association for Computational Linguistics: ACL 2025 . 16682–16699. [29] Julian John McAuley and Jure Leskovec. 2013. From amateurs to connoisseurs: modeling the evolution of user expertise through online reviews. In Proceedings of the 22nd international conference on World Wide Web . 897–908. [30] Adam Paszke, Sam Gross, Francisco Massa, Adam Lerer, James Bradbury, Gregory Chanan, Trevor Killeen, Zeming Lin, Natalia Gimelshein, Luca Antiga, et al . 2019. Pytorch: An imperative style, high-performance deep learning library. Advances in neural information processing systems 32 (2019). [31] Nils Reimers and Iryna Gurevych. 2019. Sentence-BERT: Sentence Embeddings using Siamese BERT-Networks. In Proceedings of the 2019 Conference on Empirical Methods in Natural Language Processing and the 9th International Joint Conference on Natural Language Processing (EMNLP-IJCNLP) . 3982–3992. [32] Steffen Rendle, Christoph Freudenthaler, Zeno Gantner, and Lars Schmidt-Thieme. 2009. BPR: Bayesian personalized ranking from implicit feedback. In Proceedings of the Twenty-Fifth Conference on Uncertainty in Artificial Intelligence . 452–461. [33] Noam Shazeer, Azalia Mirhoseini, Krzysztof Maziarz, Andy Davis, Quoc Le, Geoffrey Hinton, et al . 2017. Outrageously Large Neural Networks: The Sparsely-Gated Mixture-of-Experts Layer. In International Conference on Learning Repre-sentations .[34] Zhulin Tao, Xiaohao Liu, Yewei Xia, Xiang Wang, Lifang Yang, Xianglin Huang, and Tat-Seng Chua. 2022. Self-supervised learning for multimedia recommenda-tion. IEEE Transactions on Multimedia 25 (2022), 5107–5116. [35] Yao-Hung Hubert Tsai, Shaojie Bai, Paul Pu Liang, J Zico Kolter, Louis-Philippe Morency, and Ruslan Salakhutdinov. 2019. Multimodal transformer for unaligned multimodal language sequences. In Proceedings of the conference. Association for computational linguistics. Meeting , Vol. 2019. 6558. [36] Ashish Vaswani, Noam Shazeer, Niki Parmar, Jakob Uszkoreit, Llion Jones, Aidan N Gomez, Łukasz Kaiser, and Illia Polosukhin. 2017. Attention is all you need. Advances in neural information processing systems 30 (2017). [37] Cheng Wang, Mathias Niepert, and Hui Li. 2018. LRMM: Learning to Recom-mend with Missing Modalities. In Proceedings of the 2018 Conference on Empirical Methods in Natural Language Processing . 3360–3370. [38] Hu Wang, Congbo Ma, Jianpeng Zhang, Yuan Zhang, Jodie Avery, Louise Hull, and Gustavo Carneiro. 2023. Learnable cross-modal knowledge distillation for multi-modal learning with missing modality. In International Conference on Medical Image Computing and Computer-Assisted Intervention . Springer, 216–226. [39] Minjie Wang, Da Zheng, Zihao Ye, Quan Gan, Mufei Li, Xiang Song, Jinjing Zhou, Chao Ma, Lingfan Yu, Yu Gai, et al . 2019. Deep graph library: A graph-centric, highly-performant package for graph neural networks. arXiv preprint arXiv:1909.01315 (2019). [40] Qi Wang, Liang Zhan, Paul Thompson, and Jiayu Zhou. 2020. Multimodal learning with incomplete modalities by knowledge distillation. In Proceedings of the 26th ACM SIGKDD International Conference on Knowledge Discovery & Data Mining .1828–1838. [41] Yinwei Wei, Xiang Wang, Liqiang Nie, Xiangnan He, and Tat-Seng Chua. 2020. Graph-refined convolutional network for multimedia recommendation with implicit feedback. In Proceedings of the 28th ACM international conference on multimedia . 3541–3549. [42] Yinwei Wei, Xiang Wang, Liqiang Nie, Xiangnan He, Richang Hong, and Tat-Seng Chua. 2019. MMGCN: Multi-modal graph convolution network for personalized recommendation of micro-video. In Proceedings of the 27th ACM international conference on multimedia . 1437–1445. [43] Renjie Wu, Hu Wang, Hsiang-Ting Chen, and Gustavo Carneiro. 2024. Deep Multi-modal Learning with Missing Modality: A Survey. arXiv preprint arXiv:2409.07825 
+
+(2024). [44] Xinyi Wu, Donald Loveland, Runjin Chen, Yozen Liu, Xin Chen, Leonardo Neves, Ali Jadbabaie, Mingxuan Ju, Neil Shah, and Tong Zhao. 2025. GraphHash: Graph Clustering Enables Parameter Efficiency in Recommender Systems. In Proceedings of the ACM on Web Conference 2025 . 357–369. [45] Tao Xing, Yutao Dou, Xianliang Chen, Jiansong Zhou, Xiaolan Xie, and Shaoliang Peng. 2024. An adaptive multi-graph neural network with multimodal feature fusion learning for MDD detection. Scientific Reports 14 (2024), 28400. [46] Jeffrey Xu Yu, Lu Qin, and Lijun Chang. 2010. Keyword search in relational databases: A survey. IEEE Data Eng. Bull. (2010). [47] Penghang Yu, Zhiyi Tan, Guanming Lu, and Bing-Kun Bao. 2025. Mind Individual Information! Principal Graph Learning for Multimedia Recommendation. In 
+
+Proceedings of the AAAI Conference on Artificial Intelligence , Vol. 39. 13096–13105. [48] Seongjun Yun, Minbyul Jeong, Raehyun Kim, Jaewoo Kang, and Hyunwoo J Kim. 2019. Graph transformer networks. Advances in neural information processing systems 32 (2019). [49] Q. Zhang, Y. Liu, and Z. Wang. 2024. DGLF: A Dual Graph-based Learning Framework for Multi-modal Feature Fusion. In Proceedings of the 2024 Conference on Empirical Methods in Natural Language Processing (EMNLP) .[50] Y. Zhang, X. Liu, and J. Wang. 2024. Multimodal missing data in healthcare: A comprehensive review and future directions. Journal of Biomedical Informatics 
+
+135 (2024), 104226. [51] Hongyu Zhou, Xin Zhou, Lingzi Zhang, and Zhiqi Shen. 2023. Enhancing dyadic relations with homogeneous graphs for multimodal recommendation. In ECAI SIGIR ’26, July 2024, 2026, Melbourne, VIC, Australia Yuan Li, Jun Hu, Jiaxin Jiang, Bryan Hooi, and Bingsheng He 
+
+2023 . IOS Press, 3123–3130. [52] Jiajun Zhou, Xuanze Chen, Chenxuan Xie, Yu Shanqing, Qi Xuan, and Xiao-niu Yang. 2024. Rethinking Graph Transformer Architecture Design for Node Classification. arXiv preprint arXiv:2410.11189 (2024). [53] Xin Zhou and Zhiqi Shen. 2023. A tale of two graphs: Freezing and denoising graph structures for multimodal recommendation. In Proceedings of the 31st ACM International Conference on Multimedia . 935–943. [54] Xin Zhou, Hongyu Zhou, Yong Liu, Zhiwei Zeng, Chunyan Miao, Pengwei Wang, Yuan You, and Feijun Jiang. 2023. Bootstrap latent representations for multi-modal recommendation. In Proceedings of the ACM web conference 2023 . 845–854.
