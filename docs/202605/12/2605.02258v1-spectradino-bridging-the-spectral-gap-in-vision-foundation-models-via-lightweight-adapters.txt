@@ -1,0 +1,504 @@
+Title: SpectraDINO: Bridging the Spectral Gap in Vision Foundation Models via Lightweight Adapters
+
+URL Source: https://arxiv.org/pdf/2605.02258v1
+
+Published Time: Tue, 05 May 2026 02:18:07 GMT
+
+Number of Pages: 25
+
+Markdown Content:
+# SpectraDINO: Bridging the Spectral Gap in Vision Foundation Models via Lightweight Adapters 
+
+Yagiz Nalcakan 1,∗, Hyeongjin Ju 1, Incheol Park 1, Sanghyeop Yeo 1, Youngwan Jin 1, and Shiho Kim 1
+
+Yonsei University, Seoul, Republic of Korea 
+
+{ynalcakan,wngudwls000,incheol97,dutkdguq,thatnn,shiho}@yonsei.ac.kr 
+
+*corresponding author 
+
+Abstract. Vision Foundation Models (VFMs) pretrained on large-scale RGB data have demonstrated remarkable representation quality, yet their applicability to multispectral imaging spanning Near-Infrared (NIR), Short-Wave Infrared (SWIR), and Long-Wave Infrared (LWIR) remains largely unexplored. These spectral modalities offer complementary sens-ing capabilities critical for robust perception in adverse conditions, but present a fundamental domain gap relative to RGB-centric pretrained models. We present SpectraDINO, a multispectral VFM that bridges this spectral gap by extending DINOv2 ViT backbones to beyond-visible modalities through lightweight, per-modality bottleneck adapters, while preserving the rich representations of the frozen RGB backbone. We in-troduce a multi-stage teacher-student training protocol in which a frozen DINOv2 teacher guides a spectral student via cosine distillation, sym-metric contrastive loss, patch-level alignment, and a novel neighborhood-structure-preservation loss. This staged curriculum enables strong cross-modal alignment without catastrophic forgetting of RGB priors. We evaluate SpectraDINO on multispectral object detection and semantic segmentation across challenging NIR, SWIR, and LWIR benchmarks using widely adopted fusion strategies. SpectraDINO achieves state-of-the-art performance across most benchmarks, validating its effective-ness as a general-purpose backbone for spectral generalization. The code and weights for model variants are available at https://github.com/ Yonsei-STL/SpectraDINO .
+
+Keywords: Foundation Models · Multimodal Representation Alignment 
+
+· Multispectral Vision 
+
+## 1 Introduction 
+
+Modern vision foundation models (VFMs) have become strong general-purpose backbones by pretraining on massive RGB image collections [34,40,55,72]. How-ever, many real-world perception systems do not operate in a purely RGB world. Robotics, autonomous driving, night-time surveillance, and adverse-weather per-ception, in addition to RGB imaging, rely on near-infrared (NIR) [11, 18, 35],  
+
+> arXiv:2605.02258v1 [cs.CV] 4 May 2026 2Y. Nalcakan et al.
+
+short-wave infrared (SWIR) [14, 31, 32], or long-wave infrared (LWIR) sensors [25, 26, 50], where appearance and discriminative cues differ sharply from vis-ible images. An RGB-pretrained backbone can be highly capable on natural images yet brittle or inefficient when transferred to non-visible imagery. This phenomenon is commonly referred to as the spectral gap. Existing attempts to bridge this gap are narrow in scope. Work in remote sensing has produced multispectral and hyperspectral models for satellite im-agery [3, 19, 23, 41, 65], and thermal-focused studies have leveraged the relatively abundant LWIR datasets available for ground-level tasks [44, 80]. However, no prior work has proposed a unified, generalist backbone capable of processing the full infrared spectrum alongside RGB, spanning NIR, SWIR, and LWIR in a single model. The key challenge in spectral transfer of multiple infrared modalities is not just input adaptation but representation alignment. Each infrared wavelength produces responses to a scene that differ radically from visible light, even when sensors observe the same environment simultaneously. Therefore, to have a gen-eralist VFM capable of processing RGB, NIR, SWIR, and LWIR modalities, the distilled student model must learn to produce semantically consistent em-beddings across visible and non-visible modalities without collapsing to trivial solutions or drifting from the teacher’s semantic structure. Concretely, the same object ( e.g . a pedestrian, a vehicle, a road marking) should elicit similar semantic activations regardless of whether it is observed in RGB, NIR, SWIR, or LWIR, even though its low-level appearance varies dramatically across sensors. To address this challenge, we introduce SpectraDINO, a parameter-efficient framework that transfers a pretrained RGB VFM into a unified multispectral backbone without retraining from scratch. SpectraDINO augments a frozen ViT with lightweight, modality-specific components that address the spectral gap at two levels. At the input level, trainable spatial stems map single-channel infrared inputs into the backbone’s representation space, while learnable modal-ity embeddings condition all tokens on the active sensor type. At the feature level, per-modality bottleneck adapters inserted as residual modules into every transformer block enable modality-specific processing pathways without modi-fying any core attention weights. To align these adapted representations with the teacher’s semantic structure, we employ a multi-objective distillation recipe spanning global CLS-token distillation, cross-modal contrastive learning, spatial patch-token correspondence, and a queue-based relational objective that pre-serves neighborhood structure in embedding space. As naively optimizing these objectives jointly is unstable, we adopt a staged training protocol that progres-sively increases the number of trainable parameters and shifts the loss balance from strict feature mimicry toward broader cross-modal alignment. The result is a single, reusable backbone that achieves strong performance across RGB, NIR, SWIR, and LWIR on detection and segmentation benchmarks, without requiring modality-specific architectures or full task-specific finetuning. Our contributions are as follows: 
+
+– We propose SpectraDINO, a parameter-efficient spectral transfer framework that extends RGB vision foundation models to NIR, SWIR, and LWIR via SpectraDINO: Bridging the Spectral Gap in VFMs via Lightweight Adapters 3
+
+modality-specific stems, token-level modality embeddings, and lightweight per-modality adapters without modifying the pretrained backbone’s core weights. 
+
+– We introduce a multi-objective alignment recipe that transfers both point-wise and relational structure from the RGB teacher, combining cosine distil-lation, symmetric contrastive learning, patch-token alignment, and a queue-based neighborhood KL objective. 
+
+– We present a stable multi-stage training protocol with explicit teacher-queue warmup and selective backbone fine-tuning that prevents representation col-lapse during spectral transfer. 
+
+– We demonstrate that the resulting backbone transfers effectively to dense perception, evaluating on multiple RGB-IR detection and segmentation bench-marks. 
+
+## 2 Related Work 
+
+2.1 Vision Foundation Models 
+
+Self-supervised pretraining on large-scale RGB data has become the dominant approach for producing transferable visual representations. Self-distillation and instance discrimination [53,60,73], masked image modeling [2,22,83], and prompt-able segmentation [34] have each demonstrated strong generalization across down-stream tasks. However, these models are pretrained exclusively on visible im-agery, limiting their direct applicability to infrared and multispectral sensors whose statistics differ substantially from those of RGB. Contrastive vision-language pretraining [55] popularized cross-modal align-ment, an idea extended to arbitrary modality combinations by Perceiver IO [27] and ImageBind [17]. For reusing large pretrained backbones without full fine-tuning, parameter-efficient methods such as Visual Prompt Tuning [29] and lightweight adapter modules [8] have become standard practice. Task-specific adapters further enable plain ViTs to serve as detection and segmentation back-bones [10, 42]. These directions motivate our approach of reusing strong RGB priors while introducing minimal additional capacity for new sensing modalities. 
+
+2.2 Foundation Models for Multispectral Imaging 
+
+In the remote sensing domain, several works have adapted self-supervised pre-training to satellite and hyperspectral imagery through spectral and temporal embeddings [1, 3, 12, 16, 23, 39, 41, 62, 65]. These models target Earth observation data with many spectral bands and are not directly transferable to ground-level infrared perception. Closer to our setting, InfMAE [44] investigates pretraining strategies tailored to infrared-specific statistics, PAD [77] introduces patchwise-scale adapters for self-supervised infrared pretraining while preserving RGB representations, and UNIP [78] analyzes how pretraining objectives shape spatial attention in the in-frared domain and proposes hybrid-attention distillation. UniRGB-IR [70] injects 4 Y. Nalcakan et al. 
+
+cross-modal features into a frozen ViT backbone via lightweight adapter mod-ules, IV-tuning [79] achieves parameter-efficient transfer through modality-aware prompts paired with rank-adaptive adapters, and M-SpecGene [85] proposes a generalized foundation model for RGB-thermal multispectral vision that learns shared representations across visible and thermal domains. In contrast to these works, which target a single infrared modality or a single modality pair, our goal is to bridge RGB visual foundation models to multiple multispectral sensing modalities simultaneously. We keep adaptation lightweight and explicitly struc-tured for reuse across NIR, SWIR, and LWIR perception tasks within a single model, without training separate backbones for each domain. 
+
+## 3 Methodology 
+
+3.1 SpectraDINO Architecture Teacher Backbone SpectraDINO uses a frozen DINOv2 [53] model as the teacher. DINOv2 provides strong general-purpose visual features trained via self-supervised learning on a large curated RGB dataset. We use DINOv2 variants across four scales: ViT-S/14, ViT-B/14, ViT-L/14, and ViT-G/14. The teacher remains frozen throughout all training stages. It receives only RGB inputs and produces CLS token embeddings zteacher ∈ RD , where D is the embedding di-mension of the respective ViT variant (e.g., D=384 for ViT-S, D=768 for ViT-B, 
+
+D=1024 for ViT-L). These teacher embeddings serve as the semantic anchor for all alignment objectives described in Sec. 3.2. The teacher processes RGB im-ages through the standard DINOv2 pipeline without modification. Freezing the teacher ensures that the target representation space remains stable throughout training, preventing drift in the distillation signal. 
+
+Modality-Specific Input Stems Each spectral modality passes through a dedicated input stem that maps the raw input to a three-channel tensor com-patible with the pretrained patch embedding layer of the ViT backbone. For RGB inputs, we use a 1×1 convolution ( 3→3 channels) initialized near identity. This design preserves the pretrained patch embedding behavior at initialization, ensuring that the student’s RGB pathway starts close to the teacher’s. The RGB stem remains frozen during Stage I (Sec. 3.3) to maintain this alignment. For single-channel multispectral inputs (NIR, SWIR, LWIR), we use a spatial stem consisting of two convolutional layers:     
+
+> SpatialStem (x) = IN  Conv 16 →33×3
+>  σ Conv 1→16 3×3(x) ,(1)
+
+where σ denotes the GELU activation and IN denotes instance normalization. Instance normalization is applied at the output to handle the varying intensity distributions across spectral bands. Weights are initialized using Xavier uniform initialization. Each modality has its own stem instance with independent param-eters. SpectraDINO: Bridging the Spectral Gap in VFMs via Lightweight Adapters 5 
+
+> Fig. 1: Overview of the SpectraDINO architecture. A frozen DINOv2 teacher provides target embeddings for RGB inputs. The student SpectraDINO processes both RGB and multispectral inputs through modality-specific stems into a shared ViT back-bone augmented with per-block adapters and modality embeddings. All modalities share the same transformer weights: only the stems, adapters, and modality embed-dings are modality-specific.
+
+Modality-Conditioned Transformer Adapters The core design principle of SpectraDINO is that all modalities share a single set of transformer weights. The pretrained ViT backbone is not duplicated or branched per modality. Instead, modality-specific behavior is achieved through two lightweight mechanisms: per-block bottleneck adapters and a learned modality embedding. 
+
+Per-block adapters. Each transformer block in the backbone is augmented with a bottleneck adapter applied as a residual connection after the block output:     
+
+> x′=Block (x) + Adapter m(Block (x)) ,(2)
+
+where m ∈ { 0, 1, 2, 3} indexes the modality (RGB, NIR, SWIR, LWIR). In practice, the block output Block (x) is computed once and reused as input to the adapter, so the adapter introduces no redundant attention or feedforward computation. Each adapter is a two-layer MLP with a bottleneck of reduction factor 4:      
+
+> Adapter (x) = Wup σ(Wdown x),(3)
+
+where Wdown ∈ RD/ 4×D, Wup ∈ RD×D/ 4, and σ is GELU. Weights are initial-ized with a small standard deviation (std =0 .01 ) and biases are set to zero. This initialization ensures that adapter outputs are near-zero at the start of training, so the model begins as a close approximation of the original pretrained backbone and avoids destabilizing learned features. Each transformer block maintains separate adapter parameters per modal-ity. During a forward pass, samples in a batch are grouped by their modality index and routed to the corresponding adapter. For a ViT-B/14 backbone with 6 Y. Nalcakan et al. 
+
+12 transformer blocks and 4 modalities, this yields 48 adapter instances, each containing 2×D × D/ 4 = 2 ×768 × 192 = 294 ,912 parameters. The total adapter overhead across all blocks and modalities is approximately 14.2M parameters for ViT-B/14, compared to 85.8M parameters in the frozen backbone. Hence, our core idea is that if we can effectively train the adapters with enough data us-ing the task-focused loss functions, we can achieve better performance than by fine-tuning the whole model. 
+
+Modality embeddings. A learned embedding table E ∈ R4×D maps each modality index to a D-dimensional vector. For a given input with modality index m, the corresponding embedding E[m] is added to every token (CLS and all patch tokens) after positional embeddings are applied:        
+
+> xℓ=0 =xpatch +epos +E[m],(4)
+
+where xpatch denotes the patch-embedded input tokens, epos denotes positional embeddings, and E[m] is broadcast across the token dimension. This embedding provides a global conditioning signal that allows the shared self-attention layers to distinguish between modalities without requiring separate parameters in the backbone itself. 
+
+Shared backbone. The backbone transformer weights (self-attention projections, feedforward layers, layer norms within blocks) are identical for all modalities. Modality-specific computation is confined to the stems, adapters, and the em-bedding table. This weight sharing enforces modality-invariant intermediate rep-resentations and keeps the parameter count tractable when scaling to additional spectral bands. 
+
+3.2 Multi-Objective Cross-Spectral Alignment 
+
+Aligning representations across spectral modalities requires supervision at mul-tiple levels of granularity. CLS-level distillation transfers global semantics but ignores spatial structure. Contrastive learning enforces cross-modal pairing but does not anchor to the teacher. Patch-level losses preserve locality but provide no manifold-level constraints. SpectraDINO combines four complementary ob-jectives into a total loss:              
+
+> Ltotal =λdLdistill +λcLcontrast +λpLpatch +λALA,(5)
+
+where each λ is a stage-dependent scalar weight (Sec. 3.3). 
+
+Global Representation Distillation The distillation loss aligns the CLS to-ken embedding of the multispectral student and the frozen DINOv2 teacher using cosine distance:        
+
+> Ldistill = 1 −1
+> B
+> BX
+> i=1
+> z(i)
+> ms ·z(i)
+> teacher
+> z(i)
+> ms z(i)
+> teacher
+> ,(6)
+
+where z(i) 
+
+> ms
+
+is the student CLS embedding for the i-th multispectral input and 
+
+z(i) 
+
+> teacher
+
+is the teacher CLS embedding for the paired RGB input. The loss takes values in [0 , 2] , with 0 indicating perfect directional alignment. SpectraDINO: Bridging the Spectral Gap in VFMs via Lightweight Adapters 7
+
+The teacher serves as a fixed semantic anchor. Minimizing Ldistill transfers RGB-based semantics to the multispectral pathway without requiring labeled data. The frozen teacher also stabilizes training by providing a non-drifting tar-get. 
+
+Symmetric Cross-Modal Contrastive Learning The contrastive loss aligns the RGB student embedding zrgb with the multispectral student embedding zms 
+
+using symmetric InfoNCE [52]. Both embeddings are produced by the Spec-traDINO with different modality indices, ensuring the shared backbone learns spectrally consistent representations. The loss is: 
+
+Lcontrast = 12 [Lr→m + Lm→r ] , (7) 
+
+where each directional term follows the InfoNCE formulation: 
+
+Lr→m = − 1
+
+B
+
+> B
+
+X
+
+> i=1
+
+log exp 
+
+
+
+ˆz(i) 
+
+> rgb
+
+· ˆz(i)
+
+> ms
+
+/τ 
+
+PBj=1 exp 
+
+
+
+ˆz(i) 
+
+> rgb
+
+· ˆz(j) 
+
+> ms
+
+/τ 
+
+ . (8) 
+
+Here ˆz denotes L2-normalized embeddings and τ = 0 .07 is the temperature. Paired RGB and multispectral images of the same scene form positive pairs and all other in-batch combinations serve as negatives. 
+
+Lcontrast complements Ldistill by enforcing cross-modal alignment within the student, rather than only between student and teacher. The distillation loss anchors multispectral embeddings to the teacher space. The contrastive loss ensures that the student produces consistent embeddings regardless of which spectral band is presented for a given scene. 
+
+Patch-Level Spatial Alignment The patch alignment loss operates on indi-vidual patch token embeddings rather than the global CLS token. For paired RGB and multispectral inputs, the loss computes the mean cosine distance be-tween corresponding patch tokens: 
+
+Lpatch = 1 − 1
+
+B · S
+
+> B
+
+X
+
+> i=1
+
+X
+
+> j∈S
+
+p(i,j ) 
+
+> rgb
+
+· p(i,j )
+
+> ms
+
+p(i,j ) 
+
+> rgb
+
+p(i,j )
+
+> ms
+
+, (9) 
+
+where p(i,j ) 
+
+> rgb
+
+and p(i,j ) 
+
+> ms
+
+are the j-th patch token embeddings from the RGB and multispectral pathways, and S is a randomly sampled subset of patch indices with |S| = S. The sampling ratio S/N controls the fraction of the N total patches used per forward pass. Patch-level alignment preserves dense spatial structure in the learned rep-resentations. CLS-level objectives alone do not constrain the spatial arrange-ment of features across the token sequence. Random patch subsampling reduces computational cost while providing sufficient spatial coverage across training iterations. 8 Y. Nalcakan et al. 
+
+Neighborhood Structure Preservation The neighborhood KL divergence loss LA preserves the manifold-level structure of the teacher embedding space. Rather than aligning individual sample pairs, LA ensures that the student re-produces the teacher’s local neighborhood topology. A first-in-first-out (FIFO) queue Q ∈ RK×D stores L2-normalized teacher embeddings from recent batches. For each sample i in the current batch, Spec-traDINO retrieves the top-k nearest neighbors from Q based on teacher simi-larity. The teacher and student similarity distributions over these neighbors are:                   
+
+> p(i,j )
+> t=exp
+> 
+> z(i)
+> teacher ·Qj/τ
+> P
+> l∈top-kexp
+> 
+> z(i)
+> teacher ·Ql/τ
+> ,p(i,j )
+> m=exp
+> 
+> z(i)
+> ms ·Qj/τ
+> P
+> l∈top-kexp
+> 
+> z(i)
+> ms ·Ql/τ
+> ,(10)
+
+where τ = 0 .07 and top-k selection is based on teacher similarities. The loss minimizes the KL divergence between these distributions:       
+
+> LA= 1
+> B
+> BX
+> i=1
+> KL
+> 
+> p(i)
+> t∥p(i)
+> m
+> 
+> = 1
+> B
+> BX
+> i=1
+> X
+> j∈top-k
+> p(i,j )
+> tlog p(i,j )
+> t
+> p(i,j )
+> m
+> .(11)
+
+The queue has a capacity of K=65 ,536 entries and is updated after each op-timizer step with the current batch of teacher embeddings. The queue state is checkpointed to allow continuity across training stages. 
+
+3.3 Training Strategy 
+
+SpectraDINO training proceeds in three stages. Each stage introduces additional capacity or objectives, building on the checkpoint of the previous stage. This staged approach serves two purposes. First, it prevents the newly initialized modality-specific parameters from destabilizing the pretrained backbone in early training. Second, it allows objectives that depend on accumulated state (the teacher queue for LA) to warm up before influencing gradient updates. All stages use AdamW [47] with weight decay of 0.05, automatic mixed precision, and a warmup-cosine learning rate schedule. Each training step processes a batch of paired RGB and multispectral images from a single modality. Modalities are sampled in round-robin order (NIR → SWIR → LWIR → NIR → · · · ), so each modality receives equal training signal per epoch. One epoch consists of the total number of batches summed across all three multispectral modalities. Loss weights and LA hyperparameters are identical across all backbone vari-ants (ViT-S/14 through ViT-G/14). Variant-specific tuning is limited to compu-tational parameters: learning rate, batch size, epoch count, and unfreeze depth. We scale learning rate inversely with model size and reduce batch size and epoch count for larger variants to accommodate memory constraints. Table 1 summa-rizes the shared loss configuration across stages. Table 2 reports the variant-specific parameters. 
+
+Stage I: Stem and Adapter Warmup In Stage I, the pretrained ViT back-bone is entirely frozen. Only the multispectral stems, per-block adapters, modal-ity embeddings, and the final layer norm are trainable. SpectraDINO: Bridging the Spectral Gap in VFMs via Lightweight Adapters 9  
+
+> Fig. 2: Training stage progression. Stage I trains only the modality-specific stems and adapters with the backbone frozen. Stage II introduces the neighborhood KL loss
+> LAand populates the teacher queue while keeping the backbone frozen. Stage III unfreezes 50% of backbone blocks (25% for ViT-G) and rebalances loss weights to emphasize cross-modal consistency and spatial alignment.
+
+The purpose of Stage I is to learn modality routing, which means map-ping raw NIR, SWIR, and LWIR inputs into the pretrained RGB feature space through the stems and adapters, without modifying the backbone representa-tions. The high distillation weight ensures that multispectral embeddings are pulled close to the teacher. The lower contrastive weight provides a secondary cross-modal alignment signal. Patch alignment operates on a small subset of tokens (25%) to regularize spatial features at low cost. 
+
+Stage II: Queue Warmup and Relational Stabilization Stage II is a short bridge stage that introduces LA while the backbone remains frozen. Training resumes from the Stage I best checkpoint with no warmup. 
+
+LA has its own internal warmup, with λA set to 0 for the first epoch, during which the teacher queue accumulates embeddings without producing gradients. Starting from the second epoch, the queue contains representative teacher em-beddings and LA begins contributing to the loss. Stage II exists because LA requires a populated queue to produce meaningful gradients. Activating LA simultaneously with backbone unfreezing (Stage III) would introduce instability due to a new loss signal and newly trainable backbone parameters. The bridge stage decouples these by stabilizing LA first. 
+
+Stage III: Selective Backbone Fine-Tuning Stage III unfreezes the deeper transformer blocks while keeping the earlier blocks frozen. Training resumes from the Stage II checkpoint with no warmup. The teacher queue state for LA
+
+is loaded from the Stage II checkpoint. The loss weights are rebalanced relative to Stages I and II. Ldistill is reduced to λd=0 .5 because strict alignment to the RGB teacher becomes less appropriate as the backbone adapts to non-visible 10 Y. Nalcakan et al. 
+
+Table 1: Loss weights and LA configuration across training stages. These values are shared across all backbone vari-ants. "—" indicates the loss is disabled.                                
+
+> St. I St. II St. III Backbone Frozen Frozen Partial
+> λd(Ldist )2.0 2.0 0.5
+> λc(Lcon )1.0 1.0 1.5
+> λp(Lpat )0.1 0.1 0.25 PSR* 0.25 0.25 0.5
+> λA(LA)—0.5 1.0
+> K*—65,536 65,536 Top-k—128 128
+> τ—0.07 0.07 *PSR: patch sample ratio, K: Queue size
+
+Table 2: Variant-specific training parameters. Learning rate and batch size scale with model capacity. ViT-G uses fewer epochs and a lower unfreeze ratio to manage memory and prevent catastrophic forgetting.                                                  
+
+> ViT-S/14 ViT-B/14 ViT-L/14 ViT-G/14
+> D*384 768 1024 1536 AB* 96 192 256 384 Total blocks 12 12 24 40
+> Stage I
+> Epochs 100 100 100 50 LR 1×10 −41×10 −48×10 −55×10 −5
+> BS/GPU 128 128 64 24
+> Stage II
+> Epochs 10 LR 1×10 −41×10 −48×10 −55×10 −5
+> BS/GPU 128 128 64 24
+> Stage III
+> Epochs 75 75 75 30 LR 5×10 −54×10 −53×10 −52×10 −5
+> BS/GPU 128 128 64 16 UnfB* 6 (50%) 6 (50%) 12 (50%) 10 (25%) *D: Embedding Dimension, AB: Adapter Bottleneck, UnfB: Unfrozen Blocks
+
+spectra. Lcontrast is increased to λc=1 .5 to maintain cross-modal consistency as backbone weights change. Lpatch is increased to λp=0 .25 with a sampling ratio of 0.5, providing stronger spatial supervision for downstream detection. LA is at full weight ( λA=1 .0) to preserve the teacher’s neighborhood structure during fine-tuning. 
+
+## 4 Experiments 
+
+4.1 Pretraining Setup 
+
+To pretrain SpectraDINO, we use 100K RGB-NIR pairs from MS2 [26], 100K RGB-SWIR pairs from RASMD [31], and 70K RGB-LWIR pairs from [56]. We train four backbone variants: ViT-S/14, ViT-B/14, ViT-L/14, and ViT-G/14, all initialized from the corresponding DINOv2 checkpoints. Training follows the three-stage pipeline described in Sec. 3. Round-robin modality sampling ensures balanced exposure across spectral bands. Pretraining is conducted on 2 ×A6000 GPUs with the per-GPU batch size specified in Tab. 2. 
+
+4.2 Downstream Evaluation Setup 
+
+We evaluate SpectraDINO on two core tasks: object detection (Sec. 4.3) and se-mantic segmentation (Sec. 4.4). The evaluation spans nine benchmarks covering three spectral modalities: LWIR (FLIR [15], LLVIP [30], MFNet [20], Semanti-cRT [28], FMB [45]), SWIR (RASMD [31]), and NIR (MCubeS [43]). We report results for SpectraDINO Base and SpectraDINO Large , as these represent the two SpectraDINO: Bridging the Spectral Gap in VFMs via Lightweight Adapters 11 
+
+model scales most commonly used in the literature. Pretrained weights for ViT-S and ViT-G are released for community use but are not included in the benchmark comparisons. 
+
+Feature Extraction and Fusion. Each input is split into its RGB and MS components, which are processed sequentially through the shared SpectraDINO backbone to produce separate token sequences of dimension D. The RGB and MS token sequences are then concatenated along the feature dimension to form a 
+
+2D-dimensional representation, which is projected back to D dimensions through a linear layer followed by LayerNorm and GeLU activation. This fusion is ap-plied at the last transformer block for detection with ViTDet, and at multiple intermediate blocks when using multi-scale architectures as in segmentation. We intentionally selected this simple fusion method to isolate the contribution of the pretrained representations from architectural choices in the fusion module. 
+
+4.3 Object Detection Experiments 
+
+Table 3: Quantitative comparison on the FLIR and LLVIP datasets. The best, second and third best re-sults are highlighted in green , yellow , and red ,respectively.                                                                      
+
+> Model FLIR (LWIR) LLVIP (LWIR) mAP mAP 50 mAP 75 mAP mAP 50 mAP 75
+> GAFF [74] 37.4 74.7 31.3 55.8 94.0 60.2 PronEn [9] 37.9 75.5 31.8 51.5 93.4 50.2 CSAA [5] 41.3 79.2 37.4 59.2 94.3 66.6 TIRDet [67] 44.3 81.4 41.1 64.2 96.3 73.1 MMI-Det [71] 40.5 79.8 35.8 64.4 98.9 73.5
+> CrossFormer [36] 42.1 79.3 38.5 65.1 97.4 75.4
+> UniRGB-IR V iT −B[70] 44.1 81.4 40.2 63.2 96.1 72.2 M-SpecGene V iT −B[85] 44.7 84.8 40.1 65.3 97.4 75.4 SpectraDINO Base 40.7 78.2 35.2 63.5 97.6 72.4
+> SpectraDINO Large 44.3 83.6 41.8 65.7 98.1 74.9
+
+We evaluate detection per-formance using the ViTDet head. As loss functions, we use focal loss for classifi-cation and GIoU loss for box regression. We train with AdamW using per-module learning rates: 1×10 −5 for un-frozen backbone blocks, 2.5 ×
+
+10 −5 for adapters and stems, and 1 × 10 −4 for the detection head. We evaluated different training strategies, including only training the detection head, training the de-tection head and adapters, half-unfreezing the backbone, and full-unfreezing the backbone. For most datasets, finetuning the adapters, the head, and half of the backbone achieved the best results. The second most successful strategy was fine-tuning the adapters and the detection head. An ablation study of these training strategies is given in Appendix A. Table 3 and Table 4 summarize the detection results across three benchmarks spanning two spectral bands. 
+
+Table 4: Quantitative comparison on RASMD dataset. The best results are highlighted in green and the second-best results in yellow .Model RASMD (SWIR) AP Car AP T ruck AP Bus AP Bicycle AP m.cycle AP P erson mAP 50 mAP 75 mAP MRFA [48] 47.3 33.0 29.6 6.0 0.2 12.4 30.0 23.5 21.4 RGBX-Fusion [13] 53.1 40.6 40.2 6.4 0.4 15.9 37.0 28.5 26.1                   
+
+> SpectraDINO Base 59.8 60.1 56.8 30.8 26.4 21.4 73.1 44.4 43.2 SpectraDINO Large 65.1 63.7 66.4 28.9 30.9 27.1 77.2 51.9 49.3
+
+On the LWIR benchmarks (Table 3), SpectraDINO Large ties for second-best mAP on FLIR (44.3) while achieving the highest mAP 75 of 41.8, and leads 12 Y. Nalcakan et al. 
+
+LLVIP with 65.7 mAP and 98.1 mAP 50 . The SWIR results on RASMD (Table 4) present the strongest case for spectral generalization. SpectraDINO Large reaches 49.3 mAP, nearly doubling the previous best of 26.1 from RGBX-Fusion [13]. Per-class improvements are large across all six categories, with truck (+23.1 AP), bus (+26.2 AP), and motorcycle (+30.5 AP) showing the most pronounced gains. Even SpectraDINO Base surpasses prior work by a wide margin at 43.2 mAP. 
+
+4.4 Semantic Segmentation Experiments 
+
+For semantic segmentation, we evaluate the linear head and the UPerNet [69] head, which has been widely used for VFM downstream task evaluation. Both heads use per-pixel cross-entropy loss. Tables 5–8 report segmentation results across four benchmarks spanning LWIR and NIR modalities. 
+
+Table 5: Quantitative comparison on the SemanticRT dataset. The best, second and third best results are highlighted in green , yellow , and red , respectively. Model SemanticRT (LWIR) Bkg Bike Bicyclist Car Tricycle Box Pole Curve Person mIoU PSTNet [59] 95.03 62.25 58.48 85.41 44.18 83.00 71.65 62.15 72.21 67.98 MFNet [20] 96.31 65.87 64.07 89.70 62.10 83.93 77.14 66.18 80.29 74.08 RTFNet [61] 96.40 67.96 67.41 90.39 65.96 85.91 78.02 67.22 78.90 75.48 EGFNet [86] 96.57 71.26 70.86 90.52 71.51 85.41 76.49 66.92 83.74 77.44 ECM [28] 96.55 75.04 75.50 90.26 74.01 85.61 77.23 68.28 85.02 79.26                                
+
+> UniRGB-IR V iT −B[70] 96.33 68.72 64.79 90.33 69.43 85.57 76.44 65.56 79.79 75.21 M-SpecGene V iT −B[85] 96.81 75.99 75.51 91.11 76.79 86.05 78.41 68.64 85.66 79.84 SpectraDINO Base 96.93 69.24 68.70 89.86 65.22 83.26 78.83 64.44 77.66 77.17
+> SpectraDINO Large 97.57 75.12 75.48 92.79 69.98 84.47 78.61 68.99 80.38 81.24
+
+Table 6: Quantitative comparison on the FMB dataset. The best, second and third best results are highlighted in green ,
+
+yellow , and red , respectively. 
+
+Model FMB (LWIR) Person Car Road Sidewalk Building Sign Bus Motorcycle mAcc mIoU YDTR [64] 63.4 81.7 88.9 49.1 83.2 70.6 60.2 28.0 64.5 56.5 SwinFusion [51] 64.1 81.3 88.7 47.4 82.3 70.8 63.7 26.0 64.7 56.4 ReCoNet [24] 62.3 81.2 88.8 48.9 82.6 71.6 64.0 27.7 64.5 56.4 CDDFUse [81] 63.4 81.6 88.0 45.7 81.8 70.9 56.6 26.1 64.3 55.4 LRRNet [37] 63.6 81.6 88.9 47.0 82.6 71.1 64.3 27.5 64.5 56.4 MoEFusion [4] 63.8 81.9 88.7 46.7 83.1 72.2 66.4 30.7 64.5 57.0 DDFM [82] 63.3 81.6 89.1 48.3 84.0 71.7 63.3 25.7 64.9 56.6 SuperFusion [63] 64.0 80.6 87.7 44.5 82.6 71.3 61.7 26.3 64.0 55.9 SegMiF [46] 82.0 43.1 74.8 85.0 65.4 78.3 47.3 49.8 – 57.6 MMSFormer [57] 83.0 45.2 79.7 87.3 69.8 82.6 44.6 51.4 – 61.7 PEAFusion [66] 84.2 38.6 79.4 88.0 72.3 84.7 49.1 54.1 85.3 69.8 SpectraDINO Base 66.4 77.9 88.7 49.1 83.4 77.9 60.3 33.3 72.7 64.7 SpectraDINO Large 73.4 84.9 90.6 71.7 85.8 78.6 83.1 42.5 80.3 72.4 
+
+Across the three LWIR segmenta-tion benchmarks (Tables 5, 6, 7), SpectraDINO Large 
+
+achieves the best mIoU on Seman-ticRT and FMB, while ranking third on MFNet (60.8) within 0.7 points of the top method HAPNet. A scal-ing pattern is con-sistent across all three datasets, upgrading from SpectraDINO Base to SpectraDINO Large improves mIoU by 4.07, 7.7, and 1.9 points on SemanticRT, FMB, and MFNet, respec-tively, which indicates that the pretrained representations benefit from additional backbone capacity. For NIR segmentation, we evaluate on MCubeS (Table 8), a material seg-mentation benchmark that provides four modalities: RGB, NIR, angle of linear SpectraDINO: Bridging the Spectral Gap in VFMs via Lightweight Adapters 13 
+
+Table 7: Quantitative comparison on the MFNet dataset. The best, second and third best results are high-lighted in green , yellow , and red , respectively. Model MFNet (LWIR) Car Person Bike Curve C.Stop G.rail C. Cone Bump mAcc mIoU MFNet [20] 65.9 58.9 42.9 29.9 9.9 8.5 25.2 27.7 45.1 39.7 RTFNet [61] 87.4 70.3 62.7 45.3 29.8 0.0 29.1 55.7 63.1 53.2 EGFNet [86] 87.6 69.8 58.8 42.8 33.8 7.0 48.3 47.1 72.7 54.8 CAINet [49] 88.5 66.3 68.7 55.4 31.5 9.0 48.9 60.7 73.2 58.6 CMX [75] 90.1 75.2 64.5 50.2 35.3 8.5 54.2 60.6 - 59.7 CRM-RGBTSeg [58] 90.0 75.1 67.0 45.2 49.7 18.4 54.2 54.4 - 61.4                               
+
+> HAPNet [38] 90.6 75.4 67.2 51.1 48.4 4.2 59.1 59.1 98.3 61.5
+> SpectraDINO Base 89.7 72.5 62.8 42.8 41.7 7.0 55.9 59.1 75.2 58.9 SpectraDINO Large 90.4 75.1 69.3 52.7 43.4 5.9 54.2 60.3 77.4 60.8
+
+Table 8: Results on MCubeS dataset. Model MCubeS (NIR) Modalities mIoU DRConv [6] R-A-D-N 34.63 DDF [84] R-A-D-N 36.16 TransFuser [54] R-A-D-N 37.66 DeepLabv3+ [7] R-A-D-N 38.13 MMTM [33] R-A-D-N 39.71 FuseNet [21] R-A-D-N 40.58 MCubeSNet [43] R-A-D-N 42.46 CBAM [68] R-A-D-N 51.32         
+
+> CMNeXt [76] R-A-D-N 51.54
+> MMSFormer [57] R-A-D-N 53.11
+> SpectraDINO Base R-N* 41.89* SpectraDINO Large R-N* 46.76*
+
+*R: RGB, A: angle of lin. polarization, D: degree of lin. polarization, N: NIR 
+
+polarization, and degree of linear polarization. All compared methods use the full four-modality input, whereas SpectraDINO operates only on RGB and NIR. Despite this disadvantage, SpectraDINO Large achieves 46.76 mIoU, surpassing several four-modality approaches. The gap to the best four-modality method re-mains substantial, suggesting that polarization modalities carry complementary information that RGB-NIR features alone cannot fully recover. Nonetheless, pre-trained representations are able to capture distinctive spectral features from NIR that partly offset the missing modalities and yield substantially better perfor-mance than most previous works that rely on additional modalities for material segmentation. 
+
+4.5 Ablation Studies 
+
+Table 9: Ablation on downstream task heads. 
+
+Detection (RASMD) Segmentation (FMB) Head mAP 50 mAP Head mAcc mIoU Linear 47.35 25.64 Linear 65.52 58.93 ViTDet 73.14 49.35 UPerNet 72.71 64.73 
+
+We ablate the downstream task head and the role of bottleneck adapters on SpectraDINO Base . Additional ab-lations on loss components (Ap-pendix C1), training stage progression (Appendix C2), and fusion strategy selection (Appendix C3) are provided in the supplementary material. Table 9 compares linear probes against structured task heads. Detection ben-efits substantially from ViTDet’s feature pyramid, nearly doubling mAP over the linear probe, whereas segmentation shows a smaller gap, indicating that the pre-trained patch tokens are already well suited for per-pixel classification. Table 10 isolates the adapter contribution. Adding bottleneck adapters and modality-specific stems to a frozen backbone yields the largest single improvement, con-firming that lightweight modality-specific parameters are sufficient to bridge the spectral gap. Unfreezing 50% of backbone blocks provides a further gain, while 14 Y. Nalcakan et al. 
+
+unfreezing all blocks slightly degrades performance. We attribute this to over-fitting: full fine-tuning exposes all pretrained parameters to the comparatively small downstream dataset, eroding the general representations learned during pretraining. The half-fine-tune configuration strikes the best balance between adaptation and the preservation of pretrained features, and we adopt it as the default for all reported results. 
+
+## 5 Conclusion                   
+
+> Table 10: Ablation on bottleneck adapters. Frozen backbone uses the DINOv2-initialized ViT-B with-out adapters or modality stems; only the task head is trained. Adapter-only adds the per-block bot-tleneck adapters and modality-specific stems while keeping all backbone blocks frozen. All rows use the same ViTDet head and concatenation fusion on the RASMD dataset.
+> Configuration mAP 50 mAP 75 mAP Frozen backbone (no adapters) 47.35 23.34 25.64 + Adapters & stems 68.66 40.89 39.29 SpectraDINO Base (half) 73.12 44.41 43.28 SpectraDINO Base (full) 69.34 39.90 40.29
+
+We presented SpectraDINO, a multispectral vision foun-dation model that extends DINOv2 to jointly handle RGB, NIR, SWIR, and LWIR within a single shared ViT backbone. The architecture introduces modality-specific stems and per-block bot-tleneck adapters that inject spectral capacity without du-plicating the transformer. A three-stage training pipeline progressively transi-tions from frozen adapter warmup to partial backbone fine-tuning using a unified loss formulation of cosine distillation, contrastive alignment, patch-level match-ing, and neighborhood KL divergence. We trained four backbone variants (ViT-S/B/L/G) with round-robin modality sampling across all spectral bands. Downstream evaluations on object detection and semantic segmentation bench-marks spanning LWIR, SWIR, and NIR confirm that a single set of pretrained weights transfers effectively across spectral domains. On LWIR detection and segmentation tasks, SpectraDINO matches or surpasses modality-specific meth-ods that are designed and tuned for thermal imagery. On SWIR, where existing multispectral foundation models have limited coverage, the pretrained represen-tations yield large improvements over prior work. On NIR material segmentation, SpectraDINO operating on two modalities outperforms several baselines that have access to additional polarization inputs. Performance scales consistently from ViT-B to ViT-L across all evaluated benchmarks, indicating that the pre-trained representations benefit from additional backbone capacity regardless of the target spectral band. A central advantage of the SpectraDINO design is that a single model serves all four spectral bands. Existing approaches typically train separate backbones or fusion modules per modality pair, limiting transfer across spectral domains. We show that a shared backbone conditioned on learned modality embeddings can represent RGB, NIR, SWIR, and LWIR without per-band architectural special-ization. The adapter mechanism keeps parameter overhead small while providing sufficient modality-specific capacity, as confirmed by ablation. We believe this unified formulation is a more practical foundation for real-world multispectral SpectraDINO: Bridging the Spectral Gap in VFMs via Lightweight Adapters 15 
+
+systems, where sensors vary across deployments and retraining per modality pair is prohibitively expensive. 
+
+## Appendix 
+
+Appendix A. Effect of Module Finetuning 
+
+We study how different finetuning configurations affect downstream task perfor-mance. Table 11 reports results on FMB semantic segmentation and RASMD object detection using SpectraDINO Base . We compare four configurations: train-ing only the task head, additionally unfreezing the modality-specific adapters and input stems, unfreezing the task head, adapters, stems, and the top half of the backbone blocks, and unfreezing the entire backbone. 
+
+Table 11: Ablation on the effect of finetuning different architectural modules on down-stream task performance. Results are reported for semantic segmentation on FMB and object detection on RASMD using SpectraDINO Base .Configuration mAcc mIoU Head 58.70 49.87 Head + Adapters & stems 69.60 59.07 SpectraDINO Base (half) 72.71 64.72 SpectraDINO Base (full) 67.83 57.92 Semantic segmentation on FMB Dataset Configuration mAP 50 mAP 75 mAP Head 38.61 21.79 22.33 Head + Adapters & stems 68.66 40.89 39.54 SpectraDINO Base (half) 73.12 44.43 43.24 SpectraDINO Base (full) 69.02 39.90 40.29 Object detection on RASMD Dataset 
+
+Training only the task head yields the lowest scores on both benchmarks, but finetuning the proposed adapter +stems modules brings a large performance gain on both tasks. This validates our architectural choice of lightweight, modality-specific modules. Adapters and stems act as the main components for spectral adaptation, and finetuning them alone recovers most of the performance gap without modifying any backbone parameter. Unfreezing the top half of the backbone further improves performance, with +3.11 mAcc and +5.65 mIoU gains on FMB, and +4.46 mAP50 and +3.70 mAP on RASMD, over the adapter-only configuration. We interpret this as evidence that the later transformer blocks, which are responsible for higher-level semantic abstraction, benefit from co-adapting with modality adapters and stems to better capture modality-specific scene semantics. Interestingly, unfreezing the entire backbone reverses this trend. This sug-gests that exposing the lower backbone layers to gradient updates on relatively small downstream datasets destabilize the general-purpose spatial and structural representations that SpectraDINO learned during large-scale RGB pretraining. The half-unfreeze configuration appears to sit at a favorable point on this trade-off, where the upper blocks gain enough flexibility to accommodate the spectral shift, while the frozen lower blocks act as a regularizer, retaining transferable low- and mid-level features. 16 Y. Nalcakan et al. 
+
+Appendix B. Representation Alignment Across Training Stages 
+
+We analyze cross-modal alignment by visualizing pairwise bi-modality represen-tations across training stages. Figure 3 shows 3-dimensional t-SNE projections of 100 randomly sampled instances per stage, with lines connecting corresponding RGB-IR pairs to illustrate inter-modal distances. In Stage I, where the backbone is frozen, and only the adapters and stems are trained, NIR and SWIR samples already cluster in close proximity, consis-tent with their shared reflectance-based imaging physics, while LWIR forms a distant cluster. RGB–IR pair distances remain large across all three modalities, indicating that the adapters and stems alone do not yet bridge the cross-modal gap. As training progresses, alignment emerges in a modality-dependent fashion. Stage II introduces LA and primarily tightens RGB–NIR and RGB–SWIR pair-ings, which we attribute to the smaller representational gap for spectrally ad-jacent modalities. By Stage III, partial backbone unfreezing extends this align-ment to LWIR, as a considerable share of RGB–LWIR pairs migrates toward the NIR/SWIR region. The fact that RGB–LWIR alignment lags behind yet still improves substantially suggests that the staged curriculum gives the model sufficient capacity to reconcile even large spectral discrepancies without collaps-ing the representation space. 
+
+Appendix C1. Effect of Loss Functions on Representation Learning 
+
+Table 12: Ablation on the effect of loss function combinations during Stage III of rep-resentation learning. Downstream performance is reported for semantic segmentation on FMB and object detection on RASMD using SpectraDINO Base .Configuration mAcc mIoU                 
+
+> Ldistill 65.25 58.91
+> Ldistill +Lcontrast 67.34 60.83
+> Ldistill +Lcontrast +Lpatch 71.83 63.70
+> Ldistill +Lcontrast +Lpatch +LA72.71 64.72
+
+Results of semantic segmentation task on FMB Dataset Configuration mAP 50 mAP 75 mAP                         
+
+> Ldistill 64.73 34.21 37.61
+> Ldistill +Lcontrast 69.27 38.49 37.68
+> Ldistill +Lcontrast +Lpatch 70.89 39.89 40.17
+> Ldistill +Lcontrast +Lpatch +LA73.12 44.43 43.24
+
+Results of object detection task on RASMD Dataset 
+
+We isolate the contribution of each loss function by repeating Stage III of representation learning with different loss combinations. Table 12 reports downstream performance on FMB (LWIR semantic segmentation) and RASMD (SWIR object detection) using SpectraDINO Base .The full four-loss combination achieves 72.71 mAcc and 64.72 mIoU on FMB, and 73.12 mAP50 and 43.24 mAP on RASMD. Each loss captures complemen-tary information, where Ldistill provides coarse semantic grounding, Lcontrast 
+
+sharpens inter-instance boundaries, Lpatch preserves spatial coherence critical for dense prediction tasks, and LA stabilizes training and improves the local geometry of the learned embedding space. Using all four losses together yields the strongest downstream performance, confirming that no single objective sub-SpectraDINO: Bridging the Spectral Gap in VFMs via Lightweight Adapters 17 
+
+Fig. 3: 3-dimensional t-SNE projections of 100 randomly sampled RGB–infrared rep-resentation pairs across the three training stages. Lines connect corresponding cross-modal pairs. 18 Y. Nalcakan et al. 
+
+sumes the others. We provide the per-loss incremental results in Table 12 to quantify each term’s marginal contribution. 
+
+Appendix C2. Effect of Representation Training Stages                 
+
+> Table 13: Ablation on the effect of each training stage on downstream task perfor-mance. Representations are evaluated after Stage I, II, and III using SpectraDINO Base .Configuration mAcc mIoU Stage I 67.61 60.84 Stage II (Bridge) 66.79 66.79 Stage III 72.71 64.72 Results of semantic segmentation task on FMB Dataset Configuration mAP 50 mAP 75 mAP Stage I 61.04 34.51 35.09 Stage II (Bridge) 63.16 33.83 35.09 Stage III 73.12 44.43 43.24 Results of object detection task on RASMD Dataset
+
+We evaluate the quality of learned representations after each training stage to quantify the contribution of our staged curriculum. Table 13 reports downstream results on FMB and RASMD using SpectraDINO Base .After Stage I, the model reaches 67.61 mAcc on FMB and 61.04 mAP50 on RASMD. At this point, the backbone retains its original DINOv2 RGB rep-resentations, and only the lightweight modules have been trained. This shows DINOv2 RGB-based features are already competitive and indicating that the adapter and stem architecture can extract meaningful multispectral features even without backbone modification. Stage II (bridge stage) introduces the neighborhood KL divergence loss LA
+
+with the FIFO teacher queue. On RASMD, mAP50 increases from 61.04 to 63.16, showing that the bridge stage improves cross-modal alignment for detection. On FMB, mAcc decreases slightly from 67.61 to 66.79 while mIoU increases to 66.79. This behavior is expected, since the bridge stage is intentionally short and serves primarily to calibrate the representation space before backbone unfreezing. Stage III (partial backbone unfreeze with loss rebalancing) produces the largest gains. mAcc reaches 72.71 on FMB (+5.9 over Stage II) and mAP50 reaches 73.12 on RASMD (+9.96 over Stage II). Unfreezing the top half of the backbone enables higher-level transformer blocks to co-adapt with the adapters and stems under the full-loss ensemble. As directly unfreezing the backbone from initialization (skipping Stages I and II) risks catastrophic forgetting of the pre-trained RGB representations, the staged curriculum is essential. Our three-stage protocol first stabilizes the lightweight modules, then calibrates the embedding neighborhood, and finally refines the backbone, yielding monotonically improv-ing detection performance and strong final segmentation quality. 
+
+Appendix C3. Fusion Strategy Comparison 
+
+In the main paper, all downstream experiments use simple feature concatenation as the fusion strategy. This choice is deliberate, since concatenation introduces no additional learnable parameters and isolates the contribution of SpectraDINO’s SpectraDINO: Bridging the Spectral Gap in VFMs via Lightweight Adapters 19 
+
+pretrained representations from any gains attributable to a sophisticated fusion module.              
+
+> Table 14: Ablation on the effect of feature fusion strategies on downstream object detection performance. Adapters and modality stems of SpectraDINO Base are finetuned on RASMD with concatenation, cross-attention, and gated-token fusion. Fusion strategy mAP 50 mAP 75 mAP Baseline 73.12 44.43 43.24 Cross attention 74.01 45.29 44.26 Gated token 71.21 39.98 39.08
+
+Table 14 reports results on RASMD object detection when replacing concate-nation with two alternative fusion strategies while keeping all other settings fixed. Cross-attention fusion, which computes pairwise attention between modality-specific feature maps, improves mAP from 43.24 to 44.26 (+1.02) and mAP50 from 73.12 to 74.01 (+0.89). Gated-token fusion, which learns a per-token gat-ing weight to blend modality features, underperforms the concatenation baseline (39.08 mAP vs. 43.24 mAP). We hypothesize that the gated-token mechanism requires more training data or longer schedules to learn effective gating policies on the relatively small RASMD dataset. These results demonstrate two points. First, SpectraDINO representations are compatible with and benefit from more expressive fusion modules, as cross attention improves upon the already strong concatenation baseline. Second, even the simplest fusion strategy produces competitive results when backed by well-aligned multispectral features via our proposed SpectraDINO model. We en-courage future work to explore task-specific fusion architectures built on top of SpectraDINO features. 
+
+Discussion on Limitations 
+
+Absence of cross-spectral paired data. Our pretraining data consists only of bi-modal pairs (RGB–NIR, RGB–SWIR, and RGB–LWIR). As a result, the model never observes simultaneous relationships between non-RGB modalities. Dur-ing training, RGB therefore acts as an intermediary alignment anchor. NIR, SWIR, and LWIR are each aligned to RGB, but no direct alignment is enforced between infrared modalities. This design implicitly assumes that the RGB em-bedding space provides a sufficiently structured reference for all infrared bands. While this assumption is reasonable for spectrally adjacent modalities such as NIR and SWIR, it becomes weaker for LWIR, whose emissive thermal pat-terns have limited photometric correspondence with visible features. We pre-sume that collecting datasets with three or more synchronized spectral bands (e.g., RGB–NIR–SWIR or RGB–NIR–SWIR–LWIR) would enable direct inter-infrared alignment objectives and may improve the consistency of the shared representation, particularly for LWIR. 
+
+Sub-optimal Sampling and Modality Convergence. As detailed earlier, our train-ing pipeline employs a uniform round-robin sampling strategy that allocates 20 Y. Nalcakan et al. 
+
+equal gradient updates to each modality. However, this assumes a uniform diffi-culty across alignment tasks. The equal allocation of training cycles likely results in "over-fitting" the reflectance-based bands while leaving the thermal modality under-optimized. An adaptive, loss-driven sampling strategy, where the model dynamically prioritizes modalities with higher alignment error, could potentially bridge this performance gap without increasing the overall computational bud-get. We will study this approach in our future work. 
+
+## References 
+
+1. Astruc, G., Gonthier, N., Mallet, C., Landrieu, L.: Omnisat: Self-supervised modal-ity fusion for earth observation. In: European Conference on Computer Vision. pp. 409–427. Springer (2024) 2. Bao, H., Dong, L., Piao, S., Wei, F.: BEit: BERT pre-training of image trans-formers. In: International Conference on Learning Representations (2022), https: //openreview.net/forum?id=p-BhZSz59o4 
+
+3. Braham, N.A.A., Albrecht, C.M., Mairal, J., Chanussot, J., Wang, Y., Zhu, X.X.: Spectralearth: Training hyperspectral foundation models at scale. IEEE Journal of Selected Topics in Applied Earth Observations and Remote Sensing (2025) 4. Cao, B., Sun, Y., Zhu, P., Hu, Q.: Multi-modal gated mixture of local-to-global experts for dynamic image fusion. In: Proceedings of the IEEE/CVF international conference on computer vision. pp. 23555–23564 (2023) 5. Cao, Y., Bin, J., Hamari, J., Blasch, E., Liu, Z.: Multimodal object detection by channel switching and spatial attention. In: Proceedings of the IEEE/CVF Conference on Computer Vision and Pattern Recognition. pp. 403–411 (2023) 6. Chen, J., Wang, X., Guo, Z., Zhang, X., Sun, J.: Dynamic region-aware convolu-tion. In: Proceedings of the IEEE/CVF conference on computer vision and pattern recognition. pp. 8064–8073 (2021) 7. Chen, L.C., Zhu, Y., Papandreou, G., Schroff, F., Adam, H.: Encoder-decoder with atrous separable convolution for semantic image segmentation. In: Proceedings of the European conference on computer vision (ECCV). pp. 801–818 (2018) 8. Chen, S., Ge, C., Tong, Z., Wang, J., Song, Y., Wang, J., Luo, P.: Adaptformer: Adapting vision transformers for scalable visual recognition. Advances in Neural Information Processing Systems 35 , 16664–16678 (2022) 9. Chen, Y.T., Shi, J., Ye, Z., Mertz, C., Ramanan, D., Kong, S.: Multimodal ob-ject detection via probabilistic ensembling. In: European Conference on Computer Vision. pp. 139–158. Springer (2022) 10. Chen, Z., Duan, Y., Wang, W., He, J., Lu, T., Dai, J., Qiao, Y.: Vision transformer adapter for dense predictions. In: The Eleventh International Conference on Learn-ing Representations (2023), https://openreview.net/forum?id=plKu2GByCNW 
+
+11. Choe, G., Kim, S.H., Im, S., Lee, J.Y., Narasimhan, S.G., Kweon, I.S.: Ranus: Rgb and nir urban scene dataset for deep scene parsing. IEEE Robotics and Automation Letters 3(3), 1808–1815 (2018) 12. Cong, Y., Khanna, S., Meng, C., Liu, P., Rozi, E., He, Y., Burke, M., Lobell, D., Ermon, S.: Satmae: Pre-training transformers for temporal and multi-spectral satellite imagery. Advances in Neural Information Processing Systems 35 , 197–211 (2022) SpectraDINO: Bridging the Spectral Gap in VFMs via Lightweight Adapters 21 13. Deevi, S.A., Lee, C., Gan, L., Nagesh, S., Pandey, G., Chung, S.J.: Rgb-x ob-ject detection via scene-specific fusion modules. In: Proceedings of the IEEE/CVF Winter Conference on Applications of Computer Vision. pp. 7366–7375 (2024) 14. Driggers, R.G., Hodgkin, V., Vollmerhausen, R.: What good is swir? passive day comparison of vis, nir, and swir. In: Infrared Imaging Systems: Design, Analysis, Modeling, and Testing XXIV. vol. 8706, pp. 187–201 (2013) 15. FLIR, D.: Flir thermal dataset for algorithm training, https://www.flir.com/ oem/adas/adas-dataset-form/ , accessed on August 30, 2024 16. Fuller, A., Millard, K., Green, J.: Croma: Remote sensing representations with contrastive radar-optical masked autoencoders. Advances in Neural Information Processing Systems 36 , 5506–5538 (2023) 17. Girdhar, R., El-Nouby, A., Liu, Z., Singh, M., Alwala, K.V., Joulin, A., Misra, I.: Imagebind: One embedding space to bind them all. In: Proceedings of the IEEE/CVF conference on computer vision and pattern recognition. pp. 15180– 15190 (2023) 18. Govardhan, P., Pati, U.C.: Nir image based pedestrian detection in night vision with cascade classification and validation. In: 2014 IEEE International Conference on Advanced Communications, Control and Computing Technologies. pp. 1435– 1438. IEEE (2014) 19. Guo, X., Lao, J., Dang, B., Zhang, Y., Yu, L., Ru, L., Zhong, L., Huang, Z., Wu, K., Hu, D., et al.: Skysense: A multi-modal remote sensing foundation model towards universal interpretation for earth observation imagery. In: Proceedings of the IEEE/CVF Conference on Computer Vision and Pattern Recognition. pp. 27672–27683 (2024) 20. Ha, Q., Watanabe, K., Karasawa, T., Ushiku, Y., Harada, T.: Mfnet: Towards real-time semantic segmentation for autonomous vehicles with multi-spectral scenes. In: 2017 IEEE/RSJ International Conference on Intelligent Robots and Systems (IROS). pp. 5108–5115. IEEE (2017) 21. Hazirbas, C., Ma, L., Domokos, C., Cremers, D.: Fusenet: Incorporating depth into semantic segmentation via fusion-based cnn architecture. In: Asian conference on computer vision. pp. 213–228. Springer (2016) 22. He, K., Chen, X., Xie, S., Li, Y., Dollár, P., Girshick, R.: Masked autoencoders are scalable vision learners. In: Proceedings of the IEEE/CVF conference on computer vision and pattern recognition. pp. 16000–16009 (2022) 23. Hong, D., Zhang, B., Li, X., Li, Y., Li, C., Yao, J., Yokoya, N., Li, H., Ghamisi, P., Jia, X., et al.: Spectralgpt: Spectral remote sensing foundation model. IEEE transactions on pattern analysis and machine intelligence 46 (8), 5227–5244 (2024) 24. Huang, Z., Liu, J., Fan, X., Liu, R., Zhong, W., Luo, Z.: Reconet: Recurrent cor-rection network for fast and efficient multi-modality image fusion. In: European conference on computer Vision. pp. 539–555. Springer (2022) 25. Hwang, S., Park, J., Kim, N., Choi, Y., So Kweon, I.: Multispectral pedestrian detection: Benchmark dataset and baseline. In: Proceedings of the IEEE conference on computer vision and pattern recognition. pp. 1037–1045 (2015) 26. Hwang, S., Park, J., Kim, N., Choi, Y., So Kweon, I.: Multispectral pedestrian detection: Benchmark dataset and baseline. In: Proceedings of the IEEE conference on computer vision and pattern recognition. pp. 1037–1045 (2015) 27. Jaegle, A., Borgeaud, S., Alayrac, J.B., Doersch, C., Ionescu, C., Ding, D., Koppula, S., Zoran, D., Brock, A., Shelhamer, E., Hénaff, O., Botvinick, M.M., Zisserman, A., Vinyals, O., Carreira, J.: Perceiver io: A general architecture for structured inputs & outputs. International Conference on Learning Representations (ICLR) (2022) 22 Y. Nalcakan et al. 28. Ji, W., Li, J., Bian, C., Zhang, Z., Cheng, L.: Semanticrt: A large-scale dataset and method for robust semantic segmentation in multispectral images. In: Proceedings of the 31st ACM International Conference on Multimedia. pp. 3307–3316 (2023) 29. Jia, M., Tang, L., Chen, B.C., Cardie, C., Belongie, S., Hariharan, B., Lim, S.N.: Visual prompt tuning. In: European conference on computer vision. pp. 709–727. Springer (2022) 30. Jia, X., Zhu, C., Li, M., Tang, W., Zhou, W.: Llvip: A visible-infrared paired dataset for low-light vision. In: Proceedings of the IEEE/CVF International Con-ference on Computer Vision. pp. 3496–3504 (2021) 31. Jin, Y., Kovac, M., Nalcakan, Y., Park, I., Yeo, S., Ju, H., Kim, S.: Rasmd: Rgb and swir multispectral driving dataset for robust perception in adverse conditions. Information Fusion p. 103872 (2025) 32. Jobert, G., Vannier, N., Pelletier, S., Delubac, R., Brenière, X., Péré-Laperne, N., Rubaldo, L.: Swir’s advantage over the visible in long-range imaging scenarios: comparative field trials in a variety of atmospheric conditions. In: Infrared Tech-nology and Applications L. vol. 13046, pp. 66–83. SPIE (2024) 33. Joze, H.R.V., Shaban, A., Iuzzolino, M.L., Koishida, K.: Mmtm: Multimodal trans-fer module for cnn fusion. In: Proceedings of the IEEE/CVF conference on com-puter vision and pattern recognition. pp. 13289–13299 (2020) 34. Kirillov, A., Mintun, E., Ravi, N., Mao, H., Rolland, C., Gustafson, L., Xiao, T., Whitehead, S., Berg, A.C., Lo, W.Y., et al.: Segment anything. In: Proceedings of the IEEE/CVF international conference on computer vision. pp. 4015–4026 (2023) 35. Kumar, W.K., Singh, N.J., Singh, A.D., Nongmeikapam, K.: Enhanced machine perception by a scalable fusion of rgb–nir image pairs in diverse exposure environ-ments. Machine Vision and Applications 32 (4), 88 (2021) 36. Lee, S., Park, J., Park, J.: Crossformer: Cross-guided attention for multi-modal object detection. Pattern Recognition Letters 179 , 144–150 (2024) 37. Li, H., Xu, T., Wu, X.J., Lu, J., Kittler, J.: Lrrnet: A novel representation learning guided fusion network for infrared and visible images. IEEE transactions on pattern analysis and machine intelligence 45 (9), 11040–11052 (2023) 38. Li, J., Yun, P., Xu, Y., Zhang, Y., Sun, M., Chen, Q., Alexander, I., Fan, R.: Hapnet: Toward superior rgb-thermal scene parsing via hybrid, asymmetric, and progressive heterogeneous feature fusion. Biomimetic Intelligence and Robotics p. 100309 (2026) 39. Li, J., Liu, Y., Wang, X., Peng, Y., Sun, C., Wang, S., Sun, Z., Ke, T., Jiang, X., Lu, T., et al.: Hyperfree: A channel-adaptive and tuning-free foundation model for hyperspectral remote sensing imagery. In: Proceedings of the Computer Vision and Pattern Recognition Conference. pp. 23048–23058 (2025) 40. Li, J., Li, D., Xiong, C., Hoi, S.: Blip: Bootstrapping language-image pre-training for unified vision-language understanding and generation. In: International confer-ence on machine learning. pp. 12888–12900. PMLR (2022) 41. Li, X., Hong, D., Chanussot, J.: S2mae: A spatial-spectral pretraining foundation model for spectral remote sensing data. In: Proceedings of the IEEE/CVF Confer-ence on Computer Vision and Pattern Recognition. pp. 24088–24097 (2024) 42. Li, Y., Mao, H., Girshick, R., He, K.: Exploring plain vision transformer backbones for object detection. In: European conference on computer vision. pp. 280–296. Springer (2022) 43. Liang, Y., Wakaki, R., Nobuhara, S., Nishino, K.: Multimodal material segmen-tation. In: Proceedings of the IEEE/CVF Conference on Computer Vision and Pattern Recognition. pp. 19800–19808 (2022) SpectraDINO: Bridging the Spectral Gap in VFMs via Lightweight Adapters 23 44. Liu, F., Gao, C., Zhang, Y., Guo, J., Wang, J., Meng, D.: Infmae: A foundation model in the infrared modality. In: European Conference on Computer Vision. pp. 420–437. Springer (2024) 45. Liu, J., Liu, Z., Wu, G., Ma, L., Liu, R., Zhong, W., Luo, Z., Fan, X.: Multi-interactive feature learning and a full-time multi-modality benchmark for image fusion and segmentation. In: Proceedings of the IEEE/CVF international confer-ence on computer vision. pp. 8115–8124 (2023) 46. Liu, J., Liu, Z., Wu, G., Ma, L., Liu, R., Zhong, W., Luo, Z., Fan, X.: Multi-interactive feature learning and a full-time multi-modality benchmark for image fusion and segmentation. In: Proceedings of the IEEE/CVF international confer-ence on computer vision. pp. 8115–8124 (2023) 47. Loshchilov, I., Hutter, F.: Decoupled weight decay regularization. arXiv preprint arXiv:1711.05101 (2017) 48. Lu, B., Liu, H., Watanabe, H.: Enhancing rgb-ir object detection: a frozen backbone approach with multi-receptive field attention: B. lu et al. The Visual Computer 
+
+42 (3), 164 (2026) 49. Lv, Y., Liu, Z., Li, G.: Context-aware interaction network for rgb-t semantic seg-mentation. IEEE Transactions on Multimedia 26 , 6348–6360 (2024) 50. Ma, J., Ma, Y., Li, C.: Infrared and visible image fusion methods and applications: A survey. Information fusion 45 , 153–178 (2019) 51. Ma, J., Tang, L., Fan, F., Huang, J., Mei, X., Ma, Y.: Swinfusion: Cross-domain long-range learning for general image fusion via swin transformer. IEEE/CAA Journal of Automatica Sinica 9(7), 1200–1217 (2022) 52. Oord, A.v.d., Li, Y., Vinyals, O.: Representation learning with contrastive predic-tive coding. arXiv preprint arXiv:1807.03748 (2018) 53. Oquab, M., Darcet, T., Moutakanni, T., Vo, H.V., Szafraniec, M., Khalidov, V., Fernandez, P., HAZIZA, D., Massa, F., El-Nouby, A., Assran, M., Ballas, N., Galuba, W., Howes, R., Huang, P.Y., Li, S.W., Misra, I., Rabbat, M., Sharma, V., Synnaeve, G., Xu, H., Jegou, H., Mairal, J., Labatut, P., Joulin, A., Bojanowski, P.: DINOv2: Learning robust visual features without supervision. Transactions on Ma-chine Learning Research (2024), https://openreview.net/forum?id=a68SUt6zFt ,featured Certification 54. Prakash, A., Chitta, K., Geiger, A.: Multi-modal fusion transformer for end-to-end autonomous driving. In: Proceedings of the IEEE/CVF conference on computer vision and pattern recognition. pp. 7077–7087 (2021) 55. Radford, A., Kim, J.W., Hallacy, C., Ramesh, A., Goh, G., Agarwal, S., Sastry, G., Askell, A., Mishkin, P., Clark, J., et al.: Learning transferable visual models from natural language supervision. In: International conference on machine learning. pp. 8748–8763. PmLR (2021) 56. Ran, L., Wang, L., Wang, G., Wang, P., Zhang, Y.: Diffv2ir: visible-to-infrared dif-fusion model via vision-language understanding. arXiv preprint arXiv:2503.19012 (2025) 57. Reza, M.K., Prater-Bennette, A., Asif, M.S.: Mmsformer: Multimodal transformer for material and semantic segmentation. IEEE Open Journal of Signal Processing 
+
+5, 599–610 (2024) 58. Shin, U., Lee, K., Kweon, I.S., Oh, J.: Complementary random masking for rgb-thermal semantic segmentation. In: 2024 IEEE International Conference on Robotics and Automation (ICRA). pp. 11110–11117. IEEE (2024) 59. Shivakumar, S.S., Rodrigues, N., Zhou, A., Miller, I.D., Kumar, V., Taylor, C.J.: Pst900: Rgb-thermal calibration, dataset and segmentation network. In: 2020 IEEE 24 Y. Nalcakan et al. international conference on robotics and automation (ICRA). pp. 9441–9447. IEEE (2020) 60. Siméoni, O., Vo, H.V., Seitzer, M., Baldassarre, F., Oquab, M., Jose, C., Khalidov, V., Szafraniec, M., Yi, S., Ramamonjisoa, M., Massa, F., Haziza, D., Wehrstedt, L., Wang, J., Darcet, T., Moutakanni, T., Sentana, L., Roberts, C., Vedaldi, A., Tolan, J., Brandt, J., Couprie, C., Mairal, J., Jégou, H., Labatut, P., Bojanowski, P.: Dinov3 (2025), https://arxiv.org/abs/2508.10104 
+
+61. Sun, Y., Zuo, W., Liu, M.: Rtfnet: Rgb-thermal fusion network for semantic seg-mentation of urban scenes. IEEE Robotics and Automation Letters 4(3), 2576– 2583 (2019) 62. Szwarcman, D., Roy, S., Fraccaro, P., Þorsteinn Elí Gíslason, Blumenstiel, B., Ghosal, R., de Oliveira, P.H., de Sousa Almeida, J.L., Sedona, R., Kang, Y., Chakraborty, S., Wang, S., Gomes, C., Kumar, A., Truong, M., Godwin, D., Lee, H., Hsu, C.Y., Asanjan, A.A., Mujeci, B., Shidham, D., Keenan, T., Arevalo, P., Li, W., Alemohammad, H., Olofsson, P., Hain, C., Kennedy, R., Zadrozny, B., Bell, D., Cavallaro, G., Watson, C., Maskey, M., Ramachandran, R., Moreno, J.B.: Prithvi-eo-2.0: A versatile multi-temporal foundation model for earth observation applications (2025), https://arxiv.org/abs/2412.02732 
+
+63. Tang, L., Deng, Y., Ma, Y., Huang, J., Ma, J.: Superfusion: A versatile image registration and fusion network with semantic awareness. IEEE/CAA Journal of Automatica Sinica 9(12), 2121–2137 (2022) 64. Tang, W., He, F., Liu, Y.: Ydtr: Infrared and visible image fusion via y-shape dynamic transformer. IEEE Transactions on Multimedia 25 , 5413–5428 (2022) 65. Wang, D., Hu, M., Jin, Y., Miao, Y., Yang, J., Xu, Y., Qin, X., Ma, J., Sun, L., Li, C., et al.: Hypersigma: Hyperspectral intelligence comprehension foundation model. IEEE Transactions on Pattern Analysis and Machine Intelligence (2025) 66. Wang, Y., Chu, H.K., Sun, Y.: Peafusion: Parameter-efficient adaptation for rgb-thermal fusion-based semantic segmentation. Information Fusion 120 , 103030 (2025) 67. Wang, Z., Colonnier, F., Zheng, J., Acharya, J., Jiang, W., Huang, K.: Tirdet: Mono-modality thermal infrared object detection based on prior thermal-to-visible translation. In: Proceedings of the 31st ACM International Conference on Multi-media. pp. 2663–2672 (2023) 68. Woo, S., Park, J., Lee, J.Y., Kweon, I.S.: Cbam: Convolutional block attention module. In: Proceedings of the European conference on computer vision (ECCV). pp. 3–19 (2018) 69. Xiao, T., Liu, Y., Zhou, B., Jiang, Y., Sun, J.: Unified perceptual parsing for scene understanding. In: Proceedings of the European conference on computer vision (ECCV). pp. 418–434 (2018) 70. Yuan, M., Cui, B., Zhao, T., Wang, J., Fu, S., Yang, X., Wei, X.: Unirgb-ir: A unified framework for visible-infrared semantic tasks via adapter tuning. In: Pro-ceedings of the 33rd ACM International Conference on Multimedia. pp. 2409–2418 (2025) 71. Zeng, Y., Liang, T., Jin, Y., Li, Y.: Mmi-det: Exploring multi-modal integration for visible and infrared object detection. IEEE Transactions on Circuits and Systems for Video Technology 34 (11), 11198–11213 (2024) 72. Zhai, X., Mustafa, B., Kolesnikov, A., Beyer, L.: Sigmoid loss for language im-age pre-training. In: Proceedings of the IEEE/CVF international conference on computer vision. pp. 11975–11986 (2023) SpectraDINO: Bridging the Spectral Gap in VFMs via Lightweight Adapters 25 73. Zhang, H., Li, F., Liu, S., Zhang, L., Su, H., Zhu, J., Ni, L.M., Shum, H.Y.: Dino: Detr with improved denoising anchor boxes for end-to-end object detection. arXiv preprint arXiv:2203.03605 (2022) 74. Zhang, H., Fromont, E., Lefèvre, S., Avignon, B.: Guided attentive feature fusion for multispectral pedestrian detection. In: Proceedings of the IEEE/CVF winter conference on applications of computer vision. pp. 72–80 (2021) 75. Zhang, J., Liu, H., Yang, K., Hu, X., Liu, R., Stiefelhagen, R.: Cmx: Cross-modal fusion for rgb-x semantic segmentation with transformers. IEEE Transactions on intelligent transportation systems 24 (12), 14679–14694 (2023) 76. Zhang, J., Liu, R., Shi, H., Yang, K., Reiß, S., Peng, K., Fu, H., Wang, K., Stiefelha-gen, R.: Delivering arbitrary-modal semantic segmentation. In: Proceedings of the IEEE/CVF Conference on Computer Vision and Pattern Recognition. pp. 1136– 1147 (2023) 77. Zhang, T., Ding, K., Wen, J., Xiong, Y., Zhang, Z., Xiang, S., Pan, C.: Pad: Self-supervised pre-training with patchwise-scale adapter for infrared images (2023), 
+
+https://arxiv.org/abs/2312.08192 
+
+78. Zhang, T., Wen, J., Chen, Z., Ding, K., Xiang, S., Pan, C.: UNIP: Rethink-ing pre-trained attention patterns for infrared semantic segmentation. In: The Thirteenth International Conference on Learning Representations (2025), https: //openreview.net/forum?id=Xq7gwsnhPT 
+
+79. Zhang, Y., Gao, C., Liu, F., Guo, J., Wang, L., Peng, X., Meng, D.: Iv-tuning: Parameter-efficient transfer learning for infrared-visible tasks (2026), https:// arxiv.org/abs/2412.16654 
+
+80. Zhao, T., Xi, J., Xiao, L., Li, J., Yang, X., Yuan, M., Wei, X.: Rgbt-ground benchmark: Visual grounding beyond rgb in complex real-world scenarios (2025), 
+
+https://arxiv.org/abs/2512.24561 
+
+81. Zhao, Z., Bai, H., Zhang, J., Zhang, Y., Xu, S., Lin, Z., Timofte, R., Van Gool, L.: Cddfuse: Correlation-driven dual-branch feature decomposition for multi-modality image fusion. In: Proceedings of the IEEE/CVF conference on computer vision and pattern recognition. pp. 5906–5916 (2023) 82. Zhao, Z., Bai, H., Zhu, Y., Zhang, J., Xu, S., Zhang, Y., Zhang, K., Meng, D., Tim-ofte, R., Van Gool, L.: Ddfm: denoising diffusion model for multi-modality image fusion. In: Proceedings of the IEEE/CVF International Conference on Computer Vision. pp. 8082–8093 (2023) 83. Zhou, J., Wei, C., Wang, H., Shen, W., Xie, C., Yuille, A., Kong, T.: ibot: Im-age bert pre-training with online tokenizer. International Conference on Learning Representations (ICLR) (2022) 84. Zhou, J., Jampani, V., Pi, Z., Liu, Q., Yang, M.H.: Decoupled dynamic filter net-works. In: Proceedings of the IEEE/CVF conference on computer vision and pat-tern recognition. pp. 6647–6656 (2021) 85. Zhou, K., Yang, F., Wang, S., Wen, B., Zi, C., Chen, L., Shen, Q., Cao, X.: M-specgene: Generalized foundation model for rgbt multispectral vision. In: Proceed-ings of the IEEE/CVF International Conference on Computer Vision. pp. 7861– 7872 (2025) 86. Zhou, W., Dong, S., Xu, C., Qian, Y.: Edge-aware guidance fusion network for rgb–thermal scene parsing. In: Proceedings of the AAAI conference on artificial intelligence. vol. 36, pp. 3571–3579 (2022)

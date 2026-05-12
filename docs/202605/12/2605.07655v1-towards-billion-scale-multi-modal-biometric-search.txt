@@ -1,0 +1,259 @@
+Title: Towards Billion-scale Multi-modal Biometric Search
+
+URL Source: https://arxiv.org/pdf/2605.07655v1
+
+Published Time: Mon, 11 May 2026 01:26:55 GMT
+
+Number of Pages: 10
+
+Markdown Content:
+# Towards Billion-scale Multi-modal Biometric Search 
+
+## Arka Koner * Chetan S. Naik * Lokesh Kurre * Vivek Raghavan *
+
+## Barada P. Sabut * Tanusree Deb Barma * Anoop M. Namboodiri † Anil K. Jain ‡
+
+## Abstract 
+
+Searching a multi-biometric database of a billion records for a country-level identity system requires push-ing the limits of all aspects of a biometric system, includ-ing acquisition, preprocessing, feature extraction, accuracy, matching speed, presentation attack detection, and han-dling of special cases ( e.g ., missing finger digits). This is the first paper that gives insights into such a large-scale multi-modal biometric search system, called Bharat ABIS , based on open-source architectures. The end-to-end pipeline of Bharat ABIS processes fingerprint, face and iris modali-ties through modality-specific stages of preprocessing (seg-mentation), quality assessment, presentation attack detec-tion, and learning an embedding (feature extraction), pro-ducing a concatenated template of 13.5KB per person. We present a detailed analysis of the modalities and how they are integrated to create an efficient and effective solution for 1:N search (de-duplication). Evaluations on a demo-graphically stratified gallery of 220 million identities, ran-domly sampled from 1.55 billion records in India’s Aadhaar database, yield an FNIR of 0.3% at an FPIR of 0.5% , for adult probes ( ≥ 18 years). We also compare the perfor-mance of Bharat ABIS against three state-of-the-art COTS systems on a 20M gallery. Our system achieves a through-put of 100 searches per second on a gallery of 40M on a single server (8 ×Nvidia H100 GPUs, 2TB RAM). 
+
+## 1. Introduction 
+
+Identity documents such as passports, national identity cards (IDs), voter-IDs and driver licenses must ensure that a person never receives more than one identity, i.e ., the ID number is, indeed, unique (one and only one ID number per person). The most reliable automated method to en-sure uniqueness is to compare the biometric traits of every user in the database (gallery) against each other to deter-mine if they belong to the same person or not. This process 
+
+> 1∗Unique Identification Authority of India, ( {arka.koner, chetan.naik, lokesh.techexe.tc, vivek.raghavan, hoe.dev-tc, tanusree.db }@uidai.net.in)
+> 2†IIIT Hyderabad, (anoop@iiit.ac.in)
+> 3‡Michigan State University, (jain@cse.msu.edu)
+
+Figure 1. Biometric modalities used in Bharat ABIS: (a) 10-fingers (captured as 2 slaps and a thumb-pair), 2 irides and face. These modalities were selected to address the scale of the gallery (over 1.5 billion), ease of capture, and search accuracy requirements (FPIR and FNIR). 
+
+of identifying duplicates in a biometric database and retain-ing only one or linking them together is referred to as “de-duplication”. In this paper, we look at the de-duplication problem in the context of a billion-scale national identity system, namely India’s Aadhaar 1. The mandate of Aadhaar is to ensure that every resident in India is issued a verifiable 12-digit unique ID 2, upon their enrollment. That is, no In-dian resident should be issued a duplicate ID or is denied an ID irrespective of the ability of the system to capture their biometric traits or the availability of other identity docu-ments such as birth certificate (Aadhaar Act [12]). The Aadhaar Act[12] and the Digital Personal Data Pro-tection (DPDP) Act [13] form the foundation on which the Aadhaar system is built. To ensure that deduplication is possible on a scale greater than 1.5 Billion, a pilot study was conducted in 2009 that evaluated the three most com- 
+
+> 1UIDAI (Unique Identification Authority of India) is the statutory au-thority and government agency responsible for issuing Aadhaar, a 12-digit unique identity number: https://uidai.gov.in/en/
+> 2In this article, we use the word “ID” to refer to the identity number that is linked with a user’s biometric and demographic details; one or more physical or digital identity cards may be created for the same ID as long as the ID number remains the same.
+
+1      
+
+> arXiv:2605.07655v1 [cs.CV] 8 May 2026 •Name
+> •Gender
+> •DoB
+> •Phone
+> •Address
+> Encrypted Enrollment Packet
+> Enrollment
+> Authentication
+> ABIS ( 1:N
+> De -duplication)
+> Verification
+> (1:1 )Y/N
+> Central ID
+> Repository
+> FP/Face/Iris
+> Manual
+> Verification
+> Aadhaar Generator
+> Y/N FP + Face
+> + Iris
+
+Figure 2. Data flow and interfaces of Aadhaar ABIS ( (Automated Biometric Identification System). The biometric data is encrypted at the capture device and remains encrypted in transit and at rest (storage) inside the Central ID Repository (CIDR). Once the bio-metric data enters the CIDR, it never leaves the system. The output of the ABIS module is a simple Yes/No decision during both en-rollment (whether a duplicate is found in the gallery) and authenti-cation (whether the query biometrics match the claimed identity). 
+
+monly used biometric modalities, namely face, fingerprint, and iris (see Figure 1). Recall that in 2009, the SOTA ac-curacy for face recognition was relatively low. So, it is not surprising that the study concluded that the use of all 10 fingerprints and 2 irides for all Indian residents is essen-tial to ensure the desired de-duplication accuracy and pop-ulation coverage. Although face was also captured for hu-man verification, it was not used in the initial years for de-duplication due to its lower accuracy compared to finger-print and iris. With the multi-fold increase in face recogni-tion accuracy over time, the current Automated Biometric Identifications (ABIS) systems including Aadhaar use face images for both de-duplication and authentication. It is im-portant to note that the Aadhaar act explicitly prevents the publication and sharing of any biometric data present in the Aadhaar database. While anonymized Aadhaar data was used for training and evaluation of all systems that we re-port 3, all images displayed in this paper are from other pub-lic sources or synthetically generated, and were chosen to illustrate data variability and failure cases. Figure 2 shows the primary functionalities provided by the Aadhaar system: enrollment, deduplication (1:N biometric search) and au-thentication (1:1 comparison). The encrypted enrollment packet contains both biometric (face, fingerprints, and iri-des) and demographic (name, DoB, address, etc.) details of a resident. The primary contributions of this work are as follows. 1. A detailed analysis of design constraints in prototyp-ing a billion-scale multimodal biometric identity sys-tem using open-source models. 
+
+> 3Models trained using public-domain databases were provided to UIDAI who then internally fine-tuned them on subsets of privileged Aad-haar database.
+
+2. The design of a multi-modal ABIS, called Bharat ABIS 4, that is competitive to COTS (on a 20M gallery) in terms of accuracy and speed using open source DNN models for face, fingerprint and iris. 3. Experimental evaluation of individual modalities and the multimodal system on a real-world multimodal biometric dataset of up to 220 million identities. 4. Comparison of the proposed ABIS against three COTS systems currently operating in Aadhaar to establish State-of-the-art accuracies and search speeds. 
+
+1.1. Prior Work 
+
+NIST periodically conducts biometric technology eval-uations that define the state of the art in large-scale uni-modal biometric identification: FpVTE for fingerprint [21], FRVT/FRTE for face [7], and IREX for iris [14]. These evaluations benchmark individual modalities on galleries up to 16 million identities. However, NIST does not conduct multi-modal search (necessary for a national ID system), or the demographic diversity and scale of population present in a country like India. On the algorithmic side, several key advances under-pin our system. DeepPrint, proposed by Engelsma et al . [6], is a two-branch CNN for fingerprint representa-tion that combines a texture branch for spatial features and a minutiae branch for domain knowledge, produc-ing a 192-dimensional embedding that enables significantly faster inner-product matching compared to variable-length minutiae matching. For face recognition, FaceNet [16] is one of the simplest and most popular face representations. ArcFace [4] introduces an additive angular margin penalty in the softmax classification loss, producing highly discrim-inative embeddings on a unit hypersphere. The InsightFace framework [1] provides a complete training pipeline around this loss function with standard backbones. For iris recog-nition, Daugman’s phase-based IrisCode [3] is the classi-cal method; recent deep embedding approaches with metric learning loss offer competitive accuracy with native FAISS compatibility. For large-scale search, FAISS [10] provides a GPU-accelerated approximate nearest neighbor algorithm (flat in-dex), which performs exact distance computation within Voronoi cells at sub-linear search complexity. This has been validated for a gallery of 10 9 vectors. For fingerprint qual-ity, NFIQ2 [17] is commonly adopted, although its correla-tion with match scores is algorithm-dependent. For finger-print presentation attack detection (PAD), the Spoof Buster framework [2] demonstrated the effectiveness of minutiae-centered local patches. Ross and Jain [15] presented a tax- 
+
+> 4Bharat is an ancient name for India with deep historical, cultural, and linguistic roots.
+
+2onomy of multi-modal fusion strategies at sensor, feature, score, and decision levels. While NIST-organized vendor evaluations have ad-vanced unimodal biometric identification on galleries of up to tens of millions, no prior work reports a fully multi-modal de-duplication system designed and validated at a scale of hundreds of millions on a real-world national ID dataset with large demographic diversity. 
+
+## 2. Design of Bharat ABIS 
+
+A biometric identity system should be able to enroll a new user (1:N de-duplication) for large N and verify the claimed identity (1:1 comparison) of an enrolled user with high accuracy under varying biometric quality. The authen-tication process is expected to be light-weight with a near real-time response, while the template extraction may be done at the client-side. However, for de-duplication, an ABIS needs to employ a salient and robust feature extrac-tor that maximizes search accuracy and search speed, even at the expense of template extraction speed. De-duplication and authentication often use different representations for a biometric modality, and one can extract the light-weight feature vector for authentication after the enrollment and de-duplication processes are completed. While the ABIS might use multiple modalities for the de-duplication pro-cess, the authentication system might only use a single fin-ger, iris or a face image. Most of the 100 million daily authentications in Aadhaar use a single biometric modal-ity (primarily one fingerprint or face) along with the associ-ated 12-digit Aadhaar. Among the world’s top-4 most popu-lous countries (India [1.47B], China [1.41B], United States [349M] and Indonesia [287M]), India’s multimodal biomet-ric national ID, called Aadhaar, successfully operating since 2009, has become a model for large-scale de-duplication and authentication. In this paper, we focus on the design and evaluation of the proposed Bharat ABIS 5.The ABIS itself consists of three components: a) A bio-metric pipeline that processes each modality to create a tem-plate, b) a similarity search module that compares the tem-plate of a probe to all the identities in the gallery, and c) a scheduler that distributes and co-ordinates the tasks across different servers to handle 1 to billion de-duplication. In this work, we focus on the biometric pipeline. We have used the FAISS [5] library for similarity search, which distributes the task across multiple GPUs [10] and has been customized for multi-node orchestration across servers.   
+
+> 5While China has a national ID system that incorporates biometrics, we could not find its details. United States does not have a national ID (SSN is not issued based on biometrics). Indonesia has a 16-digit unique ID Number linked to fingerprints, iris, and face for citizens/residents 17 or older. https://setkab.go.id/en/the-site-to-check-identity- card- isnt- created- by- ministry- of- home-affairs/
+
+2.1. Design Constraints 
+
+There are several real-world constraints that guided the design of the Aadhaar eco-system, which in turn dictated many of the design parameters of the biometric search so-lution. Below are some of the primary factors that resulted in our design decisions for Bharat ABIS. 1. The Aadhaar Act mandates the issue of an identity to every Indian resident who enrolls. Moreover, death registrations are difficult to verify, so deceased indi-viduals are not deleted from CIDR. These factors push the gallery size to over 1.5 billion. 2. The above mandate also means that one has to enroll a person in spite of the quality of biometric acquisition or even the presence of all fingers and iris. In addition, a significant portion of residents and primary benefi-ciaries of a biometric ID system in a developing coun-try like India are manual laborers with worn out fin-gerprints and cuts and bruises on the fingers. Hence, we cannot set a minimum quality threshold for finger-prints and reject an enrollment. This also requires the use of multiple modalities for de-duplication accuracy and population coverage. 3. The enrollments and authentications are initiated from remote geographical locations in harsh weather con-ditions and limited internet connectivity. Hence, the capture devices used and the protocols employed for data transfer should work under these conditions. 4. To ensure maximum population coverage, the cost of enrollment and authentication should be minimal. This required that enrollment has to happen through third-party agencies (referred to as registrars), and hence the process of data capture is not under the direct control of UIDAI. This requires operator training and setting standards for biometric capture [19][9]. In addition, biometric matching algorithms should be as efficient as possible and run on off-the-shelf hardware to keep infrastructure cost to a minimum. 5. To enroll everyone in the country within a period of 3-5 years, at its peak, India’s Aadhaar was enrolling over 1 million residents per day. This level of throughput was unprecedented. If a new ABIS is selected, it must first generate new templates from the billion-scale enrolled data, not an easy task. 6. As the biometric based national ID system forms the foundation for welfare disbursement, it is a target for hackers to create duplicate identities and fraudulent authentications via biometric spoofs. A presentation attack detection (PAD) and fraud detection system should be designed and continuously updated to han-dle evolving identity frauds. 3Fingerprint  
+
+> Segmentation
+> Fingerprint
+> Quality
+> Metric
+> Fingerprint
+> PAD
+> Template
+> (192*10
+> dimensions)
+> Combined
+> Template
+> (3456 -
+> dimensions)
+> Iris
+> Segmentation
+> Iris Quality
+> Metric Iris PAD
+> Template
+> (512*2
+> dimensions)
+> Face Detection
+> Segmentation
+> Face
+> Quality
+> Metric
+> Face PAD
+> Template
+> (512
+> dimensions)
+> FAISS
+> De -dup
+> System
+
+Figure 3. Multi-modal template generation pipeline. Each modal-ity passes through segmentation, quality assessment and PAD, be-fore embedding extraction. The embeddings of all modalities are concatenated into a single template vector of 3,456 dimensions (13.5KB). Comparison of a probe template against the gallery is done using the Facebook AI Similarity Search (FAISS) [5] system. 
+
+2.2. Biometric Acquisition 
+
+As discussed, each Aadhaar enrollment captures three biometric modalities: (i) fingerprints as three slap impres-sions (left four fingers, right four fingers, two thumbs) on FTIR slap scanners at 500 dpi; (ii) left and right iris images captured simultaneously in near-infrared; and (iii) a frontal face photograph in the visible spectrum. Each modality is acquired multiple times to ensure the highest quality bio-metric data. This yields 10 fingerprint images, one per digit, 2 iris images, and 1 face image per resident. 
+
+2.3. Biometric Data Processing 
+
+We now describe the design of the biometric processing modules in Bharat ABIS in detail. The architecture follows a sequential data processing design (see Figure 3) with ex-ception handling in which a query identity is converted to a fixed length representation before the search for a duplicate in the gallery is performed. The first three stages of fingerprint, face and iris modali-ties are image segmentation/detection, biometric quality es-timation and presentation attack detection. The data cap-ture station will mark any exceptions in capture of the biometrics such as failure to acquire, which is checked first. The biometric impression is localized within the captured image. All deep learning models described be-low are image-based open-source convolutional architec-tures trained on anonymized UIDAI enrollment data. The training datasets for segmentation and quality assessment had approximately 200K unique subjects with around 300K samples per modality, drawn to represent the demographic diversity of the Indian population across age, gender, ge-ographical location, ethnicity, and acquisition device vari-ability. 
+
+2.3.1 Image Segmentation 
+
+For face images, a detector based on YOLOv7 [20] was developed based on the image characteristics captured for Aadhaar. The detector localizes the face bounding box and extracts five facial landmarks (eye centers, nose tip, mouth corners). An affine transformation normalizes the detected face to a canonical 112 × 112 × 3 input, compensating for pose and alignment variations. For fingerprint images, there are multiple bounding boxes for each slap and thumb images. The same YOLOv7 architecture is used to create a fingerprint-specific segmen-tation module that detects all distal phalanges, trained on a dataset of around 100K annotated slap images. The pro-posed segmentation scheme shows improved robustness on degraded-quality captures. The same segmentation output is used for matching during authentication requests. For Iris segmentation, we employ an EfficientNet-based [18] U-Net architecture that generates pixel-level seg-mentation masks identifying the pupillary boundary, limbic boundary, and eyelid/eyelash occlusions. Hough gradient-based circle fitting is applied to the predicted mask to es-timate precise circular parameters for the inner (pupil) and outer (limbus) boundaries. 
+
+2.3.2 Image Quality Estimation 
+
+A poor quality fingerprint has limited matching utility: au-thentication against such a sample is likely to fail regardless of the matcher. We use UIDAI Fingerprint Image Qual-ity (UFIQ), a quality predictor built on NFIQ2 [17] but re-trained as a Random Forest regressor specifically for FTIR slap scanners used in the Aadhaar ecosystem. UFIQ was trained to predict the authentication match score. It achieves a Pearson correlation of r = 0 .78 , compared to r = 0 .54 for standard off-the-shelf NFIQ2. This 44% relative improve-ment in predictive power enables quality-adaptive routing within the pipeline: high-quality samples proceed directly to embedding extraction, while low-quality samples may be flagged for enhancement or re-acquisition at the enrollment station. For face and iris images, custom CNN-based quality es-timators are trained that evaluate several quality parameters. The face quality module evaluates normalized face images for factors such as illumination, motion blur, noise, reso-lution, and pose. The iris quality module evaluates factors such as degree of occlusion by eyelids or eye-lashes, pupil dilation ratio, off-angle gaze, motion blur, and image sharp-ness. As there is no universally accepted quality standard for face and iris (unlike NFIQ for fingerprint), these mod-ules were developed and calibrated internally using correla-tion with operational matching scores. Quality scores deter-mine downstream fusion weighting: high-quality samples receive greater weight in the score integration stage. 42.3.3 Presentation Attack Detection 
+
+Although the Presentation Attack Detection (PAD) algo-rithms do not directly influence the de-duplication process, it plays an important role in preventing fraudulent enroll-ments. Specifically, fraudulent attempts such as toe prints, slap prints with middle phalanges, or mixed fingerprints should be detected. Common spoof attempts include — for face: replay attacks and eye-cut photos; for iris: arti-ficial eyeballs, printed paper, and contact lenses. Such at-tempts can be used to enroll a new identity in order to fraud-ulently obtain several benefits, such as from social service programs. Since such atypical or mixed biometric inputs are generally absent from the gallery, the de-duplication pro-cess may fail to identify them as duplicates, thereby allow-ing a successful — but fraudulent — enrollment. The fingerprint PAD module verifies that each biometric sample originates from a live finger. The liveness classifier follows the minutiae-centered local patch approach of the Fingerprint Spoof Buster framework [2]: a MobileNetV1 model is trained on small 96 ×96 patches extracted around detected minutiae points. Training data includes a balanced in-house dataset (30K live, 30K non-live samples), the LivDet 2015 benchmark [11], and labeled production data. Non-live fabrication materials cover silicone, polymer, la-tex, wax, wood glue, Fevicol, and other substrates encoun-tered operationally. The fingerprint PAD model achieves a True Detection Rate (TDR) of 99 .5% (when we cor-rectly flag a spoof input) at a False Detection Rate (FDR) of 0.5% (when a live input is declared as spoof) on field-tested ECMP slap scanner images. A separate CNN-based non-distal phalange detector identifies cases where interme-diate phalanges are presented instead of fingertips. Addi-tional modules detect slap swapping, toe-print enrollment, and mixed-biometric packets. For faces, a MobileNetV1-based liveness module distin-guishes genuine face presentations from spoofing attacks across four categories: print attacks (printed photographs), eye-cut photo attacks (printed photo with eye regions cut out and real eyes placed behind), wrapped photo attacks (photo bent to simulate 3D curvature), and video replay at-tacks. The model achieves a TDR of 99 .5% at an FDR of 
+
+0.5% on the Aadhaar evaluation set. The iris liveness classifier detects presentation attacks that include printed iris images, patterned contact lenses, prosthetic eyes, and screen replay. This CNN-based model was trained on both public spoofing databases and Aad-haar’s operational fraud cases. The module achieves a TDR of 99 .0% at an FDR of 1.0% on internal evaluation. 
+
+2.4. Fixed-Length Embedding Generation 
+
+This stage of ABIS transforms the processed biometric images into fixed-length feature vectors (embeddings). 
+
+2.4.1 Fingerprint 
+
+The core fingerprint representation is produced by Deep-Print [6], a two-branch convolutional network. Both branches share a spatial transformer network (STN) that aligns the input fingerprint to a canonical pose. The tex-ture branch then applies a base CNN to extract spatial fea-tures from the aligned image. The minutiae branch in-jects domain knowledge by adding a learned minutiae map to the feature representation. Each branch produces a 96-dimensional vector; their concatenation yields the final 192-dimensional per-finger embedding. The matching score be-tween two fingerprint templates is the inner product of the two vectors, a computation executing in sub-millisecond time and natively compatible with FAISS-based nearest neighbor search. The DeepPrint model was trained from scratch on approximately 3M anonymized Aadhaar finger-print images from over 200K unique subjects. Data aug-mentation comprised geometric transformations (rotations of ±10 –15 ◦, translation, and scale jitter), random Gaussian blur with a small kernel, and random partial occlusion and cropping. The network was optimized with Adam (learn-ing rate 10 −4 to 10 −3 under a step-decay schedule) using a composite loss combining center loss, cross-entropy loss, and mean squared error (MSE). Training was performed on NVIDIA V100 GPUs. Single-finger verification accuracy is 
+
+97% TMR at F M R = 0 .01% . When we use all 10 fingers (concatenated embedding size 1,920), the system achieves 
+
+T M R = 96 .25% at F M R = 10 −9, the extreme operat-ing point required for billion-scale 1:N search where even a very small per-comparison false match rate produces an unacceptable absolute number of false candidates. 
+
+2.4.2 Face 
+
+Face embeddings are extracted using a ResNet-50 back-bone, pretrained on MS-Celeb [8], and trained with Arc-Face additive angular margin loss [4] (scale s = 64 , mar-gin m = 0 .5) following the InsightFace framework [1]. ArcFace modifies the standard softmax classification loss by introducing an angular margin, m, between the feature vector and its corresponding class weight on the unit hy-persphere, enforcing tighter intra-class compactness and wider inter-class separation. The trained model produces a 512-dimensional float embedding per face image. Match-ing between two face templates is performed as the inner product of the two embedding vectors. The backbone was fine-tuned on 300K anonymized Aadhaar face images from 150K subjects, with warp-affine augmentation following InsightFace-style landmark-based alignment. Optimization used the Adam optimizer (learning rate 10 −4 to 10 −3 un-der a step-decay schedule) on NVIDIA V100 GPUs. The model achieves T M R = 99 .5% at F M R = 0 .01% on in-ternal evaluation data. 52.4.3 Iris 
+
+Iris embeddings are extracted using a ResNet-50 backbone, initialized from ImageNet pretraining, and trained with Ar-cFace loss (scale s = 64 , margin m = 0 .5) following the InsightFace framework, producing a 512-dimensional em-bedding per iris image. The model was trained on approxi-mately 3M anonymized UIDAI iris images from over 200K subjects, with augmentation comprising small rotations, brightness/contrast adjustments, and blur. Optimization used the Adam optimizer (learning rate 10 −4 to 10 −3 under a step-decay schedule) on NVIDIA V100 GPUs. Matching is via inner product. The system achieves T M R = 96 .85% 
+
+at F M R = 0 .01% on internal evaluation data. The model parameters for each modality were determined empirically, by evaluating performance of the trained model on an inde-pendent validation set. 
+
+2.5. Multi-Biometric Template 
+
+The multi-biometric template is a single concatenated template per identity: t = [ f1; . . . ; f10 ; v; rL; rR] ∈ R3456 
+
+where fi ∈ R192 is the DeepPrint embedding for the i-th fin-ger, v ∈ R512 is the face embedding, and rL, rR ∈ R512 are the left and right iris embeddings. The dimensionality de-composes as 10 × 192 + 512 + 2 × 512 = 3 , 456 , which results in a 13.5KB feature vector (4 bytes per dimension). 
+
+2.6. Gallery Search and Score Fusion 
+
+After template generation, the 3,456-dimensional query template is submitted to the search engine for 1:N de-duplication. The inner product of the query template is computed against gallery templates using FAISS [5] with IndexFlat indexing on GPU. The gallery is partitioned into shards of optimal size across distributed GPU servers for parallel search; per-shard results are aggregated. The final matching score is computed as a weighted linear combina-tion of per-modality inner products: S = P 
+
+> mod
+
+wmod ·⟨vq , v g ⟩. The weights for the modalities were in the ra-tio of Face (12.5) : Iris (6.25) : Thumb and Index Fin-gers (2.3) : Other Fingers (1). The weights were empirically determined on a validation dataset and reflect the relative discriminative power of each modality as well as the total length of features from each modality. The system supports age-specific and quality-adaptive weight configurations. A threshold-based decision on the fused score classifies each query as duplicate or unique. Candidates exceeding the du-plicate threshold (around 0.1% in practice) are surfaced for manual adjudication. 
+
+## 3. Experimental Evaluation and Analysis 
+
+The de-duplication evaluations were conducted on an anonymized gallery of N = 20 M identities. This 20M gallery was randomly sampled from 1.55 billion records in the Aadhaar database with stratification to ensure represen-tativeness in age, sex, ethnicity, and geographic region. The same data set is used as the standard benchmark to evalu-ate all three COTS systems currently utilized by Aadhaar and internal ABIS solutions, enabling direct comparability of results across the solutions. The gallery size is limited to 20M as COTS systems were not available for evaluation on larger datasets in benchmarking environment. Although the gallery contains all age groups ( ≥ 5 years), the query evalu-ation for this study focused on adult population (age ≥ 18 ), for which the current models are optimized. The query set comprises 37 , 835 known duplicate packets (manually ver-ified) and 34 , 812 known non-duplicate packets. The num-ber of queries was chosen to ensure statistical significance of the results at the required accuracies of FPIR ≤ 0.5% and FNIR ≤ 0.1% .
+
+3.1. Dataset Challenges 
+
+As mentioned in the introduction, we are unable to pro-vide image samples from the Aadhaar dataset due to privacy and legal considerations. To understand the challenges, Figure 4 shows a set of synthetic face images we created to resemble a selection of face images from the Aadhaar dataset. Challenges in faces matching arise due to poor exposure, head coverings, accessories, “bindis” (dots on women’s forehead), “vihbooti” (ash markings) on the fore-head, etc. For fingerprints, image quality suffers mostly from skin and capture conditions. Figure 5 shows a set of fingerprint images that closely resembles the poor quality data that we observe in the Aadhaar dataset. The quality of iris capture suffers from several com-monly seen eye conditions, including Glaucoma, Keratitis, Corneal Ulcer, etc. Figure 6 shows examples of eye images that cause poor quality iris capture. Note that the evaluation of the FPIR-FNIR values of a real-world biometric de-duplication system that is in op-eration is challenging as we do not know the ground-truth (identity) of subjects that arrive for enrollment during regu-lar operations. To overcome this, we create a set of mated (∼ 35 K) and non-mated ( ∼ 38 K) probes that are manu-ally verified. This dataset along with an authentication test-set of 150K identities (referred to as the UAT dataset) is also used for comparison of COTS systems with our Bharat ABIS on the 20M gallery. The internal evaluation of COTS systems is done at a single operating point, and each system is tuned to achieve F P IR ≤ 0.5% at F N IR ≤ 0.1% . Fig-ure 7 shows that the proposed Bharat ABIS achieves compa-rable or better accuracy w.r.t. to the three COTS deployed by Aadhaar on the 20M gallery sampled from essentially, the whole population of India. 6Figure 4. Face image variations due to ethnicity, social norms and religious practices. These are synthetic images that closely mimic the variability we observe in the Aadhaar dataset. The presence of head coverings, accessories and marks on the faces make the problem of face matching more challenging. 
+
+Figure 5. Examples of poor quality fingerprint images. These are synthetic images that closely resemble the challenges we observe in the Aadhaar dataset. 
+
+Metric # Queries # Errors Error Rate Target FPIR 34 , 812 35 0.1% ≤ 0.5% 
+
+FNIR 37 , 835 18 0.05% ≤ 0.1% 
+
+Table 1. The number of mated (in all three modalities) and non-mated queries used for testing COTS and Bharat ABIS systems on a 20M gallery. The observed FPIR and FNIR for Bharat ABIS are 
+
+5× and 2.5× better than the target rates for 20M gallery. 
+
+Figure 6. Examples of commonly seen eye conditions that lead to poor quality Iris capture. 
+
+Figure 7. FPIR vs FNIR plot (log scale) of Bharat ABIS and three state-of-the-art COTS solutions who provided their performance at a single operating point. The gallery size is 20M subjects con-sisting of 10 fingerprints, face and 2 irides of every subject. Probe set consists of ∼ 35 K mated pairs and ∼ 38 K non-mated pairs. 
+
+3.2. Benefits of Multi-modality 
+
+Table 1 shows that Bharat ABIS produces 35 false pos-itives out of 34 , 812 non-mated queries and 18 false neg-atives out of 37 , 835 mated queries. Note that the factors that make the individual biometric modalities challenging also affect the overall accuracy of a multi-modal biomet-ric matcher. In most cases, the qualities of individual fin-gerprints of a person are highly correlated and so are the conditions like cataract that affect both the eyes. The pro-posed Bharat ABIS achieves an FNIR of 4.76 × 10 −4 @FPIR = 0 .1% , which implies that a fraudulent re-enrollment attempt is detected with probability 99 .95% . Both metrics exceed the procurement specification set by Aadhaar for COTS solutions. The accuracy of individual modalities and the improve-ments due to their fusion are two of the key aspects of any multi-modal de-duplication system. Let us take a closer look at the individual modalities in Figure 8. We notice 7Modality TMR @ FMR = 0 .01% 
+
+Face 99 .5% 
+
+Iris 96 .85% 
+
+Fingerprint 97%  
+
+> Table 2. True Match Rate (TMR) for authentication using individ-ual modalities (single finger, single iris, and face) at a False Match Rate (FMR) of 0.01% . Verification experiments were done on a dataset of 100K identities with 2 samples per identity.
+
+that face and single finger (left index) are essentially equal in discrimination power, while single iris is a close second (note that we are showing FNIR vs. FPIR, so lower the curve, better the performance). Combining all 10 fingers gives a significant reduction is FNIR. Similarly, Combin-ing two modalities at a time and all-three modalities offer a significant boost in performance.      
+
+> Figure 8. FPIR vs FNIR plots of individual modalities and their combinations (both axes on log scale). At FPIR of 0.1% , unimodal FNIR values are 63.6% (Face), 60.3% (Fingerprint), and 85.5% (Iris). Combining all 10 fingers reduces FNIR to 1.3%; two-modality combinations yield 13.7% (Face+Irides), 0.51% (Fin-gers+Face), and 0.14% (Fingers+Irides). Fusion of all three modalities achieves FNIR of 0.01%. There is more than an or-der of magnitude reduction in error rate from single modality to two-modality combinations, with further reduction when fusing all three-modalities. Gallery size is 20M with ∼35K mated and
+> ∼38K non-mated samples.
+
+3.3. Effect of Gallery Size 
+
+We know that FPIR increases with increasing gallery size as a larger number of non-mated comparisons raises the probability that at least one of these comparisons exceeds the decision threshold. To understand this effect in prac-tice, we performed deduplication experiments on different gallery sizes, ranging from 1M to 220M. Figure 9 shows an FNIR vs. FPIR plots for the different gallery sizes. We re-port these results only for the proposed Bharat ABIS. Carry-ing out these experiments on COTS is not possible because we cannot access them.     
+
+> Figure 9. FNIR vs. FPIR plots for Bharat ABIS for various gallery sizes. At an FPIR of 1in 1000 , the FNIR (@gallery size) val-ues are: 0.0015 (@1M), 0.002 (@5M), 0.0025 (@10M), 0.0028 (@20M), 0.004 (@50M), 0.012 (@100M), 0.022 (@150M), 0.03 (@200M), and .04 (@220M). As expected, for a fixed FPIR, FNIR increases with increase in gallery size. Both axes are on log scale.
+> Figure 10. Effect of different 20M galleries randomly sampled from the 220M gallery from the Aadhaar database on accuracy. We note that three different subsets of 20M show only a small variation in performance.
+
+As the gallery scales further from 200M to the full 1.5 billion identities in Aadhaar, the FPIR is expected to in-crease. The FNIR remains approximately constant at a given threshold (since it depends only on the quality of the mated comparison, and not on the gallery size). 
+
+3.4. Effect of Gallery Size 
+
+To understand the effect of gallery selection in these ex-periments, we repeat the selection of 20M identities from a larger dataset of 220M from 11 Indian states. Note that this 220M is a subset of the total population of India. The results, presented in Figure 10 shows that the solution is ro-bust to variations in the test set that are representative of the population. 
+
+3.5. Search Speed and Throughput 
+
+At a billion scale, search latency matters as much as ac-curacy. Each 3456 -dimensional template (13.5 KB) is held 8in GPU memory as an N × 3456 single-precision matrix, and matching reduces to a batched inner product with top-k
+
+selection – FAISS flat-index (exact) search on GPU [10, 5]. On a single DGX server with 8 ×NVIDIA H100 GPUs (80 GB each), 5M templates fit per GPU, giving 40M resi-dents per server. Larger galleries are handled by streaming additional shards and aggregating top-k results on the host. The search takes around 10 seconds per 1000 probes against the 40M gallery, resulting in a throughput of 100 probes per second for exact 1:N search. Throughput scales near-linearly with batch size because the kernel is memory-bandwidth bound and each probe reuses the gallery ma-trix already in VRAM. Beyond 40M templates per server, shards run in parallel across servers and end-to-end latency is set by the slowest shard. Combined with score fusion described in Section 2.6, our Bharat ABIS meets the ≥1M de-duplications per day target with exact matching at the final stage. Beyond de-duplication, DeepPrint is also deployed for Aadhaar fingerprint authentication, where fusion roughly halves the failure rate versus a vendor SDK alone. On a base of over 50 million daily authentications, this yields mil-lions of additional successful transactions per day, with the largest gains for elderly users and manual labourers whose fingerprint quality is typically poor. 
+
+3.6. Limitations and Mitigation Strategies 
+
+The current models in Bharat ABIS are optimized for the adult population (18 years and older), while the production system is expected to handle all ages above 5. Face match-ing accuracy degrades for subjects below age 15 when the enrollment-to-query gap exceeds five years, reflecting the biological reality of rapid facial development in children. Mitigation strategies include age-adaptive fusion weights, GAN-based face age progression for data augmentation, and synthetic fingerprint generation via diffusion models to expand training data diversity across sensor types. 
+
+3.7. Lessons Learned 
+
+The prototyping of Bharat ABIS has highlighted several practical aspects of building a large-scale multi-biometric ABIS. These include: • Open source models can be used to build a large scale multi-modal biometric system. • Face, fingerprint and iris are now the biometrics of choice; their fusion enables billion-scale ABIS as demon-strated in the success of Aadhaar since 2009. • Building highly accurate and large scale biometric sys-tems to support social good, national ID and homeland security is the next frontier for biometric researchers. • Fusion of open source architectures for face, fingerprint and iris recognition can provide close to SOTA accu-racy for upto 100M identities. However, researchers must work collaboratively with user agencies (NGOs and government agencies) with access to large-scale biomet-ric data so that these models can be either trained from scratch or finetuned on large domain-specific datasets. The workflow we followed to achieve high accuracy with-out compromising data privacy is given in the supplemen-tary material. • Our training sets for face, fingerprint, and iris for Bharat ABIS were of the order of 100K unique identities com-pared to a test set gallery size of 220M. • Integrity, quality, and standards for data acquisition both at enrollment and recognition are key to success; and • Given that over 100 nations (more than half of UN-recognized states) have populations under 10 million, the proposed Bharat ABIS model can be deployed in these countries without any difficulty. Many of these countries cannot afford a COTS ABIS. 
+
+## 4. Conclusions and Future Work 
+
+The proposed Bharat ABIS effectively integrates real-world constraints with embeddings (features) learned from representative large-scale biometric datasets. The system uses 10-fingers, 2-irides and face modalities to achieve an FPIR of 0.10% at an FNIR of 0.05% on a gallery of 20 million demographically representative identities, exceed-ing the Aadhaar design requirements of FPIR ≤ 0.5% at FNIR ≤ 0.1% . World Population Review [22] estimates show that there are over 160 countries and independent ter-ritories in the world with a population of fewer than 20 mil-lion people. Hence, we believe Bharat ABIS can be eas-ily deployed in these countries, many of which cannot af-ford to purchase a COTS ABIS. The proposed fingerprint templating solution, deployed for authentication, has also halved authentication failure rates in the field. Our research and prototyping of Bharat ABIS demonstrates that one can build a sovereign, high-performance, multi-modal biomet-ric de-duplication system on open-source AI foundations. Scaling the solution to the entire gallery of 1.55 billion is underway, but will require significant innovations in model design, training and engineering. 
+
+4.1. Acknowledgements 
+
+We acknowledge the open-source communities behind TensorFlow, PyTorch, FAISS, YOLOv7, and InsightFace. We also thank Akshat Singhal, Mahizhvannan E., Kritika Gupta, Deepak Kumar Sial, and Sharib Athar for their valu-able contributions. 9References 
+
+[1] X. An, J. Deng, J. Guo, Z. Feng, X. Zhu, Y. Jing, and L. Tongliang. Killing two birds with one stone: Efficient and robust training of face recognition cnns by partial FC. In 
+
+Proc. IEEE/CVF Conference on Computer Vision and Pat-tern Recognition (CVPR) , 2022. 2, 5 [2] T. K. Chugh, K. Cao, and A. K. Jain. Fingerprint spoof buster: Use of minutiae-centered patches. IEEE Trans. on Information Forensics and Security , 13(9):2190–2202, 2018. 2, 5 [3] J. Daugman. How iris recognition works. IEEE Transactions on Circuits and Systems for Video Technology , 14(1):21–30, 2004. 2 [4] J. Deng, J. Guo, X. Niannan, and S. Zafeiriou. Arcface: Additive angular margin loss for deep face recognition. In 
+
+Proc. IEEE/CVF Conference on Computer Vision and Pat-tern Recognition (CVPR) , pages 4690––4699, 2019. 2, 5 [5] M. Douze, A. Guzhva, C. Deng, J. Johnson, G. Szilvasy, P.-E. Mazar´ e, M. Lomeli, L. Hosseini, and H. J´ egou. The faiss library. arXiv preprint , 2024. 3, 4, 6, 9 [6] J. G. Engelsma, K. Cao, and A. K. Jain. Learning a fixed-length fingerprint representation. IEEE Trans. on Pattern Analysis and Machine Intelligence , 43(6):1981–1997, 2021. 2, 5 [7] P. Grother, M. Ngan, and K. Hanaoka. Face recognition vendor test (FRVT) part 2: Identification. Technical Report NIST.IR.8238, National Institute of Standards and Technol-ogy, 2019. 2 [8] Y. Guo, L. Zhang, Y. Hu, X. He, and J. Gao. MS-Celeb-1M: A dataset and benchmark for large-scale face recognition. In 
+
+Proceedings of the European Conference on Computer Vi-sion (ECCV) , 2016. 5 [9] ISO. Biometric data interchange formats. Technical Report ISO/IEC 19794, 2005. 3 [10] J. Johnson, M. Douze, and H. J´ egou. Billion-scale similarity search with GPUs. IEEE Trans. on Big Data , 7(3):535–547, 2021. 2, 3, 9 [11] V. Mura, L. Ghiani, G. L. Marcialis, F. Roli, D. A. Yam-bay, and S. A. Schuckers. LivDet 2015: Fingerprint liveness detection competition. In Proceedings of the IEEE Interna-tional Conference on Biometrics (ICB) , 2016. 5 [12] Parliament of India. The Aadhaar (Targeted Delivery of Financial and Other Subsidies, Benefits and Services) Act. 
+
+https://uidai.gov.in/en/legal-framework/ aadhaar-act.html , 2016. 1 [13] Parliament of India. The Digital Personal Data Protec-tion Act. https://www.dpdpa.com/DPDPA_2023_ official.pdf , 2023. 1 [14] G. W. Quinn, J. R. Matey, and P. J. Grother. Irex ix part one, performance of iris recognition algorithms. Technical re-port, National Institute of Standards and Technology (NIST), Gaithersburg, MD, 2018. 2 [15] A. Ross and A. K. Jain. Information fusion in biometrics. 
+
+Pattern Recognition Letters , 24:2115–2125, 2003. 2 [16] F. Schroff, D. Kalenichenko, and J. Philbin. FaceNet: A uni-fied embedding for face recognition and clustering. In Pro-ceedings of the IEEE Conference on Computer Vision and Pattern Recognition (CVPR) , 2015. 2 [17] E. Tabassi, C. Wilson, and C. Watson. NFIQ: NIST finger-print image quality. Technical Report NIST.IR.7151, Na-tional Institute of Standards and Technology, 2004. 2, 4 [18] M. Tan and Q. V. Le. EfficientNet: Rethinking model scaling for CNNs. In Proceedings of the International Conference on Machine Learning (ICML) , 2019. 4 [19] UIDAI Committee on Biometrics. Biometrics design stan-dards for UID applications. Technical report, Dec. 2009. 3 [20] C. Wang, A. Bochkovskiy, and H. Liao. Yolov7: Trainable bag-of-freebies sets new state-of-the-art for real-time object detectors. In Proc. IEEE/CVF Conference on Computer Vi-sion and Pattern Recognition (CVPR) , 2023. 4 [21] C. Watson, G. Fiumara, E. Tabassi, S. L. Cheng, P. Flanagan, and W. Salamon. Fingerprint vendor technology evaluation (FpVTE). Technical Report NIST.IR.8034, National Insti-tute of Standards and Technology, 2014. 2 [22] World Population Review. Total population by country. Technical report, 2026. 9 
+
+10
