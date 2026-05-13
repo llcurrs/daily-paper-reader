@@ -1,0 +1,789 @@
+Title: Bringing Multimodal Large Language Models to Infrared-Visible Image Fusion Quality Assessment
+
+URL Source: https://arxiv.org/pdf/2605.06969v1
+
+Published Time: Mon, 11 May 2026 00:19:44 GMT
+
+Number of Pages: 25
+
+Markdown Content:
+# Bringing Multimodal Large Language Models to Infrared-Visible Image Fusion Quality Assessment 
+
+Yuchen Guo 1,∗ Junli Gong 2,∗ Yao Lu 3 Xintong Xu 5 Yiuming Cheung 4 Weifeng Su 51Northwestern University 2Northeastern University 3University of Washington 
+
+> 4
+
+Hong Kong Baptist University 5Beijing Normal - Hong Kong Baptist University 
+
+Abstract 
+
+Infrared-Visible image fusion (IVIF) aims to integrate thermal information and detailed spatial structures into a single fused image to enhance perception. How-ever, existing evaluation approaches tend to over-optimize both hand-crafted no-reference statistics and full-reference metrics that treat the source images as pseudo ground truths. Recent IVIF reward-modelling efforts learn from human ratings but use scalar regression on aggregated scores, neither leveraging the reasoning of Multimodal Large Language Models (MLLMs) nor encoding per-image perceptual ambiguity in their supervision, but naively introducing MLLMs with discrete one-hot supervision likewise collapses fused images of similar quality into different rating levels. To address this, we introduce FuScore , which utilizes an MLLM to mimic human visual perception by producing continuous quality score, rather than discrete level predictions, enabling fine-grained discrimination among fused images of similar quality. We exploit the agreement among four IVIF-specific sub-dimensions to construct a per-image soft label whose sharpness reflects how consensual the overall judgment is. We further introduce a tripartite objective com-bining per-image distributional supervision, within-source-pair Thurstone fidelity for method-level ordering, and cross-source-pair Thurstone fidelity for scene-level ordering across scenes. Extensive experiments demonstrate that FuScore achieves state-of-the-art correlation with human visual preferences. 
+
+1 Introduction 
+
+Infrared-Visible image fusion (IVIF) is an important technique in image processing, which aims to combine both thermal and structural information from two source images into a single fused image [ 28 , 22 , 11 ]. By integrating complementary thermal and structural cues into a unified image representation, IVIF has been widely applied in a variety of real-world scenarios, including security surveillance, military target detection, scene understanding, and assisted driving. Existing IVIF models can be broadly categorized into two approaches: discriminative methods such as carefully designed CNN-based and Transformer-based models [ 29 , 17 ]; generative approaches, including autoencoder-based methods [6, 30], GAN-based [12, 16] and diffusion-based methods [19, 31]. With the rapid advancement of deep learning, above IVIF models have achieved substantial progress in improving fusion quality. However, a fundamental limitation remains: these existing methods are still predominantly optimized for hand-crafted traditional no-reference statistics such as Entropy (EN) [18 ] and Mutual Information (MI) [ 4], or toward full-reference objectives that treat source image pairs as pseudo ground truths, such as Structural Similarity Index (SSIM) [ 24 ] and Peak Signal-to-Noise Ratio (PSNR) [ 7], due to the absence of authentic ground-truth fused images in IVIF. As a result,                                
+
+> ∗Equal contribution. Correspondence to: yuchenguo2027@u.northwestern.edu, wfsu@bnbu.edu.cn. Preprint.
+> arXiv:2605.06969v1 [cs.CV] 7 May 2026 (a) L imitation I: Misranking within the same scene
+> IR Visible A (human-preferred) B (lower MOS)
+> Human preference (MOS)
+> 𝐀 𝐀 =𝐀 .𝐀􄰀 >𝐀 𝐀 =𝐀 .𝐀𝐀
+> Typical traditional metrics (No-Ref.)
+> metrics rank B > A
+> (b) Limitation II: One-hot MLLM-as-Judge lacks fidelity
+> Fused A Fused B
+> Mean Opinion Score (MOS)
+> A: 3.75
+> B: 3.50 ≈ Almost tie
+> One-hot MLLM-as-Judge (levels {1, 2, 3, 4, 5})
+> Fused A → Level 4 Fused B → Level 3
+> A
+> B
+> VIF ↑ EN ↑ SD ↑ SF ↑
+> 0.06 6.66 28.42 9.81
+> 0.27 7.31 47.52 15.55
+> Continue Score by Human Judgment
+> A
+> B
+
+Figure 1: Two limitations of current IVIF quality assessment. (a) Misranking within the same scene: for a single source pair, traditional no-reference metrics (VIF, EN, SD, SF) rank the human-disfavoured fused image B above the human-preferred A (MOS μA=3 .50 > μ B =2 .75 ). (b) One-hot MLLM-as-Judge lacks fidelity: two fused images with near-tie human MOS ( 3.75 vs. 3.50 ) are forced into distinct discrete levels ( 4 vs. 3) by an MLLM trained with one-hot supervision over five quality levels. these objectives often fail to faithfully reflect human experts perceptual preference, and may even assign higher scores to a visually inferior fused image (Fig. 1). A recent IVIF reward-modelling effort, EVAFusion [ 13 ], addresses the human-alignment gap by training a ViT-based regressor with MSE on aggregated overall scores. Yet it neither leverages the linguistic reasoning of MLLMs nor encodes how consensual each image’s mean score is across the underlying multi-criterion judgments. Another naive remedy of introducing MLLMs with the discrete one-hot supervision used in prior MLLM-based IQA [ 25 ] is unable to capture subtle perceptual differences and carries no signal about per-image annotation consensus either. This leaves a fundamental question largely unanswered: how can MLLMs produce continuous IVIF quality scores under supervision that encodes per-image annotation consensus? 
+
+We answer this question with FuScore , an MLLM-based scorer that yields a continuous quality score for each fused image rather than forcing it into a single discrete level. Specifically, instead of training the MLLM to emit a single quality token, we read out the decoding probabilities over the predefined quality-level tokens and supervise this distribution with a soft label, so that the final score, computed as the expectation under the predicted distribution, can take any real value within the rating range and capture subtle quality differences that one-hot supervision collapses. A key challenge, however, lies in how to construct the soft label itself: naively smoothing a discrete overall score with a fixed-width Gaussian ignores the fact that fused images vary substantially in how consensual their perceptual quality is. To address this, we exploit the structure of existing IVIF annotations, where each fused image is labeled along four sub-dimensions: thermal retention, texture preservation, artifacts, and sharpness, and use the agreement among these sub-dimensions as a per-image consensus signal. When the four criteria agree, the soft label is sharply concentrated around the overall score; when they disagree, the label is broadened to reflect that the overall judgment is less consensual across reasonable aggregation rules. We further observe that subjective fusion quality exhibits both within-source-pair variation, which captures how different fusion methods perform on the same scene, and cross-source-pair variation, which reflects scene-dependent difficulty. Since neither per-image supervision nor within-scene comparisons alone can cover both variation components, FuScore adopts a tripartite objective that jointly enforces per-image distributional supervision, within-source-pair Thurstone fidelity for method-level ordering, and cross-source-pair Thurstone fidelity for scene-level ordering, with the per-pair margin reusing the per-image label widths derived from sub-dimension agreement. Our core contributions are summarized as: • We propose FuScore, the first MLLM-based IVIF quality scorer trained with distribution-level supervision, generating continuous score of fused images. • We introduce a sub-dimension-aware soft label construction that modulates label sharpness by the agreement among four IVIF-specific sub-dimensions, allowing the supervision target to faithfully reflect how consensual the overall perceptual judgment is on each fused image. • We design a tripartite training objective that jointly enforces per-image distributional supervi-sion, within-source-pair Thurstone fidelity for method-level ordering, and cross-source-pair 2Thurstone fidelity for scene-level ordering, with the per-pair margin reusing the per-image label widths derived from sub-dimension agreement. • On the EVAFusion benchmark and a 5-expert Semantic RT pilot, FuScore achieves state-of-the-art correlation with human visual preferences across all reported rank metrics, and empirically tracks both data-side ranking difficulty and human-side inter-rater disagreement. 
+
+2 Related Works 
+
+Infrared-Visible Image Fusion. Infrared-visible image fusion (IVIF) is a crucial field of low-level computer vision. Early CNN-based encoder-decoder architectures such as IFCNN [ 29 ] rely on hand-designed fusion rules, while Transformer-based models like SwinFusion [ 17 ] capture long-range cross-modality dependencies via self-attention. Generative approaches instead model the data distribution of fused images: autoencoders [ 30 , 6, 5 ] learn modality-specific representations, GANs [ 16 , 12 ] encourage perceptual realism via adversarial training, and diffusion [ 31 , 19 ] formulates fusion as conditional generation. Despite diverse architectures, all optimize either no-reference statistics or pseudo-reference objectives derived from source pairs, both poorly correlated with human perception, motivating a perceptually aligned quality scorer. 
+
+Image Quality Assessment. IQA methods [ 24 , 23 , 26 , 21 , 10 ] predict a per-image quality score under no-reference or full-reference paradigms. MLLMs have recently been adapted as perceptual scorers on natural images: Q-Align [ 25 ] fine-tunes an MLLM to predict five discrete quality levels via level-token probabilities, and DeQA [ 27 ] replaces one-hot supervision with soft-label distributions from inter-rater variance. In IVIF, fusion quality is still commonly evaluated using handcrafted metrics [ 3], no-reference measures such as EN [ 18 ], MI [ 4 ], and VIF [ 15 ], or full-reference SSIM [ 24 ] and PSNR [ 7 ] treating source pairs as pseudo references. Recent IVIF reward-modelling efforts [ 13 , 2]trains a ViT-based regressor with MSE on aggregated overall scores; it is, however, neither MLLM-based nor distribution-supervised, and its scalar regression target provides no signal about per-image perceptual consensus. MLLM-based perceptual scorers and per-image ambiguity modelling have not yet been explored for IVIF. 
+
+3 Methodology 
+
+We present FuScore , an MLLM-based scorer that assigns each fused image a continuous quality score reflecting human perceptual preference. We first formulate the scoring problem and the MLLM output formulation (Sec. 3.1), then introduce our sub-dimension-aware soft label construction (Sec. 3.2), and finally describe the tripartite training objective that jointly supervises per-image distributional matching, within-source-pair fidelity, and cross-source-pair ranking (Sec. 3.3). 
+
+3.1 Problem Setup Input and supervision. We leverage EVAFusion [ 13 ], a large-scale IVIF quality benchmark com-prising 9,350 fused images produced by 11 representative IVIF methods over 850 source image pairs. For each fused image xi, EVAFusion provides aggregated human ratings along four IVIF-specific sub-dimensions {s(k) 
+
+> i
+
+}4 
+
+> k=1
+
+(thermal retention, texture preservation, artifacts, and sharpness), together with an overall quality score yi, all in [1 , 5] . The model input is source-conditioned and full-reference: 
+
+xi = (IR i, VIS i, Fused i), (1) so that the scorer evaluates the fused image jointly with its two source modalities. 
+
+From discrete tokens to a continuous score. We instantiate FuScore on a pretrained MLLM fθ .Given the input xi and a quality-query prompt, fθ produces logits z(l) 
+
+> i
+
+over five predefined quality-level tokens L = {1, 2, 3, 4, 5} at the decoding step. Applying softmax over these five tokens yields a categorical distribution 
+
+qi(l | θ) = exp( z(l) 
+
+> i
+
+)
+
+P 
+
+> l′∈L
+
+exp( z(l′) 
+
+> i
+
+) , l ∈ L . (2) 3The final continuous score is then read out as the expectation of the quality level under this distribution: 
+
+ˆyi = Eqi [L] = X
+
+> l∈L
+
+l · qi(l). (3) This expectation lies in [1 , 5] and varies continuously with the predicted distribution, so that perceptu-ally similar fused images can be assigned distinct fine-grained scores rather than being collapsed into the same discrete level. Importantly, the model emits a single distribution qi rather than separately predicting a variance term: all uncertainty modeling thus enters via the supervision target’s width (described next), while predictive uncertainty at inference is read off as the standard deviation of qi
+
+and used in Sec. 4.4. 
+
+3.2 Sub-Dimension-Aware Soft Label Construction 
+
+To supervise the predicted distribution qi, we construct a per-image soft label pi over the five quality levels. The center of pi is determined by the overall score yi, while its sharpness is modulated by a per-image consensus signal derived from the sub-dimension annotations. 
+
+Sub-dimension agreement signal. A fused image is uniformly easy to judge when all four sub-dimension scores agree: thermal, texture, artifact, and sharpness ratings all point to the same quality level—and is intrinsically more arguable when they disagree, since different reasonable weightings of these criteria would lead to different overall judgments. We capture this property with the empirical standard deviation of the four sub-dimension scores: 
+
+δi ≜ std 
+
+
+
+s(1)  
+
+> i
+
+, s (2)  
+
+> i
+
+, s (3)  
+
+> i
+
+, s (4) 
+
+> i
+
+
+
+. (4) A small δi indicates a consensual overall judgment; a large δi indicates that the four perceptual criteria disagree, so that the overall score is less consensual across reasonable aggregation rules. We empirically validate that δi tracks genuine annotation ambiguity, rather than merely reflecting multi-attribute trade-off, in Sec. 4.4. 
+
+Per-image label width. Following the Thurstone framework [ 20 ], we model each fused image’s latent perceptual quality as a Gaussian on the rating scale, parameterized by a per-image center μi
+
+and width σi. Setting μi = yi anchors the label at the overall score; the width σi is then defined to scale linearly with the sub-dimension agreement signal δi on top of an irreducible noise floor σ0:
+
+σi = clip( σ0 + λc δi, σ min , σ max ) . (5) The floor σ0 accounts for residual annotation noise even when all four criteria agree (e.g., from discretizing continuous perceptual judgments into the integer scale {1, . . . , 5}); λc controls how sen-sitively the label width responds to sub-dimension disagreement; and the soft clip σi ∈ [σmin , σ max ]
+
+prevents degenerate distributions at the extremes. 
+
+Gaussian binning with first-moment preservation. Given the center μi = yi and width σi, we discretize a Gaussian density over the five quality levels: 
+
+pi(l) ∝ N  l; μi, σ 2
+
+> i
+
+ , l ∈ L . (6) Following DeQA [ 27 ], we further post-adjust pi so that its first moment exactly recovers the overall score: X
+
+> l∈L
+
+pi(l) = 1 , X
+
+> l∈L
+
+l · pi(l) = μi. (7) This first-moment preservation is essential: it ensures that the distributional target pi and the scalar target μi are mutually consistent, so that minimizing the divergence between qi and pi also drives the predicted score ˆyi = Eqi [L] toward μi. As a result, the per-image soft label is sharply concentrated around μi when the sub-dimensions agree, and broadens around μi when they conflict, faithfully reflecting how consensual the overall judgment is on each fused image. 
+
+3.3 Tripartite Training Objective 
+
+A natural choice would be to train FuScore by matching qi to pi alone. However, the primary metrics by which IQA models are evaluated ( e.g. , SRCC and KRCC) are non-differentiable functions of the predicted ranking; per-image distributional alignment only supervises ranking implicitly through 41) FuScore Inference (per image)        
+
+> Source-conditioned input
+> Quality-query prompt (text)
+> “Image 1 is an infrared image. Image 2 is
+> a visible image. Image 3 is the fused
+> result. The overall fusion quality of Image
+> 3 is ___{bad, poor, fair, good, excellent}”
+> MLLM 𝐀 𝐀 (LoRA-adapted)
+> LLM
+> Decoder
+> 🐀
+> softmax
+> Vision
+> Encoder
+> 🐀
+> bad poor fair good exce .
+> 🐀 Predictive uncertainty (inference): standard deviation of 𝐀 (𝐀 )
+
+...                                               
+
+> Logits over
+> quality-level tokens
+> Predicted distribution 𝐀 (𝐀 )
+> Predicted continuous
+> score 𝐀 (𝐀𲠀 [𝐀 ,𝐀 ])
+> 2) Sub-Dim-Aware Soft Label Construction (per image) 3) Tripartite Training (mini-batch)
+> ①Sub-dim annotations
+> Overall y = 3. 75
+> ②Agreement signal ③Label width σ
+> 𝐀 =𝐀𗀀𝐀𙐀 (𝐀 𝐀 +𝐀 𝐀 ∙𝐀 ,
+> 𝐀 𝐀𝐀𝐀 ,𝐀 𝐀𙠀𝐀 )
+> ④Gaussian binning
+> (over 5 levels )
+> Center: 𝐀 =𝐀
+> Width: 𝐀
+> ⑤Moment preservation ⑥Soft label p(l)
+> 𝐀 (𝐀 ) ≥ 𝐀 ,𝐀
+> 𝐀 (𝐀 ) = 𝐀 ,
+> 𝐀
+> 𝐀 ∙𝐀 (𝐀 )=𝐀
+> Mini-batch of N samples
+> MLLM 𝐀 𝐀
+> (Shared )Predicted distribution 𝐀 𝐀 (𝐀 )
+> Pairwise margin:
+> 𝐀 <𝐀 :
+> 𝐀 𝐀𝐀 =𝐀 𝐀
+> 𝐀 +𝐀 𝐀
+> 𝐀
+> Within-SP pairs
+> (same group id)
+> Cross-SP pairs
+> (different group id)
+> (a) Per-image distributional
+> supervision
+> (b) Within-SP fidelity (method-level) (c) Cross-SP fidelity (scene-level)
+> Standard deviation
+> of 4 sub-dim scores
+> 12N
+
+... 
+
+...       
+
+> Raw Gaussian bins
+> Moment-matched
+> distribution 123N
+> Pred. score 𝐀 𝐀
+> (Expectation)
+
+...  
+
+> Label width 𝐀 𝐀
+> (from soft label)
+> 1
+
+...              
+
+> N
+> 𝐀 𝐀 (𝐀 )vs. 𝐀 𝐀 (𝐀 )
+> 𝐀 𝐀𲠀
+> 𝐀𲀀 vs. 𝐀 𝐀𲠀
+> 𝐀𴐀𝐀𴰀
+> 2
+> 𝐀 𝐀𲠀
+> 𝐀𲀀 vs. 𝐀 𝐀𲠀
+> 𝐀𴐀𝐀𴰀
+> 𝐀 =𝐀𛀀𝐀 (𝐀 (𝐀 ),𝐀 (𝐀 ),𝐀 (𝐀 ),𝐀 (𝐀 ))IR (Thermal) VIS (Visible) Fused
+> forward (all images)
+> (other vocab
+> tokens, ignored)
+> y = 3. 75
+
+Figure 2: Framework of our FuScore. a) FuScore Inference for per image. b) Sub-dim-aware soft label construction. c) Tripartite training process. each image’s expected score and provides a weak signal in regimes where the GT μ-gap between two images is small relative to label noise. We therefore add two differentiable Thurstone-style [ 20 ]ranking proxies whose scopes mirror the two ranking metrics that the field reports. 
+
+Within- and cross-source-pair scopes match the evaluation metrics. The total variance of yi
+
+admits a natural decomposition by source pair g:
+
+Var( y) = Eg [Var( y | g)] 
+
+| {z }
+
+within-source-pair 
+
++ Var g [E(y | g)] 
+
+| {z }
+
+cross-source-pair 
+
+. (8) The within-source-pair component captures how different fusion methods perform on the same scene, the quantity that per-source-pair Kendall τ measures at evaluation time, while the cross-source-pair component captures how scene-level difficulty itself shifts the achievable quality, which is what pooled SRCC reflects. We therefore train FuScore with three complementary terms whose summation scopes correspond to these two evaluation regimes plus the per-image shape signal. 
+
+Per-image distributional supervision LKL . The first term aligns the predicted distribution qi with the soft label pi via Kullback–Leibler divergence: 
+
+LKL = 1
+
+B
+
+BX
+
+i=1 
+
+KL  pi qi
+
+ , (9) where B is the batch size. By the first-moment preservation in Eq. (7) , this term simultaneously supervises both the shape of the level distribution and the location of the predicted expectation ˆyi.
+
+Within-source-pair fidelity Lfid . Within a source pair, “which fused image is better” is a semantically well-defined comparison, since both fused images depict the same scene and arise from the same content-preservation task. We therefore impose a Thurstone-style pairwise fidelity loss on every pair 
+
+(i, j ) that shares the same source pair g(i) = g(j). We use a single per-pair margin 
+
+σij ≜
+
+q
+
+σ2
+
+i + σ2
+
+j , (10) inherited from the soft-label widths of Eq. (5) , and define the Ground Truth (GT) and predicted pairwise preference probabilities as 
+
+P gt 
+
+ij = Φ 
+
+ μi − μj
+
+σij 
+
+
+
+, P pred 
+
+ij = Φ 
+
+ ˆyi − ˆyj
+
+σij 
+
+
+
+, (11) where Φ is the standard Gaussian CDF. We score the two distributions with the DeQA-Score fidelity loss [27], which is bounded in [0 , 1] per pair and self-saturates at confident pairs: 
+
+Lfid = 1
+
+|S fid |
+
+X
+
+(i,j )∈S fid 
+
+h
+
+1 −
+
+q
+
+P gt 
+
+ij P pred 
+
+ij −
+
+q 1−P gt 
+
+ij 
+
+  1−P pred 
+
+ij 
+
+ i
+
+, (12) where Sfid = {(i, j ) : g(i) = g(j), i < j } indexes the within-source-pair pairs in the batch. The pairwise margin σij widens when either image has a less consensual overall judgment, so that high-δ
+
+pairs contribute looser comparisons and low-δ pairs contribute sharper ones—an uncertainty-aware reweighting that follows naturally from the soft-label construction in Sec. 3.2. 5Cross-source-pair Thurstone fidelity Lxfid . The within-source-pair fidelity Lfid is restricted to comparisons that share a scene; the cross-source-pair component of Eq. (8) – the variation in achievable quality across different scenes – is left unsupervised by LKL and Lfid alone. We therefore extend the same Thurstone fidelity machinery of Eqs. (12) to all batch pairs (i, j ) that span distinct 
+
+source pairs g(i)̸ = g(j):
+
+Lxfid = 1
+
+|S xfid |
+
+X
+
+> (i,j )∈S xfid
+
+h
+
+1 −
+
+q
+
+P gt  
+
+> ij
+
+P pred  
+
+> ij
+
+−
+
+q 1−P gt 
+
+> ij
+
+  1−P pred 
+
+> ij
+
+ i
+
+, (13) where Sxfid = {(i, j ) : g(i)̸ = g(j), i < j } indexes the cross-source-pair pairs in the batch, and 
+
+P gt  
+
+> ij
+
+and P pred  
+
+> ij
+
+are exactly the quantities defined in Eq. (11) , reusing the per-pair margin σij of Eq. (10) . Because σij widens whenever either image carries a less consensual overall judgment, the score-side gradient ∂Lxfid /∂ ˆyi scales as 1/σ ij , so high-δ pairs automatically contribute smaller score-update magnitudes per pair without a separate down-weighting hyperparameter. The DeQA fidelity is furthermore bounded in [0 , 1] per pair and reaches its minimum of 0 exactly at P pred  
+
+> ij
+
+= P gt  
+
+> ij
+
+.Compared to BCE, this avoids the unbounded log-domain penalty at P gt  
+
+> ij
+
+→ { 0, 1}, so a small number of near-confident pairs no longer dominate the loss; the training signal stays distributed across both confident and ambiguous pairs. Equivalently, Lxfid is the same Thurstone fidelity applied with the within-source-pair filter removed; it inherits all of Lfid ’s uncertainty-aware behaviour at the cost of one additional summation scope, and it reuses the scalar readout ˆyi already computed in Eq. (3) ,requiring no additional forward pass. We discuss in Sec. 4.4 why a σ-blind Plackett–Luce listwise alternative on the same scalar readout regresses both ranking and calibration. 
+
+Full objective. Based on the above, the complete training loss is the weighted sum of the three terms: 
+
+L = LKL + λfid Lfid + λxfid Lxfid . (14) 
+
+4 Experiments 
+
+4.1 Setup 
+
+All experiments use EVAFusion [ 13 ], an expert-reviewed IVIF quality benchmark ( 9,350 fused images, 850 IR/visible source pairs, 11 fusion methods, four sub-dimension scores plus an overall score in {1, . . . , 5}). Because the official split leaks over 70% of source pairs across train/val/test boundaries, we re-partition the 850 source pairs into disjoint 80 /10 /10 buckets, yielding 680 /85 /85 
+
+source pairs and 7,480 /935 /935 images. FuScore instantiates Qwen3-VL-8B-Instruct [ 1] fine-tuned with LoRA ( r=64 , α=128 ) on the LM transformer blocks (vision encoder frozen). Soft-label hyperparameters are σ0=0 .3, λc=0 .45 , [σmin , σ max ]=[0 .15 , 1.2] ; loss weights λfid =1 .0, λxfid =0 .5.Training uses bf16 on a single A100-80G for 3 epochs. We report SRCC, PLCC, KRCC, within-source-pair pairwise accuracy (PairAcc), per-source-pair Kendall τ , and KL( ppred ∥pGT ) against the soft-Gaussian target of Eq. (6) . For uncertainty-aware variants we additionally report calibration ECE under two post-hoc recalibrations and an oracle slope b∗ summarising residual ˆσ-dependent miscalibration ( b∗=0 iff single-parameter rescaling is optimal); full protocol in Appendix A. 
+
+Baselines. Four classes, all on the same source-pair-disjoint test split: handcrafted IVIF metrics (EN, MI, VIF, SCD, Qabf, SF, AG, SD, SSIM); zero-shot natural-image MLLM-IQA (MUSIQ [ 10 ], CLIP-IQA [ 21 ], Q-Align [ 25 ], DeQA-Score [ 27 ]); same-backbone zero-shot (Qwen3-VL-8B without fine-tuning); and in-domain learned : (i) ViT-L+MLP , the EVAFusion reward-model recipe re-trained on our split, (ii) LoRA-MSE , identical LoRA configuration to FuScore but trained with L1 regression on ˆy − y, isolating whether gains come from backbone or supervision recipe, and (iii) 
+
+LoRA-CE , the same backbone trained with one-hot cross-entropy on five discrete levels, isolating whether distribution-level supervision beats discrete-token supervision. Implementation details for all baselines in Appendix A. 
+
+4.2 Main Results 
+
+Table 1 reports score regression on the EVAFusion test split. Our 3-seed ensemble outperforms every external baseline on all five rank metrics, gaining +0 .094 SRCC, +0 .091 PLCC, +0 .076 
+
+KRCC, +0 .029 PairAcc, and +0 .049 per-SP τ over the strongest external baseline ViT-L+MLP, all paired-bootstrap-significant at p < 0.05 (nboot =2000 ). The same-backbone direct-regression control 6Table 1: Score regression on EVAFusion test ( n=935 , 85 source pairs). Bold : best per column. “—”: scalar-output methods. KL column: KL( ppred ∥pGT ) against the soft-Gaussian target of Eq. (6). 
+
+Method SRCC ↑ PLCC ↑ KRCC ↑ PairAcc ↑ Per-SP τ ↑ KL ↓
+
+Handcrafted Qabf 0.344 0.356 0.250 0.695 0.332 —VIF 0.340 0.302 0.250 0.698 0.335 —MI 0.256 0.260 0.187 0.642 0.241 —Zero-shot MUSIQ 0.066 0.079 0.050 0.554 0.092 —CLIP-IQA 0.110 0.120 0.080 0.560 0.099 —Qwen3-VL-8B 0.156 0.164 0.115 0.616 0.196 4.683 Q-Align 0.281 0.270 0.213 0.692 0.325 2.601 DeQA-Score 0.308 0.306 0.231 0.676 0.298 1.298 In-domain ViT-L+MLP [13] 0.554 0.559 0.428 0.747 0.418 —Qwen3-VL-8B + LoRA-MSE 0.537 0.529 0.431 0.728 0.417 —Qwen3-VL-8B + CE (one-hot) 0.495 0.488 0.375 0.702 0.362 1.854 
+
+Ours Ours (single-seed) 0.637 0.640 0.494 0.767 0.451 0.297 Ours (3-seed ensemble) 0.648 0.650 0.504 0.776 0.467 0.291 
+
+(Qwen3-VL-8B + LoRA-MSE) attains SRCC 0.537 against our 0.648 , isolating the contribution of our soft-label + tripartite-loss recipe at +0 .111 SRCC over identical backbone capacity. None of the zero-shot natural-image IQA scorers (Tab. 1, rows 4–8, spanning 30 M to 7B parameters) crosses SRCC 0.31 on IVIF, indicating that natural-image IQA pretraining does not transfer to IVIF without in-domain supervision. Beyond scalar regression, our predicted level distribution attains KL 0.291 
+
+against the soft-Gaussian GT, 4×–15 × tighter than every distribution-emitting baseline. 
+
+4.3 Out-of-Distribution Generalization via Cross-Method and Cross-Dataset 
+
+Table 2: Cross-method generalization (leave-K-method-out, 5 folds, single seed 42 ). ∆: macro-mean minus in-dist 3-seed ensemble (Tab. 1).                                                          
+
+> Fold held-out nSRCC ↑PLCC ↑KRCC ↑PairAcc ↑
+> 1{0,1,2} 255 0.620 0.649 0.480 0.799 2{3,4} 170 0.628 0.623 0.492 0.858 3{5,6} 170 0.632 0.629 0.496 0.868 4{7,8} 170 0.632 0.617 0.490 0.853 5{9,10} 170 0.626 0.621 0.487 0.852
+> macro-mean all 11 —0.628 0.628 0.489 0.846 macro-std 0.004 0.011 0.005 0.024 in-dist —935 0.648 0.650 0.504 0.776
+> ∆−0.020 −0.022 −0.015 +0 .070
+
+Cross-method (leave-K-method-out). 
+
+Holding the source-pair-disjoint resplit fixed, we partition EVAFusion’s 11 fusion methods into five disjoint folds and re-train FuScore (single seed 42 ) per fold on the remaining methods. Tab. 2 reports per-fold and macro-mean correlation. Macro-mean SRCC is 0.628 , only 0.020 
+
+below the in-distribution 3-seed ensemble; PLCC and KRCC show comparable ∼ 2% 
+
+absolute drops; per-fold variance is small (macro-std SRCC = 0 .004 ). PairAcc rises under leave-out evaluation as an artefact of restricting source pairs to |K| ∈ { 2, 3} methods (PairAcc enumerates ≤ 3 pairs per source pair instead of  11 2
+
+=55 ); SRCC / PLCC / KRCC are the relevant cross-method metrics. Table 3: Cross-dataset validation on SemanticRT 5-expert pilot ( n=1100 ). Bold : best per column.                                          
+
+> Method SRCC ↑PLCC ↑KRCC ↑PairAcc ↑
+> Qabf 0.321 0.334 0.231 0.671 VIF 0.318 0.287 0.227 0.673 MI 0.238 0.249 0.171 0.628 Qwen3-VL-8B 0.142 0.157 0.103 0.602 Q-Align 0.296 0.284 0.219 0.698 DeQA-Score 0.314 0.301 0.234 0.682 ViT-L+MLP 0.471 0.478 0.354 0.714 Ours (single-seed) 0.547 0.551 0.413 0.731
+> Ours (3-seed ensemble) 0.561 0.564 0.428 0.742
+
+Cross-dataset (SemanticRT 5-expert pi-lot). We build a 5-expert pilot benchmark on SemanticRT [ 9 ], an IVIF dataset whose public release ships fused images without quality annotations. Five domain experts independently rate the overall quality of 
+
+1100 fused images ( 100 source pairs, 11 fu-sion methods) on the same 1–5 scale used by EVAFusion, blinded to method iden-tity; the per-image GT is the mean of the five ratings (inter-rater Kendall W =0 .65 ). All scorers are evaluated in inference-only mode using EVAFusion-trained or zero-shot weights; no Semantic RT image enters training. Tab. 3 reports correlation with the expert-mean ranking. Our 3-seed ensemble attains the highest SRCC ( 0.561 ), KRCC ( 0.428 ), and PairAcc 7IR VIS Top quality Mid Bot quality                  
+
+> SP1
+> M0 · GT 4.50 M3 · GT 4.50 M8 · GT 4.50 M9 · GT 4.50 M1 · GT 3.25 M2 · GT 3.00
+> SP2
+> M10 · GT 4.50 M6 · GT 4.25 M4 · GT 4.00 M9 · GT 4.00 M8 · GT 3.25 M2 · GT 3.00
+> SP3
+> M0 · GT 3.75 M6 · GT 3.50 M4 · GT 3.00 M5 · GT 3.00 M10 · GT 3.00 M2 · GT 2.25
+> SP1 SP2 SP3
+
+Figure 3: Qualitative results on three representative source pairs (SP1–SP3). Top: fused images from 
+
+11 methods grouped into top/mid/bottom-quality tertiles by GT μ (annotated). Bottom: predicted scores from FuScore (red), DeQA-Score, Q-Align, and ViT-L+MLP across all 11 methods (sorted by GT μ, desc.), plotted against human GT (dashed). FuScore tracks the GT trajectory most closely, including the steep drop on bottom-tertile methods. (0.742 ), outperforming the strongest external baseline ViT-L+MLP (SRCC 0.471 ) by +0 .090 SRCC (paired-bootstrap p < 0.05 ). The single-seed configuration also ranks above every external baseline, confirming the recipe generalises beyond EVAFusion’s specific annotation distribution. 
+
+4.4 Ablation Studies and Further Analysis 
+
+We dissect FuScore along two axes: the loss-composition choices that distinguish our recipe from the 
+
+σ-fixed DeQA-Score recipe (Tab. 4, left), and a per-image dimensional-conflict stratification across 
+
+11 scoring methods (Tab. 4, right). The first row of the loss-composition panel, “ σ-fixed (DeQA recipe)”, applies fixed σ + bounded fidelity exactly as in DeQA-Score [ 27 ] and can equivalently be read as DeQA-Score’s loss recipe re-trained on our same backbone and source-pair-disjoint split protocol; the comparison against our final row therefore isolates the contribution of σ-conflict supervision and cross-source-pair Thurstone fidelity over an otherwise identical pipeline. Diagnostic configurations stacking σ-blind Plackett–Luce listwise terms, alternative listwise scopes, the full 
+
+λ-sensitivity grid, and full calibration tables are deferred to Appendix B. Unless marked †, every cell is a 3-seed ensemble. 
+
+Cross-source-pair Thurstone fidelity is the rank lever; σ-conflict supervision installs a principled 
+
+ˆσ. Adding Lxfid on top of σ-conflict supervision (Ours) lifts the three pooled correlation metrics by +0 .012 –+0 .014 SRCC over the σ-conflict-only baseline (Tab. 4 left: 0.6337 → 0.6477 , paired-bootstrap p < 0.01 ), while leaving within-source-pair PairAcc and per-SP τ within ±0.005 . Holding 
+
+Lxfid off and merely replacing fixed σ with σ-conflict supervision leaves all five rank metrics within 
+
+±0.01 of the DeQA-recipe baseline; σ-conflict supervision is therefore not a rank lever in isolation. Its role is to install a data-aligned ˆσ that Lxfid then exploits: the predicted-ˆσ correlation with the per-image dimensional conflict δi rises from ρ=−0.24 on σ-fixed to +0 .31 under σ-conflict supervision, and to +0 .41 once Lxfid is added (Ours), with ˆσ’s mean shifting by less than 0.05 across all three cells. Calibration tracks the σ-supervision strength: the oracle smooth-recal slope b∗ – residual 
+
+ˆσ-dependent miscalibration that single-τ ∗ rescaling cannot exploit – drops from +0 .59 on σ-fixed to exactly 0 on both σ-conflict-only and Ours, indicating that the predicted ˆσ already encodes the per-image scale information that smooth recal would otherwise have to learn post-hoc. Full ˆσ statistics, 
+
+ECE τ ∗ , ECE smooth , and diagnostic σ-blind-PL stacks in Appendix B. 
+
+The high-δ tertile is a data-side floor across 11 scoring methods. We complement the loss-composition ablation with a per-image breakdown of the test set by dimensional conflict δi (§3.2), 8Table 4: Left: loss-composition ablation; the σ-fixed row equals the DeQA-Score recipe re-trained on our backbone and split. Right: SRCC stratified by per-image conflict δi (tertile sizes 468 /218 /249 ); full 11 -method version in App. B. Bold : best per column.                                                   
+
+> Method SRCC ↑PLCC ↑KRCC ↑PairAcc ↑Per-SP τ↑
+> LoRA-MSE (direct regression) 0.5375 0.5292 0.4317 0.7284 0.4178
+> σ-fixed (DeQA recipe) 0.6327 0.6390 0.4929 0.7798 0.4741
+> σ-conflict only 0.6337 0.6381 0.4919 0.7758 0.4671
+> Ours (σ-conflict +Lxfid )0.6477 0.6501 0.5039 0.7758 0.4671 Method low-δmid-δhigh-δoverall Qabf 0.353 0.269 0.180 0.344 DeQA-Score 0.174 0.100 0.140 0.308 ViT-L+MLP 0.432 0.426 0.194 0.554
+> Ours 0.573 0.624 0.206 0.648
+
+splitting the 935 test images into low-, mid-, and high-δ tertiles. Tab. 4 (right) reports per-tertile SRCC for four representative scoring methods spanning four inductive-bias families: handcrafted IVIF statistics (Qabf), zero-shot natural-image MLLM-IQA (DeQA-Score), an in-domain ViT-L+MLP regressor, and our final model. The full 11 -method extension covering MUSIQ, CLIP-IQA, VIF, MI, Q-Align, Qwen3-VL-8B zero-shot, and our loss-composition cells is given in Appendix B and exhibits the same pattern. On the high-δ tertile (the 27% of test images on which the four sub-dimension scores exhibit large internal disagreement) SRCC collapses into a narrow band of [0 .140 , 0.254] across all 11 scoring methods we evaluate (Appendix B, Tab. 9) – a band an order of magnitude narrower than each method’s own low- or mid-δ SRCC. Eleven methods spanning four orthogonal inductive-bias families plateauing together is the signature of a data-side ranking floor. The pattern admits a closed-form mechanical explanation. EVAFusion’s released overall score satisfies 
+
+yi = mean( s(1 ... 4)  
+
+> i
+
+) exactly on every test image, so high-δ images have y pulled toward the centre of the rating range and bunched there: empirically, the high-δ tertile’s GT y spans only [2 .25 , 3.75] 
+
+(std 0.222 ) against the low-δ’s [2 .25 , 4.25] (std 0.265 ). The narrower GT-y range mechanically caps SRCC for any scoring method, explaining the model-side floor. Where within-tertile ranking signal does exist, our recipe contributes most directly: on the mid-δ tertile our model attains 0.624 against the σ-fixed baseline’s 0.597 , a +0 .027 gain that more than doubles the overall +0 .015 delta within the loss-composition grid. 
+
+Direct human-side evidence: δi correlates with inter-rater disagreement on SemanticRT. The data-side floor argument above is necessary but not sufficient for the claim that δi tracks human annotation ambiguity rather than merely multi-attribute trade-off: the 11 -method plateau on high-δ
+
+samples shows these images are hard to rank, but does not directly establish that human raters themselves disagree more on these images. To close this identification gap, we exploit the 5-expert raw ratings collected for the SemanticRT pilot (§4.3), on which each expert independently rates both the four IVIF-specific sub-dimensions and the overall quality. Raw per-rater data are released for our pilot, unlike for EVAFusion. For each of the 1100 pilot images we compute the per-image inter-rater disagreement on the overall score, std 5(y), across the five experts – a direct operationalisation of human-side ambiguity – and correlate it with the per-image dimensional conflict δi computed from the GT sub-dimension means on the same image. The two quantities correlate at Pearson ρ = 0 .42 
+
+(p < 10 −10 , n = 1100 ), indicating that high-δ images are images on which trained human raters themselves disagree more, not merely images on which models happen to fail. Combined with the 11 -method data-side floor on EVAFusion test and the GT-y centroid bunching mechanism, this provides the direct human-side evidence promised by Sec. 3.2: δi tracks genuine annotation ambiguity, not merely multi-attribute trade-off. 
+
+5 Conclusion 
+
+We present FuScore, an MLLM-based IVIF quality scorer that produces continuous scores via softmax expectation over quality-level tokens, supervised by sub-dimension-aware soft labels and a tripartite objective. Experiments shown that FuScore outperforms handcrafted, zero-shot, and in-domain baselines on EVAFusion and a external benchmark with 5-expert pilot, with δi tracking both model-side ranking difficulty and human inter-rater disagreement. 9Limitation. Existing IVIF benchmarks release only mean opinion scores. Richer multi-rater annotations containing rater variance would let future work disentangle whether the GT-side ceiling reflects aggregation artefacts or inherent human ambiguity. 
+
+References 
+
+[1] Shuai Bai, Yuxuan Cai, Ruizhe Chen, Keqin Chen, Xionghui Chen, Zesen Cheng, Lianghao Deng, Wei Ding, Chang Gao, Chunjiang Ge, Wenbin Ge, Zhifang Guo, Qidong Huang, Jie Huang, Fei Huang, Binyuan Hui, Shutong Jiang, Zhaohai Li, Mingsheng Li, Mei Li, Kaixin Li, Zicheng Lin, Junyang Lin, Xuejing Liu, Jiawei Liu, Chenglong Liu, Yang Liu, Dayiheng Liu, Shixuan Liu, Dunjie Lu, Ruilin Luo, Chenxu Lv, Rui Men, Lingchen Meng, Xuancheng Ren, Xingzhang Ren, Sibo Song, Yuchong Sun, Jun Tang, Jianhong Tu, Jianqiang Wan, Peng Wang, Pengfei Wang, Qiuyue Wang, Yuxuan Wang, Tianbao Xie, Yiheng Xu, Haiyang Xu, Jin Xu, Zhibo Yang, Mingkun Yang, Jianxin Yang, An Yang, Bowen Yu, Fei Zhang, Hang Zhang, Xi Zhang, Bo Zheng, Humen Zhong, Jingren Zhou, Fan Zhou, Jing Zhou, Yuanzhi Zhu, and Ke Zhu. Qwen3-vl technical report. arXiv preprint arXiv:2511.21631 , 2025. [2] Zhihao Chang, Shuyuan Yang, Zhixi Feng, Quanwei Gao, Shengzhe Wang, and Yuyong Cui. Semantic-relation transformer for visible and infrared fused image quality assessment. 
+
+Information Fusion , 95:454–470, 2023. [3] Chunyang Cheng, Tianyang Xu, Xiao-Jun Wu, Tao Zhou, Hui Li, Zhangyong Tang, and Josef Kittler. Evanet: Towards more efficient and consistent infrared and visible image fusion assessment. IEEE Transactions on Pattern Analysis and Machine Intelligence , 2026. [4] Ahmet M Eskicioglu and Paul S Fisher. Image quality measures and their performance. IEEE Transactions on communications , 43(12):2959–2965, 1995. [5] Yuchen Guo and Weifeng Su. Fuse4seg: image-level fusion based multi-modality medical image segmentation. arXiv preprint arXiv:2409.10328 , 2024. [6] Yuchen Guo, Ruoxiang Xu, Rongcheng Li, and Weifeng Su. Dae-fuse: An adaptive discrimina-tive autoencoder for multi-modality image fusion. In 2025 IEEE International Conference on Multimedia and Expo (ICME) , pages 1–6. IEEE, 2025. [7] Alain Hore and Djemel Ziou. Image quality metrics: Psnr vs. ssim. In 2010 20th international conference on pattern recognition , pages 2366–2369. IEEE, 2010. [8] Edward J Hu, Yelong Shen, Phillip Wallis, Zeyuan Allen-Zhu, Yuanzhi Li, Shean Wang, Lu Wang, and Weizhu Chen. LoRA: Low-rank adaptation of large language models. In 
+
+International Conference on Learning Representations (ICLR) , 2022. [9] Wei Ji, Jingjing Li, Cheng Bian, Zhicheng Zhang, and Li Cheng. Semanticrt: A large-scale dataset and method for robust semantic segmentation in multispectral images. In Proceedings of the 31st ACM International Conference on Multimedia , pages 3307–3316, 2023. [10] Junjie Ke, Qifei Wang, Yilin Wang, Peyman Milanfar, and Feng Yang. Musiq: Multi-scale image quality transformer. In Proceedings of the IEEE/CVF international conference on computer vision , pages 5148–5157, 2021. [11] Shutao Li, Xudong Kang, Leyuan Fang, Jianwen Hu, and Haitao Yin. Pixel-level image fusion: A survey of the state of the art. information Fusion , 33:100–112, 2017. [12] Jinyuan Liu, Xin Fan, Zhanbo Huang, Guanyao Wu, Risheng Liu, Wei Zhong, and Zhongxuan Luo. Target-aware dual adversarial learning and a multi-scenario multi-modality benchmark to fuse infrared and visible for object detection. In Proceedings of the IEEE/CVF conference on computer vision and pattern recognition , pages 5802–5811, 2022. [13] Jinyuan Liu, Xingyuan Li, Qingyun Mei, Haoyuan Xu, Zhiying Jiang, Long Ma, Risheng Liu, and Xin Fan. Bridging human evaluation to infrared and visible image fusion. arXiv preprint arXiv:2603.03871 , 2026. 10 [14] Ilya Loshchilov and Frank Hutter. Decoupled weight decay regularization. In International Conference on Learning Representations (ICLR) , 2019. [15] Jiayi Ma, Yong Ma, and Chang Li. Infrared and visible image fusion methods and applications: A survey. Information fusion , 45:153–178, 2019. [16] Jiayi Ma, Han Xu, Junjun Jiang, Xiaoguang Mei, and Xiao-Ping Zhang. Ddcgan: A dual-discriminator conditional generative adversarial network for multi-resolution image fusion. 
+
+IEEE Transactions on Image Processing , 29:4980–4995, 2020. [17] Jiayi Ma, Linfeng Tang, Fan Fan, Jun Huang, Xiaoguang Mei, and Yong Ma. Swinfusion: Cross-domain long-range learning for general image fusion via swin transformer. IEEE/CAA Journal of Automatica Sinica , 9(7):1200–1217, 2022. [18] J Wesley Roberts, Jan A Van Aardt, and Fethi Babikker Ahmed. Assessment of image fusion procedures using entropy, image quality, and multispectral classification. Journal of Applied Remote Sensing , 2(1):023522, 2008. [19] Linfeng Tang, Chunyu Li, and Jiayi Ma. Mask-difuser: A masked diffusion model for unified unsupervised image fusion. IEEE Transactions on Pattern Analysis and Machine Intelligence ,2025. [20] Louis L Thurstone. A law of comparative judgment. In Scaling , pages 81–92. Routledge, 2017. [21] Jianyi Wang, Kelvin CK Chan, and Chen Change Loy. Exploring clip for assessing the look and feel of images. In Proceedings of the AAAI conference on artificial intelligence , volume 37, pages 2555–2563, 2023. [22] Zhijun Wang, Djemel Ziou, Costas Armenakis, Deren Li, and Qingquan Li. A comparative analysis of image fusion methods. IEEE transactions on geoscience and remote sensing , 43(6): 1391–1402, 2005. [23] Zhou Wang and Alan Conrad Bovik. Modern image quality assessment. 2006. [24] Zhou Wang, Alan C Bovik, Hamid R Sheikh, and Eero P Simoncelli. Image quality assessment: from error visibility to structural similarity. IEEE transactions on image processing , 13(4): 600–612, 2004. [25] Haoning Wu, Zicheng Zhang, Weixia Zhang, Chaofeng Chen, Liang Liao, Chunyi Li, Yixuan Gao, Annan Wang, Erli Zhang, Wenxiu Sun, et al. Q-align: Teaching lmms for visual scoring via discrete text-defined levels. arXiv preprint arXiv:2312.17090 , 2023. [26] Sidi Yang, Tianhe Wu, Shuwei Shi, Shanshan Lao, Yuan Gong, Mingdeng Cao, Jiahao Wang, and Yujiu Yang. Maniqa: Multi-dimension attention network for no-reference image quality assessment. In Proceedings of the IEEE/CVF conference on computer vision and pattern recognition , pages 1191–1200, 2022. [27] Zhiyuan You, Xin Cai, Jinjin Gu, Tianfan Xue, and Chao Dong. Teaching large language models to regress accurate image quality scores using score distribution. In Proceedings of the Computer Vision and Pattern Recognition Conference , pages 14483–14494, 2025. [28] Xingchen Zhang and Yiannis Demiris. Visible and infrared image fusion using deep learning. 
+
+IEEE Transactions on Pattern Analysis and Machine Intelligence , 45(8):10535–10554, 2023. [29] Yu Zhang, Yu Liu, Peng Sun, Han Yan, Xiaolin Zhao, and Li Zhang. Ifcnn: A general image fusion framework based on convolutional neural network. Information Fusion , 54:99–118, 2020. [30] Zixiang Zhao, Haowen Bai, Jiangshe Zhang, Yulun Zhang, Shuang Xu, Zudi Lin, Radu Timofte, and Luc Van Gool. Cddfuse: Correlation-driven dual-branch feature decomposition for multi-modality image fusion. In Proceedings of the IEEE/CVF conference on computer vision and pattern recognition , pages 5906–5916, 2023. 11 [31] Zixiang Zhao, Haowen Bai, Yuanzhi Zhu, Jiangshe Zhang, Shuang Xu, Yulun Zhang, Kai Zhang, Deyu Meng, Radu Timofte, and Luc Van Gool. Ddfm: Denoising diffusion model for multi-modality image fusion. In Proceedings of the IEEE/CVF international conference on computer vision , pages 8082–8093, 2023. 
+
+A Experimental Setup Details 
+
+This appendix expands the compressed setup of Sec. 4.1 with full dataset, baseline, metric, and implementation details. 
+
+A.1 Dataset and Re-Split Protocol 
+
+All experiments are conducted on EVAFusion [ 13 ], the largest publicly released expert-reviewed IVIF quality assessment benchmark, comprising 9,350 fused images organised as 850 IR/visible source pairs each processed by 11 fusion methods. Per-image annotations consist of four sub-dimension scores – Thermal Retention , Texture Preservation , Artifacts , Sharpness – on the integer scale {1, . . . , 5} together with a real-valued Overall Score ; the public release does not expose raw per-rater records. Because the official 7,350 /1,000 /1,000 split leaks over 70% of source pairs across train/val/test boundaries, we re-partition the 850 source pairs into disjoint 80 /10 /10 buckets under seed 42 , yielding 680 /85 /85 source pairs and 7,480 /935 /935 images, respectively. Unless otherwise noted, the released Overall Score serves as the scalar prediction target μ ∈ [1 , 5] .
+
+A.2 Baseline Methods 
+
+To isolate what the proposed recipe contributes on top of the same backbone, we primarily compare against Qwen3-VL-8B zero-shot , which uses the identical Qwen3-VL-8B [ 1] base model with no LoRA fine-tuning. We further include a learned in-domain baseline obtained by reproducing the released EVAFusion reward-model recipe [ 13 ] and re-training it on the same source-pair-disjoint train split used by our method, ensuring a fair comparison under the same no-leakage protocol. Concretely, this baseline is a ViT-L+MLP regressor trained under direct μ regression. We additionally include 
+
+Qwen3-VL-8B + LoRA-MSE , a same-backbone direct-regression control with identical LoRA configuration to FuScore but trained with an L1 loss on the scalar ˆy − y rather than our soft-label objective; this control isolates whether FuScore’s gains stem from backbone capacity or from our supervision recipe. We also include four zero-shot perceptual quality scorers pretrained on natural-image IQA, span-ning a wide model-scale spectrum, to probe natural-image-to-IVIF transfer: MUSIQ [ 10 ] (multi-scale ResNet+Transformer, KonIQ-10k pretrained, ∼ 30 M parameters); CLIP-IQA [ 21 ] (frozen CLIP RN50 backbone with antipodal “Good photo./Bad photo.” prompts, ∼ 100 M parameters, no IQA-specific training); Q-Align [25 ] (mPLUG-Owl2 + LLaMA-2 MLLM, KonIQ-trained, ∼ 7Bparameters); and DeQA-Score [ 27 ] (same backbone as Q-Align, mix3-trained, ∼ 7B parameters). Finally, we report nine handcrafted IVIF metrics – EN, MI, VIF, SCD, Qabf, SF, AG, SD, SSIM – used directly as standalone score predictors. All baselines are evaluated on the same 935 -image source-pair-disjoint test split as our method. CLIP-IQA and MUSIQ are run via the pyiqa package; Q-Align and DeQA-Score are run from their official Hugging Face checkpoints. 
+
+A.3 Metrics 
+
+Following prior IQA work [ 27 , 25 ], we report Spearman rank correlation (SRCC), Pearson linear correlation (PLCC), and Kendall rank correlation (KRCC) between predicted and ground-truth Overall Scores on the 935 -image test set. To account for EVAFusion’s source-pair structure, we additionally report within-source-pair pairwise accuracy and the mean per-source-pair Kendall τ over the 85 
+
+test source pairs. For score-distribution prediction, we report the KL divergence KL( ppred ∥ pGT )
+
+between the predicted level distribution and the soft Gaussian-over-levels target of Eq. (6) , averaged over the test set; the eval-time direction is the reverse of the training loss in Eq. (9) , providing a stricter test of distribution match. 12 A.4 Calibration Protocol 
+
+We evaluate whether the (ˆ μ, ˆσ) summary of qi – with ˆμ = P 
+
+> k
+
+k p k and ˆσ2 = P
+
+> k
+
+(k − ˆμ)2pk
+
+taken over {1, . . . , 5} – forms a calibrated predictive Gaussian on test, after a post-hoc recalibration step fit on a held-out source-pair-disjoint calibration split. We report two protocols. ECE τ ∗ uses single-parameter scaling ˆσ′ = τ ∗ ˆσ fit by Brent search on a single 50% calibration split, with split-induced variance on the order of ±0.005 at this sample size. ECE smooth uses two-parameter smooth recalibration ˆσ′ = ( a + bˆσ)ˆ σ fit by Nelder–Mead, with the test ECE averaged over 50 independent source-pair-disjoint cal/test splits; the oracle slope b∗ reported alongside is the average over the same 
+
+50 fits and serves as a single-parameter mechanism summary ( b∗ → 0 iff a single τ ∗ scaling is the optimal recalibrator). The two estimators are not on a common precision footing and we treat their absolute values as characteristic of distinct measurement regimes rather than directly subtractable quantities. Concretely, for each protocol we partition the unit interval into B = 10 nominal coverage levels 
+
+{cb}, count the empirical fraction ˆcb = 1
+
+> N
+
+P 
+
+> i
+
+1|yi − ˆμi| ≤ Φ−1 (1+ cb)/2 ˆσ′
+
+> i
+
+ of test images whose absolute residual lies within the corresponding two-sided Gaussian interval, and report 
+
+ECE = 1
+
+> B
+
+PBb=1 |ˆcb − cb| on the recalibrated ˆσ′.
+
+A.5 Implementation Details 
+
+We use Qwen3-VL-8B-Instruct [ 1] as the base model and fine-tune it with LoRA [ 8 ] ( r = 64 ,
+
+α = 128 , dropout = 0 .05 ), while keeping the visual encoder unchanged. Each training example jointly feeds the IR / visible / fused triplet into the model, and all images are resized so that the longer side does not exceed 512 pixels. We optimize with AdamW [ 14 ], using an initial learning rate of 2 × 10 −5, weight decay 0.01 , 100 warmup steps, and cosine decay. Training uses bf16 mixed precision and gradient checkpointing, with an effective batch size of 16 , for 3 epochs on a single NVIDIA A100-80G GPU. The soft-label hyperparameters of Eqs. (5) –(7) are σ0 = 0 .3, λc = 0 .45 ,
+
+σmin = 0 .15 , σmax = 1 .2. Loss weights are λfid = 1 .0, λxfid = 0 .5. Unless otherwise noted, multi-seed results are obtained by averaging the per-image (ˆ μ, ˆσ) summary across seeds {42 , 43 , 44 }.Batches are emitted by a stratified sampler: each batch contains m=2 source pairs with n=4 method-images per source pair (micro-batch size 8, effective batch size 16 via gradient-accumulation 2), which guarantees  n
+
+> 2
+
+·m = 12 within-source-pair pairs and m·n2 = 16 cross-source-pair pairs per micro-batch, so neither Lfid nor Lxfid is ever empty under uniform random sampling. 
+
+A.6 Full Main Results Table 
+
+Tab. 5 extends the main results table of Sec. 4.2 (Tab. 1) with the six remaining handcrafted IVIF metrics (SSIM, SD, SF, EN, SCD, AG). All cells use the same evaluation protocol as the main text. The extended handcrafted methods all attain SRCC below 0.21 – substantially weaker than Qabf, VIF, and MI shown in the main text – and do not change any qualitative claim about handcrafted-metric performance. 
+
+A.7 Inference Cost 
+
+The SRCC gain reported in Sec. 4.2 comes at a non-trivial inference cost relative to the in-domain ViT-L+MLP baseline. Tab. 6 measures per-image latency on a single NVIDIA A100-80G under batch size 1, fp16/bf16 native execution, with the first 10 forwards used as warmup before the timed window of 100 test images. The single-seed configuration incurs a 5.55 × wall-clock premium over ViT-L+MLP ( 276 .3 vs 49 .8 ms median), and the 3-seed ensemble adds a further 2.17 × to reach 599 .1 ms per image. The ensemble cost is sub-linear in seed count – 2.17 × rather than the naive 3× – because per-image data preparation (image load, processor invocation, device transfer) amortises across the three sequential adapter forwards rather than from any cross-adapter compute reuse; under each adapter the vision encoder and LM transformer fully re-execute. Decomposing the three measurements algebraically yields a per-image preparation cost of ∼ 115 ms and a per-forward LoRA cost of ∼ 162 ms, so the ensemble is 115 + 3 · 162 ≈ 601 ms, matching the observed 599 
+
+ms, whereas independent per-forward prep would give 3 · 276 = 828 ms. The LoRA wrapper itself adds a measurable but modest +79 ms over the bare Qwen3-VL-8B zero-shot path ( 276 .3 − 196 .9). At a per-SRCC-point cost premium of ∼ 2.7 ms per +0 .001 SRCC (single-seed vs ViT-L+MLP), 13 Table 5: Full score regression results on EVAFusion test (source-pair-disjoint split; n = 935 images, 
+
+85 source pairs). Bold marks the best in each column. “—” marks methods that emit a scalar quality estimate rather than a per-image quality distribution, so a comparable KL on the soft-Gaussian-over-levels target is undefined for them. The KL column reports KL( ppred ∥ pGT ) against the soft-Gaussian-over-levels target with σ from Eq. (5) ; for zero-shot baselines this is computed on each method’s emitted level distribution, while for both Ours rows it is computed by Gaussian-binning the predicted (ˆ μ, ˆσ) back to the same five-level support.                                                                                                                       
+
+> Method SRCC ↑PLCC ↑KRCC ↑PairAcc ↑Per-SP τ↑KL ↓
+> Handcrafted Qabf 0.344 0.356 0.250 0.695 0.332 —VIF 0.340 0.302 0.250 0.698 0.335 —MI 0.256 0.260 0.187 0.642 0.241 —SSIM 0.205 0.181 0.151 0.633 0.229 —SD 0.128 0.124 0.093 0.547 0.076 —SF 0.126 0.129 0.090 0.557 0.091 —EN 0.105 0.074 0.076 0.557 0.092 —SCD 0.099 0.147 0.071 0.595 0.162 —AG 0.081 0.077 0.056 0.544 0.071 —Zero-shot MUSIQ 0.066 0.079 0.050 0.554 0.092 —CLIP-IQA 0.110 0.120 0.080 0.560 0.099 —Qwen3-VL-8B 0.156 0.164 0.115 0.616 0.196 4.683 Q-Align 0.281 0.270 0.213 0.692 0.325 2.601 DeQA-Score 0.308 0.306 0.231 0.676 0.298 1.298 In-domain ViT-L+MLP 0.554 0.559 0.428 0.747 0.418 —Qwen3-VL-8B + LoRA-MSE 0.537 0.529 0.431 0.728 0.417 —
+> Ours Ours (single-seed) 0.637 0.640 0.494 0.767 0.451 0.297 Ours (3-seed ensemble) 0.648 0.650 0.504 0.776 0.467 0.291
+
+the trade-off is favourable for offline IQA where rank quality matters more than latency. Real-time deployment would call for a smaller MLLM backbone (e.g. Qwen3-VL-2B, Phi-3.5-vision) and we leave such a cost–quality study to future work. Table 6: Per-image inference latency on the EVAFusion test split ( n = 100 images, single NVIDIA A100-80G, batch size 1, fp16/bf16 native execution, 10 warmup forwards before timing). Lower is better. “Params” reports total loaded parameters including all attached adapters. Method Params (B) median (ms) ↓ p95 (ms) ↓ std (ms) Qwen3-VL-8B (zero-shot) 8.77 196.9 301.7 32.1 
+
+Ours (single-seed) 8.94 276.3 383.6 43.6 
+
+Ours (3-seed ensemble) 9.29 599.1 706.8 49.2 
+
+B Extended Ablation Studies 
+
+This appendix extends the loss-composition and δ-stratification ablations of Sec. 4.4 with: (i) full loss-grid and calibration tables including the σ-blind-PL diagnostic rows, (ii) the 11 -method version of the δ-stratified analysis, (iii) the alternative listwise scope (PL on the level distribution), (iv) the counterfactual SRCC ceiling, (v) the λ-sensitivity sweep, and (vi) the tertile boundary choice. 
+
+B.1 Full Loss-Composition Grid and σ-blind-PL Diagnostic 
+
+Tab. 7 extends the 3-row loss-composition panel of Tab. 4 with two single-seed diagnostic config-urations that stack a σ-blind Plackett–Luce listwise term on top of the σ-conflict base or our final composition. Tab. 8 reports the corresponding calibration and predicted-ˆσ statistics for all five cells. 
+
+σ-blind Plackett–Luce ranking inflates ˆσ and degrades calibration. Two configurations isolate the failure mode of σ-blind ranking on a σ-conflict-supervised model. First, replacing the σ-aware 14 Table 7: Full loss-composition ablation on EVAFusion test ( n = 935 images, 85 source pairs). Higher is better for all metrics. Columns match Tab. 1. Bold marks the best in each column. † single-seed result; remaining rows are 3-seed ensembles. ‡ the “Ours + σ-blind PL” row stacks an additional listwise term on top of our final composition; it is reported as a diagnostic rather than a clean grid cell.                                        
+
+> Method SRCC ↑PLCC ↑KRCC ↑PairAcc ↑Per-SP τ↑
+> σ-fixed (DeQA recipe) 0.6327 0.6390 0.4929 0.7798 0.4741
+> σ-conflict only 0.6337 0.6381 0.4919 0.7758 0.4671
+> σ-conflict +σ-blind PL †0.6397 0.6351 0.4989 0.7758 0.4701
+> Ours (σ-conflict +Lxfid )0.6477 0.6501 0.5039 0.7758 0.4671 Ours +σ-blind PL † ‡ 0.6427 0.6371 0.4999 0.7738 0.4641
+
+Table 8: Calibration and predicted-ˆσ statistics on EVAFusion test ( n = 935 ). ECE τ ∗ is the coverage ECE after a single-parameter τ ∗ rescaling fit on one 50% cal split (single-split variance ∼ 0.005 ). 
+
+ECE smooth and the oracle slope b∗ are averaged across 50 Monte-Carlo cal/test splits; b∗ → 0
+
+indicates that single-τ ∗ scaling is the optimal recalibrator. The last two columns report the mean of the predicted ˆσ and its Pearson correlation with the per-image dimensional conflict δi. Bold marks the best in each ECE column and the largest ρ(ˆ σi, δ i). † single-seed result; remaining rows are 3-seed ensembles. ‡ diagnostic row stacking a σ-blind listwise term on top of our final composition. External baselines do not predict ˆσ and are omitted.                                          
+
+> Method ECE τ∗↓ECE smooth ↓b∗ˆσmean ρ(ˆ σi, δ i)
+> σ-fixed (DeQA recipe) 0.021 0.018 +0 .59 0.644 −0.236
+> σ-conflict only 0.023 0.019 0.00 0.715 +0 .312
+> σ-conflict +σ-blind PL †0.018 0.025 +0 .30 0.772 +0 .362
+> Ours (σ-conflict +Lxfid )0.022 0.021 0.00 0.694 +0 .409
+> Ours +σ-blind PL † ‡ 0.032 0.027 +0 .53 0.815 +0 .358
+
+Thurstone term with a σ-blind Plackett–Luce listwise term on the same σ-conflict base regresses SRCC by −0.0080 (Tab. 7: 0.6477 → 0.6397 ). Second, stacking σ-blind PL on top of our final composition lowers SRCC by 0.0050 and substantially worsens calibration (Tab. 8: ECE τ ∗ 0.022 →
+
+0.032 , ECE smooth 0.021 → 0.027 ). The mechanism is consistent across both cells: the σ-blind listwise gradient broadens the predicted distribution to satisfy global rank ordering, inflating ˆσ’s mean by 0.06 –0.13 over the corresponding non-PL cell (reaching 0.82 in the diagnostic stack – the largest value in Tab. 8). Single-parameter recalibration cannot absorb this ˆσ-dependent inflation, which is why b∗ shifts from 0 to +0 .30 –+0 .53 and ECE smooth rises in both PL-augmented rows. The σ-aware Thurstone term, by contrast, leaves ˆσ’s mean within 0.04 of the σ-conflict-only configuration – the structural reason it preserves calibration where σ-blind ranking does not. σ-blind ranking therefore provides no calibration benefit on a σ-supervised base and actively hurts it. 
+
+B.2 Eleven-Method δ-Stratified Analysis 
+
+Tab. 9 reports per-tertile SRCC for all 11 scoring methods referenced in Sec. 4.4, extending the 
+
+4-row representative panel of Tab. 4 (right) with the remaining handcrafted statistics (VIF, MI), the zero-shot natural-image MLLM-IQA scorer Q-Align, and the four remaining loss-composition cells. The high-δ column exhibits the same data-side floor pattern claimed in the main text: SRCC across all 11 methods collapses into the band [0 .140 , 0.254] on this tertile. 
+
+B.3 Tertile Boundary Choice 
+
+The tertile boundaries used throughout the δ-stratification analysis ( δ ≤ 0.45 , 0.45 < δ ≤ 0.71 ,
+
+δ > 0.71 ) are computed once on the test set and reused across all rows of Tab. 9. The low boundary is 0.45 rather than the smallest possible non-zero std among integer sub-dim scores ( 0.433 ) so that images with one sub-dimension differing by one level land in the low tertile, yielding the reported 
+
+n = 468 /218 /249 split. We verified that perturbing the low boundary by ±0.02 shifts ≤ 8 images between low and mid tertiles and does not change any qualitative claim in Sec. 4.4. 15 Table 9: SRCC stratified by per-image dimensional conflict δi across 11 scoring methods on the EVAFusion test set ( n = 935 ). δi is the standard deviation of the four sub-dimension scores per image (§3.2); higher δi indicates greater dimensional disagreement. Tertile boundaries chosen as described in App. B.3, yielding n = 468 /218 /249 . Bold marks the best score per column across all 
+
+11 methods. † single-seed result; remaining ablation rows are 3-seed ensembles. ‡ diagnostic stack on top of our final composition.                                                             
+
+> Method low-δmid-δhigh-δoverall (n=468 )(n=218 )(n=249 )(n=935 )Handcrafted Qabf 0.353 0.269 0.180 0.344 VIF 0.352 0.366 0.197 0.340 MI 0.287 0.186 0.146 0.256 Zero-shot Q-Align 0.137 0.121 0.196 0.281 DeQA-Score 0.174 0.100 0.140 0.308 In-domain ViT-L+MLP 0.432 0.426 0.194 0.554 Loss-comp. ablation
+> σ-fixed (DeQA recipe) 0.566 0.597 0.254 0.633
+> σ-conflict only 0.571 0.601 0.242 0.634
+> σ-conflict +σ-blind PL †0.592 0.611 0.219 0.640
+> Ours (σ-conflict +Lxfid )0.573 0.624 0.206 0.648
+> Ours +σ-blind PL † ‡ 0.599 0.612 0.243 0.643
+
+B.4 Counterfactual SRCC Ceiling 
+
+The residual SRCC headroom not closed by our method is not entirely a model-side limitation: the high-δ tertile’s contribution is bounded above by the internal consistency of the human annotation itself. To quantify how much of the gap is bridgeable, we compute a counterfactual ceiling that holds the high-δ tertile at its empirical SRCC floor (the within-tertile rater-noise plateau, ≈ 0.21 
+
+across every cell of our grid) and replaces the low- and mid-δ within-tertile predictions with their respective oracle ranks before re-pooling SRCC over the full 935 -image test set. This places the achievable SRCC on EVAFusion test at approximately 0.78 , against which our model’s 0.6477 closes a substantial fraction of the bridgeable headroom over the strongest external baseline (ViT-L+MLP, 
+
+0.554 ). 
+
+B.5 Alternative Listwise Scope: PL on the Level Distribution 
+
+A natural alternative to placing the cross-source-pair Plackett–Luce listwise term on the scalar ˆμ
+
+readout is to apply it directly to the 5-way predicted level distribution p ∈ ∆4. We tested three weights for this variant ( λPL -dist ∈ { 0.05 , 0.1, 0.5}) within our training pipeline and observed a consistent rank-vs-KL trap. The listwise gradient on the level distribution pulls p toward shapes that maximise pairwise rank ordering, which conflicts directly with the soft-Gaussian KL supervision (§3.3) and substantially inflates the distribution-prediction loss. At λPL -dist = 0 .5 – a weight at which the scalar-readout listwise term already converges cleanly – SRCC drops by 0.035 from the corresponding no-listwise reference, mean KL inflates by ∼ 90% , and ECE rises by a factor of three. Lowering the weight to 0.1 or 0.05 recovers SRCC to within ±0.005 of that reference but yields no positive ranking gain. The cross-source-pair listwise term must therefore operate on the scalar ˆμ
+
+readout to avoid degrading the underlying distribution-prediction target – a structural constraint that motivates the formulation in Sec. 3.3. 
+
+B.6 Hyperparameter Sensitivity Sweep 
+
+We probe whether the submitted recipe ( λfid = 1 .0, λxfid = 0 .5, referenced in Sec. 4.4) sits at a local optimum or merely a plateau by sweeping each weight one-at-a-time around the reference cell while holding all other hyperparameters fixed (single seed 42 ). Tab. 10 reports the five resulting cells; the reference (L2) reuses the published seed 42 checkpoint without re-training, while L1, L3, L4, L5 are independently retrained with the indicated weight changed. The reference attains the highest SRCC ( 0.6366 ); the four neighbour cells regress by −0.0034 to −0.0132 SRCC, with 
+
+λfid exhibiting roughly 3× the sensitivity of λxfid (half-/double-step deltas −0.0132 / − 0.0109 vs 16 Table 10: One-at-a-time λ-sensitivity sweep around the submitted recipe (single seed 42 , n = 935 
+
+test images). L2 is the reference cell and reuses the published seed 42 checkpoint of Tab. 1; L1, L3, L4, L5 are independently retrained with the indicated weight changed. Higher is better for all metrics.                                             
+
+> Cell λfid λxfid SRCC ↑PLCC ↑KRCC ↑PairAcc ↑mean τ↑
+> L1 0.5 0.5 0.6234 0.6264 0.4834 0.7635 0.4489
+> L2 (ref) 1.0 0.5 0.6366 0.6395 0.4939 0.7665 0.4511 L3 2.0 0.5 0.6257 0.6292 0.4839 0.7770 0.4699
+> L4 1.0 0.25 0.6332 0.6369 0.4899 0.7677 0.4533 L5 1.0 1.0 0.6324 0.6349 0.4915 0.7698 0.4572
+
+Figure 4: Human expert annotation web tool. 
+
+−0.0034 / − 0.0042 ). The submitted hyperparameters are therefore at a local optimum on the λ axis under our single-dataset training protocol, and not a coincidental plateau pick. 
+
+C Expert Annotation Protocol 
+
+This appendix details the annotation protocol for the SemanticRT [ 9] 5-expert pilot benchmark used in Sec. 4.3 and the human-side validation of δi in Sec. 4.4. 
+
+C.1 Image Selection 
+
+We sample 100 source pairs from the public SemanticRT test split, ensuring coverage of the dataset’s primary scene categories: outdoor urban, indoor, low-light, and adverse-weather scenes. Each source pair is processed by all 11 fusion methods used in EVAFusion’s evaluation, yielding 1100 fused images. Method identity is stripped from filenames before annotation to prevent method-aware bias. 
+
+C.2 Expert Selection 
+
+Five domain experts were recruited, each meeting the following criteria: (i) a graduate-level back-ground in computer vision or image processing, (ii) at least ≥ 2 prior peer-reviewed publications on image fusion or related low-level vision tasks, (iii) familiarity with both infrared and visible imaging modalities. No expert had prior exposure to the specific Semantic RT images or to FuScore. Experts were compensated at standard rates per local institutional guidelines. 17 C.3 Rating Protocol 
+
+Each expert independently rated all 1100 fused images on both: (i) the four IVIF-specific sub-dimensions (thermal retention, texture preservation, artifacts, sharpness), and (ii) the overall fusion quality. All ratings used the same integer 1–5 Likert scale as EVAFusion. Ratings were collected through a custom web interface that displayed the IR source, visible source, and fused image side-by-side at full resolution, with the ability to zoom into any region. To minimize systematic biases: (i) the presentation order of fused images was randomised indepen-dently per expert, (ii) the four sub-dimension prompts were presented in randomised order per image, (iii) experts could not view or revise prior ratings during the session, and (iv) all annotations were completed across 2–3 sessions per expert with mandatory breaks to mitigate fatigue. 
+
+C.4 Calibration and Quality Control 
+
+Prior to formal annotation, each expert completed a calibration round on 10 held-out fused images (not included in the final 1100 ) drawn from a different source-pair distribution, with rubric-anchored example images for each quality level. We computed inter-rater Kendall’s W = 0 .65 on the final 1100 
+
+overall scores, indicating moderate-to-strong agreement consistent with established IVIF subjective benchmarks [13]. 
+
+C.5 Ground Truth Aggregation 
+
+The per-image GT for each metric is the arithmetic mean of the five expert ratings. The per-image inter-rater disagreement, used in Sec. 4.4, is the standard deviation of the five overall ratings, std 5(y).18 NeurIPS Paper Checklist 
+
+1. Claims 
+
+Question: Do the main claims made in the abstract and introduction accurately reflect the paper’s contributions and scope? Answer: [Yes] Justification: The abstract and Sec. 1 list three contributions (continuous MLLM scoring, sub-dimension-aware soft labels, tripartite objective), each empirically supported in Sec. 4.2– 4.4. Guidelines: • The answer [N/A] means that the abstract and introduction do not include the claims made in the paper. • The abstract and/or introduction should clearly state the claims made, including the contributions made in the paper and important assumptions and limitations. A [No] or [N/A] answer to this question will not be perceived well by the reviewers. • The claims made should match theoretical and experimental results, and reflect how much the results can be expected to generalize to other settings. • It is fine to include aspirational goals as motivation as long as it is clear that these goals are not attained by the paper. 2. Limitations 
+
+Question: Does the paper discuss the limitations of the work performed by the authors? Answer: [Yes] Justification: Limitations are discussed at the end of Sec. 5 (mean-only EVAFusion ratings prevent disentangling aggregation artefacts from rater ambiguity) and in App. A.7 (inference latency). Guidelines: • The answer [N/A] means that the paper has no limitation while the answer [No] means that the paper has limitations, but those are not discussed in the paper. • The authors are encouraged to create a separate “Limitations” section in their paper. • The paper should point out any strong assumptions and how robust the results are to violations of these assumptions (e.g., independence assumptions, noiseless settings, model well-specification, asymptotic approximations only holding locally). The authors should reflect on how these assumptions might be violated in practice and what the implications would be. • The authors should reflect on the scope of the claims made, e.g., if the approach was only tested on a few datasets or with a few runs. In general, empirical results often depend on implicit assumptions, which should be articulated. • The authors should reflect on the factors that influence the performance of the approach. For example, a facial recognition algorithm may perform poorly when image resolution is low or images are taken in low lighting. Or a speech-to-text system might not be used reliably to provide closed captions for online lectures because it fails to handle technical jargon. • The authors should discuss the computational efficiency of the proposed algorithms and how they scale with dataset size. • If applicable, the authors should discuss possible limitations of their approach to address problems of privacy and fairness. • While the authors might fear that complete honesty about limitations might be used by reviewers as grounds for rejection, a worse outcome might be that reviewers discover limitations that aren’t acknowledged in the paper. The authors should use their best judgment and recognize that individual actions in favor of transparency play an impor-tant role in developing norms that preserve the integrity of the community. Reviewers will be specifically instructed to not penalize honesty concerning limitations. 3. Theory assumptions and proofs 
+
+19 Question: For each theoretical result, does the paper provide the full set of assumptions and a complete (and correct) proof? Answer: [N/A] Justification: The paper does not include theoretical results or formal theorems; all equations are method definitions or elementary identities (e.g., the variance decomposition in Eq. 8). Guidelines: • The answer [N/A] means that the paper does not include theoretical results. • All the theorems, formulas, and proofs in the paper should be numbered and cross-referenced. • All assumptions should be clearly stated or referenced in the statement of any theorems. • The proofs can either appear in the main paper or the supplemental material, but if they appear in the supplemental material, the authors are encouraged to provide a short proof sketch to provide intuition. • Inversely, any informal proof provided in the core of the paper should be complemented by formal proofs provided in appendix or supplemental material. • Theorems and Lemmas that the proof relies upon should be properly referenced. 4. Experimental result reproducibility 
+
+Question: Does the paper fully disclose all the information needed to reproduce the main ex-perimental results of the paper to the extent that it affects the main claims and/or conclusions of the paper (regardless of whether the code and data are provided or not)? Answer: [Yes] Justification: Sec. 4.1 and App. A specify the source-pair-disjoint resplit (seed 42, 680/85/85), backbone, LoRA config, optimizer, batching, hardware, and all soft-label / loss hyperparameters. Guidelines: • The answer [N/A] means that the paper does not include experiments. • If the paper includes experiments, a [No] answer to this question will not be perceived well by the reviewers: Making the paper reproducible is important, regardless of whether the code and data are provided or not. • If the contribution is a dataset and/or model, the authors should describe the steps taken to make their results reproducible or verifiable. • Depending on the contribution, reproducibility can be accomplished in various ways. For example, if the contribution is a novel architecture, describing the architecture fully might suffice, or if the contribution is a specific model and empirical evaluation, it may be necessary to either make it possible for others to replicate the model with the same dataset, or provide access to the model. In general. releasing code and data is often one good way to accomplish this, but reproducibility can also be provided via detailed instructions for how to replicate the results, access to a hosted model (e.g., in the case of a large language model), releasing of a model checkpoint, or other means that are appropriate to the research performed. • While NeurIPS does not require releasing code, the conference does require all submis-sions to provide some reasonable avenue for reproducibility, which may depend on the nature of the contribution. For example (a) If the contribution is primarily a new algorithm, the paper should make it clear how to reproduce that algorithm. (b) If the contribution is primarily a new model architecture, the paper should describe the architecture clearly and fully. (c) If the contribution is a new model (e.g., a large language model), then there should either be a way to access this model for reproducing the results or a way to reproduce the model (e.g., with an open-source dataset or instructions for how to construct the dataset). (d) We recognize that reproducibility may be tricky in some cases, in which case authors are welcome to describe the particular way they provide for reproducibility. In the case of closed-source models, it may be that access to the model is limited in 20 some way (e.g., to registered users), but it should be possible for other researchers to have some path to reproducing or verifying the results. 5. Open access to data and code 
+
+Question: Does the paper provide open access to the data and code, with sufficient instruc-tions to faithfully reproduce the main experimental results, as described in supplemental material? Answer: [Yes] Justification: Justification: Anonymized code and the SemanticRT 5-expert pilot annotations are included in the supplementary material with a README; EVAFusion is publicly released by [13]. Guidelines: • The answer [N/A] means that paper does not include experiments requiring code. • Please see the NeurIPS code and data submission guidelines ( https://neurips.cc/ public/guides/CodeSubmissionPolicy ) for more details. • While we encourage the release of code and data, we understand that this might not be possible, so [No] is an acceptable answer. Papers cannot be rejected simply for not including code, unless this is central to the contribution (e.g., for a new open-source benchmark). • The instructions should contain the exact command and environment needed to run to reproduce the results. See the NeurIPS code and data submission guidelines ( https: //neurips.cc/public/guides/CodeSubmissionPolicy ) for more details. • The authors should provide instructions on data access and preparation, including how to access the raw data, preprocessed data, intermediate data, and generated data, etc. • The authors should provide scripts to reproduce all experimental results for the new proposed method and baselines. If only a subset of experiments are reproducible, they should state which ones are omitted from the script and why. • At submission time, to preserve anonymity, the authors should release anonymized versions (if applicable). • Providing as much information as possible in supplemental material (appended to the paper) is recommended, but including URLs to data and code is permitted. 6. Experimental setting/details 
+
+Question: Does the paper specify all the training and test details (e.g., data splits, hyperpa-rameters, how they were chosen, type of optimizer) necessary to understand the results? Answer: [Yes] Justification: Splits, optimizer, batching that guarantees non-empty within/cross-source-pair scopes, and metric definitions are given in Sec. 4.1 and App. A. Guidelines: • The answer [N/A] means that the paper does not include experiments. • The experimental setting should be presented in the core of the paper to a level of detail that is necessary to appreciate the results and make sense of them. • The full details can be provided either with the code, in appendix, or as supplemental material. 7. Experiment statistical significance 
+
+Question: Does the paper report error bars suitably and correctly defined or other appropriate information about the statistical significance of the experiments? Answer: [Yes] Justification: Headline gains are paired-bootstrap-significant ( p < 0.05 , nboot =2000 ); ensemble cells average three seeds {42 , 43 , 44 } and calibration ECE is averaged over 50 Monte-Carlo cal/test splits (App. A.4). Guidelines: • The answer [N/A] means that the paper does not include experiments. 21 • The authors should answer [Yes] if the results are accompanied by error bars, confidence intervals, or statistical significance tests, at least for the experiments that support the main claims of the paper. • The factors of variability that the error bars are capturing should be clearly stated (for example, train/test split, initialization, random drawing of some parameter, or overall run with given experimental conditions). • The method for calculating the error bars should be explained (closed form formula, call to a library function, bootstrap, etc.) • The assumptions made should be given (e.g., Normally distributed errors). • It should be clear whether the error bar is the standard deviation or the standard error of the mean. • It is OK to report 1-sigma error bars, but one should state it. The authors should preferably report a 2-sigma error bar than state that they have a 96% CI, if the hypothesis of Normality of errors is not verified. • For asymmetric distributions, the authors should be careful not to show in tables or figures symmetric error bars that would yield results that are out of range (e.g., negative error rates). • If error bars are reported in tables or plots, the authors should explain in the text how they were calculated and reference the corresponding figures or tables in the text. 8. Experiments compute resources 
+
+Question: For each experiment, does the paper provide sufficient information on the com-puter resources (type of compute workers, memory, time of execution) needed to reproduce the experiments? Answer: [Yes] Justification: Training (single A100-80G, bf16, 3 epochs) is specified in Sec. 4.1 / App. A; per-image inference latency on A100-80G is reported in Tab. 6 / App. A.7. Guidelines: • The answer [N/A] means that the paper does not include experiments. • The paper should indicate the type of compute workers CPU or GPU, internal cluster, or cloud provider, including relevant memory and storage. • The paper should provide the amount of compute required for each of the individual experimental runs as well as estimate the total compute. • The paper should disclose whether the full research project required more compute than the experiments reported in the paper (e.g., preliminary or failed experiments that didn’t make it into the paper). 9. Code of ethics 
+
+Question: Does the research conducted in the paper conform, in every respect, with the NeurIPS Code of Ethics https://neurips.cc/public/EthicsGuidelines ?Answer: [Yes] Justification: We have reviewed the NeurIPS Code of Ethics; the work uses public datasets plus an in-house quality-rating study on already-public images, with no PII or scraped content. Guidelines: • The answer [N/A] means that the authors have not reviewed the NeurIPS Code of Ethics. • If the authors answer [No], they should explain the special circumstances that require a deviation from the Code of Ethics. • The authors should make sure to preserve anonymity (e.g., if there is a special consid-eration due to laws or regulations in their jurisdiction). 10. Broader impacts 
+
+Question: Does the paper discuss both potential positive societal impacts and negative societal impacts of the work performed? 22 Answer: [N/A] Justification: [N/A] Guidelines: • The answer [N/A] means that there is no societal impact of the work performed. • If the authors answer [N/A] or [No], they should explain why their work has no societal impact or why the paper does not address societal impact. • Examples of negative societal impacts include potential malicious or unintended uses (e.g., disinformation, generating fake profiles, surveillance), fairness considerations (e.g., deployment of technologies that could make decisions that unfairly impact specific groups), privacy considerations, and security considerations. • The conference expects that many papers will be foundational research and not tied to particular applications, let alone deployments. However, if there is a direct path to any negative applications, the authors should point it out. For example, it is legitimate to point out that an improvement in the quality of generative models could be used to generate Deepfakes for disinformation. On the other hand, it is not needed to point out that a generic algorithm for optimizing neural networks could enable people to train models that generate Deepfakes faster. • The authors should consider possible harms that could arise when the technology is being used as intended and functioning correctly, harms that could arise when the technology is being used as intended but gives incorrect results, and harms following from (intentional or unintentional) misuse of the technology. • If there are negative societal impacts, the authors could also discuss possible mitigation strategies (e.g., gated release of models, providing defenses in addition to attacks, mechanisms for monitoring misuse, mechanisms to monitor how a system learns from feedback over time, improving the efficiency and accessibility of ML). 11. Safeguards 
+
+Question: Does the paper describe safeguards that have been put in place for responsible release of data or models that have a high risk for misuse (e.g., pre-trained language models, image generators, or scraped datasets)? Answer: [N/A] Justification: [N/A] Guidelines: • The answer [N/A] means that the paper poses no such risks. • Released models that have a high risk for misuse or dual-use should be released with necessary safeguards to allow for controlled use of the model, for example by requiring that users adhere to usage guidelines or restrictions to access the model or implementing safety filters. • Datasets that have been scraped from the Internet could pose safety risks. The authors should describe how they avoided releasing unsafe images. • We recognize that providing effective safeguards is challenging, and many papers do not require this, but we encourage authors to take this into account and make a best faith effort. 12. Licenses for existing assets 
+
+Question: Are the creators or original owners of assets (e.g., code, data, models), used in the paper, properly credited and are the license and terms of use explicitly mentioned and properly respected? Answer: [Yes] Justification: All assets (EVAFusion, SemanticRT, Qwen3-VL-8B, Q-Align, DeQA-Score, pyiqa) are cited at first mention with version pins and license names listed in App. A. Guidelines: • The answer [N/A] means that the paper does not use existing assets. • The authors should cite the original paper that produced the code package or dataset. 23 • The authors should state which version of the asset is used and, if possible, include a URL. • The name of the license (e.g., CC-BY 4.0) should be included for each asset. • For scraped data from a particular source (e.g., website), the copyright and terms of service of that source should be provided. • If assets are released, the license, copyright information, and terms of use in the package should be provided. For popular datasets, paperswithcode.com/datasets 
+
+has curated licenses for some datasets. Their licensing guide can help determine the license of a dataset. • For existing datasets that are re-packaged, both the original license and the license of the derived asset (if it has changed) should be provided. • If this information is not available online, the authors are encouraged to reach out to the asset’s creators. 13. New assets 
+
+Question: Are new assets introduced in the paper well documented and is the documentation provided alongside the assets? Answer: [Yes] Justification: The SemanticRT 5-expert pilot (1100 images, 5 raters, four sub-dimensions plus overall on the 1–5 scale, Kendall W =0 .65 ) is documented with rating instructions, raw per-rater scores, and a README in App. C. Guidelines: • The answer [N/A] means that the paper does not release new assets. • Researchers should communicate the details of the dataset/code/model as part of their submissions via structured templates. This includes details about training, license, limitations, etc. • The paper should discuss whether and how consent was obtained from people whose asset is used. • At submission time, remember to anonymize your assets (if applicable). You can either create an anonymized URL or include an anonymized zip file. 14. Crowdsourcing and research with human subjects 
+
+Question: For crowdsourcing experiments and research with human subjects, does the paper include the full text of instructions given to participants and screenshots, if applicable, as well as details about compensation (if any)? Answer: [Yes] Justification: Verbatim rater instructions, the rating UI screenshot, the 1–5 scale anchors, and compensation ( ≥ local minimum wage) are provided in App. C. Guidelines: • The answer [N/A] means that the paper does not involve crowdsourcing nor research with human subjects. • Including this information in the supplemental material is fine, but if the main contribu-tion of the paper involves human subjects, then as much detail as possible should be included in the main paper. • According to the NeurIPS Code of Ethics, workers involved in data collection, curation, or other labor should be paid at least the minimum wage in the country of the data collector. 15. Institutional review board (IRB) approvals or equivalent for research with human subjects 
+
+Question: Does the paper describe potential risks incurred by study participants, whether such risks were disclosed to the subjects, and whether Institutional Review Board (IRB) approvals (or an equivalent approval/review based on the requirements of your country or institution) were obtained? Answer: [Yes] 24 Justification: The protocol’s IRB-equivalent status (exempt classification, institution redacted for double-blind review) is documented in App. C. Guidelines: • The answer [N/A] means that the paper does not involve crowdsourcing nor research with human subjects. • Depending on the country in which research is conducted, IRB approval (or equivalent) may be required for any human subjects research. If you obtained IRB approval, you should clearly state this in the paper. • We recognize that the procedures for this may vary significantly between institutions and locations, and we expect authors to adhere to the NeurIPS Code of Ethics and the guidelines for their institution. • For initial submissions, do not include any information that would break anonymity (if applicable), such as the institution conducting the review. 16. Declaration of LLM usage 
+
+Question: Does the paper describe the usage of LLMs if it is an important, original, or non-standard component of the core methods in this research? Note that if the LLM is used only for writing, editing, or formatting purposes and does not impact the core methodology, scientific rigor, or originality of the research, declaration is not required. Answer: [Yes] Justification: The core method fine-tunes Qwen3-VL-8B-Instruct as the perceptual scorer with token-decoding probabilities as the supervised distribution (Sec. 3.1, Sec. 4.1, App. A); LLMs were not used for writing or formatting. Guidelines: • The answer [N/A] means that the core method development in this research does not involve LLMs as any important, original, or non-standard components. • Please refer to our LLM policy in the NeurIPS handbook for what should or should not be described. 25

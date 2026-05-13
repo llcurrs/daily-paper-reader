@@ -1,0 +1,1680 @@
+Title: Type of the Paper (Article
+
+URL Source: https://arxiv.org/pdf/2605.08592v1
+
+Published Time: Tue, 12 May 2026 00:28:00 GMT
+
+Number of Pages: 22
+
+Markdown Content:
+Article 
+
+# Cross -Modal RGB -D Fusion Transformer for 6D Pose Estima-
+
+# tion of Non -Cooperative Spacecraft with Stereo -Derived Depth 
+
+Yongliang Zhen  1, † , Bo LÜ  2, † , Hang  Yang  2, and  Xiaotian WU  1, *      
+
+> 1School of Physics, Northeast Normal University, Changchun 130024, China; zhenyongli-
+> ang326@nenu.edu.cn (Y.Z.); wuxiaotian@nenu.edu.cn (X.W. ).
+> 2Changchun Institute of Optics, Fine Mechanics and Physics, Chinese Academy of Science, Changchun
+> 130033, China; lvbo@ciomp.ac.cn (B.L.); yanghang@ciomp.ac.cn (H.Y.) .
+> *Correspondence: wuxiaotian@nenu.edu.cn (X.W.)
+> †These authors contributed equally to this work.
+
+Abstract 
+
+On -orbit servicing and active debris removal involving non -cooperative spacecraft re-
+
+quire reliable pose estimation to supply accurate position and orientation data for auton-
+
+omous visual navigation. Learning -based monocular methods have seen widespread 
+
+adop tion in spacecraft pose estimation, yet they suffer from an intrinsic depth ambiguity 
+
+problem and tend to fail under the harsh illumination conditions routinely encountered 
+
+in orbit.  Active depth sensors could in principle address the geometric ambiguity, but 
+
+their power and mass requirements make them poorly suited to most spacecraft platforms. 
+
+This  work  addresses these issues through a passive stereo vision framework for six -de-
+
+gree -of -freedom (6 -DOF) pose estimation of non -cooperative spacecraft. A binocular ste-
+
+reo matching network called TSCA -Stereo is developed to cope with weak -texture sur-
+
+faces, specu lar highlights, and severe lighting variations typical of space imagery. A cross -
+
+modal fusion Transformer is introduced to combine RGB appearance information with 
+
+stereo depth features in an adaptive manner, supporting reliable pose recovery. A syn-
+
+thetic binocular multimodal dataset is also built for the experiments, covering stereo dis-
+
+parity maps and 6 -DOF pose annotations across a range of illumination scenarios, attitude 
+
+configurations, and noise levels. Experimental results show that TSCA -Stereo outper-
+
+forms the baseline across every evaluated metric on this space -specific dataset. Th e full 
+
+pose estimation pipeline achieves a mean translation error of 0.0419 m and a mean orien-
+
+tation error of 0.8632° under varied imaging conditions, confirming that the passive stereo 
+
+approach is both effective and resilient when operating under the dema nding visual con-
+
+ditions of the space environment. 
+
+Keywords:  Non -cooperative spacecraft; 6 -DOF pose estimation; Binocular stereo match-
+
+ing; Cross -modal feature fusion; Autonomous proximity operations 
+
+# 1. Introduction 
+
+The growing demand for on -orbit servicing, active space debris removal, and close -
+
+range autonomous rendezvous and docking has imposed increasingly stringent require-
+
+ments on spacecraft visual autonomous navigation  [1,2]. The targets involved in such mis-
+
+sions are typically non -cooperative spacecraft that lack artificial fiducial markers and may 
+
+be in uncontrolled tumbling states, rendering real -time ground -based teleoperation 2 of 22 
+
+infeasible  [3]. Consequently, the onboard perception system must autonomously and ac-
+
+curately estimate the six -degree -of -freedom (6 -DOF) relative pose of the target spacecraft, 
+
+providing high -quality position and attitude observations to downstream filtering and 
+
+control modules  [4].
+
+In terms of sensor selection, several competing approaches exist for 6 -DOF pose esti-
+
+mation. LiDAR provides direct geometric measurements; however, its relatively high 
+
+power and mass requirements pose challenges for deployment on small -scale or resource -
+
+con strained spacecraft platforms  [5]. Monocular cameras remain a popular choice due to 
+
+their minimal SWaP (Size, Weight, and Power) footprint, as demonstrated by the DLR 
+
+AVANTI experiment  [6] and the NASA Seeker free -flying inspector  [7].
+
+Deep learning has pushed monocular methods to competitive accuracy on estab-
+
+lished benchmarks  [8,9], yet a single camera offers no direct route to metric scale and 
+
+forces all geometric reasoning onto appearance -based features drawn from one viewpoint. 
+
+Low Earth orbit makes this reliance costly. Direct solar flux, Earth albedo, and abrupt 
+
+eclipse transit ions frequently push frames into saturation or near -total darkness, and em-
+
+pirical results show that pose accuracy drops sharply under such conditions, with the 
+
+worst errors occurring near zero illumination  [10 ]. A second, non -appearance source of 
+
+geometric information is therefore needed. Passive binocular stereo fits this need and 
+
+stays within the SWaP budget of most spacecraft: from a calibrated pair, epipolar geome-
+
+try yields dense metric depth, which is stati stically unlike RGB texture. When the two 
+
+modalities are fused, RGB carries appearance detail that depth cannot represent, while 
+
+stereo depth preserves geometric structure when appearance breaks down. 
+
+Despite this promise, applying passive stereo to non -cooperative spacecraft pose es-
+
+timation raises several challenges that prior work has not fully resolved. Conventional 
+
+stereo matching relies on photometric cost functions that break down  break down in con-
+
+ditions typical of space imagery , namely texture -poor surfaces, specular highlights, and 
+
+extreme lighting. Beyond matching, stereo depth and RGB appearance are fundamentally 
+
+different in their statistical structure, and fusing them effectively into a cohe rent pose es-
+
+timate remains an open problem in cross -modal perception. Compounding both issues, 
+
+the leading spacecraft benchmark datasets, SPEED  [11 ], SPEED+  [12 ], and SwissCube  [13 ],
+
+contain only monocular imagery and lack stereo disparity or dense depth annotations, 
+
+leaving multimodal methods without a suitable evaluation platform. 
+
+This paper addresses the above challenges through a modular 6 -DOF pose estimation 
+
+pipeline for non -cooperative spacecraft that pairs an improved stereo matching network 
+
+with an efficient cross -modal fusion Transformer.  We make the following four contribu-
+
+tions:  First, we propose TSCA -Stereo, a stereo matching network in which attention mech-
+
+anisms are introduced at both the 2D feature extraction and 3D cost aggregation stages, 
+
+leading to more robust disparity estimation under the challenging imaging condition s
+
+typical of space scenarios.  Second , we design an Efficient Cross -modal Fusion Trans-
+
+former based on a linear -complexity additive attention mechanism, enabling bidirectional 
+
+fusion between RGB appearance features and stereo -derived point cloud geometry. Third, 
+
+we construct  a synthetic binocular multimodal dataset for space non -cooperative targets, 
+
+rendered with a physically -based engine and covering diverse illumination conditions, 
+
+attitude variations, and noise levels, with both disparity annotations and a ccurate 6 -DOF 
+
+pose labels. Fourth, TSCA -Stereo achieves state -of -the -art accuracy on standard stereo 
+
+benchmarks, and the full pipeline yields a mean translation error of 0.0419 m and a mean 
+
+rotation error of 0.8632° on the proposed dataset. 
+
+The remainder of this paper is organized as follows.  Section 2 reviews related work 
+
+on spacecraft pose estimation, stereo matching, and Transformer -based pose estimation 3 of 22 
+
+methods.  Section  3 details the proposed framework architecture. Section 4 describes the 
+
+dataset construction. Section 5 presents experimental results and ablation studies. Section 
+
+6 concludes the paper. 
+
+# 2. Related Work 
+
+2.1 . Learning -based Spacecraft Pose Estimation 
+
+Over the past decade, learning -based approaches have fundamentally changed how 
+
+spacecraft pose estimation is approached, steadily pushing aside classical geometry -
+
+driven pipelines on both accuracy and scalability fronts. The dominant design pattern 
+
+splits  the problem into two sequential stages, handling target detection and pose recovery 
+
+separately. Among the earlier efforts in this direction, Sharma et al.  [14 ] paired Faster R -
+
+CNN for spacecraft localization with geometric constraints to resolve the final pose. Park 
+
+et al.  [15 ] later extended this line of work through SPNv2, a multi -scale multi -task archi-
+
+tecture that folds detection, keypoint localization, and pose regression into a shared train-
+
+ing objective, with measurable gains in cross -domain generalization. A separate thread  of 
+
+research connects keypoint regression to the Perspective -n-Point solver to recover the full 
+
+6-DOF transform  [12 ], achieving competitive scores on benchmarks such as SPEED. End -
+
+to -end formulations have also attracted sustained attention: URSONet  [16 ] regresses 
+
+translation directly while treating orientation as a classification task over discretized angle 
+
+bins, and E -PoseNet  [17 ] builds equivariant convolutions into the backbone to preserve 
+
+geometric consistency as viewpoint varies. Under well -controlled laboratory -style imag-
+
+ing, these methods perform reliably. Their shared weakness surfaces in the orbital envi-
+
+ronment, where overex posed highlights, deep cast shadows, and near -featureless surface 
+
+patches tend to appear together. In the absence of explicit depth measurements, scale re-
+
+covery falls back entirely on statistical priors absorbed during training, and those priors 
+
+tend to br eak down precisely where the imaging conditions deviate most from the train-
+
+ing distribution.  These systematic deficiencies of monocular RGB representations provide 
+
+the core motivation for incorporating stereo -derived depth geometry, whose explicit met-
+
+ric s cale and complementary geometric content, when fused with RGB appearance fea-
+
+tures under the global modeling capacity of the Transformer, offers a principled path to-
+
+ward more robust pose estimation for non -cooperative spacecraft. 
+
+2.2 . Stereo Matching 
+
+Stereo matching methods recover disparity by constructing and processing matching 
+
+cost volumes, and can be broadly categorized into cost -volume filtering methods and it-
+
+erative optimization methods. In the cost -volume filtering paradigm, PSMNet  [18 ] em-
+
+ploys a stacked hourglass 3D convolutional network for multi -scale cost regularization; 
+
+GwcNet  [19 ] introduces grouped correlation volumes that retain channel -wise structural 
+
+information to enhance matching discriminability; ACVNet  [20 ] further incorporates at-
+
+tention -based suppression of unreliable matching candidates; PCW -Net  [21 ] combines 
+
+pyramid features with warping -based volume construction for improved multi -scale ro-
+
+bustness; CFNet  [22 ] fuses multi -resolution cost volumes with variance -based uncertainty 
+
+estimation to dynamically adapt the disparity search range; and LEAStereo  [23 ] applies 
+
+neural architecture search to automatically discover optimal feature extraction and cost 
+
+aggregation structures with embedded geometric priors. More recently, iterative optimi-
+
+zation methods have achieved state -of -the -art performance by constructing  a global all -
+
+pairs correlation volume and iteratively refining the disparity field via a ConvGRU: 
+
+RAFT -Stereo  [24 ] pioneered this paradigm with a lightweight correlation pyramid and 
+
+multi -resolution ConvGRU; CREStereo  [25 ] introduces adaptive grouped correlation 4 of 22 
+
+layers for coarse -to -fine refinement; and IGEV -Stereo  [26 ] constructs a joint geometric en-
+
+coding volume that incorporates both geometric and contextual information for more ro-
+
+bust matching.  That said, the specific conditions encountered when imaging non -cooper-
+
+ative spacecraft introduce a set of challenges that standard stereo matching struggles to 
+
+handle well: surfaces are often textureless or specularly reflective, structural features tend 
+
+to be fine and sparse, and partial occlusions arise frequently during proximity operations. 
+
+Each of these factors individually degrades disparity reliability, and in practice they tend 
+
+to co -occur .
+
+2.3 . Transformer -based Methods in Pose Estimation 
+
+The self -attention mechanism equips Transformer architectures with a capacity for 
+
+modeling long -range spatial relationships that conventional convolution cannot easily 
+
+replicate, and this property has drawn growing interest in the 6D pose estimation com-
+
+mun ity over recent years. Unlike CNN -based approaches, which aggregate features 
+
+through locally constrained receptive fields, Transformer -based methods have shown 
+
+greater resilience when faced with cluttered backgrounds, partial occlusions, or objects 
+
+with sy mmetric geometries. Several research directions have emerged around combining 
+
+Transformers with geometric priors or multi -scale feature hierarchies. TransPose  [27 ] em-
+
+beds a geometry -aware Transformer encoder to strengthen relational reasoning across 
+
+spatially separated feature tokens. SwinDePose  [28 ] adapts the hierarchical Swin Trans-
+
+former to depth -image -based pose estimation, exploiting the structural regularity of geo-
+
+metric depth cues within a windowed attention scheme. Trans6D  [29 ] pursues a hybrid 
+
+strategy that integrates a Transformer encoder with a CNN backbone, retaining local fea-
+
+ture efficiency while extending the model's global receptive field. However, certain limi-
+
+tations remain across these methods. First, standard dot -produc t self -attention scales 
+
+quadratically with sequence length, making it difficult to achieve both high accuracy and 
+
+real -time throughput on high -resolution inputs. Second, these methods are designed 
+
+around single -modal inputs and do not adequately exploit th e complementary nature of 
+
+RGB appearance information and depth geometric features, which becomes a particularly 
+
+costly oversight under the extreme and unpredictable illumination conditions found in 
+
+space environments. To address both issues, we introduce a  context -aware cross -modal 
+
+lightweight Transformer that achieves linear computational complexity in sequence 
+
+length and employs a bidirectional cross -modal attention mechanism that explicitly cou-
+
+ples stereo -derived depth features with RGB appearance repres entations. 
+
+# 3.  Method 
+
+3.1 . Overview 
+
+We propose a stereo vision -based framework for 6D pose estimation of non -cooper-
+
+ative spacecraft, as illustrated in Fig. 1.  The 6D pose is parameterized as a rotation matrix 
+
+𝑅  ∈ 𝑆𝑂  (3)  and a translation vector  𝑡  ∈ ℝ3, representing the rigid transformation from the 
+
+object coordinate system to the camera coordinate system. Specifically,  a dense depth map 
+
+is first estimated from a rectified stereo image pair via the TSCA -Stereo network and back -
+
+projected into a 3D point cloud. The point cloud and the left RGB image are then fed into 
+
+a dual -branch feature extraction network for cross -modal f eature fusion, followed by a 
+
+keypoint detection module and an instance semantic segmentation module to predict the 
+
+target keypoints in the camera coordinate system. Finally, the 6D pose is recovered using 
+
+a least -squares fitting algorithm. 5 of 22   
+
+> Figure 1.Overall architecture of the proposed stereo vision -based 6 -DOF pose estimation frame-
+> work for non -cooperative spacecraft.
+
+3.2. TSCA -Stereo 
+
+The overall architecture of the proposed TSCA -Stereo network is illustrated in Figure 
+
+2. The network takes a rectified stereo image pair as input and processes the image pair 
+
+through a shared Feature Network to extract multi -scale features. The Context Net work 
+
+provides multi -scale contextual features to initialize and update the ConvGRU -based it-
+
+erative updater. An All -pairs Correlation volume is constructed from the extracted fea-
+
+tures and processed by the improved 3D Regularization Network to produce the Ge ome-
+
+try Encoding Volume (GEV). The iterative update module refines the disparity field pro-
+
+gressively, yielding the final dense disparity map.   
+
+> Figure 2.Overall architecture of the proposed TSCA -Stereo binocular stereo matching network.
+
+3. 2.1. Context Network with Triplet Attention 
+
+The context network is designed to extract multi -scale contextual features for initial-
+
+izing and updating the hidden states of the ConvGRU -based iterative update operator. 
+
+Following the design of RAFT -Stereo, the backbone network is constructed by alternate ly 
+
+stacking residual blocks and downsampling layers, generating 128 -channel contextual 
+
+features at three different scales: 1/4, 1/8, and 1/16 of the input resolution. However, in 
+
+challenging scenarios such as texture -less regions, reflective surfaces, and  repetitive struc-
+
+tures, the contextual features extracted by standard residual blocks lack cross -dimensional 
+
+interaction capability, which limits their capacity to suppress matching ambiguities dur-
+
+ing iterative disparity refinement.  The structure of the Triplet Attention module is illus-
+
+trated in Figure 3. 6 of 22   
+
+> Figure 3.Schematic structure of the Triplet Attention (TA) module.
+
+To mitigate this limitation, we augment the context network by incorporating a Tri-
+
+plet Attention (TA)  [30 ] module between the residual blocks and the subsequent 
+
+downsampling operation at each resolution scale. For the i -th scale, where  𝑖  ∈ {1,2,3}cor-
+
+responds to input resolutions of 1/4, 1/8, and 1/ 16,  the feature extraction process is formu-
+
+lated as: Eq. (1) and Eq. (2): 
+
+𝐹 ̄𝑖  = 𝑅𝑒𝑠𝐵𝑙𝑜𝑐𝑘 (𝐷𝑜𝑤𝑛 (𝐹 𝑖 -1)) (1) 
+
+𝑇 𝑖  = 𝑇𝐴 (𝐹 ̄𝑖 ) = 1 
+
+> 3
+
+(𝑦 1 + 𝑦 2 + 𝑦 3) (2) 
+
+# Where  Down (⋅)denotes the downsampling operation with stride 2,  𝐹 ̄𝑖  is the intermediate fea-
+
+ture output by the residual block, and  𝑇 𝑖  is the contextual feature refined by the TA mod-
+
+ule.  y1, y2, and  y3 each denote the weighted output of its corresponding branch.  
+
+> Figure 4 .Feature extraction pipeline of the context network with integrated Triplet Attention mod-
+> ules.
+
+The TA module leverages rotation operations and Z -Pool to model cross -dimensional 
+
+interactions across the  (C, H ), (C, W ) and  (H, W ) subspaces of  𝐹 ̄𝑖  via three parallel branches, 
+
+without incurring any channel dimensionality reduction. The outputs of the three 
+
+branches are aggregated by average pooling to produce the attention -enhanced feature 
+
+representation  𝑇 𝑖  . The resulting multi -scale contextual features  {𝑇 𝑖 }𝑖 =1 
+
+> 3
+
+are employed to 
+
+initialize the hidden states of the three -level ConvGRU and are injected into the network 
+
+at each iterative update step, thereby supplying richer spatial and channel -wise contextual 
+
+cues for disparity estimation in challenging or ambiguous  regions.  The overall feature ex-
+
+traction pipeline of the context network is illustrated in Figure 4. 
+
+3. 2.2 . Spatial and Efficient Channel Attention Module 7 of 22 
+
+The overall architecture of the SECA module is illustrated in Figure  5. The module 
+
+comprises two parallel branches: an efficient channel attention branch and a multi -scale 
+
+spatial attention branch, whose outputs are subsequently integrated via feature fusion. 
+
+Given an input feature map  𝑋  ∈ ℝ𝐷 ×𝐻 ×𝑊 , it is first fed into the Efficient Channel Atten-
+
+tion (ECA) sub -module  [31 ], which captures inter -channel dependencies via lightweight 
+
+local cross -channel interactions, thereby mitigating the parameter redundancy inherent in 
+
+the fully connected layers of conventional channel attention mechanisms. This yields the 
+
+globally channel -enhanced feature 𝑋 𝐸𝐶𝐴 , as defined in Eq. (3): 
+
+𝑋 𝐸𝐶𝐴  = 𝐹 𝐸𝐶𝐴 (𝑋 ) (3) 
+
+Simultaneously, the input feature map X undergoes multi -scale feature extraction 
+
+through three parallel convolutional branches with kernel sizes of  3×3×3  , 5×5×5  and 
+
+1×1×1 , yielding output features  𝑋 𝑞 , 𝑋 𝑘 , and  𝑋 𝑣 , as formulated in Eq. (4): 
+
+𝑋 𝑖  = 𝐾 𝑖  ⊗ 𝑋 , 𝑖  = 𝑞 , 𝑘 , 𝜈  (4)  
+
+> Figure 5 .Overall architecture of the Spatial and Efficient Channel Attention (SECA) module.
+
+Where  ⨂ denotes the convolution operation and  Ki corresponds to the convolutional 
+
+kernel of each branch, with all three branches maintaining the same number of output 
+
+channels.  𝑋 𝑞  employs a  3×3×3  kernel to extract fine -grained local features, while  𝑋 𝑘 
+
+employs a  5×5×5  kernel to expand the receptive field and encode richer contextual infor-
+
+mation; their complementary interaction enables effective multi -scale feature representa-
+
+tion.  𝑋 𝑣  employs a  1×1×1  kernel for feature projection, preserving information fidelity 
+
+while enabling cross -channel transformation. Subsequently, an element -wise product be-
+
+tween  𝑋 𝑞  and  𝑋 𝑘  is computed to derive spatially -aware attention weights, as shown in 
+
+Eq. (5): 
+
+𝑈  = 𝑋 𝑞  ⋅ 𝑋 𝑘 , 𝑈  ∈ ℝ𝐷 ×𝐻 ×𝑊  (5) 
+
+The fused feature map  𝑈  is then flattened into a one -dimensional vector 𝑠  ∈ ℝ𝐿 ×1,
+
+where 𝐿  = 𝐷  × 𝐻  × 𝑊 , as defined in Eq. (6): 
+
+𝑆  = ℱ𝐸  (𝑈 ) (6) 
+
+Each element of  𝑆  encodes the spatial saliency of its corresponding location in the 
+
+original feature map. After softmax normalization, the attention weight for each position 
+
+is obtained, as shown in Eq. (7): 
+
+𝑇  = ℱ𝑆 (𝑆 ) (7) 8 of 22 
+
+The one -dimensional weight vector T is then reshaped into a three -dimensional 
+
+weight matrix  𝑤  ∈ ℝ𝐷 ×𝐻 ×𝑊  consistent with the dimensions of the input  X,  as defined in 
+
+Eq. (8): 
+
+𝑊  = ℱ𝑅 (𝑇 ) (8) 
+
+The spatial attention weight matrix W is then element -wise multiplied with the value 
+
+branch feature  Xv to achieve adaptive spatial weighting, as shown in Eq. (9): 
+
+𝑋 𝑎𝑡𝑡𝑛  = 𝑊  ⊗ 𝑋 𝜈  (9) 
+
+Finally, the spatially weighted feature  𝑋 𝑎𝑡𝑡𝑛  and the channel attention feature  𝑋 𝐸𝐶𝐴  are 
+
+concatenated along the channel dimension, followed by instance normalization and chan-
+
+nel -wise feature aggregation via a  1×1×1  convolutional layer, yielding the final feature 
+
+representation V, as defined in Eq. (10): 
+
+𝑉  = 𝐹 𝑐𝑜𝑛𝜈 (𝐹 𝐶𝑁 (𝑋 𝑎𝑡𝑡𝑛 , 𝑋 𝐸𝐶𝐴 )) (10) 
+
+It is worth noting that all convolutional operations within the SECA module employ 
+
+ReLU as the nonlinear activation function, ensuring consistent gradient flow throughout 
+
+the attention branches. 
+
+3. 2.3 . Improved 3D Regularization Network 
+
+The original IGEV -Stereo uses a lightweight 3D UNet as the regularization network 
+
+R, consisting of three symmetric encoder -decoder blocks connected by skip connections. 
+
+It aggregates the correlation cost volume  𝐶 𝑐𝑜𝑟𝑟  into a geometry encoding volume 𝐶 𝐺  , as 
+
+defined in Eq. (11) :
+
+𝐶 𝐺  = 𝑅 (𝐶 𝑐𝑜𝑟𝑟  ) (11) 
+
+However, standard 3D convolutions lack the capacity for adaptive modeling of spa-
+
+tial saliency and inter -channel dependencies, rendering them susceptible to noise and 
+
+matching ambiguity in occluded, textureless, or repetitive regions. To address these short-
+
+comings, we introduce two targeted modifications to the regularization network. First, 
+
+standard 3D convolutions in the encoder blocks are replaced by depthwise separable 3D 
+
+convolutions to reduce computational cost while maintaining comparable receptive fi elds. 
+
+Second, SECA modules are inserted into each encoder and decoder block for adaptive 
+
+spatial and channel attention refinement. 
+
+The improved network architecture is illustrated in Figure 6, with the encoder and 
+
+decoder operations formally expressed in Eq. (12) and Eq. (13), respectively: 
+
+𝐸 𝑗  = 𝑆𝐸𝐶𝐴 (𝐷𝑊𝐶𝑜𝑛𝜈 (𝐸 𝑗 −1)) (12) 
+
+𝐷 𝑗  = 𝑆𝐸𝐶𝐴 (𝐶𝑜𝑛𝑐𝑎𝑡 (𝑈𝑃𝐶𝑜𝑛𝑣 (𝐷 𝑗 −1), 𝐸 3−𝑗 +1)) (13) 
+
+Where  𝐸 𝑗  denotes the output of the j -th encoder block, with  𝐸 0 = 𝐶 𝑐𝑜𝑟𝑟  as the input cost 
+
+volume;  𝐷 𝑗  denotes the output of the j -th decoder block;  𝐷𝑊𝐶𝑜𝑛𝑣 (⋅)denotes depthwise 
+
+separable 3D convolution;  𝑈𝑃𝐶𝑜𝑛𝑣 (⋅) denotes 3D transposed convolution;  𝐸 3−𝑗 +1 de-
+
+notes the skip -connection feature from the corresponding encoder layer. 
+
+In the encoder, SECA suppresses unreliable channels and emphasizes geometrically 
+
+consistent matching positions. In the decoder, SECA sharpens boundary and fine -struc-
+
+ture details following skip -connection fusion, thereby alleviating the over -smoothing ar-
+
+tif acts in  𝐶 𝐺  .9 of 22  
+
+> Figure 6 .Architecture of the improved 3D regularization network with depthwise separable convo-
+> lutions and SECA modules.
+
+The refined network produces an improved geometry encoding volume  CG, which 
+
+is subsequently fused with the global correlation volume  CA to construct the joint geom-
+
+etry encoding volume, thereby supplying higher -quality matching priors for the Con-
+
+vGRU -based iterative updater. 
+
+3.3 . Multimodal -based Pose Estimation 
+
+3.3.1 . Efficient Cross -modal Fusion Transformer 
+
+To effectively bridge the representational heterogeneity between RGB images and 
+
+point cloud data and establish dense cross -modal semantic correspondences, we propose 
+
+the Efficient Cross -modal Fusion Transformer (ECFT) module. As illustrated in Figure 7, 
+
+th e ECFT module comprises three core components: the Efficient Cross -modal Additive 
+
+Attention (ECAA) module, the Gated Feed -Forward Network (GFFN), and the Aug-
+
+mented Shortcut Connection. The module performs bidirectional fusion of CNN -ex-
+
+tracted RGB features  and point -cloud -network -extracted geometric features, as formally 
+
+expressed in Eq. (14): 
+
+𝐹 𝑝 
+
+> 𝑓𝑢𝑠𝑖𝑜𝑛
+
+, 𝐹 𝑟  
+
+> 𝑓𝑢𝑠𝑖𝑜𝑛
+
+= 𝐸𝐶𝐹𝑇 (𝐹 𝑝 , 𝐹 𝑟 ) (14) 
+
+Where  𝐹 𝑟  denotes the RGB image features extracted by the CNN, and  𝐹 𝑝  denotes the ge-
+
+ometric features extracted by the point cloud network , while  𝐹 𝑟  
+
+> 𝑓𝑢𝑠𝑖𝑜𝑛
+
+and  𝐹 𝑝  
+
+> 𝑓𝑢𝑠𝑖𝑜𝑛
+
+repre-
+
+sent the corresponding modality -enhanced features obtained after cross -modal fusion. 10 of 22 
+
+Figure 7 . Detailed architecture of the Efficient Cross -modal Fusion Transformer (ECFT) module. 
+
+Efficient Cross -modal Additive Attention.  Standard dot -product attention incurs 
+
+𝑂 (𝑁 2) computational complexity, which imposes substantial overhead when processing 
+
+high -resolution feature maps. Inspired by SwiftFormer  [32 ], we eliminate the explicit key -
+
+value interaction matrix and replace it with a lightweight additive formulation that re-
+
+duces complexity to  𝑂 (𝑁 ) while preserving feature expressiveness. 
+
+Given the bidirectionally symmetric architecture of the fusion module, we elaborate 
+
+the fusion process using the point -cloud -to -RGB direction as a representative example. 
+
+The ECFT module first projects the input feature pair  (Fp , Fr) into query and key vectors 
+
+as defined in Eq. (15): 
+
+𝑄 𝑟  = 𝐹 𝑟 𝑊 𝑄 
+
+> 𝑟
+
+, 𝐾 𝑝  = 𝐹 𝑝 𝑊 𝐾  
+
+> 𝑝
+
+(15) 
+
+Where  𝑊 𝑄  
+
+> 𝑟
+
+, 𝑊 𝐾  
+
+> 𝑝
+
+∈ ℝ𝑑 ×𝑑  are learnable projection matrices, and  𝑄 𝑟  , 𝐾 𝑝  ∈ ℝ𝑛 ×𝑑  , where n is 
+
+the token sequence length and d is the embedding dimension. The per -token attention 
+
+weight is subsequently computed by multiplying the query matrix  𝑄 𝑟  with a learnable 
+
+parameter vector  𝑙 𝑔  
+
+> 𝑟
+
+∈ ℝ𝑑  , yielding a weight vector  𝑔 𝑟  ∈ ℝ𝑛 ×1 as defined in Eq. ( 16 ): 
+
+𝑔 𝑟  = 𝑄 𝑟  ⋅ 𝑙 𝑔  
+
+> 𝑟
+
+/√𝑑  (16) 
+
+The query matrix  𝑄 𝑟  is then aggregated according to the computed attention 
+
+weights  𝑔 𝑟  via weighted pooling to produce a compact global query vector  𝑞 𝑟  ∈ ℝ𝑑  as 
+
+expressed in Eq. ( 17 ): 
+
+𝑞 𝑟  = ∑ 𝑔 𝑟  
+
+> 𝑖 𝑛
+> 𝑖 =1
+
+∗ 𝑄 𝑟  
+
+> 𝑖
+
+(17) 
+
+The output of the ECAA module is obtained by element -wise multiplication of  𝐾 𝑝 
+
+and  𝑞 𝑟  followed by a linear transformation  𝑇 , where  𝑄 ̂𝑟 denotes the normalized query 
+
+matrix, as shown in Eq. (18): 
+
+𝑥 ̂𝑟  = 𝑄 ̂𝑟  + 𝑇 (𝐾 𝑝  ∗ 𝑞 𝑟  ) (18) 11 of 22 
+
+The RGB -to -point -cloud direction is fully symmetric:  𝑄 𝑝 is derived from  𝐹 𝑝  and  𝐾 𝑟 
+
+from  𝐹 𝑟  . The same ECAA mechanism is applied, with the resulting output concatenated 
+
+with the original depth features  𝐹 𝑝  and fed into the corresponding GFFN to yield 𝑀 ̂𝑝 .
+
+Gated Feed -Forward Network.  A Gated Feed -Forward Network (GFFN) is em-
+
+ployed to perform deep aggregation and refinement of the cross -modal fused features. 
+
+Unlike conventional FFNs that apply identical nonlinear transformations across all chan-
+
+nels, our design incorporates a SwiGLU gat ing mechanism to adaptively regulate chan-
+
+nel -wise information flow via explicit multiplicative interactions, thereby selectively sup-
+
+pressing irrelevant or noisy components arising from cross -modal fusion. The concate-
+
+nated feature s [𝑇 (𝑥 ̂ )‖𝐹 𝑟 ] are simultaneously processed by a SiLU -activated gating 
+
+branch and a linear branch; their outputs are combined via element -wise multiplication 
+
+and projected back to the target channel dimension, as formulated in Eq. (19): 
+
+𝑀 ̂𝑟  = 𝐿𝑁 (𝑊  ⋅ (𝑆𝑖𝐿𝑈 ([𝑇 (𝑥 ̂ )‖𝐹 𝑟 ] ⋅ 𝑈 ) ⊙ [𝑇 (𝑥 ̂ )‖𝐹 𝑟 ] ⋅ 𝑉 )) (19) 
+
+where U and V are projection matrices for the gating and linear branches respectively, and 
+
+W projects the modulated representations back to the target dimension. 
+
+Augmented Shortcut Connection . Standard residual connections perform simple el-
+
+ement -wise addition, which fails to differentiate feature characteristics across individual 
+
+tokens and leads to feature homogenization as network depth increases. To enhance fea-
+
+ture diversity, we introduce l earnable linear transformations in the shortcut path to enable 
+
+differentiated token -wise feature remapping, as defined in Eq. (20): 
+
+AugSC (𝐹 𝑟 ) = 𝐿𝑁 (𝐹 𝑟 𝑊 𝑟  + 𝑏 𝑟 ) (20) 
+
+The depth branch takes an analogous form with  𝑊 𝑝  and 𝑏 𝑝 . The final fused represen-
+
+tations are then obtained as shown in Eqs. (21) and (22): 
+
+𝐹 𝑟 
+
+> 𝑓𝑢𝑠𝑖𝑜𝑛
+
+=AugSC (𝐹 𝑟 ) + 𝐹 𝑟  + 𝑀 𝑟 ̂ (21) 
+
+𝐹 𝑝 
+
+> 𝑓𝑢𝑠𝑖𝑜𝑛
+
+=AugSC (𝐹 𝑝 ) + 𝐹 𝑝  + 𝑀 𝑝 ̂ (22) 
+
+In summary, the ECFT module realizes efficient bidirectional fusion of RGB texture 
+
+features and point cloud geometric features at linear computational complexity  O(N).
+
+The resulting representations  𝐹 𝑟  
+
+> 𝑓𝑢𝑠𝑖𝑜𝑛
+
+and  𝐹 𝑝  
+
+> 𝑓𝑢𝑠𝑖𝑜𝑛
+
+are subsequently forwarded to the 
+
+keypoint  prediction and instance semantic segmentation modules for downstream pose 
+
+estimation. 
+
+3.3.2. 3D Keypoint -based 6D Pose Estimation 
+
+PVN3D  [33 ] and FFB6D  [34 ] have demonstrated the effectiveness of 3D keypoint -
+
+based approaches for 6D object pose estimation, and building upon this foundation, we 
+
+adopt the FFB6D framework to perform pose recovery in this work. Specifically, repre-
+
+sentative keypoints for each target  object are first selected via the SIFT -FPS algorithm. 
+
+Then, a 3D keypoint detection module and an instance semantic segmentation module are 
+
+employed to predict the keypoints of each object instance. Finally, the 6D pose parameters 
+
+are recovered via a leas t-squares fitting algorithm. 
+
+The 3D keypoint detection module leverages the per -point RGBD features extracted 
+
+by the feature extraction network to localize the 3D keypoints of each object. Specifically, 
+
+this module predicts the point -wise Euclidean translational offsets from each visi ble point 
+
+to the target keypoints, enabling the visible points to vote for the keypoints based on the 
+
+predicted offsets. The voting points are subsequently clustered via the MeanShift algo-
+
+rithm  [35 ], with the resulting cluster center designated as the estimated keypoint location. 
+
+As shown in Eq. ( 23 ), we employ L1 Loss to supervise the keypoint learning process: 12 of 22 
+
+𝐿 keypoints  = 1 
+
+> 𝑁
+
+∑ ∑ ‖𝑜 𝑓 𝑖  
+
+> 𝑗
+
+− 𝑜 𝑓 𝑖 
+
+> 𝑗 ∗
+
+‖𝑀  
+
+> 𝑗 =1
+> 𝑁
+> 𝑖 =1
+
+𝕀 (𝑝 𝑖  ∈ 𝐼 ) (23) 
+
+where N denotes the total number of points and M denotes the number of pre -selected 
+
+target keypoints.  𝑜 𝑓 𝑖  
+
+> 𝑗
+
+and  𝑜 𝑓 𝑖  
+
+> 𝑗 ∗
+
+denote the predicted and ground truth translational off-
+
+sets. The indicator function  I equals 1 if point  𝑝 𝑖  belongs to instance I, and 0 otherwise. 
+
+The instance semantic segmentation module consists of a per -point semantic segmen-
+
+tation part and a center point voting part. Based on the extracted point -wise features, the 
+
+semantic segmentation component assigns a category label to each point. As shown in  Eq. 
+
+(24 ), Focal Loss  [36 ] is employed to supervise this process: 
+
+𝐿 semantic  = −𝛼 (1 − 𝑐 𝑖  ⋅ 𝑙 𝑖 )𝛾  𝑙𝑜𝑔 ( 𝑐 𝑖  ⋅ 𝑙 𝑖 ) (24) 
+
+Where  𝑐 𝑖  denotes the estimated confidence that the i -th point belongs to a specific 
+
+class, and  𝑙 𝑖  represents the one -hot encoding of the ground truth class label  𝛼  and  γ are 
+
+the balance parameter and focusing parameter, respectively. 
+
+The center point voting part shares the same design as the 3D keypoint detection 
+
+module. It treats the object centroid as a virtual keypoint and regresses the point -wise 
+
+translational offsets toward it, thereby localizing the object center for instance -lev el dis-
+
+ambiguation. Similarly, L1 Loss is applied to supervise this module as shown in Eq. ( 25 ): 
+
+𝐿 center  = 1 
+
+> 𝑁
+
+∑ ‖ △ 𝑥 𝑖  −△ 𝑥 𝑖 
+
+> ∗
+
+‖𝕀 (𝑝 𝑖  ∈ 𝐼 )𝑁  
+
+> 𝑖 =1
+
+(25) 
+
+Where  △ 𝑥 𝑖  and  △ 𝑥 𝑖  
+
+> ∗
+
+represent  the predicted and ground truth translational offsets to-
+
+ward the object center. 
+
+The three modules are jointly optimized under a unified multi -task learning objective, 
+
+as formulated in Eq. (26): 
+
+𝐿 𝑚𝑢𝑙𝑡𝑖 −𝑡𝑎𝑠𝑘  = 𝐾 1𝐿 𝑘𝑒𝑦𝑝𝑜𝑖𝑛𝑡𝑠  + 𝐾 2𝐿 𝑠𝑒𝑚𝑎𝑛𝑡𝑖𝑐  + 𝐾 3𝐿 𝑐𝑒𝑛𝑡𝑒𝑟  (26) 
+
+Where  𝐾 1, 𝐾 2, and  𝐾 3 are the task -specific loss weights, all of which are empirically set 
+
+to 1.0 in our experiments. 
+
+Using the aforementioned modules, we obtain the detected keypoint set 
+
+{𝑘 𝑝 𝑗  
+
+> 𝑐𝑎𝑚𝑒𝑟𝑎
+
+}𝑗 =1 
+
+> 𝑀
+
+in the camera coordinate system, corresponding to a pre -defined canonical 
+
+keypoint set  {𝑘 𝑝 𝑗  
+
+> 𝑜𝑏𝑗𝑒𝑐𝑡
+
+}𝑗 =1
+
+> 𝑀
+
+in the object coordinate system. The least -squares fitting algo-
+
+rithm is then applied to recover the 6D pose ( R, t ) by minimizing the following objective 
+
+as shown in Eq. ( 27 ): 
+
+𝐿 𝑙𝑒𝑎𝑠𝑡 −𝑠𝑞𝑢𝑎𝑟𝑒𝑠  = ∑ ‖𝑘 𝑝 𝑗  
+
+> 𝑐𝑎𝑚𝑒𝑟𝑎
+
+− (𝑅  ⋅ 𝑘 𝑝 𝑗  
+
+> 𝑜𝑏𝑗𝑒𝑐𝑡
+
++ 𝑡 )‖2 
+
+> 𝑀
+> 𝑗 =1
+
+(27) 
+
+where M denotes the total number of keypoints selected for the object. 
+
+# 4. Dataset 
+
+Publicly available spacecraft perception datasets have played a meaningful role in 
+
+advancing learning -based pose estimation research. That said, the dominant benchmarks 
+
+in this field, namely SPEED  [11 ], SPEED+  [12 ], and SwissCube  [13 ], are built exclusively 
+
+around monocular optical imagery, providing only single -viewpoint imagery. None of 
+
+them provide stereo disparity annotations or dense depth labels, which makes them 
+
+poorly suited for developing and rigorously evaluating multimodal p ose estimation pipe-
+
+lines. Compounding this problem, collecting genuine on -orbit imagery is an enormously 
+
+costly and logistically constrained endeavor, and the volume of real data that can realisti-
+
+cally be gathered falls far short of what modern deep learni ng demands. To fill this gap, 
+
+we built a synthetic binocular multimodal dataset for 6 -DOF pose estimation of non -13 of 22 
+
+cooperative targets, rendered entirely within the Blender physically -based rendering en-
+
+vironment.  
+
+> Figure 8 .A rendered view of the simulated near -Earth orbital environment constructed for dataset
+> generation.
+
+As shown in Figure 8, each simulated scene is built around three elements: a near -
+
+Earth orbital backdrop, a non -cooperative target spacecraft, and a geometrically calibrated 
+
+binocular camera rig. Image synthesis was carried out entirely within Blender's Cy cles 
+
+path -tracing engine, which traces individual light paths through reflection, refraction, and 
+
+scattering events to produce renders with convincing photorealism.  
+
+> Figure 9 .Examples of the space illumination conditions included in the dataset: direct solar illumi-
+> nation, Earth albedo, penumbra, and mixed lighting.
+
+A primary concern during dataset design was ensuring sufficient variation in illumi-
+
+nation. Spacecraft sensors in low Earth orbit encounter lighting conditions that shift dra-
+
+matically over each orbital period, and a pose estimation system that degrades unde r any 
+
+particular condition offers limited practical utility. To capture this variability, four distinct 
+
+illumination regimes were included in the dataset: direct solar exposure, Earth albedo, 
+
+penumbra shadow, and mixed lighting, representative examples of  which are shown in 
+
+Figure 9. The two cameras were mounted in a standard parallel configuration, keeping 
+
+their optical axes co -directional and orthogonal to the baseline. This arrangement simpli-
+
+fies the epipolar geometry to horizontal scanlines and eliminat es the need for online rec-
+
+tification. The stereo baseline was set to 1.0 m, and all images were rendered at  1280 × 960 
+
+pixels.  Three forms of synthetic degradation, namely speckle noise, Gaussian blur, and 
+
+motion blur, were applied to every frame before it  entered the training pipeline, as illus-
+
+trated in Figure 10. This conditioning step was intended to prepare the network against 
+
+the noise signatures it would encounter on actual flight hardware. 14 of 22 
+
+Four data streams accompany each sample. RGB images come directly from the Cy-
+
+cles renderer without modification. The depth channel was generated through a deliber-
+
+ate detour: rather than reading the renderer's built -in depth buffer, which is geometrically 
+
+perfect and therefore unrepresentative of real sensor output, we fed the rendered stereo 
+
+pairs through our stereo matching network, converted the estimated disparities to metric 
+
+depth by triangulation, and retained the result with its noise and outliers int act. This 
+
+choice means the training depth maps carry the same kinds of imperfections a physical 
+
+stereo rig would produce, which we regard as important for honest benchmarking. Seg-
+
+mentation masks were obtained via Blender's Object Index pass, yielding pixel -accurate 
+
+instance labels that supervise both detection and localization. Pose annotations consist of 
+
+a translation vector t and rotation matrix R that together specify the rigid -body transform 
+
+of the target into the camera frame. Because both quantities f ollow directly from the 
+
+known scene geometry, ground -truth accuracy is exact by construction. 
+
+(a)  (b)  (c)   
+
+> Figure 10 .Visual comparison of three noise augmentation types applied to synthetic imagery: (a)
+> speckle noise, (b) Gaussian blur, and (c) motion blur.
+
+The full dataset totals 39,600 samples, of which 36,000 form the training split and 
+
+3,600 form the test split, reflecting a 9:1 division. Target depth  𝑍 𝑐  varies continuously 
+
+from 10 to 50 m, and Figure 11 shows that the empirical depth distributions of the two 
+
+splits track each other closely across this range, with no systematic concentration at any 
+
+distance. Apparently target position across the image plan e follows the cone -shaped 
+
+spreading pattern that perspective projection produces, confirming that image -plane cov-
+
+erage is broad rather than center -biased. Figure 12 plots camera positions in the target 
+
+body frame projected onto the  xB-yB and  xB-𝑧 B planes , where points from both splits 
+
+occupy essentially the same roughly isotropic cloud centered on the target, with no visible 
+
+clustering or gaps. Taken together, these characteristics indicate that the dataset samples 
+
+the relative -pose space with reasonable  uniformity, providing the breadth of coverage 
+
+needed to train and evaluate the proposed framework without introducing systematic 
+
+distributional bias. 15 of 22 
+
+Figure 11 . Scatter plot showing the distribution of target distance  Zc across the training and test 
+
+sets. 
+
+Figure  12 . Distribution of camera positions in the target body frame, shown as projections onto the 
+
+xB-yB and  xB-zB planes for both the training and test sets. 
+
+# 5.  Experiments 
+
+5. 1. Evaluation Metrics 
+
+To comprehensively evaluate the performance of the proposed framework, we adopt 
+
+separate metric sets for stereo matching and pose estimation. 
+
+For stereo matching evaluation, four metrics are employed. End -Point Error (EPE) 
+
+measures the mean absolute disparity error across all pixels: 
+
+𝐸𝑃𝐸  = 1 
+
+> 𝑁
+
+∑ |𝔭  𝐷 𝑝  − 𝐷 𝑝  
+
+> 𝑔𝑡
+
+| (28 )
+
+Root Mean Squared Error (RMSE) penalizes large errors more heavily, better reflect-
+
+ing estimation quality in challenging regions: 
+
+𝑅𝑀𝑆𝐸  = √1 
+
+> 𝑁
+
+∑ (𝐷 𝑝  − 𝐷 𝑝  
+
+> 𝑔𝑡
+
+)2 
+
+> 𝔭
+
+(29 )
+
+𝑏𝑎𝑑  − 𝜏  measures the percentage of pixels whose disparity error exceeds threshold 
+
+𝜏 
+
+𝑏𝑎𝑑  − 𝜏  = 1 
+
+> 𝑁
+
+∑ 𝛿 𝔭  (|𝐷 𝑝  − 𝐷 𝑝 
+
+> 𝑔𝑡
+
+| > 𝜏 ) (30 )16 of 22 
+
+D1 error identifies outliers where the error simultaneously exceeds 3 pixels and 5% 
+
+of the ground truth disparity: 
+
+𝐷𝑙  = 1 
+
+> 𝑁
+
+∑ 𝛿 𝔭  (|𝐷 𝑝  − 𝐷 𝑝 
+
+> 𝑔𝑡
+
+| > 3 ∧ |𝐷 𝑝  − 𝐷 𝑝  
+
+> 𝑔𝑡
+
+| > 0.05  ⋅ 𝐷 𝑝  
+
+> 𝑔𝑡
+
+) (3 1)
+
+For 6D pose estimation, translation error  𝑒 𝑡  computes the Euclidean distance be-
+
+tween the predicted and ground truth translation vectors: 
+
+𝑒 𝑡  = ‖𝑡  − 𝑡 ̂ ‖2 (3 2)
+
+Rotation error  𝑒 𝑅  measures the minimum rotation angle required to align the pre-
+
+dicted rotation matrix  𝑅 ̂ with the ground truth  R:
+
+𝑒 𝑅  = 𝑎𝑟𝑐𝑐𝑜𝑠  (𝑡𝑟 (𝑅 𝑇 𝑅 ̂ )−1 
+
+> 2
+
+) (3 3)
+
+5. 2. Stereo Matching Evaluation 
+
+We implemented TSCA -Stereo using PyTorch on 2 NVIDIA RTX 4090 GPUs, with a 
+
+learning rate of 0.0002, batch size of 8, and 22 update iterations. Input images were ran-
+
+domly cropped to 320×736 with the same data augmentation strategy as IGEV -Stereo. The 
+
+model  was pretrained on Scene Flow for 200k steps, then fine -tuned for 50k steps on KITTI 
+
+2012 and KITTI 2015. For the custom space dataset, a transfer learning strategy was 
+
+adopted: after Scene Flow pretraining, the model was fine -tuned for 20k steps to adapt t o
+
+the specific imaging conditions of space non -cooperative target scenes.  
+
+> Table 1 .Quantitative evaluation on Scene Flow .
+
+Method  PSMNet  GwcNet  GANet  CSPN  LEAStereo  IGEV -
+
+Stereo 
+
+TSCA -
+
+Stereo 
+
+EPE 
+
+（px ） 1.09  0.76  0.84  0.78  0.78  0.4 7 0.4 6
+
+As shown in Table 1, TSCA -Stereo achieves an EPE of 0.46 px, improving by 2.13% 
+
+over IGEV -Stereo and by 57.8% over PSMNet, confirming the effectiveness of the pro-
+
+posed approach on synthetic data.  
+
+> Table 2 .Quantitative evaluation on KITTI 2012 and KITTI 2015 .
+
+Method 
+
+KITTI 2012  KITTI 2015 
+
+2-noc  2-all  3-noc  3-all  EPEnoc  EPEall  D1 -
+
+bg 
+
+D1 -
+
+fg 
+
+D1 -
+
+all 
+
+PSMNet  2.44  3.01  1.49  1.89  0.5  0.6  1.86  4.62  2.32 
+
+GwcNet  2.16  2.71  1.32  1.70  0.5  0.5  1.74  3.93  2.11 
+
+GANet  1.89  2.50  1.19  1.60  0.4  0.5  1.48  3.46  1.81 
+
+CREStereo  1.72  2.18  1.14  1.46  0.4  0.5  1.45  2.86  1.69 
+
+RAFT -Stereo  1.92  2.42  1.30  1.66  0.4  0.5  1.58  3.05  1.82 
+
+IGEV -Stereo  1.71  2.17  1.12  1.44  0.4  0.4  1.38  2.67  1.59 
+
+TSCA -Stereo  1.70  2.1 5 1.1 1 1.4 2 0.4  0.4  1.36  2. 63 1.5 7
+
+As shown in Table 2, TSCA -Stereo achieves the best performance across all metrics 
+
+on both KITTI 2012 and KITTI 2015. Compared to IGEV -Stereo, the D1 -fg error is reduced 
+
+by 1.5% on KITTI 2015, and the 2 -noc error is reduced by 0.58% on KITTI 2012, demon-
+
+stra ting superior matching accuracy in real -world scenes. 17 of 22 
+
+As shown in Table 3, under the zero -shot setting, TSCA -Stereo attains the best per-
+
+formance on Middlebury 2014 at both resolutions, improving by 0.6% over IGEV -Stereo 
+
+at half resolution, and remains competitive on ETH3D, demonstrating strong cross -do-
+
+main ge neralization capability.  
+
+> Table 3 .Quantitative evaluation on Middlebury 2014 (2 -px error rate) and ETH3D (1 -px error rate) .
+
+Method  Middlebury  ETH3D 
+
+half  quarter 
+
+PSMNet  15.8  9.8  10.2 
+
+GANet  13.5  8.5  6.5 
+
+DSMNet  13.8  8.1  6.2 
+
+RAFT -Stereo  8.7  7.3  3.2 
+
+IGEV -Stereo  7.1  6.2  3.6 
+
+TSCA -Stereo  7.06  6.17  3.55 
+
+On the custom space non -cooperative target dataset, as shown in Table 4, the ablation 
+
+study validates each proposed module. The full TSCA -Stereo achieves EPE of 0.27 px, 
+
+RMSE of 0.63, and D1 of 0.46%, representing reductions of 12.9%, 4.5%, and 9.8% over 
+
+IGEV -Stereo respectively, demonstrating the effectiveness of the proposed modules un-
+
+der the specific imaging conditions of space non -cooperative target scenes. Figure 13 
+
+shows the qualitative results on the custom space non -cooperative target dataset, and t he 
+
+proposed method performs excellently in weak -texture and specular reflection areas.  
+
+> Table 4 .Quantitative comparison on the proposed non -cooperative target dataset .
+
+Method  EPE （px ） RMSE  D1 （%）
+
+IGEV -Stereo  0.31  0.66  0.51 
+
+IGEV -Stereo+TA  0.28  0.64  0.50 
+
+IGEV -Stereo+ SE CA  0.27  0.64  0.47 
+
+TSCA -Stereo  0. 27  0.63  0.46 
+
+> Figure 13. Qualitative disparity estimation results of IGEV -Stereo and TSCA -Stereo on the space
+> non -cooperative target dataset.
+
+5. 3. 6D Pose Estimation Evaluation 18 of 22 
+
+For the self -made non -cooperative target simulation dataset, we use 2 NVIDIA RTX 
+
+4090 GPUs to train the proposed model for 30 epochs. The batch size is set to 8 for each 
+
+GPU. We employ the Adam optimizer with an initial learning rate of  1× 10 -5 . cyclic 
+
+learning rate strategy is adopted during training: we first linearly increase the learning 
+
+rate from  1× 10 -5 to  1× 10 -3, and then drop it back to  1× 10 -5, which is repeated three times 
+
+throughout the training process.      
+
+> Figure 14 .Scatter plots of translation errors etand rotation errors eRover the test set.
+
+The pose estimation performance of the proposed method is evaluated on the test set 
+
+comprising 3,600 samples. As shown in Figure 14, the scatter plots illustrate the distribu-
+
+tion of translation errors  et and orientation errors  eR across all test images.The mean 
+
+translation error over the entire test set is 0.0419 m and the mean orientation error is 
+
+0.8632°. The translation errors are predominantly concentrated in the range of 0 –0.095 m, 
+
+with only a small number of outliers slightl y exceeding this bound, while the orientation 
+
+errors are largely distributed within 1.70°, with only a few scattered outliers slightly ex-
+
+ceeding this bound.  Neither the translation errors nor the orientation errors exhibit any 
+
+clear directional trend across the test set, and both remain at comparable levels through-
+
+out the full evaluation sequence. This stability holds across the range of illumination sce-
+
+narios , target standoff distances, and attitude configurations represented in the test split, 
+
+indicating  that the proposed framework does not rely on favorable subsets of the data to 
+
+achieve its reported accuracy. 
+
+To prove how information flow direction shapes pose accuracy, we trained three var-
+
+iants of the fusion module: one passing features from RGB to point cloud only, one in the 
+
+reverse direction only, and one allowing exchange in both directions. The quantitati ve 
+
+outcomes are summarized in Table 5. When fusion proceeds from RGB into the point 
+
+cloud branch alone, the network attains a translation error of 0.0437 m and an orientation 
+
+error of 0.8662°. Reversing the direction yields noticeably weaker results at 0.0 456 m and 
+
+0.8789°, a gap that points to RGB texture being the more informative signal when only one 
+
+direction of transfer is permitted. Enabling bidirectional exchange pushes performance 
+
+further to 0.0419 m and 0.8632°, the best figures across all three co nfigurations. The asym-
+
+metry between the two unidirectional variants is itself instructive: it suggests the two mo-
+
+dalities are not interchangeable contributors but serve distinct functions within the fusion 
+
+process. RGB appearance features appear to sharpen  and disambiguate geometric repre-
+
+sentations, whereas stereo -derived depth cues help the network maintain reliable feature 
+
+responses under the severe illumination imbalances that routinely arise in orbital imaging 
+
+conditions. The bidirectional design of the  ECFT module is therefore well -motivated by 
+
+these empirical findings .19 of 22  
+
+> Table 5 .Ablation results on fusion direction using the proposed non -cooperative target dataset.
+
+Fusion Direction  Pose Result 
+
+RGB →Point  Point →RGB  eR(°)  e𝑡 (m)
+
+√ 0.0437  0.8662 
+
+√ 0.0456  0.8789 
+
+√ √ 0.0419  0.8632 
+
+We also compare the computational cost of the ECFT module against a vanilla Trans-
+
+former, with results in Table 6. Replacing the standard quadratic attention  𝑂 (𝑁 2)with the 
+
+linear formulation  𝑂 (𝑁 ) brings notable reductions in both FLOPs and memory usage 
+
+during training and inference, with no degradation in pose accuracy. Figure 15 shows 
+
+qualitative results on selected test samples, where white bounding boxes indicate ground -
+
+truth poses projected on to the image plane and green bounding boxes indicate the corre-
+
+sponding predicted poses . 
+
+> Table 6 .FLOPs and memory comparison between the vanilla Transformer and the proposed ECFT.
+
+Method  Flops （G） Training Memory 
+
+（BS=1, GB ）
+
+Inference Memory 
+
+（GB ）
+
+Vanilla Transformer  390.92  15.4 7 5.91 
+
+ECFT  283.1 9 7.72  2.78  
+
+> Figure 15. Pose estimation results on representative test samples under varied space illumination
+> conditions. White boxes: ground -truth poses projected onto the image plane; green boxes: network -
+> predicted poses.
+
+# 6. Conclusion 
+
+This work addresses the challenges of 6 -DOF pose estimation for non -cooperative 
+
+spacecraft under space -specific imaging conditions, where monocular depth ambiguity 
+
+and extreme illumination variability remain critical obstacles to reliable autonomous nav-
+
+iga tion. To this end, a passive stereo vision -based multi -stage framework is proposed, 
+
+consisting of TSCA -Stereo and a multimodal pose estimation pipeline. TSCA -Stereo in-
+
+corporates Triplet Attention and SECA modules into an iterative stereo matching archi-
+
+tect ure, enabling robust dense depth recovery in the presence of weak texture, specular 
+
+reflections, and severe illumination imbalance. The estimated depth is subsequently back -20 of 22 
+
+projected into a 3D point cloud and fused with RGB appearance features through an Effi-
+
+cient Cross -modal Fusion Transformer, with the final 6D pose recovered via 3D keypoint 
+
+detection and least -squares fitting. A synthetic binocular multimodal dataset was c on-
+
+structed using physically -based rendering to provide stereo disparity annotations and 6D 
+
+pose labels under representative space illumination and attitude conditions. On standard 
+
+stereo benchmarks, TSCA -Stereo demonstrates competitive generalization acros s Scene 
+
+Flow, KITTI 2012, KITTI 2015, and Middlebury 2014. On the proposed space -specific da-
+
+taset, it achieves reductions of 12.9%, 4.5%, and 9.8% in EPE, RMSE, and D1 error over the 
+
+IGEV -Stereo baseline, and the full pose estimation framework yields a mea n translation 
+
+error of 0.0419 m and a mean orientation error of 0.8632° over 3,600 test samples. Looking 
+
+ahead, joint optimization of the stereo and pose estimation stages, sim -to -real domain ad-
+
+aptation, and model compression for onboard deployment are ide ntified as promising di-
+
+rections for further investigation. 
+
+Author Contributions:  Methodology, Y.Z., B.L., H.Y. and X.W.; Software, Y.Z., B.L., H.Y. and X.W.; 
+
+Data curation, Y.Z. and X.W.; Writing —original draft, Y.Z. and X.W.; Writing —review editing, B.L. 
+
+and H.Y. All authors have read and agreed to the published version of the manuscr ipt. 
+
+Funding : This  work was supported by Changchun Higher Education Institutions Pilot Project Se-
+
+lection Program (Grant No.24GXYSZZ29). 
+
+Data Availability  Statement : The data of the experimental images used to support the findings of 
+
+this research are available from the corresponding author upon reasonable request. The data are not 
+
+publicly available due to privacy restrictions. 
+
+Conflicts of Interest : The authors declare no conflicts of interest. 
+
+# References 
+
+1.  Fallahiarezoodar, N.; Zhu, Z.H. Review of autonomous space robotic manipulators for on -orbit servicing and active debris 
+
+removal.  Space: Science & Technology  2025 , 5, 0291. 
+
+2.  Amaya -Mejí a, L.M.; Ghita, M.; Dentler, J.; Olivares -Mendez, M.; Martinez, C. Visual servoing for robotic on -orbit 
+
+servicing: A survey. In Proceedings of the 2024 International Conference on Space Robotics (iSpaRo), 2024; pp. 178 –185. 
+
+3.  Sharma, S.; D’ mico, S. Neural network -based pose estimation for noncooperative spacecraft rendezvous.  IEEE 
+
+Transactions on Aerospace and Electronic Systems  2020 , 56 , 4638 –4658. 
+
+4.  Opromolla, R.; Fasano, G.; Rufino, G.; Grassi, M. A review of cooperative and uncooperative spacecraft pose 
+
+determination techniques for close -proximity operations.  Progress in Aerospace Sciences  2017 , 93 , 53 –72. 
+
+5.  Zhang, L.; Zhu, F.; Hao, Y.; Pan, W. Rectangular -structure -based pose estimation method for non -cooperative rendezvous. 
+
+Applied Optics  2018 , 57 , 6164 –6173. 
+
+6.  Gaias, G.; Ardaens, J. -S. In -orbit experience and lessons learned from the AVANTI experiment.  Acta Astronautica  2018 , 153 ,
+
+383 –393. 
+
+7.  Pedrotty, S.; Sullivan, J.; Gambone, E.; Kirven, T. Seeker free -flying inspector gnc system overview. In Proceedings of the 
+
+American Astronautical Society Annual Guidance and Control Conference (AAS GNC 2019), 2019. 
+
+8.  Bechini, M.; Lavagna, M. Robust and efficient single -CNN -based spacecraft relative pose estimation from monocular 
+
+images.  Acta Astronautica  2025 , 233 , 198 –217. 
+
+9.  Zhou, H.; Yao, L.; She, H.; Si, W. SDPENet: A lightweight spacecraft pose estimation network with discrete euler angle 
+
+probability distribution.  IEEE Robotics and Automation Letters  2025 .21 of 22 
+
+10.  Pauly, L.; Rharbaoui, W.; Shneider, C.; Rathinam, A.; Gaudilliere, V.; Aouada, D. A survey on deep learning -based 
+
+monocular spacecraft pose estimation: Current state, limitations and prospects.  Acta Astronautica  2023 , 212 , 339 –360. 
+
+11.  Kisantal, M.; Sharma, S.; Park, T.H.; Izzo, D.; Märtens, M.; D’ mico, S. Satellite pose estimation challenge: Dataset, 
+
+competition design, and results.  IEEE Transactions on Aerospace and Electronic Systems  2020 , 56 , 4083 –4098. 
+
+12.  Park, T.H.; Märtens, M.; Lecuyer, G.; Izzo, D.; D'Amico, S. SPEED+: Next -generation dataset for spacecraft pose estimation 
+
+across domain gap. In Proceedings of the 2022 IEEE aerospace conference (AERO), 2022; pp. 1 –15. 
+
+13.  Hu, Y.; Speierer, S.; Jakob, W.; Fua, P.; Salzmann, M. Wide -depth -range 6d object pose estimation in space. In Proceedings 
+
+of the Proceedings of the IEEE/CVF Conference on Computer Vision and Pattern Recognition, 2021; pp. 15870 –15879. 
+
+14.  Sharma, S.; D'Amico, S. Pose estimation for non -cooperative rendezvous using neural networks.  arXiv preprint 
+
+arXiv:1906.09868  2019 .
+
+15.  Park, T.H.; D’ mico, S. Robust multi -task learning and online refinement for spacecraft pose estimation across domain 
+
+gap.  Advances in Space Research  2024 , 73 , 5726 –5740. 
+
+16.  Proença, P.F.; Gao, Y. Deep learning for spacecraft pose estimation from photorealistic rendering. In Proceedings of the 
+
+2020 IEEE International Conference on Robotics and Automation (ICRA), 2020; pp. 6007 –6013. 
+
+17.  Musallam, M.A.; Gaudilliere, V.; Del Castillo, M.O.; Al Ismaeil, K.; Aouada, D. Leveraging equivariant features for 
+
+absolute pose regression. In Proceedings of the Proceedings of the IEEE/CVF Conference on Computer Vision and Pattern 
+
+Recognition, 2022; pp . 6876 –6886. 
+
+18.  Chang, J. -R.; Chen, Y. -S. Pyramid stereo matching network. In Proceedings of the Proceedings of the IEEE conference on 
+
+computer vision and pattern recognition, 2018; pp. 5410 –5418. 
+
+19.  Guo, X.; Yang, K.; Yang, W.; Wang, X.; Li, H. Group -wise correlation stereo network. In Proceedings of the Proceedings of 
+
+the IEEE/CVF conference on computer vision and pattern recognition, 2019; pp. 3273 –3282. 
+
+20.  Xu, G.; Wang, Y.; Cheng, J.; Tang, J.; Yang, X. Accurate and efficient stereo matching via attention concatenation volume. 
+
+IEEE Transactions on Pattern Analysis and Machine Intelligence  2023 , 46 , 2461 –2474. 
+
+21.  Shen, Z.; Dai, Y.; Song, X.; Rao, Z.; Zhou, D.; Zhang, L. Pcw -net: Pyramid combination and warping cost volume for stereo 
+
+matching. In Proceedings of the European conference on computer vision, 2022; pp. 280 –297. 
+
+22.  Shen, Z.; Dai, Y.; Rao, Z. Cfnet: Cascade and fused cost volume for robust stereo matching. In Proceedings of the 
+
+Proceedings of the IEEE/CVF conference on computer vision and pattern recognition, 2021; pp. 13906 –13915. 
+
+23.  Cheng, X.; Zhong, Y.; Harandi, M.; Dai, Y.; Chang, X.; Li, H.; Drummond, T.; Ge, Z. Hierarchical neural architecture search 
+
+for deep stereo matching.  Advances in neural information processing systems  2020 , 33 , 22158 –22169. 
+
+24.  Lipson, L.; Teed, Z.; Deng, J. Raft -stereo: Multilevel recurrent field transforms for stereo matching. In Proceedings of the 
+
+2021 International conference on 3D vision (3DV), 2021; pp. 218 –227. 
+
+25.  Li, J.; Wang, P.; Xiong, P.; Cai, T.; Yan, Z.; Yang, L.; Liu, J.; Fan, H.; Liu, S. Practical stereo matching via cascaded rec urrent 
+
+network with adaptive correlation. In Proceedings of the Proceedings of the IEEE/CVF conference on computer vision and 
+
+patt ern recognition, 2022; pp. 16263 –16272. 
+
+26.  Xu, G.; Wang, X.; Ding, X.; Yang, X. Iterative geometry encoding volume for stereo matching. In Proceedings of the 
+
+Proceedings of the IEEE/CVF conference on computer vision and pattern recognition, 2023; pp. 21919 –21928. 
+
+27.  Lin, X.; Wang, D.; Zhou, G.; Liu, C.; Chen, Q. Transpose: 6d object pose estimation with geometry -aware transformer. 
+
+Neurocomputing  2024 , 589 , 127652. 
+
+28.  Li, Z.; Stamos, I. Depth -based 6dof object pose estimation using swin transformer. In Proceedings of the 2023 IEEE/RSJ 
+
+International Conference on Intelligent Robots and Systems (IROS), 2023; pp. 1185 –1191. 
+
+29.  Zhang, Z.; Chen, W.; Zheng, L.; Leonardis, A.; Chang, H.J. Trans6d: Transformer -based 6d object pose estimation and 
+
+refinement. In Proceedings of the European Conference on Computer Vision, 2022; pp. 112 –128. 22 of 22 
+
+30.  Misra, D.; Nalamada, T.; Arasanipalai, A.U.; Hou, Q. Rotate to attend: Convolutional triplet attention module. In 
+
+Proceedings of the Proceedings of the IEEE/CVF winter conference on applications of computer vision, 2021; pp. 3139 –
+
+3148. 
+
+31.  Wang, Q.; Wu, B.; Zhu, P.; Li, P.; Zuo, W.; Hu, Q. ECA -Net: Efficient channel attention for deep convolutional neural 
+
+networks. In Proceedings of the Proceedings of the IEEE/CVF conference on computer vision and pattern recognition, 
+
+2020; pp. 11534 –11542. 
+
+32.  Shaker, A.; Maaz, M.; Rasheed, H.; Khan, S.; Yang, M. -H.; Khan, F.S. Swiftformer: Efficient additive attention for 
+
+transformer -based real -time mobile vision applications. In Proceedings of the Proceedings of the IEEE/CVF international 
+
+conference on comput er vision, 2023; pp. 17425 –17436. 
+
+33.  He, Y.; Sun, W.; Huang, H.; Liu, J.; Fan, H.; Sun, J. Pvn3d: A deep point -wise 3d keypoints voting network for 6dof pose 
+
+estimation. In Proceedings of the Proceedings of the IEEE/CVF conference on computer vision and pattern recognition, 
+
+2020; pp. 11632 –11641. 
+
+34.  He, Y.; Huang, H.; Fan, H.; Chen, Q.; Sun, J. Ffb6d: A full flow bidirectional fusion network for 6d pose estimation. In 
+
+Proceedings of the Proceedings of the IEEE/CVF conference on computer vision and pattern recognition, 2021; pp. 3003 –
+
+3013. 
+
+35.  Comaniciu, D.; Meer, P. Mean shift: A robust approach toward feature space analysis.  IEEE Transactions on pattern analysis 
+
+and machine intelligence  2002 , 24 , 603 –619. 
+
+36.  Lin, T. -Y.; Goyal, P.; Girshick, R.; He, K.; Dollár, P. Focal loss for dense object detection. In Proceedings of the Proceedings 
+
+of the IEEE international conference on computer vision, 2017; pp. 2980 –2988.
