@@ -6,71 +6,73 @@
 </div>
 
 ## 每次日报
-- 最新运行日期：2026-05-15
-- 运行时间：2026-05-15 20:18:44 UTC
+- 最新运行日期：2026-05-16
+- 运行时间：2026-05-16 20:37:27 UTC
 - 运行状态：成功
 - 本次总论文数：17
 - 精读区：6
 - 速读区：11
 
 ### 今日简报（AI）
-高质量遥感影像融合与多模态场景理解成今日研究焦点。值得重点关注自适应3D卷积融合与光谱先验驱动的影像生成修复两大方向。建议读者下步可关注多源影像融合在地物识别与数据缺失修补中的应用潜力。
-- 详情：[/202605/15/README](/202605/15/README)
+探讨空间频率融合与遥感岩性解读的多模态前沿，精读与速读共17篇。  
+重点关注高光谱-激光融合算法和多模态模型在地质、降水及语义分割上的新突破。  
+建议读者重点了解多源数据融合技术如何提升环境与地表分析精度。
+- 详情：[/202605/16/README](/202605/16/README)
 
 ### 精读区论文标签
-1. [Adaptive 3D Convolution for Remote Sensing Image Fusion](/202605/15/2605.09455v1-adaptive-3d-convolution-for-remote-sensing-image-fusion)  
+1. [Implicit spatial-frequency fusion of hyperspectral and lidar data via kolmogorov-arnold networks](/202605/16/2605.14239v1-implicit-spatial-frequency-fusion-of-hyperspectral-and-lidar-data-via-kolmogorov-arnold-networks)  
    标签：评分：9.5/10、query:q4
-   evidence：使用自适应3D卷积进行遥感图像融合
-2. [AnyBand-Diff: A Unified Remote Sensing Image Generation and Band Repair Framework with Spectral Priors](/202605/15/2605.14341v1-anyband-diff-a-unified-remote-sensing-image-generation-and-band-repair-framework-with-spectral-priors)  
-   标签：评分：9.5/10、query:q3
-   evidence：从遥感图像的任意波段子集中恢复完整的光谱信息
-3. [Towards Robust Federated Multimodal Graph Learning under Modality Heterogeneity](/202605/15/2605.12584v1-towards-robust-federated-multimodal-graph-learning-under-modality-heterogeneity)  
-   标签：评分：9.0/10、query:q6
-   evidence：解决联邦场景下多模态图学习中的模态缺失问题。
-4. [Implicit spatial-frequency fusion of hyperspectral and lidar data via kolmogorov-arnold networks](/202605/15/2605.14239v1-implicit-spatial-frequency-fusion-of-hyperspectral-and-lidar-data-via-kolmogorov-arnold-networks)  
+   evidence：高光谱与激光雷达数据融合分类
+2. [LithoBench: Benchmarking Large Multimodal Models for Remote-Sensing Lithology Interpretation](/202605/16/2605.07640v1-lithobench-benchmarking-large-multimodal-models-for-remote-sensing-lithology-interpretation)  
+   标签：评分：9.0/10、query:q5
+   evidence：遥感岩性解译的大型多模态模型基准测试
+3. [Adaptive 3D Convolution for Remote Sensing Image Fusion](/202605/16/2605.09455v1-adaptive-3d-convolution-for-remote-sensing-image-fusion)  
    标签：评分：9.0/10、query:q4
-   evidence：高光谱与LiDAR数据融合用于HSI分类
-5. [Sequential Feature Selection for Efficient Landslide Segmentation from Multi-Spectral Data](/202605/15/2605.09746v1-sequential-feature-selection-for-efficient-landslide-segmentation-from-multi-spectral-data)  
+   evidence：用于多光谱/高光谱遥感图像融合的自适应3D卷积方法
+4. [AnyBand-Diff: A Unified Remote Sensing Image Generation and Band Repair Framework with Spectral Priors](/202605/16/2605.14341v1-anyband-diff-a-unified-remote-sensing-image-generation-and-band-repair-framework-with-spectral-priors)  
+   标签：评分：9.0/10、query:q3
+   evidence：从遥感数据的任意波段子集中恢复完整的光谱信息
+5. [WD-FQDet: Multispectral Detection Transformer via Wavelet Decomposition and Frequency-aware Query Learning](/202605/16/2605.13621v1-wd-fqdet-multispectral-detection-transformer-via-wavelet-decomposition-and-frequency-aware-query-learning)  
    标签：评分：8.5/10、query:q4
-   evidence：融合多光谱和地形数据进行滑坡分割
-6. [GeoViSTA: Geospatial Vision-Tabular Transformer for Multimodal Environment Representation](/202605/15/2605.14406v1-geovista-geospatial-vision-tabular-transformer-for-multimodal-environment-representation)  
+   evidence：融合红外和可见光模态的多光谱检测Transformer
+6. [Mini-JEPA Foundation Model Fleet Enables Agentic Hydrologic Intelligence](/202605/16/2605.14120v1-mini-jepa-foundation-model-fleet-enables-agentic-hydrologic-intelligence)  
    标签：评分：8.5/10、query:q4
-   evidence：融合视觉和表格数据的多模态环境表示
+   evidence：使用Sentinel-2光学和Sentinel-1 SAR的多模态基础模型
 
 ### 速读区论文标签
-1. [LARGO: Low-Rank Hypernetwork for Handling Missing Modalities](/202605/15/2605.06086v1-largo-low-rank-hypernetwork-for-handling-missing-modalities)  
-   标签：评分：8.5/10、query:q7
-   evidence：用于处理多模态图像分析中缺失模态的低秩超网络
-2. [MAG-VLAQ: Multi-modal Aerial-Ground Query Aggregation for Cross-View Place Recognition](/202605/15/2605.09418v1-mag-vlaq-multi-modal-aerial-ground-query-aggregation-for-cross-view-place-recognition)  
+1. [A plug-and-play generative framework for multi-satellite precipitation estimation](/202605/16/2605.14426v1-a-plug-and-play-generative-framework-for-multi-satellite-precipitation-estimation)  
+   标签：评分：8.5/10、query:q4
+   evidence：用于多传感器卫星降水估计的即插即用生成框架
+2. [DPG-CD: Depth-Prior-Guided Cross-Modal Joint 2D-3D Change Detection](/202605/16/2605.07151v1-dpg-cd-depth-prior-guided-cross-modal-joint-2d-3d-change-detection)  
    标签：评分：8.0/10、query:q4
-   evidence：用于跨视图识别的多模态空地查询聚合
-3. [MPerS: Dynamic MLLM MixExperts Perception-Guided Remote Sensing Scene Segmentation](/202605/15/2605.10769v1-mpers-dynamic-mllm-mixexperts-perception-guided-remote-sensing-scene-segmentation)  
+   evidence：利用图像和DSM进行跨模态2D-3D联合变化检测
+3. [UniD-Shift: Towards Unified Semantic Segmentation via Interpretable Share-Private Multimodal Decomposition](/202605/16/2605.07356v1-unid-shift-towards-unified-semantic-segmentation-via-interpretable-share-private-multimodal-decomposition)  
    标签：评分：8.0/10、query:q4
-   evidence：遥感场景中图像与场景描述的多模态融合
-4. [Towards a Large Language-Vision Question Answering Model for MSTAR Automatic Target Recognition](/202605/15/2605.10772v1-towards-a-large-language-vision-question-answering-model-for-mstar-automatic-target-recognition)  
-   标签：评分：8.0/10、query:q5
-   evidence：多模态遥感图像描述与目标识别
-5. [UniD-Shift: Towards Unified Semantic Segmentation via Interpretable Share-Private Multimodal Decomposition](/202605/15/2605.07356v1-unid-shift-towards-unified-semantic-segmentation-via-interpretable-share-private-multimodal-decomposition)  
+   evidence：用于2D-3D联合语义分割和融合的统一多模态框架
+4. [MAG-VLAQ: Multi-modal Aerial-Ground Query Aggregation for Cross-View Place Recognition](/202605/16/2605.09418v1-mag-vlaq-multi-modal-aerial-ground-query-aggregation-for-cross-view-place-recognition)  
+   标签：评分：8.0/10、query:q4
+   evidence：多模态空地查询聚合以及跨模态对齐与融合
+5. [Hyperbolic Distillation: Geometry-Guided Cross-Modal Transfer for Robust 3D Object Detection](/202605/16/2605.09899v1-hyperbolic-distillation-geometry-guided-cross-modal-transfer-for-robust-3d-object-detection)  
    标签：评分：7.5/10、query:q4
-   evidence：用于联合2D-3D语义分割和跨模态对齐的统一多模态框架
-6. [Geospatial-Temporal Sensemaking of Remote Sensing Activity Detections with Multimodal Large Language Model](/202605/15/2605.10739v1-geospatial-temporal-sensemaking-of-remote-sensing-activity-detections-with-multimodal-large-language-model)  
-   标签：评分：7.5/10、query:profile-1
-   evidence：用于遥感活动检测和时空分析的多模态大语言模型
-7. [SB-BEVFusion: Enhancing the Robustness against Sensor Malfunction and Corruptions](/202605/15/2605.11799v1-sb-bevfusion-enhancing-the-robustness-against-sensor-malfunction-and-corruptions)  
+   evidence：点云与图像特征的跨模态迁移与集成，用于3D检测
+6. [Simultaneous Long-tailed Recognition and Multi-modal Fusion for Highly Imbalanced Multi-modal Data](/202605/16/2605.10498v1-simultaneous-long-tailed-recognition-and-multi-modal-fusion-for-highly-imbalanced-multi-modal-data)  
+   标签：评分：7.5/10、query:q5
+   evidence：针对高度不平衡数据的多模态融合与模态特定网络
+7. [Resilient Vision-Tabular Multimodal Learning under Modality Missingness](/202605/16/2605.12031v1-resilient-vision-tabular-multimodal-learning-under-modality-missingness)  
    标签：评分：7.5/10、query:q7
-   evidence：用于处理缺失或损坏模态的通用融合模块
-8. [Fusion in Your Way: Aligning Image Fusion with Heterogeneous Demands via Direct Preference Optimization](/202605/15/2605.06049v1-fusion-in-your-way-aligning-image-fusion-with-heterogeneous-demands-via-direct-preference-optimization)  
-   标签：评分：7.0/10、query:q4
-   evidence：红外与可见光图像融合用于视觉增强
-9. [From Drops to Grid: Noise-Aware Spatio-Temporal Neural Process for Rainfall Estimation](/202605/15/2605.05912v1-from-drops-to-grid-noise-aware-spatio-temporal-neural-process-for-rainfall-estimation)  
-   标签：评分：6.5/10、query:q4
-   evidence：融合气象站时间序列与雷达空间背景进行降雨估算
-10. [Are We Making Progress in Multimodal Domain Generalization? A Comprehensive Benchmark Study](/202605/15/2605.06643v1-are-we-making-progress-in-multimodal-domain-generalization-a-comprehensive-benchmark-study)  
+   evidence：使用Transformer框架在模态缺失下的多模态学习
+8. [TAR: Text Semantic Assisted Cross-modal Image Registration Framework for Optical and SAR Images](/202605/16/2605.12064v1-tar-text-semantic-assisted-cross-modal-image-registration-framework-for-optical-and-sar-images)  
+   标签：评分：7.5/10、query:q4
+   evidence：光学与SAR图像的跨模态图像配准
+9. [UMEDA: Unified Multi-modal Efficient Data Fusion for Privacy-Preserving Graph Federated Learning via Spectral-Gated Attention and Diffusion-Based Operator Alignment](/202605/16/2605.08288v1-umeda-unified-multi-modal-efficient-data-fusion-for-privacy-preserving-graph-federated-learning-via-spectral-gated-attention-and-diffusion-based-operator-alignment)  
    标签：评分：6.5/10、query:q6
-   evidence：针对多模态学习中模态缺失等关键挑战的基准研究
-11. [Pan-FM: A Pan-Organ Foundation Model with Saliency-Guided Masking for Missing Robustness](/202605/15/2605.07055v1-pan-fm-a-pan-organ-foundation-model-with-saliency-guided-masking-for-missing-robustness)  
-   标签：评分：6.5/10、query:q7
-   evidence：在基础模型框架中处理缺失模态
+   evidence：针对异构传感器和隐私保护图联邦学习的多模态高效数据融合
+10. [Towards a Large Language-Vision Question Answering Model for MSTAR Automatic Target Recognition](/202605/16/2605.10772v1-towards-a-large-language-vision-question-answering-model-for-mstar-automatic-target-recognition)  
+   标签：评分：6.5/10、query:q5
+   evidence：针对SAR图像的多模态遥感图像描述与视觉问答
+11. [Cross-Modal-Domain Generalization Through Semantically Aligned Discrete Representations](/202605/16/2605.12145v1-cross-modal-domain-generalization-through-semantically-aligned-discrete-representations)  
+   标签：评分：6.5/10、query:profile-1
+   evidence：多模态学习中的跨模态离散对齐与重建
 
 
 <div class="dpr-home-promo-card">
