@@ -1,0 +1,538 @@
+Title: A plug-and-play generative framework for multi-satellite precipitation estimation
+
+URL Source: https://arxiv.org/pdf/2605.14426v1
+
+Published Time: Fri, 15 May 2026 01:11:16 GMT
+
+Number of Pages: 41
+
+Markdown Content:
+# A plug-and-play generative framework for multi-satellite precipitation estimation 
+
+## Yunfan Yang 1,2,3 †, Haofei Sun 4†, Xiuyu Sun 3, Wei Han 5,6* ,Xiaoze Xu 3* , Xingtao Song 7, Jun Li 8, Zhiqiu Gao 1,2 ,Wei Huang 4, Hao Li 3
+
+> 1
+
+State Key Laboratory of Atmospheric Boundary Layer Physics and Atmospheric Chemistry (LAPC), Institute of Atmospheric Physics, Chinese Academy of Sciences, Beijing, China. 
+
+> 2
+
+College of Earth and Planetary Sciences, University of Chinese Academy of Sciences, Beijing, China. 
+
+> 3
+
+Shanghai Academy of Artificial Intelligence for Science (SAIS), Shanghai, China. 
+
+> 4
+
+Key Laboratory of Numerical Modeling for Tropical Cyclone of the China Meteorological Administration, Shanghai Typhoon Institute, Shanghai, China. 
+
+> 5
+
+State Key Laboratory of Severe Weather, Chinese Academy of Meteorological Sciences, Beijing, China. 
+
+> 6
+
+CMA Earth System Modeling and Prediction Centre (CEMC), Beijing, China. 
+
+> 7
+
+School of Atmospheric Physics, Nanjing University of Information Science and Technology, Nanjing, China. 
+
+> 8
+
+National Satellite Meteorological Center, China Meteorological Administration, Beijing, China. *Corresponding author(s). E-mail(s): hanwei@cma.gov.cn; xuxiaoze@sais.org.cn; Contributing authors: yangyunfan22@mails.ucas.ac.cn; sunhf@typhoon.org.cn; xiuyu.sxy@gmail.com; 202511050004@nuist.edu.cn; junli@cma.gov.cn; zgao@mail.iap.ac.cn; huangw@typhoon.org.cn; lihao lh@fudan.edu.cn; 
+
+> †
+
+These authors contributed equally to this work. 
+
+1
+
+> arXiv:2605.14426v1 [physics.ao-ph] 14 May 2026
+
+Abstract 
+
+Reliable precipitation monitoring is essential for disaster risk reduction, water resources management, and agricultural decision-making. Multi-source satellite observations, particularly the combination of geostationary infrared and passive microwave measurements, have become a primary means of precipitation detec-tion. Traditional multi-source satellite precipitation estimation methods remain computationally inefficient, and many deep learning methods lack the flexibility to incorporate new sensors without retraining the full model. Here we introduce PRISMA (Precipitation Inference from Satellite Modalities via generAtive mod-eling), a plug-and-play latent generative framework for multi-sensor precipitation estimation. PRISMA learns an unconditional precipitation prior from IMERG Final fields and constrains it through independently trained, sensor-specific con-ditional branches, allowing new observation sources to be incorporated without retraining the generative backbone. Applied to FY-4B AGRI infrared and GPM GMI microwave observations, PRISMA improves Critical Success Index by up to 40.3% and reduces root-mean-square error by 22.6% relative to infrared-only estimation within microwave swaths, while also improving probabilistic skill and maintaining an average inference time of about 37 s. Independent rain-gauge val-idation across China confirms consistent gains, and typhoon case studies show that microwave conditioning restores eyewall and spiral rainband structures, reducing storm-core mean absolute error by up to 42.3%. PRISMA thus provides an extensible and efficient framework for multi-sensor precipitation estimation.  
+
+> Keywords: Satellite precipitation estimation, Multi-source satellite fusion, Generative modeling, Latent diffusion, Plug-and-play conditioning, Visual foundation models
+
+# 1 Introduction 
+
+Precipitation is the primary driver of floods, landslides, and cascading hydrological hazards—the deadliest category of natural disasters over the past five decades [1–3]. Yet it remains one of the most challenging meteorological variables to observe accu-rately, especially in developing regions where ground-based networks are sparse [4–6]. A recent global assessment reveals that only 13.4% of the global land surface meets the World Meteorological Organization requirements for annual precipitation moni-toring, with critical gaps in Africa, Central Asia, and South America [7]. Effective precipitation monitoring must simultaneously achieve high spatial coverage, high tem-poral timeliness, and high physical accuracy—the failure to meet any one of these requirements directly undermines disaster preparedness and response. Satellite remote sensing is central to global precipitation monitoring thanks to its unparalleled spatial coverage and continuity [8]. Passive microwave (PMW) radiome-ters on low-Earth-orbit platforms measure upwelling radiation that is directly sensitive to hydrometeors—through emission from liquid precipitation and scattering by ice-phase particles—making them the most physically informative satellite source for quantitative precipitation retrieval [9, 10], yet they suffer from limited sampling due 2to narrow swaths and low revisit frequencies [11]. Infrared (IR) imagers on geosta-tionary satellites observe cloud-top brightness temperatures every 10–15 minutes with continuous hemispheric coverage, but their relationship to surface precipitation is indi-rect: cold cloud tops do not always correspond to active precipitation, and warm shallow clouds can produce significant rainfall [12, 13]. The complementarity between microwave’s physical accuracy and infrared’s temporal continuity makes multi-source integration essential for achieving the coverage–timeliness–accuracy triad required for effective disaster monitoring (Fig. 1a). Existing multi-source precipitation estimation approaches face a persistent ten-sion between accuracy and timeliness. Traditional pipelines such as IMERG [14], CMORPH [15], and CHIRPS [16] achieve strong physical consistency through inter-sensor calibration, morphing-based interpolation, and gauge correction, but at the cost of substantial latency (hours to months) [13, 17] and dedicated per-sensor calibration that limits scalability. Recent deterministic deep learning methods [4, 17, 18] alleviate the timeliness limitations of traditional products through end-to-end learning while achieving promising accuracy, but they produce single-point estimates without uncer-tainty quantification. Generative approaches have emerged as a promising alternative that can provide probabilistic estimates and capture the multi-modal distribution of precipitation fields. Guilloteau et al. [19] apply a generative diffusion model condi-tioned on multisensor satellite observations (GOES infrared and DMSP microwave) to produce probabilistic precipitation ensembles, demonstrating improved uncertainty quantification but operating in pixel space with channel-level concatenation that lim-its modularity. Li et al. [20] introduce latent diffusion for kilometer-scale quantitative precipitation estimation, confirming the computational benefits of latent-space genera-tion, though without addressing multi-source fusion. MODS [21] employs multi-source satellite observations as conditions for diffusion-based meteorological downscaling via cross-attention, but its architecture remains tightly coupled to a fixed set of input sources. Across these efforts, a common gap persists: no existing generative framework simultaneously achieves computationally efficient multi-source generation over large spatial domains at operationally relevant frequencies and flexible integration of het-erogeneous satellite observations without redesigning the entire model for each new sensor configuration. To address these challenges, we propose PRISMA ( PR ecipitation Inference from 
+
+Satellite Modalities via gener Ative modeling), a plug-and-play generative frame-work for integrating multi-source satellite observations toward efficient and scalable precipitation estimation. The core idea is to formulate precipitation estimation as a conditional generative modeling problem in latent space, where the underlying precipitation state is represented by a learned prior distribution and constrained by heterogeneous satellite observations through modular conditioning mechanisms. Three key design principles underpin this framework (Fig. 1), each motivated by the operational requirements of disaster monitoring: First, generative modeling is performed in a compressed latent space rather than on raw precipitation fields. Precipitation is inherently intermittent, spatially sparse, and heavy-tailed——properties that pose severe difficulties for pixel-space generation, which would otherwise be required to allocate substantial capacity to non-precipitating 3regions while simultaneously capturing sharp gradients and rare extremes [22–25]. By learning a compact, information-preserving representation, training instability and computational cost are reduced [20, 22, 26, 27], thereby enabling large-area precip-itation estimation at frequencies compatible with near-real-time disaster response [17, 28–30]. Second, each heterogeneous satellite observation is encoded by an instrument-specific tokenizer before entering its conditioning branch. The design reflects aseparation of concerns: learning a faithful representation of an instrument and learn-ing how that representation should steer a generative backbone are distinct problems, best addressed under distinct supervision. The tokenizers are adapted from pre-trained visual foundation models [31] through reconstruction-based fine-tuning, which improves latent representation learning under the limited-sample conditions typical of satellite observations. The tokenizers are therefore shaped by what is physically recov-erable from each instrument rather than by the downstream generative loss alone. The conditioning branch therefore inherits a compact, already-structured input and can focus on how observations should guide precipitation, thereby simplifying its training difficulty. Moreover, in terms of inference efficiency, the tokenizer avoids the huge com-putational cost that would otherwise arise from directly processing high-dimensional raw data. Third, each satellite source is incorporated through an independent conditioning branch that can be attached or removed without modifying the core generative model. This plug-and-play architecture is operationalized through a two-stage training pro-cedure (Fig. 1b): first, an unconditional precipitation prior is learned from reference precipitation data; second, for each satellite source, a dedicated conditioning branch is trained to provide observation-guided signals that steer the frozen generative back-bone. At inference, arbitrary subsets of trained branches are composed on the fly. The design decouples the learned precipitation prior from the specific form and avail-ability of satellite observations: integrating a new sensor requires only training an additional tokenizer–conditioning pair, preserving the generative prior while enabling flexible, sensor-agnostic multi-source conditioning. For long-term operational systems that must accommodate evolving satellite constellations, this extensibility is essential. We demonstrate PRISMA using precipitation estimation as the primary appli-cation, integrating geostationary infrared observations from the FY-4B Advanced Geostationary Radiation Imager (AGRI) and passive microwave observations from the GPM Microwave Imager (GMI). The test period spans July and August 2025, which fall within the primary East Asian rainy season and thus provide representative precip-itation samples. The framework is evaluated against both the IMERG Final product and independent ground station observations across China, with case studies cover-ing extreme events such as Typhoon Francisco, Typhoon Krosa, and the historically rare North China rainstorm of July 2025 [32]. Although demonstrated here for pre-cipitation, the proposed framework is general and can be extended to a wide range of Earth system state estimation problems involving heterogeneous satellite observations. Broader cold-season and extra-regional validation remains future work. 4Fig. 1 Overview of the PRISMA framework. a, Motivation: precipitation x ∼ p(x) is observed only indirectly through heterogeneous satellites with complementary but incomplete views—geostationary infrared ( yIR ) provides full coverage of cloud-top signatures, while polar-orbiting passive microwave (yM W ) directly senses hydrometeors but only along narrow swaths. PRISMA approximates a con-ditional precipitation distribution constrained by these heterogeneous observations. b, Two-stage training and plug-and-play conditional guidance. Stage 1 : a precipitation tokenizer and a DiT-based Rectified Flow backbone are trained on IMERG to learn an unconditional precipitation prior in latent space. Stage 2 : for each observation source, an instrument-specific tokenizer and a conditional branch are trained to learn observation-conditioned guidance for the frozen backbone. At inference, condi-tional branches inject observation-derived features into each DiT block through spatially weighted additive injection ( ⊗: element-wise weighting by the spatial weight map w(m); ⊕: additive injection into the backbone). The denoised latent z0 is decoded into the final precipitation estimation. New sensors (e.g., MWRI, SEVIRI) can be integrated by training only an additional tokenizer–conditional branch pair (dashed lines), without modifying the frozen backbone. 
+
+# 2 Results 
+
+## 2.1 Efficient latent representations for multi-source satellite observations 
+
+2.1.1 Tokenizers for geostationary infrared imagers 
+
+To efficiently compress the high-dimensional and high-frequency geostationary infrared observations, we adapt a pretrained video-domain tokenizer to the geophysical domain. Specifically, the video-based tokenizer (CV4x8x8) is employed for geostationary imager 5observations spanning multiple consecutive time steps. Unlike static spatial tokeniza-tion, leveraging temporally continuous geostationary imagery enables the tokenizer to capture coherent cloud motion and mesoscale organization. This temporal modeling not only reduces sequential redundancy but also provides essential dynamical cues for the downstream generative backbone, allowing the model to better understand the evolution of convective systems. Fig. 2 illustrates the reconstruction performance of the tokenizer for the AGRI instrument, showcasing three representative infrared channels: the 6.25 μm and 7.42 μm water vapor bands, and the 10.80 μm longwave infrared band. When applying the generic vision-based pretrained tokenizer directly to satellite data, a prominent reconstruction failure occurs at the edges of the geostationary observational disk. Due to the limitations of the satellite zenith angle, large peripheral areas contain invalid values or space background. The pretrained model, optimized for continuous natural scenes, struggles to interpret these abrupt, non-natural observational masks, resulting in severe structural artifacts and spurious high-frequency noise along the boundaries. As clearly revealed by the adjusted colorbar range in Fig. 2d–f, pervasive noise pat-terns are present near the Earth disk boundary across all three channels. Additionally, the thermal structures of the inner cloud systems are notably blurred and distorted prior to fine-tuning. After domain-specific fine-tuning, the tokenizer significantly mitigates these issues. As shown in Fig. 2g–i, the fine-tuned model successfully adapts to the valid masking constraints, cleanly delineating the Earth disk boundary without introducing artificial edge noise. Furthermore, the fine-tuned tokenizer exhibits substantially higher fidelity in capturing the fine structures of the cloud systems. Quantitative metrics explicitly confirm this improvement: across the evaluated channels, the fine-tuned model demon-strates a remarkable decrease in Mean Absolute Error (MAE)—for instance, dropping from 6.611 to 2.750 for the 6.25 μm channel, and from 8.520 to 4.237 for the 10.80 μmchannel. Meanwhile, the Correlation Coefficient (CC) shows consistent increases across all channels. These results indicate that the fine-tuning strategy empowers the video tokenizer to overcome the physical and geometric limitations of satellite imagery, producing highly accurate and artifact-free latent representations for the generative framework. To further verify the spectral consistency of these visual improvements, extended reconstruction maps spanning all nine AGRI infrared channels are provided in Appendix A (Fig. A1). These comprehensive qualitative results corroborate that the fine-tuning strategy is highly robust across the full passive infrared spectrum, rang-ing from the shortwave to the longwave infrared bands. The fine-tuned tokenizer consistently eliminates boundary artifacts, strictly adheres to the valid observational mask, and preserves intricate, channel-specific cloud details and thermal gradients in every band. This ensures that the complete multi-spectral physical signatures of the atmosphere are accurately compressed and relayed to the downstream conditional generation module. Beyond the visual and case-specific metric improvements, comprehensive statistical evaluations over a broad spatial domain (1200 ×1200 valid observation areas) spanning the entire month of July 2025 systematically validate the efficacy of the fine-tuning 6Fig. 2 Reconstruction performance of the video-based tokenizer for AGRI geostationary observa-tions. (a)–(c) Original observations for three representative infrared channels: the 6.25 μm, 7.42 μm, and 10.80 μm bands. (d)–(f) Reconstructions from the vision-pretrained tokenizer, where the adjusted colorbar range reveals pervasive high-frequency noise near the Earth disk boundary. (g)–(i) Recon-structions from the domain-specifically fine-tuned tokenizer, showing clean boundary delineation and substantially improved structural fidelity. Quantitative metrics (MAE and CC) are annotated in each panel. 
+
+strategy. As summarized in Table A1 (Appendix A), the fine-tuned model achieves a remarkable 51.1% reduction in overall Mean Absolute Error (MAE), dropping from 7.482 K to 3.658 K for the comparable channels. The Mean Bias Error (MBE) is narrowed by 41.3%, and the Structural Similarity Index (SSIM) increases to 0.656, confirming that the local texture and structural fidelity are noticeably improved across the dataset. The Correlation Coefficient (CC) also sees a moderate increase, suggesting 7that while the pretrained model establishes the basic spatial distribution, the fine-tuning process is crucial for refining the absolute physical magnitudes. A detailed channel-by-channel analysis (provided in Appendix A, Table A2) reveals that the tokenizer’s reconstruction performance varies according to the physical prop-erties of the sensed atmospheric layers. The shortwave infrared channels (e.g., CH07) exhibit the highest spatial correlation (CC = 0.878) and SSIM (0.728), while the ther-mal infrared channels (e.g., CH13, 10.80 μm) show larger absolute errors (MAE ≈
+
+4.41 K). The water vapor channels (e.g., CH09, 6.25 μm) present the lowest CC values (∼0.61) and relatively lower SSIM scores (0.648), reflecting the inherently smoother yet spatially complex nature of water vapor fields. Moreover, all channels exhibit a persistent, albeit narrowed, negative MBE, indicating a systemic tendency to slightly underestimate brightness temperatures. Finally, temporal stability analysis across the multi-frame input sequence (detailed in Appendix A, Table A3) confirms that the fine-tuned tokenizer maintains highly consistent CC and MBE metrics across time steps. This temporal robustness provides reliable and continuous dynamical inputs for the downstream generative framework. 
+
+2.1.2 Tokenizers for polar-orbiting passive microwave sensors 
+
+Fig. 3 illustrates the reconstruction performance of the tokenizer for polar-orbiting passive microwave observations using three representative high-frequency channels. These channels are particularly sensitive to ice-phase hydrometeors and deep convec-tive structures, and are minimally affected by land surface emission, making them well suited for evaluating precipitation-relevant information content. Prior to fine-tuning, the tokenizer—initialized from a vision-domain pre-trained model—is able to capture the coarse spatial patterns of the microwave observations, but exhibits noticeable noise and fragmented structures, especially in regions associated with intense precipitation. This indicates that although generic visual features provide a reasonable starting point, they are insufficient for representing the specific physical characteristics of passive microwave measurements. After fine-tuning on microwave observations, the reconstructed brightness tem-perature fields show substantially improved spatial coherence and physically con-sistent structures, with a clear suppression of spurious noise while preserving key precipitation-related signals. In particular, the fine-tuned tokenizer better represents organized convective regions and sharp gradients associated with strong precipita-tion systems. These results suggest that lightweight, sensor-specific fine-tuning enables the tokenizer to adapt to the physical sensing mechanism of passive microwave instruments, producing more compact and informative latent representations. Such representations are better suited for serving as conditional inputs in the subse-quent generative modeling framework, without increasing the complexity of the core generative model. Reconstruction results for all GMI channels are provided in the Supplementary Material (Fig. S1), demonstrating that the fine-tuned tokenizer consis-tently preserves channel-dependent spatial structures across the full passive microwave spectrum. 8Fig. 3 Reconstruction of high-frequency passive microwave observations before and after tokenizer fine-tuning. (a)–(c) Original GMI observations for three representative high-frequency channels. (d)– (f) Reconstructions from the vision-pretrained tokenizer. (g)–(i) Reconstructions from the domain-specifically fine-tuned tokenizer. 
+
+Beyond these visual improvements, comprehensive statistical evaluations across 96 testing samples from July 2025 systematically validate the efficacy of the fine-tuning strategy. As summarized in Table A4 (Appendix A), when evaluated on the three representative high-frequency channels (166.0V, 183.31 ±3V, and 183.31 ±7V), the fine-tuned model achieves a drastic reduction in Mean Absolute Error (MAE), plummeting from 8.731 K to 1.851 K. Furthermore, the pretrained tokenizer exhibits a severe systematic underestimation, evidenced by a large negative Mean Bias Error (MBE) of -3.998 K. The domain-specific fine-tuning effectively rectifies this structural bias, bringing the MBE to a slight positive value of 0.388 K. The spatial consistency is 9also markedly enhanced, with the Pearson Correlation Coefficient (CC) surging from 0.470 to 0.782, confirming that the fine-tuned latent representations align much closer with the physical gradients of the original microwave observations. The robustness of this fine-tuning strategy extends across the entire 13-channel GMI spectrum. As detailed in Appendix A (Table A5), the full-spectrum fine-tuned tokenizer maintains high fidelity with an average MAE of 1.985 K and an impressive overall CC of 0.894. A detailed channel-by-channel breakdown reveals that lower-frequency channels (e.g., 10.65 GHz to 37.0 GHz) are reconstructed with near-perfect correlation (CC > 0.92), while the high-frequency channels inherently pose a greater challenge due to the complex, high-variance scattering signatures of ice particles. These quantitative results, together with the reconstruction maps for all GMI chan-nels provided in Appendix A (Fig. A2), demonstrate that lightweight, sensor-specific fine-tuning empowers the tokenizer to adapt to the physical sensing mechanism of passive microwave instruments. The resulting compact and informative latent repre-sentations are perfectly suited for serving as conditional inputs without increasing the complexity of the core generative model. 
+
+## 2.2 Multi-source collaborative precipitation estimation 
+
+2.2.1 Learning a generative precipitation prior 
+
+The generative precipitation prior is built upon a precipitation tokenizer that com-presses high-dimensional precipitation fields into compact latent representations, followed by a DiT-based Rectified Flow backbone that learns the unconditional distribution of precipitation in latent space. We evaluate both components sequentially. Following the same fine-tuning strategy described in Sections 2.1.1 and 2.1.2, we adapt the image-based pretrained tokenizer (CI8x8) to IMERG precipitation fields. The evaluation is conducted over a broad spatial domain covering 1200 × 1200 grid points during July 2025. As summarized by comprehensive statistical evaluations over July 2025, the fine-tuned precipitation tokenizer achieves substantial improvements over the vision-pretrained baseline. The MAE drops by 62.3% from 0.068 to 0.026 mm/h, the RMSE is reduced by 45.8% from 0.311 to 0.168 mm/h, and the Pearson correlation coef-ficient increases from 0.948 to 0.985. The overall R2 improves from 0.894 to 0.969, approaching the theoretical upper bound. Beyond aggregate statistics, the fine-tuning yields critical improvements in precip-itation detection capability. Table 1 presents multi-threshold categorical metrics. The most striking improvement occurs in the False Alarm Ratio (FAR): at the 0.1 mm/h threshold, FAR plummets from 0.311 to 0.023, a 92.5% reduction, indicating that the pretrained tokenizer’s severe tendency to generate spurious light precipitation is effectively eliminated. The Critical Success Index (CSI) improves consistently across all thresholds, with the largest gains at the light precipitation threshold (0.1 mm/h, from 0.666 to 0.891) and the heavy precipitation threshold (10.0 mm/h, from 0.584 to 0.754). At the 10.0 mm/h threshold, the Probability of Detection (POD) increases from 0.761 to 0.872, and the precipitation-area Pearson correlation rises from 0.717 to 0.889, 10 demonstrating substantially enhanced fidelity in reconstructing intense precipitation events.                                   
+
+> Table 1 Multi-threshold categorical evaluation of the precipitation tokenizer before and after fine-tuning. Threshold CSI FAR POD (mm/h) Pretrained Fine-tuned Pretrained Fine-tuned Pretrained Fine-tuned 0.1 0.666 0.891 0.311 0.023 0.953 0.910 1.0 0.801 0.893 0.133 0.047 0.914 0.934
+> 5.0 0.677 0.820 0.216 0.107 0.832 0.909
+> 10.0 0.584 0.754 0.286 0.153 0.761 0.872
+
+Fig. 4 provides a qualitative illustration of these improvements. The pretrained tok-enizer introduces pervasive grid-like artifacts and spurious precipitation signals across non-precipitating regions, while the organized precipitation structures are blurred and fragmented. After fine-tuning, these artifacts are completely eliminated: the recon-structed field closely matches the original IMERG product, with sharp precipitation boundaries, accurate intensity gradients, and clean non-precipitating backgrounds. The case-level metrics (CSI improving from 0.671 to 0.888; MAE decreasing from 0.073 to 0.031 mm/h) corroborate the visual improvements. These results confirm that the fine-tuned tokenizer produces high-fidelity latent representations that faithfully pre-serve the spatial structure and intensity distribution of precipitation fields, providing a reliable foundation for the subsequent generative modeling.  
+
+> Fig. 4 Reconstruction performance of the precipitation tokenizer. (a) Original IMERG precipitation field. (b) Reconstruction from the vision-pretrained tokenizer, exhibiting pervasive grid-like artifacts and spurious precipitation signals. (c) Reconstruction from the fine-tuned tokenizer, showing faithful recovery of precipitation structures with clean non-precipitating backgrounds.
+
+11 With the fine-tuned precipitation tokenizer established, we train the DiT-based Rectified Flow backbone to learn an unconditional generative prior over precipitation fields in latent space. As described in Section 3, training employs a two-phase curricu-lum strategy for the noise-scale shift parameter s: the first phase (50,000 iterations with s = 5) prioritizes large-scale spatial coherence and global probability transport, while the second phase (20,000 iterations with s = 2) refines fine-grained details and heavy-tailed intensity distributions. To evaluate whether the learned generative prior faithfully captures the statistical properties of real precipitation, we compare 500 unconditionally generated samples against reference sets of 500 samples randomly drawn from the 2022–2024 IMERG archive. Evaluation focuses on two complementary aspects: the spatial distribution of precipitation climatology and the sample-level statistical distributions of precipitation mean and variance. Fig. 5 presents the spatial mean and variance maps of generated samples at three training checkpoints (iter5w, iter6w, iter7w), alongside the IMERG reference. All three checkpoints successfully reproduce the broad climatological patterns of precipitation, including the Intertropical Convergence Zone (ITCZ), the Western Pacific warm pool, and the monsoon regions over South and Southeast Asia. However, notable differences emerge in the fidelity of fine-scale features. The iter5w checkpoint (trained exclusively with s = 5) produces overly smooth spatial mean fields with suppressed variance, particularly over the Maritime Continent and the Bay of Bengal, where convective variability is highest. After transitioning to s = 2, the iter6w and iter7w checkpoints progressively recover sharper spatial gradients and more realistic variance magnitudes, with iter7w exhibiting the closest visual agreement with the reference in both mean intensity and spatial variability patterns. Quantitative assessment of the sample-level statistics further validates the curricu-lum strategy. As shown in the distribution plots in Fig. 5(i,j), the iter5w checkpoint produces a mean precipitation distribution that is significantly different from the ref-erence (Kolmogorov–Smirnov p-value = 0.002), with a narrower and more peaked shape indicating insufficient diversity. After only 10,000 iterations with s = 2 (iter6w), the KS p-value for the mean distribution jumps to 0.082, and after 20,000 itera-tions (iter7w), it reaches 0.111, well within the range of natural variability observed between independent reference subsets (median inter-reference p-value = 0.350). The variance distribution follows a similar trajectory, with the KS p-value improving from 0.003 (iter5w) to 0.095 (iter7w). The histogram Pearson correlation for variance also improves steadily from 0.868 to 0.907. These results demonstrate that the shift from 
+
+s = 5 to s = 2 is the primary driver of distributional convergence: the initial high-shift phase establishes large-scale structure, while the subsequent low-shift phase is essential for recovering the full diversity and tail behavior of the precipitation distribution. The learned generative prior thus captures both the climatological spatial struc-ture and the statistical diversity of global precipitation fields. This unconditional prior serves as the foundation for the subsequent multi-source conditional generation, where satellite observations are injected through instrument-specific conditioning branches to constrain the generative process toward observation-consistent precipitation real-izations. 12 Fig. 5 Evaluation of the unconditional generative precipitation prior. (a–d) Spatial mean precipi-tation maps for the IMERG reference and three training checkpoints. (e–h) Corresponding spatial variance maps. (i) Distribution of sample-level mean precipitation, with KS test p-values annotated. (j) Distribution of sample-level variance. The two-phase curriculum (iter5w → iter6w/iter7w) pro-gressively improves the agreement between generated and reference distributions. 
+
+2.2.2 Single- and multi-source conditioning of satellite observations 
+
+We evaluate the effectiveness of single and multi-source conditioning using large-scale quantitative metrics over the entire evaluation domain and within the GMI coverage regions. We first focus on the GMI swath regions to isolate the direct contribution of pas-sive microwave observations. In Tables 2 and 3, the categorical and pointwise error metrics are computed from the ensemble-mean precipitation field, while CRPS and SSR evaluate the full predictive ensemble. Within the swath, the AGRI-only con-figuration achieves moderate deterministic skill (CSI = 0.365 and FSS = 0.662 at 0.1 mm/hr), limited by the indirect relationship between infrared cloud-top signals and surface precipitation. The GMI-only configuration substantially improves event detec-tion, reaching CSI = 0.472 and FSS = 0.793 at 0.1 mm/hr and remaining strongest at the higher thresholds (e.g., CSI = 0.461, 0.284, and 0.172 at 1.0, 5.0, and 10.0 mm/hr), 13 reflecting the direct physical sensitivity of microwave observations to hydrometeors. The multi-source AGRI+GMI configuration delivers the best overall light-rain and intensity-estimation performance, with CSI = 0.512 and FSS = 0.839 at 0.1 mm/hr together with the lowest RMSE (0.524 mm/hr), MAE (0.116 mm/hr), and CRPS (0.088). The CRPS comparison is important because it evaluates the entire predic-tive distribution rather than only the ensemble mean: AGRI+GMI improves over both AGRI-only (0.120) and GMI-only (0.091), indicating that the added infrared context not only sharpens the deterministic estimate but also yields a more accu-rate and sharper probabilistic forecast within the swath. This pattern suggests that AGRI provides useful large-scale contextual constraints that improve ensemble-mean intensity estimation and spatial coherence, while microwave observations remain espe-cially important for locating the most intense precipitation cores inside the swath. For the AGRI+GMI results, we adopt a GMI branch weight of gw = 1 .0, which was determined through a systematic sensitivity analysis (Appendix Table B7). This parameter is a guidance coefficient controlling feature injection strength within GMI-observed regions, rather than a learned or calibrated likelihood weight. Increasing 
+
+gw consistently improves performance within the coverage regions, with the best results obtained when the microwave branch dominates. The SSR values provide addi-tional insight into ensemble behavior: the GMI-only configuration is closest to the ideal spread–skill balance within the swath (SSR = 1.040), whereas the lower SSR of AGRI+GMI (0.620) is consistent with a sharper ensemble under stronger observa-tional constraints, but it also indicates that the ensemble spread contracts faster than the residual error, leading to a more under-dispersive forecast distribution.                                              
+
+> Table 2 Quantitative evaluation metrics restricted to the GMI swath regions. For each sample, 10 ensemble members are generated using different random seeds. Deterministic metrics are computed from the ensemble-mean precipitation field, while CRPS and SSR are computed from the corresponding 10-member ensemble. Metric AGRI-only GMI-only AGRI+GMI ( gw = 1 .0) Name Threshold (mm/hr) CSI 0.1 0.365 0.472 0.512
+> 1.0 0.288 0.461 0.446 5.0 0.151 0.284 0.215 10.0 0.085 0.172 0.102 FSS 0.1 0.662 0.793 0.839
+> 1.0 0.581 0.796 0.791 5.0 0.381 0.614 0.495 10.0 0.244 0.435 0.274 RMSE (mm/hr) 0.677 0.569 0.524
+> MAE (mm/hr) 0.168 0.140 0.116
+> MBE (mm/hr) −0.002 0.046 −0.029 CRPS 0.120 0.091 0.088
+> SSR 0.707 1.040 0.620
+
+14 Over the full spatial domain (Table 3), the multi-source configuration (AGRI+GMI) again outperforms the single-source baselines across nearly all deter-ministic metrics derived from the ensemble mean. Compared with AGRI-only, the addition of passive microwave observations improves CSI from 0.414 to 0.422 at 0.1 mm/hr, increases FSS from 0.731 to 0.740, and reduces RMSE from 0.767 to 0.760 mm/hr and MAE from 0.170 to 0.167 mm/hr, while keeping MBE near zero (0 .000 vs. −0.001 mm/hr). The probabilistic metric CRPS also improves slightly from 0.120 to 0.119. In contrast, the GMI-only configuration degrades sharply at the domain scale because its narrow swath leaves large areas unconstrained. The domain-scale SSR values for AGRI-only (0.745) and AGRI+GMI (0.743) are nearly identical and both below 1, indicating similarly under-dispersive ensembles after spatial averaging over the full scene. The timing results further highlight the computational efficiency of latent-space generation: even over the full 1200 × 1200 domain, a single ensemble member requires 29.12–37.67 s of wall-clock inference time using 35 denoising steps on an NVIDIA A100-PCIE-40GB GPU. The multi-source AGRI+GMI configuration is slower than the single-source settings (37.67 s/member vs. 29.12 s/member for AGRI-only and 32.13 s/member for GMI-only), because each active control branch introduces additional feature encoding and control-modulation computations at every denoising step. This overhead accumulates across the iterative sampling trajectory, but remains modest relative to the gain in multi-source observational constraint and is enabled by operating in the compressed latent space rather than directly diffusing full-resolution precipitation fields. Overall, these results show that geostationary infrared observations provide the large-scale coverage required for full-domain precipitation mapping, while microwave observations contribute localized but valuable corrections where available. To intuitively demonstrate the model’s performance in extreme precipitation events and verify its robustness, we conduct an in-depth analysis of two typical severe trop-ical cyclone cases from the test set: Typhoon Francisco at 17:00 UTC on July 23, 2025 (Fig. 6), and Typhoon Krosa at 03:00 UTC on July 26, 2025 (Fig. 7). In both extreme events, the full-domain predictions and the magnified detail views of the storm cores reveal significant differences in the ability of different input configurations to reconstruct complex convective structures. When relying solely on the geostationary infrared branch (AGRI-only), the predicted typhoon precipitation structures exhibit noticeable over-smoothing and a severe overestimation of the spatial extent of the heavy precipitation cores. This artifact primarily stems from the physical limitations of infrared observations. The AGRI water vapor band (Channel 9) and longwave infrared band (Channel 13) (Fig. 6c,d) primarily capture cloud-top brightness temperatures and macroscopic cloud morphology, detecting extremely broad, low-temperature cold cloud shields in both cases that obscure the underlying storm cores. Consequently, the pure infrared model struggles to penetrate deep convective cloud systems to detect internal fine structures, failing to capture the distinct boundaries of the eye walls and outer spiral rainbands. In contrast, microwave signals exhibit strong penetration capability through clouds and are directly sensitive to hydrometeors such as raindrops, snow, and ice parti-cles. The GMI low-frequency channel (Fig. 6a) captures the emission signals of liquid 15 Table 3 Quantitative evaluation metrics over the full spatial domain (1200 × 1200) for different observation configurations. For each sample, 10 ensemble members are generated using different random seeds. Deterministic metrics are computed from the ensemble-mean precipitation field, while CRPS and SSR are computed from the corresponding 10-member ensemble. Inference time denotes the average wall-clock time for generating a single ensemble member. Metric AGRI-only GMI-only AGRI+GMI ( gw = 1 .0) Name Threshold (mm/hr) CSI 0.1 0.414 0.126 0.422                                        
+
+> 1.0 0.361 0.054 0.370
+> 5.0 0.255 0.033 0.259
+> 10.0 0.170 0.024 0.172
+> FSS 0.1 0.731 0.294 0.740
+> 1.0 0.698 0.148 0.709
+> 5.0 0.612 0.094 0.618
+> 10.0 0.495 0.075 0.500
+> RMSE (mm/hr) 0.767 0.977 0.760
+> MAE (mm/hr) 0.170 0.248 0.167
+> MBE (mm/hr) 0.000 −0.048 −0.001 CRPS 0.120 0.169 0.119
+> SSR 0.745 0.692 0.743 Inference time (s/member) 29.12 32.13 37.67
+
+precipitation in the lower atmosphere, while the high-frequency channel (Fig. 6b) is highly sensitive to the scattering of ice-phase hydrometeors within deep convective structures. The sharp brightness temperature depressions in the high-frequency chan-nel precisely outline the dense core convective zones, the eye walls, and the spiral rainbands. Therefore, the GMI-only branch clearly captures storm precipitation struc-tures that are highly consistent with the IMERG reference, accurately recovering the spatial gradients of intense precipitation. By introducing the GMI branch, the pro-posed AGRI+GMI multi-source fusion model successfully overcomes the “smudging” artifacts inherent in pure infrared estimation, not only effectively shrinking the overes-timated heavy rain area but also distinctly reconstructing the internal spiral structure of the typhoon. Quantitative metrics annotated in Figs. 6 and 7 further corroborate these visual improvements. For Typhoon Francisco, the AGRI+GMI configuration achieves a full-domain CSI of 0.438, FSS of 0.762, and MAE of 0.169 mm/h, outperforming both the AGRI-only (CSI = 0.423, FSS = 0.745, MAE = 0.174 mm/h) and GMI-only (CSI = 0.201, FSS = 0.429, MAE = 0.250 mm/h) baselines. Within the GMI swath regions, the advantage becomes substantially more pronounced: the AGRI+GMI model achieves a CSI of 0.765 and FSS of 0.965, compared to 0.608 and 0.858 for AGRI-only, representing relative improvements of 25.8% and 12.5%, respectively. For Typhoon Krosa, a consistent pattern emerges: the full-domain CSI improves from 0.396 (AGRI-only) to 0.400 (AGRI+GMI), while within the storm core region, the AGRI+GMI 16 model achieves a CSI of 0.763, FSS of 0.947, and MAE of 0.898 mm/h, substan-tially outperforming the AGRI-only configuration (CSI = 0.659, FSS = 0.882, MAE = 1.556 mm/h), with MAE reduced by 42.3%. These two independent events consistently demonstrate that during extreme convective weather conditions, the proposed genera-tive framework effectively extracts and prioritizes high-fidelity structural information from microwave observations. Through physically meaningful cross-modal synergy, the model substantially reduces false alarms and misses, achieving more accurate and physically consistent precipitation estimation. 
+
+Fig. 6 Qualitative comparison of precipitation estimation for Typhoon Francisco at 17:00 UTC on July 23, 2025. (a)–(d) Conditioning satellite observations, including GMI low-frequency and high-frequency channels, alongside the AGRI water vapor band (Channel 9) and longwave infrared band (Channel 13). (e)–(h) Full-domain IMERG Final product and the ensemble-mean predictions from the AGRI-only, GMI-only, and AGRI+GMI configurations. (i)–(l) Magnified detail views of the storm core region; dashed lines in (i)–(l) delineate the GMI swath boundary. CSI, FSS, and MAE are annotated for both the full domain and the GMI swath regions; CSI and FSSvalues are computed at the 0.1 mm/h precipitation threshold. 
+
+17 Fig. 7 As in Fig. 6, but for Typhoon Krosa at 03:00 UTC on July 26, 2025. 
+
+2.2.3 Third-party validation using ground observations 
+
+To provide a third-party assessment beyond the IMERG-based reference used for gridded supervision, we evaluate the proposed model against hourly accumulated precipitation observations from China’s national automatic weather station (AWS) network following the protocol described in Section 3.6. These station measurements are not used to train the precipitation tokenizer, the unconditional backbone, or the conditional branches, and therefore provide an independent check on whether improvements measured against IMERG translate to ground-observed precipitation. The evaluation spans the entire month of July 2025. IMERG Final is included as a benchmark representing the current state-of-the-art satellite precipitation product, but it is not an independent reference because it assimilates multi-satellite observations and applies monthly gauge calibration. To focus the evaluation on time periods with meaningful GMI coverage, we restrict the analysis to samples which at least 1,000 ground stations fall within the GMI swath. Table 4 summarizes the categorical verification metrics at four precipitation thresholds. At the light precipitation threshold (0.1 mm), the AGRI+GMI model achieves a CSI of 0.678, outperforming AGRI-only (0.668), with FAR reduced from 18 0.163 to 0.155. At 1.0 mm, the improvement is more pronounced: CSI increases from 0.602 to 0.611, and FAR decreases from 0.144 to 0.135, a relative reduction of 6.3%. At the heavy rain thresholds (5.0 and 10.0 mm), both configurations show comparable performance, with AGRI-only achieving marginally higher CSI (0.377 vs. 0.377 at 5.0 mm; 0.219 vs. 0.217 at 10.0 mm). This convergence at extreme thresholds reflects the inherent difficulty of heavy precipitation detection from satellite observations: IMERG Final itself achieves only a POD of 0.310 at 10.0 mm, confirming that this remains a common challenge across current satellite-based products.  
+
+> Table 4 Categorical verification metrics against ground station observations at four precipitation thresholds.
+
+Threshold Source POD FAR CSI 0.1 mm IMERG 0.837 0.112 0.758 
+
+AGRI+GMI 0.777 0.155 0.678 AGRI-only 0.773 0.163 0.668 1.0 mm IMERG 0.798 0.107 0.717 
+
+AGRI+GMI 0.681 0.135 0.611 AGRI-only 0.677 0.144 0.602 5.0 mm IMERG 0.543 0.031 0.529 
+
+AGRI+GMI 0.394 0.056 0.377 AGRI-only 0.395 0.065 0.377 10.0 mm IMERG 0.310 0.006 0.308 
+
+AGRI+GMI 0.219 0.016 0.217 AGRI-only 0.221 0.018 0.219 In terms of quantitative error against the independent AWS observations, the AGRI+GMI configuration yields an RMSE of 1.599 mm and MAE of 0.315 mm, rep-resenting improvements of 0.9% and 2.2% over AGRI-only (RMSE = 1.614 mm, MAE = 0.322 mm), respectively. The mean bias error (MBE) is reduced from −0.026 mm to −0.019 mm. Compared to IMERG Final (RMSE = 1.499 mm, MAE = 0.298 mm), the model exhibits gaps of 6.7% in RMSE and 5.7% in MAE. Given that IMERG Final incorporates multi-source satellite observations including GMI itself, as well as monthly gauge calibration using GPCC data, this level of performance gap is expected. The more important point for model assessment is that the AGRI+GMI improvement persists under a station-based reference that was not used for training, although its magnitude is smaller than under IMERG-based verification. It is important to note that the magnitude of improvement differs substan-tially depending on the evaluation reference. Using IMERG as the reference (Section 2.2.2), the AGRI+GMI model shows CSI improvements of 23–56% within the GMI swath, whereas the ground station evaluation reveals more modest gains of 7–13%. This discrepancy arises because GMI is the core calibration instrument for IMERG: the IMERG retrieval chain uses GMI to calibrate all other constellation sensors 19 before multi-source fusion [14]. Consequently, when the model incorporates GMI observations, its output naturally exhibits higher consistency with IMERG, inflat-ing the apparent improvement when IMERG serves as the evaluation reference. The independent ground station evaluation reduces this circularity and provides a more conservative estimate of the true benefit of microwave integration. Both evaluations consistently confirm that GMI integration improves light-to-moderate pre-cipitation estimation; the station-based results indicate that the real-world benefit, while genuine, is more modest than satellite-referenced metrics suggest. To further illustrate the model’s performance under extreme conditions, we select an exceptionally intense precipitation case: the 1-hour accumulated precipitation esti-mation at 20:00 UTC on July 25, 2025, during a historically rare, week-long extreme rainstorm over North China (July 23–29, 2025) [32]. This event featured multiple stations recording hourly rainfall exceeding 80 mm and cumulative totals surpassing 500 mm, representing one of the most extreme precipitation episodes in the region’s observational record and thus providing a stringent test of the model’s robustness. Fig. 8 presents the precipitation estimation results for this case, with station observations overlaid as colored circles. Fig. 8a shows the full-domain AGRI+GMI prediction with the GMI swath highlighted, while Fig. 8b–d display the zoomed-in comparison over the North China region for IMERG, AGRI+GMI, and AGRI-only, respectively. At the 0.1 mm threshold, the IMERG product achieves a station-evaluated CSI of 0.873 and MAE of 2.39 mm, serving as the upper-bound reference. The AGRI+GMI model attains a CSI of 0.764 and MAE of 2.37 mm, while AGRI-only yields a CSI of 0.759 and MAE of 2.54 mm. The multi-source model thus improves CSI by 0.7% and reduces MAE by 6.7% compared to the single-source baseline. Visually, the AGRI+GMI estimation better captures the spatial extent and intensity gradient of the southwest–northeast oriented rainband, particularly in the heavy precipitation cores over central Hebei and the Beijing–Tianjin region, where the GMI swath pro-vides direct microwave constraints. The AGRI-only configuration, while reproducing the overall rainband morphology, tends to overestimate the spatial extent of moderate precipitation and exhibits slightly weaker intensity gradients in the storm cores. These results demonstrate that even for a single extreme event snapshot, the integration of passive microwave observations provides measurable improvements in both precipita-tion detection and intensity estimation when evaluated against independent ground truth. 20 Fig. 8 Precipitation estimation for the North China extreme rainstorm case at 20:00 UTC on July 25, 2025. (a) Full-domain AGRI+GMI prediction with the GMI swath indicated in pink. (b)–(d) Zoomed-in views over North China for IMERG Final, AGRI+GMI, and AGRI-only, respectively. Colored circles denote 1-hour accumulated precipitation observations from automatic weather stations. CSI (at the 0.1 mm threshold) and MAE values evaluated against station observations are annotated in each panel. 
+
+21 3 Methods 
+
+## 3.1 Problem Formulation 
+
+Let x ∈ RH×W denote the target precipitation field defined on a regular spatial grid. We consider a collection of heterogeneous satellite observations 
+
+Y = {y(1) , y (2) , . . . , y (M )}, (1) where each observation y(m) may differ in spatial coverage, resolution, sensing modal-ity, and noise characteristics. Individual observations are generally incomplete and spatially sparse, and none alone is sufficient to fully constrain the precipitation field. Our objective is to infer spatially continuous precipitation realizations consis-tent with these heterogeneous observations by sampling from a conditional generative distribution 
+
+x ∼ pθ(x | Y ), (2) where pθ is represented implicitly through a diffusion-based generative model. An overview of the PRISMA framework is provided in Fig. 1. The model is realized through a two-stage training procedure (Fig. 1b). In Stage 1, a precipitation tokenizer and a DiT-based Rectified Flow backbone are trained on IMERG to learn an unconditional precipitation prior in latent space. In Stage 2, for each satellite source m, an instrument-specific tokenizer is fine-tuned and a conditional branch is trained to provide observation-conditioned guidance to the frozen backbone. The branch training objective is the same conditional rectified-flow objective used for generation; it does not explicitly estimate a normalized likelihood density. At inference, arbitrary subsets of trained branches are composed through spatially weighted feature injection, yielding an approximate posterior-guided sampler motivated by Eq. (9) with-out any further training. The tokenization, backbone, and conditional-branch modules underlying these two stages are detailed in the following subsections. 
+
+## 3.2 Latent Tokenization and Fine-Tuning 
+
+3.2.1 Latent Tokenization 
+
+Given a precipitation field x ∈ RH×W , a precipitation tokenizer encodes the field into a sequence of latent tokens 
+
+zprec = Eprec (x), zprec ∈ RN ×d, (3) where N denotes the number of tokens and d is the token embedding dimension. The corresponding decoder reconstructs the precipitation field as ˆ x = Dprec (zprec ). Each satellite observation y(m) is similarly encoded using an instrument-specific tokenizer 
+
+z(m) = E(m)sat 
+
+
+
+y(m)
+
+. (4) All subsequent generative modeling and conditioning operations are conducted exclusively in the latent token space. 22 3.2.2 Tokenizer Fine-Tuning 
+
+We adapt two pretrained tokenizers from the Cosmos-Tokenize1 family [31] to geo-physical data: Cosmos-Tokenize1-CI8x8 (pretrained on natural images) for single-time precipitation fields, and Cosmos-Tokenize1-CV4x8x8 (pretrained on natural videos) for geostationary imager observations spanning multiple consecutive time steps. To accommodate multi-channel satellite inputs, the input convolutional layer is expanded and newly added channels are initialized by cyclically copying pretrained weights from existing channels. A binary mask indicating valid measurement locations is concate-nated as an additional input channel. Fine-tuning is performed with a learning rate of 5 × 10 −5 and 10,000 warmup steps. The training objective combines a pixel-wise L1 reconstruction loss (weight 1.5) with, for the video tokenizer, a temporal consistency loss activated after 5,000 warmup steps. 
+
+## 3.3 Generative Backbone 
+
+3.3.1 Rectified Flow with DiT 
+
+Generative modeling is performed in the latent token space using the Rectified Flow formulation. Let zt denote the latent state at continuous time t ∈ [0 , 1], where t = 1 corresponds to pure noise and t = 0 corresponds to a clean latent representation. Rectified Flow defines a deterministic transport process governed by a neural velocity field vθ(zt, t ): 
+
+dz t
+
+dt = vθ (zt, t ). (5) The velocity field is parameterized using a Diffusion Transformer (DiT), which models interactions among latent tokens through self-attention. Model training minimizes the flow matching loss 
+
+LFM = Ez0,t 
+
+h
+
+∥vθ(zt, t ) − (ϵ − z0)∥2i
+
+, (6) where z0 denotes clean latent tokens and ϵ is Gaussian noise injected according to the Rectified Flow formulation. 
+
+3.3.2 Time Sampling and Curriculum Training 
+
+Training times t are sampled from a logit-normal distribution t = σ(ϵ), ϵ ∼ N (0 , 1) [33], and mapped to an effective noise level through a shifted schedule: 
+
+σ′(t) = s · σ(t)1 + ( s − 1) · σ(t) , (7) where s > 1 biases the effective noise level toward higher values. We adopt a two-phase curriculum strategy [34, 35]: the first 50,000 iterations use s = 5 to prioritize large-scale spatial coherence, followed by 20,000 iterations with s = 2 to refine fine-grained details and heavy-tailed intensity distributions. 23 3.4 Multi-Source Conditional Generation 
+
+3.4.1 Conditional Branch Architecture 
+
+Inspired by the ControlNet paradigm for adding conditional control to pretrained generative models [36], the framework augments the DiT backbone with multiple instrument-specific conditional branches, each corresponding to one satellite sensor. Each conditional branch shares the same transformer architecture as the backbone but processes encoded satellite observations instead of precipitation latents. At each transformer block k, features produced by the conditional branches are combined and injected into the backbone: 
+
+hk = hbackbone  
+
+> k
+
++
+
+> M
+
+X
+
+> m=1
+
+w(m) 
+
+> k
+
+⊙ h(m) 
+
+> k
+
+, (8) where h(m) 
+
+> k
+
+denotes the output of the conditional branch associated with observation 
+
+y(m), and w(m) 
+
+> k
+
+∈ RH′×W ′
+
+is a spatial weight map that modulates the per-location influence of each instrument. 
+
+3.4.2 Spatial Weight Maps 
+
+Since satellite observations differ in spatial coverage—geostationary infrared imagers provide continuous hemispheric coverage while polar-orbiting microwave sensors observe only narrow swaths at any given time—a uniform weighting across all loca-tions would introduce conditioning signals from unobserved regions. Drawing on the idea of fusing multiple diffusion processes through spatially varying weights, as pro-posed in MultiDiffusion for controlled image generation [37], we construct a spatial weight map w(m) for each instrument based on its observation mask. In regions where only one instrument provides valid observations, the corresponding weight is set to 1 and all others to 0. In overlapping regions where multiple instruments are available, the weights are assigned according to a predefined priority that reflects the physical informativeness of each sensing type (e.g., passive microwave sensors receive higher weight than infrared imagers in co-observed areas). The weight maps are normalized such that P 
+
+> m
+
+w(m) = 1 at each spatial location. These weights are therefore prac-tical guidance coefficients for feature injection, not calibrated likelihood normalizers. This design ensures that each location is conditioned only by its available observa-tions, while the Transformer’s self-attention mechanism enables information exchange across regions with different observational coverage. 
+
+3.4.3 Conditional Branch Training 
+
+Each conditional branch is trained independently with the backbone fully frozen, so that only the control embedder and the cascaded control blocks (including the zero-convolution skip projections) receive gradient updates. The training objective follows the rectified flow loss [24, 25] of the backbone, with logit-normal time-step sampling and per-step reweighting [33] to emphasize intermediate noise levels; each satellite observation is accompanied by a binary spatial mask that is concatenated along the 24 channel dimension with the observation tokens before being fed into the conditional branch. The control embedder and the cascaded control blocks are initialized from the corresponding layers of the pretrained backbone, while each block’s output projection (zero-convolution skip) is initialized to exact zero following the ControlNet convention [36], so that at the onset of training the branch injects no signal into the frozen back-bone and the unconditional prior is recovered. We optimize the trainable parameters with AdamW [38] ( β1 = 0 .9, β2 = 0 .999, weight decay 10 −3) at a peak learning rate of 4 .3 × 10 −5, using a 100-step linear warmup followed by a cosine decay schedule [39] and gradient-norm clipping set to 0 .1. Each branch is trained for 20,000 optimization steps on the IMERG/satellite pairs, using FSDP-based model sharding together with context parallelism [40] and activation checkpointing [41] to reduce memory during long-sequence attention; since the backbone remains frozen and only a small fraction of parameters is updated, training a new conditional branch is substantially cheaper than retraining the generative backbone. 
+
+3.4.4 Multi-Modal Posterior-Guided Sampling 
+
+At inference time, multi-source conditional generation is motivated by posterior inference with conditionally independent observations. Given an unconditional pre-cipitation prior p(x) and a set of available observations Y = {y(m)}m with instrument-specific spatial supports Ω (m), this view suggests the formal target 
+
+p(x | Y ) ∝ p(x) Y
+
+> m
+
+p
+
+
+
+y(m) | xΩ(m)
+
+
+
+, (9) where Eq. (9) should be interpreted as a modeling motivation rather than as an explic-itly evaluated product of calibrated likelihoods. In practice, each conditional branch learns a sensor-specific guidance signal through the conditional rectified-flow loss, and branch composition is performed by spatially weighted feature injection inside the frozen backbone. Sampling follows the same rectified flow trajectory as the prior [24, 25]: starting from xT ∼ N (0 , I ), the latent state is integrated using the Euler scheme 
+
+xt−∆t = xt − ∆t · ˆvθ(xt, t, Y) , (10) where ˆ vθ is the velocity predicted by the backbone under the active conditional branches. Within the backbone, the per-layer hints from the active branches are com-bined through a spatial weight map derived from the observation masks as described above, 
+
+hi(s) = X
+
+> m
+
+W (m)(s) ⊙ h(m) 
+
+> i
+
+(s), X
+
+> m
+
+W (m)(s) ≤ 1, (11) so that each spatial location is influenced only by the branches whose observations are valid there [36, 37]. Because branches are activated through the shared backbone without any additional fine-tuning, arbitrary subsets of available instruments can be composed at inference, and the final precipitation field is recovered by decoding x0
+
+with the precipitation tokenizer. All model training and inference experiments are con-ducted on NVIDIA A100-PCIE-40GB GPUs. During inference, each ensemble member is generated using 35 denoising steps. 25 3.5 Data 
+
+3.5.1 Study Domain 
+
+The study domain spans 60 ◦S–60 ◦N in latitude and 40 ◦–160 ◦E in longitude, cov-ering a wide range of climate regimes and precipitation characteristics. This region encompasses the Asian monsoon system, the Maritime Continent, the tropical west-ern Pacific warm pool, the Indian Ocean, and the arid zones of Central Asia and the Arabian Peninsula, providing diverse precipitation scenarios from tropical deep con-vection to mid-latitude frontal systems. The domain is discretized onto a 0 .1◦ regular grid, yielding spatial dimensions of 1200 × 1200 grid points. 
+
+3.5.2 IMERG Precipitation Product 
+
+The IMERG product [14] provides global precipitation estimates at 0 .1◦ / half-hourly resolution by integrating passive microwave and infrared observations from the GPM constellation. It is released in three stages with increasing latency and accuracy: Early Run ( ∼4 h), Late Run ( ∼14 h), and Final Run ( ∼3.5 months, with monthly gauge calibration). In this study, IMERG Final is used as the gridded precipitation target for model development: the Final Run product from 2021 to 2024 is used to train the precipitation tokenizer and the unconditional generative backbone, while satellite– IMERG pairs from 2024 are used to train the AGRI and GMI conditional branches. The test period spans July and August 2025, which fall within the primary East Asian rainy season and thus provide representative precipitation samples for evaluation. This split prevents direct temporal leakage from the evaluation months into model training, but it does not remove the broader dependence on IMERG as the learned precipitation prior and gridded supervision source. We therefore treat IMERG-based verification as a satellite-product consistency assessment and rely on independent ground station observations as the primary third-party check on real-world skill. Because precipita-tion fields are inherently non-negative, spatially intermittent, and heavy-tailed, raw precipitation rates are transformed prior to model ingestion using x′ = log 10 (0 .1 + x), where x is the precipitation rate in mm/h. This log-transformation compresses the dynamic range, stabilizes the variance across intensity regimes, and reduces the influ-ence of extreme outliers during training. All reported evaluation metrics are computed after inverting this transformation back to the original precipitation scale. 
+
+3.5.3 Satellite Observations 
+
+This study employs two satellite instruments. For geostationary infrared observa-tions, we use the Advanced Geostationary Radiation Imager (AGRI) onboard the FY-4B satellite (sub-satellite point 105 ◦E) [42]. Although AGRI carries 15 spectral channels, the 6 visible and near-infrared channels are unavailable during nighttime. To ensure consistent all-day operation, we use only the 9 infrared channels (CH07– CH15, 3.75–13.30 μm), which provide continuous observations at 15-minute intervals with hemispheric coverage. These channels comprise three water vapor absorption bands (6.25, 6.95, and 7.42 μm) that probe atmospheric moisture at approximately 350, 450, and 600 hPa, respectively [43]; five window channels (3.75–12.00 μm) 26 that observe cloud-top brightness temperatures for precipitation estimation [12]; and one CO 2 absorption channel (13.30 μm) for cloud-top height retrieval. Notably, the 7.42 μm channel—newly added on FY-4B compared to FY-4A—enhances sensitivity to lower-tropospheric moisture, which is critical for precipitation initiation [43]. For passive microwave observations, we use the GPM Microwave Imager (GMI) onboard the GPM Core Observatory [10]. GMI is a conical-scanning radiometer with 13 channels spanning 10.65–183.31 GHz in both vertical and horizontal polarizations, covering a swath width of 885 km [44]. The low-frequency channels (10.65–37.0 GHz) are sensitive to emission from liquid hydrometeors and penetrate into the lower pre-cipitation layers, while the high-frequency channels (89.0–183.31 GHz) respond to scattering by ice-phase particles in the upper portions of deep convective systems [9, 44]. This complementary sensitivity across the precipitation column makes GMI particularly informative for constraining both the spatial extent and vertical structure of precipitation. However, the polar orbit limits temporal sampling compared to geo-stationary platforms. All observations are preprocessed and mapped onto a common 0.1◦ grid, yielding data dimensions of 9 × 720 × 1440 for AGRI and 13 × 720 × 1440 for GMI. Tokenizer fine-tuning and conditional branch training both use 2024 data only. 
+
+## 3.6 Evaluation Protocol and Metrics 
+
+3.6.1 Ground station validation protocol 
+
+Ground station validation uses hourly accumulated precipitation observations from China’s national automatic weather station (AWS) network, maintained by the China Meteorological Administration (CMA). These observations are not used in tok-enizer fine-tuning, backbone training, or conditional-branch training. Real-time station records are screened by the CMA quality-control procedure, including climatologi-cal range checks, spatial consistency checks, and temporal continuity checks [45]. For the station-based evaluation in this study, only station–time pairs with valid gauge observations and valid collocated gridded estimates are retained. Because PRISMA and IMERG outputs are evaluated as half-hourly precipitation rates on the common 0 .1◦ grid, they are first converted to 1-h accumulations to match the AWS reporting interval. For a station observation ending at time T , the two gridded precipitation-rate fields covering [ T −1, T −0.5) and [ T −0.5, T ) are integrated as ˆaT = 12 ˆrT −1 + 12 ˆrT −0.5 = ˆrT −1 + ˆ rT −0.5
+
+2 , (12) where ˆ r is in mm/h and ˆ aT is the predicted 1-h accumulation in mm. The same temporal aggregation is applied to IMERG Final when it is included as a benchmark against the AWS observations. For each station i at location si, two spatial matches are used. Continuous error metrics are computed from the nearest grid value at the station location, denoted ˆ apt  
+
+> i
+
+.Categorical detection metrics use a spatial tolerance to reduce double penalties caused by small displacement errors in gridded precipitation fields. Specifically, a station is counted as a predicted event at threshold τ if at least one grid cell within a 0 .2◦ radius 27 of si exceeds τ :
+
+Pi(τ ) = I
+
+
+
+max   
+
+> g∈N 0.2◦(si)
+
+ˆai,g ≥ τ
+
+
+
+, Oi(τ ) = I [ai ≥ τ ] , (13) where ai is the observed 1-h station accumulation, N0.2◦ (si) is the local search neigh-borhood, and I[·] is the indicator function. Results are reported for thresholds of 0.1, 1.0, 5.0, and 10.0 mm. To isolate periods where passive microwave information can contribute, the monthly station analysis is restricted to hours with at least 1,000 AWS stations inside the GMI swath. 
+
+3.6.2 Metric definitions 
+
+Let ˆ yi and yi denote paired prediction and reference values over N valid samples. Depending on the evaluation setting, a sample can be a grid cell, a station–time pair, or a tokenizer reconstruction pixel/channel. Continuous error metrics are computed as MAE = 1
+
+N
+
+> N
+
+X
+
+> i=1
+
+|ˆyi − yi| , (14) RMSE = 
+
+vuut 1
+
+N
+
+> N
+
+X
+
+> i=1
+
+(ˆ yi − yi)2, (15) MBE = 1
+
+N
+
+> N
+
+X
+
+> i=1
+
+(ˆ yi − yi) . (16) The Pearson correlation coefficient (CC) and coefficient of determination ( R2) are CC = 
+
+PNi=1 (ˆ yi − ¯ˆy)( yi − ¯y)
+
+qPNi=1 (ˆ yi − ¯ˆy)2
+
+qPNi=1 (yi − ¯y)2
+
+, (17) 
+
+R2 = 1 −
+
+PNi=1 (ˆ yi − yi)2
+
+PNi=1 (yi − ¯y)2 . (18) For tokenizer reconstruction, structural similarity is evaluated as SSIM = (2 μˆy μy + C1)(2 σˆyy + C2)(μ2ˆy + μ2 
+
+> y
+
++ C1)( σ2ˆy + σ2 
+
+> y
+
++ C2) , (19) where μ, σ2, and σˆyy denote local means, variances, and covariance, and C1 and C2
+
+are small stabilizing constants. For threshold-based precipitation verification, hits ( H), misses ( M ), false alarms (F A ), and correct negatives ( CN ) are accumulated from predicted and observed event 28 indicators. The categorical scores used in this study are POD = HH + M , (20) FAR = F A H + F A , (21) CSI = HH + M + F A . (22) For gridded precipitation maps, the fractions skill score (FSS) is also used to assess neighborhood-scale spatial agreement. For threshold τ , let pj (τ ) and oj (τ ) be the predicted and observed event fractions within the neighborhood centered at grid cell 
+
+j. Then FSS( τ ) = 1 −
+
+PJj=1 [pj (τ ) − oj (τ )] 2
+
+PJj=1 pj (τ )2 + PJj=1 oj (τ )2 . (23) For probabilistic evaluation, let {ˆy(k) 
+
+> i
+
+}Kk=1 denote the ensemble predictions for sample i,with empirical cumulative distribution function Fi. The continuous ranked probability score (CRPS) is CRPS = 1
+
+N
+
+> N
+
+X
+
+> i=1
+
+Z ∞−∞ 
+
+(Fi(z) − I[yi ≤ z]) 2 dz. (24) We also report the spread–skill ratio (SSR), defined as the ratio between the mean ensemble spread and the RMSE of the ensemble mean: 
+
+si =
+
+vuut 1
+
+K − 1
+
+> K
+
+X
+
+> k=1
+
+
+
+ˆy(k) 
+
+> i
+
+− ¯ˆyi
+
+2
+
+, (25) SSR = 
+
+> 1
+> N
+
+PNi=1 si
+
+q 1
+
+> N
+
+PNi=1 
+
+ ¯ˆyi − yi
+
+2 , (26) where ¯ˆyi = 1
+
+> K
+
+PKk=1 ˆy(k) 
+
+> i
+
+is the ensemble mean. Values near 1 indicate approximate spread–skill consistency, whereas SSR < 1 and SSR > 1 indicate under-dispersive and over-dispersive ensembles, respectively. For distributional comparison of generated samples, the two-sample Kolmogorov–Smirnov statistic is computed from empirical cumulative distribution functions Fn and Gm as 
+
+Dn,m = sup 
+
+> x
+
+|Fn(x) − Gm(x)| , (27) with the corresponding p-value used to assess whether the generated and reference sample statistics are distinguishable at the distribution level. 29 4 Discussion 
+
+We presented PRISMA, a plug-and-play latent generative framework for multi-source satellite precipitation estimation that combines instrument-specific tokenizers, a learned unconditional precipitation prior, and independently trained conditional branches. Using FY-4B AGRI infrared and GPM GMI passive microwave observations, the framework improves both deterministic and probabilistic precipitation estimation relative to the single-source baselines, while its modular design allows new sensors to be incorporated without retraining the generative backbone. Despite these promising results, several challenges remain. A first challenge con-cerns scaling the framework from the current two-sensor setting to denser observing systems. The present implementation integrates only FY-4B AGRI and GPM GMI, which necessarily limits the achievable accuracy relative to products such as IMERG Final that assimilate observations from the broader GPM constellation together with gauge calibration. Expanding the framework to additional sensors is therefore an important next step. Thanks to the modular architecture, incorporating instruments such as AHI, ABI, or SEVIRI for geostationary infrared and MWRI, ATMS, or MHS for passive microwave requires only new tokenizer–conditioning pairs rather than retraining the full model. A related issue in such multi-source expansion is the optimal assignment of spatial weight maps when multiple sensors of the same sensing type are available simultaneously. In the current two-branch setting, the weight assignment is straightforward: within the GMI swath, the microwave branch receives full weight due to its superior physical sensitivity to hydrometeors, while the infrared branch domi-nates elsewhere. This deterministic rule is effective when the two sources have clearly distinct error characteristics. However, when fusing multiple geostationary infrared imagers with overlapping coverage or multiple microwave radiometers with different overpass times, no single source is uniformly superior—their relative accuracy varies with viewing geometry, calibration differences, channel sensitivity to specific precip-itation regimes, and temporal proximity to the analysis time. Simple heuristic rules become insufficient in such scenarios. One promising direction is to introduce a learn-able weight predictor conditioned on local feature variance, observation metadata, or estimated uncertainty, analogous to the observation error specification in tradi-tional data assimilation where each observation is weighted inversely proportional to its error variance following the Best Linear Unbiased Estimator (BLUE) framework. Such a mechanism would enable the framework to automatically discover spatially and temporally varying fusion weights, bridging generative modeling with established principles of data assimilation. A second, more fundamental challenge is that the learned unconditional prior can still inherit IMERG climatology, spatial smoothing characteristics, regional error structures, and intensity-dependent biases. This dependence is useful for learning a globally coherent precipitation prior from a mature satellite product, but it also means that IMERG-referenced scores partly measure consistency with the training target rather than fully independent accuracy. The station-based validation in Section 2.2.3 is therefore essential for estimating real-world skill and shows that the benefit of GMI integration remains positive but more modest than satellite-referenced metrics suggest. 30 Future versions of PRISMA could reduce this target-product dependence by fine-tuning the prior with higher-fidelity precipitation references such as GPM CORRA or radar–gauge merged regional analyses, introducing gauge-informed bias-correction or calibration layers, training sensor branches with multi-target supervision rather than a single IMERG target, and adding a dedicated ground-observation conditioning branch where station data are available. This direction is consistent with recent work showing that a generative precipitation prior pretrained on gridded products can be refined with sparse gauge observations to improve bias correction and posterior infer-ence [46]. Another promising direction is post-generation bias correction conditioned on region, season, precipitation regime, and surface type, which would preserve the modular satellite-fusion architecture while correcting systematic deviations inherited from the gridded training product. Beyond precipitation, the proposed latent-space conditional generation paradigm is applicable to a broad range of Earth system state estimation problems involving het-erogeneous remote sensing observations, including soil moisture retrieval, sea surface temperature reconstruction, and atmospheric composition estimation. Recent work on diffusion-based total precipitable water retrieval from geostationary infrared observa-tions [47] demonstrates the broader potential of generative models for satellite-based geophysical retrievals, and our modular framework could naturally accommodate such extensions by substituting the target-field tokenizer. More fundamentally, the frame-work’s formulation—learning a physical prior in latent space and constraining it with heterogeneous observations through modular conditioning—shares a deep structural analogy with variational data assimilation, where a background state is updated by observations weighted by their respective error covariances. This connection suggests a promising pathway toward diffusion-model-based satellite data assimilation, where the generative prior replaces the traditional background forecast and the conditional branches serve as implicit observation operators, potentially enabling fully data-driven assimilation systems that bypass the need for explicit forward models and adjoint computations. 
+
+# Declarations 
+
+• Acknowledgements: This study was supported by the National Key Research and Development Program of China [grant number 2025YFE0217100] and the National Natural Science Foundation of China [grant number U2442219]. The authors also thank NVIDIA for developing and open-sourcing the Cosmos World Foundation Model Platform, whose pretrained tokenizers served as the foundation for the observation and precipitation encoders in this work. 
+
+• Data availability: The IMERG Final Run precipitation data are available from the NASA Goddard Earth Sciences Data and Information Services Center (GES DISC) at https://disc.gsfc.nasa.gov/datasets/GPM 3IMERGHH 07/summary. GPM GMI Level-1C brightness temperature data are available at https://gpm1.gesdisc.eosdis. nasa.gov/data/GPM L1C/GPM 1CGPMGMI R.07. FY-4B AGRI observations are available to the global community on the National Satellite Meteorological Center (NSMC) satellite data server at http://satellite.nsmc.org.cn. The ground station 31 precipitation data used for validation are provided by the China Meteorological Administration (CMA) through the National Meteorological Information Center (NMIC). Restrictions apply to the availability of these data, which were used under license for the current study and are not publicly available. Access can be obtained with the approval of the CMA via a formal request. 
+
+# Appendix A Detailed Quantitative Evaluation of Satellite Tokenizers 
+
+This section provides comprehensive quantitative evaluation metrics for both the geo-stationary infrared (AGRI) and polar-orbiting passive microwave (GMI) tokenizers, supplementing the overall performance discussions in Sections 2.1.1 and 2.1.2. 
+
+## A.1 AGRI Tokenizer Evaluation                 
+
+> Table A1 Overall performance comparison of the geostationary infrared tokenizer before and after fine-tuning. Metric Pretrained Fine-tuned Improvement MAE (K) 7.482 3.658 51.1% MBE (K) -2.901 -1.702 41.3% CC 0.790 0.811 +0.021 SSIM 0.562 0.656 +0.094
+
+Table A2 presents the reconstruction metrics for the fine-tuned AGRI tokenizer across nine infrared channels, illustrating the performance variations across different physical sensing bands. Table A3 details the temporal stability of the tokenizer across the five consecutive input frames (-45 min to +15 min).                                                             
+
+> Table A2 Channel-specific evaluation metrics for the fine-tuned AGRI geostationary tokenizer. Channel Wavelength MAE (K) MBE (K) CC SSIM CH07 3.75 μm2.96 -0.97 0.878 0.728 CH08 3.75 μm3.16 -1.03 0.864 0.717 CH09 6.25 μm2.80 -1.53 0.609 0.648 CH10 6.95 μm3.13 -1.21 0.651 0.655 CH11 7.42 μm3.77 -1.63 0.635 0.647 CH12 8.55 μm4.40 -1.97 0.776 0.665 CH13 10.80 μm4.41 -1.95 0.784 0.672 CH14 12.00 μm4.37 -1.97 0.785 0.674 CH15 13.30 μm3.85 -2.17 0.719 0.660
+
+32 Table A3 Temporal stability of the fine-tuned AGRI tokenizer across the multi-frame input sequence. Time Step Offset MAE (K) MBE (K) CC SSIM 
+
+t0 -45 min 3.588 -1.603 0.852 0.681 
+
+t1 -30 min 3.623 -1.611 0.852 0.676 
+
+t2 -15 min 3.571 -1.614 0.852 0.680 
+
+t3 +0 min 3.661 -1.578 0.851 0.673 
+
+t4 +15 min 3.807 -1.608 0.850 0.659 
+
+## A.2 GMI Tokenizer Evaluation 
+
+Table A4 Overall performance comparison of the passive microwave tokenizer before and after fine-tuning (averaged across three representative high-frequency channels). Metric Pretrained (3 chs) Fine-tuned (3 chs) Improvement MAE (K) 8.731 1.851 78.8% MBE (K) -3.998 0.388 Bias Rectified CC 0.470 0.782 +0.312 SSIM 0.824 0.897 +0.073 
+
+Table A5 details the reconstruction performance of the fine-tuned GMI tokenizer across all 13 passive microwave channels. Table A6 provides a channel-specific compar-ison between the vision-pretrained and the domain-specifically fine-tuned tokenizers for the three representative high-frequency channels. 
+
+# Appendix B GMI Branch Weight Sensitivity Analysis 
+
+The GMI branch weight gw is used as a practical guidance coefficient for spatially weighted feature injection inside the GMI coverage regions. It controls the relative influence of the microwave branch during conditional generation and should not be interpreted as a calibrated likelihood weight. 33 Fig. A1 Reconstruction performance of the fine-tuned tokenizer across all nine AGRI infrared chan-nels, ranging from 3.75 μm (shortwave IR) to 13.30 μm (carbon dioxide absorption band). (a)–(c), (g)–(i), and (m)–(o) show the original observations; (d)–(f), (j)–(l), and (p)–(r) show the correspond-ing reconstructions from the fine-tuned tokenizer. 
+
+34 Table A5 Channel-specific evaluation metrics for the fine-tuned GMI tokenizer across all 13 channels. Index Channel MAE (K) MBE (K) CC SSIM 0 10.65V 1.406 -0.166 0.927 0.947 1 10.65H 1.946 -0.385 0.951 0.959 2 19.35V 1.467 -0.286 0.952 0.946 3 19.35H 2.185 -0.044 0.962 0.954 4 23.80V 1.358 0.027 0.956 0.949 5 37.00V 1.608 -0.091 0.939 0.939 6 37.00H 2.495 0.131 0.968 0.946 7 89.00V 2.092 0.333 0.849 0.901 8 89.00H 3.238 0.596 0.923 0.889 9 166.0V 2.038 0.095 0.805 0.898 10 166.0H 2.453 0.370 0.842 0.893 11 183.31 ±3V 1.579 0.322 0.766 0.886 12 183.31 ±7V 1.936 0.747 0.776 0.906 
+
+Table A6 Detailed comparison of the pretrained and fine-tuned tokenizers on the three representative high-frequency GMI channels. Channel MAE (K) MBE (K) CC Pretrained Fine-tuned Pretrained Fine-tuned Pretrained Fine-tuned 166.0V 9.084 2.038 -2.725 0.095 0.508 0.805 
+
+183.31 ±3V 8.282 1.579 -4.098 0.322 0.436 0.766 
+
+183.31 ±7V 8.827 1.936 -5.172 0.747 0.466 0.776 Table B7 Sensitivity of performance metrics to the GMI branch weight ( gw ) within the GMI coverage regions. Metric gw = 0 .5 gw = 0 .8 gw = 1 .0Name Threshold (mm/hr) CSI 0.1 0.467 0.504 0.512 
+
+1.0 0.402 0.435 0.446 
+
+5.0 0.195 0.207 0.215 
+
+10.0 0.106 0.101 0.102 FSS 0.1 0.784 0.826 0.839 
+
+1.0 0.737 0.777 0.791 
+
+5.0 0.461 0.480 0.495 
+
+10.0 0.282 0.271 0.274 RMSE (mm/hr) 0.556 0.529 0.524 
+
+MAE (mm/hr) 0.127 0.117 0.116 
+
+MBE (mm/hr) −0.021 −0.028 −0.029 CRPS (mm/hr) 0.094 0.088 0.088 
+
+SSR 0.672 0.638 0.620 
+
+35 Fig. A2 Reconstruction of all 13 GMI channels using the fine-tuned tokenizer. (a)–(m) Original GMI observations for each channel. (n)–(z) Corresponding reconstructions from the fine-tuned tokenizer. 
+
+36 References 
+
+[1] World Meteorological Organization: WMO atlas of mortality and economic losses from weather, climate and water extremes (1970–2019). Technical Report WMO-No. 1267, WMO, Geneva (2021) [2] IPCC: Climate Change 2021: The Physical Science Basis. Contribution of Work-ing Group I to the Sixth Assessment Report. Cambridge University Press, ??? (2021) [3] Dai, T.-Y., Ushijima-Mwesigwa, H.: PrecipDiff: Leveraging image diffusion models to enhance satellite-based precipitation observations (2025) [4] Brempong, E.A., Hassen, M.A., MohamedKhair, M., Dube, V., Hincapie Potes, S., Graham, O., Brik, A., McGovern, A., Huffman, G.J., Hickey, J.: Oya: Deep learning for accurate global precipitation estimation (2025) [5] World Meteorological Organization: State of climate services 2021: Water. Technical Report WMO-No. 1278, WMO, Geneva (2021) [6] Yuval, J., Langmore, I., Kochkov, D., Hoyer, S.: Neural general circulation models for modeling precipitation. Science Advances 12 , 6891 (2026) [7] Su, J., Miao, C., Zwiers, F., Beck, H., Jones, P., Sun, Q., Slater, L.J., Berghuijs, W.R., Wada, Y., Rosenfeld, D., Gou, J., Wu, Y., Tarolli, P., Borrelli, P., Pana-gos, P., Alexander, L.V., Zhang, Q., Hu, J., Min, S.-K., Samaniego, L., Duan, Q., Destouni, G., Marengo, J.A., Modarres, R., Sorooshian, S.: Precipitation observ-ing network gaps limit climate change impact assessment. Nature 652 , 119–127 (2026) https://doi.org/10.1038/s41586-026-10300-5 [8] Kidd, C., Huffman, G.: Global precipitation measurement. Meteorological Appli-cations 18 (3), 334–353 (2011) [9] Kummerow, C., Barnes, W., Kozu, T., Shiue, J., Simpson, J.: The Tropical Rain-fall Measuring Mission (TRMM) sensor package. Journal of Atmospheric and Oceanic Technology 15 (3), 809–817 (1998) [10] Hou, A.Y., Kakar, R.K., Neeck, S., Azarbarzin, A.A., Kummerow, C.D., Kojima, M., Oki, R., Nakamura, K., Iguchi, T.: The Global Precipitation Measurement mission. Bulletin of the American Meteorological Society 95 (5), 701–722 (2014) [11] Yang, Y., Han, W., Sun, H., Li, J., Yan, J., Gao, Z.: Reconstruction of 3d precipitation measurements from fy-3g mwri-rm imaging and sounding chan-nels. Atmospheric Measurement Techniques 18 (17), 4249–4269 (2025) https: //doi.org/10.5194/amt-18-4249-2025 [12] Arkin, P.A., Meisner, B.N.: The relationship between large-scale convective rain-fall and cold cloud over the Western Hemisphere during 1982–84. Monthly 37 Weather Review 115 (1), 51–74 (1987) [13] Derin, Y., Kirstetter, P.-E., Gourley, J.J.: Evaluation of IMERG satellite pre-cipitation over the land–coast–ocean continuum. Part I: Detection. Journal of Hydrometeorology 22 (11), 2843–2859 (2021) [14] Huffman, G.J., Bolvin, D.T., Braithwaite, D., Hsu, K., Joyce, R.J., Kidd, C., Nelkin, E.J., Sorooshian, S., Stocker, E.F., Tan, J., Wolff, D.B., Xie, P.: Integrated Multi-satelliteE Retrievals for the Global Precipitation Measurement (GPM) mission (IMERG). In: Satellite Precipitation Measurement. Advances in Global Change Research, vol. 67, pp. 343–353 (2020) [15] Joyce, R.J., Janowiak, J.E., Arkin, P.A., Xie, P.: CMORPH: A method that pro-duces global precipitation estimates from passive microwave and infrared data at high spatial and temporal resolution. Journal of Hydrometeorology 5(3), 487–503 (2004) https://doi.org/10.1175/1525-7541(2004)005 ⟨0487:CAMTPG ⟩2.0.CO;2 [16] Funk, C., Peterson, P., Harrison, L., Saldivar, R., Landsfeld, M., Pedreros, D., Shukla, S., Fink, A.H., Davenport, F., Peterson, S., Turner, W., Sonnier, A., Budde, M., Tabor, K., Verdin, J., Hauzaree, D., Naim, M., Alaso, D., Husak, G.: The Climate Hazards Center Infrared Precipitation with Stations, version 3. Scientific Data (2026) https://doi.org/10.1038/s41597-026-07096-4 [17] Song, Z., Liu, T., Yuan, L., Li, Y., Xu, A., Sun, X., Li, Y., Lu, F., Liu, M.: Huayu: Advanced real-time precipitation estimation from geostationary satellite (2025) [18] Yang, C., Li, H., Zhu, R., Wang, Y., Zhang, F., Gu, M., Jiang, G.-M., Zhang, R., Tang, X.: Snow or rain? Hybrid AI deciphers surface precipitation phase from satellite observations. Nature Communications 17 , 2813 (2026) [19] Guilloteau, C., Kerrigan, G., Nelson, K., Migliorini, G., Smyth, P., Li, R., Foufoula-Georgiou, E.: A Generative Diffusion Model for Probabilistic Ensembles of Precipitation Maps Conditioned on Multisensor Satellite Observations (2024) [20] Li, W., Pan, B., Li, T., Nai, C., Li, Z., Chao, J., Lu, B., Duan, Q., Pan, M.: Latent diffusion model for quantitative precipitation estimation and forecast at km scale. Environmental Modelling & Software 194 , 106701 (2025) https://doi. org/10.1016/j.envsoft.2025.106701 [21] Tu, S., Xu, J., Yang, W., Bai, L., Fei, B.: MODS: Multi-source Observations Conditional Diffusion Model for Meteorological State Downscaling (2025) [22] Rombach, R., Blattmann, A., Lorenz, D., Esser, P., Ommer, B.: High-resolution image synthesis with latent diffusion models. In: Proceedings of the IEEE/CVF Conference on Computer Vision and Pattern Recognition (CVPR), pp. 10684– 10695 (2022) 38 [23] Peebles, W., Xie, S.: Scalable diffusion models with Transformers. In: Proceedings of the IEEE/CVF International Conference on Computer Vision (ICCV), pp. 4195–4205 (2023) [24] Lipman, Y., Chen, R.T.Q., Ben-Hamu, H., Nickel, M., Le, M.: Flow Matching for Generative Modeling (2023). https://arxiv.org/abs/2210.02747 [25] Liu, X., Gong, C., Liu, Q.: Flow Straight and Fast: Learning to Generate and Transfer Data with Rectified Flow (2022). https://arxiv.org/abs/2209.03003 [26] Leinonen, J., Hamann, U., Nerini, D., Germann, U., Franch, G.: Latent diffusion models for generative precipitation nowcasting with accurate uncertainty quan-tification. npj Climate and Atmospheric Science 7, 327 (2024) https://doi.org/ 10.1038/s41612-024-00886-w [27] Gao, Z., Shi, X., Han, B., Wang, H., Jin, X., Maddix, D., Zhu, Y., Li, M., Wang, Y.: PreDiff: Precipitation nowcasting with latent diffusion models. In: Advances in Neural Information Processing Systems (NeurIPS), vol. 36 (2023) [28] Zhang, Y., Long, M., Chen, K., Xing, L., Jin, R., Jordan, M.I., Wang, J.: Skil-ful nowcasting of extreme precipitation with NowcastNet. Nature 619 , 526–532 (2023) https://doi.org/10.1038/s41586-023-06184-4 [29] Yu, D., Li, X., Ye, Y., Zhang, B., Luo, C., Dai, K., Wang, R., Chen, X.: DiffCast: A unified framework via residual diffusion for precipitation nowcasting. Proceed-ings of the IEEE/CVF Conference on Computer Vision and Pattern Recognition (CVPR), 27758–27767 (2024) [30] Price, I., Sanchez-Gonzalez, A., Alet, F., Andersson, T.R., El-Kadi, A., Masters, D., Ewalds, T., Stott, J., Mohamed, S., Battaglia, P., Lam, R., Willson, M.: Prob-abilistic weather forecasting with machine learning. Nature 637 , 84–90 (2025) https://doi.org/10.1038/s41586-024-08252-9 [31] NVIDIA, :, Agarwal, N., Ali, A., Bala, M., Balaji, Y., Barker, E., Cai, T., Chat-topadhyay, P., Chen, Y., Cui, Y., Ding, Y., Dworakowski, D., Fan, J., Fenzi, M., Ferroni, F., Fidler, S., Fox, D., Ge, S., Ge, Y., Gu, J., Gururani, S., He, E., Huang, J., Huffman, J., Jannaty, P., Jin, J., Kim, S.W., Kl´ ar, G., Lam, G., Lan, S., Leal-Taixe, L., Li, A., Li, Z., Lin, C.-H., Lin, T.-Y., Ling, H., Liu, M.-Y., Liu, X., Luo, A., Ma, Q., Mao, H., Mo, K., Mousavian, A., Nah, S., Niverty, S., Page, D., Paschalidou, D., Patel, Z., Pavao, L., Ramezanali, M., Reda, F., Ren, X., Sabavat, V.R.N., Schmerling, E., Shi, S., Stefaniak, B., Tang, S., Tchapmi, L., Tredak, P., Tseng, W.-C., Varghese, J., Wang, H., Wang, H., Wang, H., Wang, T.-C., Wei, F., Wei, X., Wu, J.Z., Xu, J., Yang, W., Yen-Chen, L., Zeng, X., Zeng, Y., Zhang, J., Zhang, Q., Zhang, Y., Zhao, Q., Zolkowski, A.: Cosmos World Foundation Model Platform for Physical AI (2025). https://arxiv.org/abs/2501.03575 39 [32] Chen, S., Zhang, F., Liu, B., Chen, T., Hu, N.: Basic characteristics and pre-liminary causes of the extreme rainstorm over North China in late July 2025. Torrential Rain and Disasters 45 (1), 1–14 (2026) https://doi.org/10.12406/byzh. 2025-196 [33] Esser, P., Kulal, S., Blattmann, A., Entezari, R., M¨ uller, J., Saini, H., Levi, Y., Lorenz, D., Sauer, A., Boesel, F., Podell, D., Dockhorn, T., English, Z., Lacey, K., Goodwin, A., Marek, Y., Rombach, R.: Scaling Rectified Flow Transformers for High-Resolution Image Synthesis (2024). https://arxiv.org/abs/2403.03206 [34] Sun, P.: Curriculum sampling: A two-phase curriculum for efficient train-ing of flow matching. In: ICLR 2026 2nd Workshop on Deep Genera-tive Model in Machine Learning: Theory, Principle and Efficacy (2026). 
+
+https://openreview.net/forum?id=LpmuITZLAk 
+
+[35] Kim, J.-Y., Go, H., Kwon, S., Kim, H.-G.: Denoising Task Difficulty-based Curriculum for Training Diffusion Models (2025). https://arxiv.org/abs/2403. 10348 [36] Zhang, L., Rao, A., Agrawala, M.: Adding Conditional Control to Text-to-Image Diffusion Models (2023) [37] Bar-Tal, O., Yariv, L., Lipman, Y., Dekel, T.: MultiDiffusion: Fusing diffusion paths for controlled image generation. In: Proceedings of the 40th International Conference on Machine Learning (ICML), pp. 1737–1752 (2023) [38] Loshchilov, I., Hutter, F.: Decoupled weight decay regularization. In: Interna-tional Conference on Learning Representations (ICLR) (2019) [39] Loshchilov, I., Hutter, F.: SGDR: Stochastic gradient descent with warm restarts. In: International Conference on Learning Representations (ICLR) (2017) [40] Liu, H., Zaharia, M., Abbeel, P.: Ring Attention with Blockwise Transformers for Near-Infinite Context (2023) [41] Chen, T., Xu, B., Zhang, C., Guestrin, C.: Training Deep Nets with Sublinear Memory Cost (2016) [42] Yang, J., Zhang, Z., Wei, C., Lu, F., Guo, Q.: Introducing the new generation of Chinese geostationary weather satellites, Fengyun-4. Bulletin of the Amer-ican Meteorological Society 98 (8), 1637–1658 (2017) https://doi.org/10.1175/ BAMS-D-16-0065.1 [43] Niu, Z., Zhang, L., Yang, Y., Han, Y., Li, H., Wang, D., Huang, W., Weng, F.: Assimilating FY-4B AGRI three water vapor channels in operational Shanghai Typhoon Model (SHTM) using GSI-based 3-DVar approach. IEEE Journal of 40 Selected Topics in Applied Earth Observations and Remote Sensing 18 , 3599– 3609 (2025) https://doi.org/10.1109/JSTARS.2024.3522056 [44] Yang, Y., Han, W., Sun, H., Xie, H., Gao, Z.: Reconstruction of 3D DPR observa-tions using GMI radiances. Geophysical Research Letters 51 , 2023–106846 (2024) https://doi.org/10.1029/2023GL106846 [45] Ren, Z., Zhang, Z., Sun, C., Liu, Y., Li, J., Ju, X., Zhao, Y., Li, Z., Zhang, W., Li, H., Zeng, X., Ren, X., Liu, Y., Wang, H.: Development of three-step quality control system of real-time observation data from AWS in China. Meteorologi-cal Monthly 41 (10), 1268–1277 (2015) https://doi.org/10.7519/j.issn.1000-0526. 2015.10.010 [46] Sun, S., Nai, C., Pan, B., Li, W., Li, L., Li, X., Foufoula-Georgiou, E., Lin, Y.: Fusion of multi-source precipitation records via coordinate-based generative models (2025) [47] Xiao, H., Zhang, F., Zhang, R., Lu, F., Cai, M., Wang, L.: Retrieval of total precipitable water under all-weather conditions from Himawari-8/AHI observa-tions using the generative diffusion model. Geophysical Research Letters 52 (15), 2025–117075 (2025) https://doi.org/10.1029/2025GL117075 41

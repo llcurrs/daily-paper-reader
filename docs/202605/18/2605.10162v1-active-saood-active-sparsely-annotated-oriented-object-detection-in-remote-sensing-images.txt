@@ -1,0 +1,601 @@
+Title: Active-SAOOD: Active Sparsely Annotated Oriented Object Detection in Remote Sensing Images
+
+URL Source: https://arxiv.org/pdf/2605.10162v1
+
+Published Time: Tue, 12 May 2026 02:19:44 GMT
+
+Number of Pages: 16
+
+Markdown Content:
+# Active-SAOOD: Active Sparsely Annotated Oriented Object Detection in Remote Sensing Images 
+
+Yu Lin 1 Jianghang Lin 1 Kai Ye 1 Shengchuan Zhang 1 Liujuan Cao † 1
+
+## Abstract 
+
+Reducing the annotation cost of oriented object detection in remote sensing remains a major chal-lenge. Recently, sparse annotation has gained at-tention for effectively reducing annotation redun-dancy in densely remote sensing scenes. However, (1) the sparse data reliance on class-dependent sampling, and (2) the lack of in-depth investiga-tion into the characteristics of sparse samples hin-ders its further development. This paper proposes an active learning-based sparsely annotated ori-ented object detection (SAOOD) method, termed Active-SAOOD. Based on a model state observa-tion module, Active-SAOOD actively selects the most valuable sparse samples at the instance level that are best suited to the current model state, by jointly considering orientation, classification, and localization uncertainty, as well as inter- and intra-class diversity. This design enables SAOOD to op-erate stably under completely randomly initialized sparse annotations and extends its applicability to broader real-world. Experiments on multiple datasets demonstrate that Active-SAOOD signifi-cantly improves both performance and stability of existing SAOOD methods under various random sparse annotation. In particular, with only 1% an-notated ratios, it achieves a 9% performance gain over the baseline, further enhancing the practical value of SAOOD in remote sensing. The code will be public. 
+
+## 1. Introduction 
+
+Oriented object detection (OOD) in remote sensing images is a fundamental task with wide applications such as port management, traffic planning, and agricultural monitoring (Han et al., 2021a; Yang et al., 2021), but its application 
+
+> 1
+
+Key Laboratory of Multimedia Trusted Perception and Effi-cient Computing, Ministry of Education of China, Xiamen Uni-versity, 361005, P.R. China.. †Correspondence to: Liujuan Cao 
+
+<caoliujuan@xmu.edu.cn >.Unlabeled Images  Image-Level  
+
+> Evaluation
+> Difficulty
+> Diversity
+> Information
+> Image Selection
+> Train
+> Unlabeled Instances Instance-Level
+> Evaluation
+> Uncertainty
+> (Classification,
+> Localization, Orientation)
+> Diversity
+> (Inter-class,
+> Intra-class)
+> Model State Observation Module
+> Training
+> Perform.
+> Model Ability
+> Instance Selection
+> Train
+> Image-Level Active Learning
+> Instance-Level Active Learning for SAOOD
+> VS.
+
+Figure 1. Comparison of different sampling methods. Image-level active learning selects high-value images based on image-level evaluation criteria. Instance-level active learning considers richer instance-level evaluation dimensions and selects instances accord-ing to the model state. Compared to random sparse annotation of many low-value samples, our Active-SAOOD achieves higher performance via the instance-level active learning. 
+
+is hindered by the high cost of manual annotation. To re-duce the labeling cost, recent works have explored weakly supervised (Yang et al., 2022a), semi-supervised (Hua et al., 2023), and sparsely annotated (Liao et al., 2025) approaches. Sparsely annotated oriented object detection (SAOOD) has attracted increasing attention for well reducing annotation redundancy in dense remote sensing scenes. Nevertheless, most existing SAOOD methods rely on strong category-dependent priors. Some construct sparse annota-tions by sampling a fixed proportion of instances per cate-gory (Lu et al., 2024), which requires prior knowledge of the global data distribution, while others select samples based on per-image class statistics (Zhang et al., 2025), demand-ing careful image-level labeling to avoid missing categories. These assumptions limit practical scalability. Under fully random sparse annotation, current SAOOD methods suf-fer significant performance degradation, as many low-value samples consume annotation budgets while providing lim-ited training benefit, resulting in low annotation efficiency. Although active learning has been extensively studied in im-age classification (Li et al., 2024) and semi-supervised ob-ject detection (Mi et al., 2022), existing approaches mainly explore image-level annotation value by measuring image 1
+
+> arXiv:2605.10162v1 [cs.CV] 11 May 2026 Active-SAOOD: Active Sparsely Annotated Oriented Object Detection in Remote Sensing Images
+
+difficulty or diversity to estimate the information richness of samples. However, SAOOD requires active learning for sparsely annotated instances rather than entire images, and instance-level active learning can select high-value instances under the same annotation budget, thereby improving model performance. To the best of our knowledge, instance-level active learning tailored for SAOOD has not yet been ex-plored. It has three key differences compared with image-level active learning: (1) Compared with image-level active learning, instance-level active learning must consider more fine-grained evaluation dimensions, such as instance-level localization uncertainty and intra-class diversity. (2) Ori-ented object detection introduces an additional angle pre-diction, whose impact on instance annotation value remains underexplored. (3) Image-level active learning can directly select the most difficult images, since each image contains multiple instances, ensuring diverse instance difficulties, whereas instance-level active learning cannot simply select the hardest instances, as heavily sampling difficult instances may harm training stability in early stages, which is widely demonstrated in curriculum learning (Wang et al., 2021). These observations indicate that existing image-level active learning strategies cannot be directly applied to SAOOD task. To address these challenges, we propose Active-SAOOD, a fine-grained instance-level active learning frame-work for sparsely annotated oriented object detection. First, to overcome the granularity mismatch, we start from the intrinsic nature of the SAOOD and decompose the task into classification, localization, and orientation, defining corre-sponding instance-level uncertainties to select samples that enhance model capability along each dimension. We fur-ther incorporate inter- and intra-class diversity to handle the long-tailed distribution and large intra-class variations in remote sensing images, thereby improving detection of rare categories and intra-class robustness. Second, to ad-dress the previously unexplored orientation dimension, we introduce orientation uncertainty to identify instances that are particularly challenging for angle prediction. Third, to mitigate the instability caused by naively selecting the hard-est instances, we design a model state observation–based selection strategy that dynamically adjusts the weighting of different evaluation criteria according to the current model capability, gradually increasing the difficulty of selected samples as training progresses. Together, these components constitute a comprehensive instance-level active learning evaluation framework, enabling Active-SAOOD to substan-tially improve both detection performance and training sta-bility under extremely sparse annotations, thereby extending SAOOD to more practical scenarios. Our main contributions are summarized as follows: 1) To mitigate the performance degradation of SAOOD caused by randomly sparse annotations, we propose Active-SAOOD, an active learning–based sparsely an-notated oriented object detection framework. To ad-dress the limitation that conventional image-level ac-tive learning is not well suited for sparse annotation settings, Active-SAOOD introduces a novel instance-level active learning paradigm. It actively selects the most suitable high-value samples that best match the model state for annotation, thereby improving both performance and training stability. 2) To better adapt to the different capability requirements of the model at different training stages, we introduce a model state observation–based selection strategy that assesses the capability of model and guides active se-lection of high-value instances tailored to the current model state, enabling effective integration of active learning with sparse annotation and extending SAOOD to more practical scenarios. 3) Extensive experiments show that Active-SAOOD greatly improves SAOOD performance under random sparse initialization, achieving a 9% gain over the base-line at 1% annotation and boosting training stability. 
+
+## 2. Related Work 
+
+Oriented Object Detection. Oriented object detection (OOD) predicts rotated boxes (RBoxes) rather than hori-zontal ones, explicitly modeling object orientation, and is widely used in scene text and remote sensing (He et al., 2017; Xie et al., 2021). Early OOD methods (Ma et al., 2018) extended horizontal detectors, while later works tai-lored for remote sensing improved feature representation (R 3Det (Yang et al., 2021)), anchor quality (S 2A-Net (Han et al., 2021a)), and proposal efficiency (Oriented R-CNN (Xie et al., 2021)). Other approaches address boundary discontinuity (Yang et al., 2022b; Yu & Da, 2023), learn rotation-equivariant features (Han et al., 2021b), or enlarge receptive fields (Li et al., 2025). Despite these advances, OOD remains annotation-intensive, motivating research on low-cost annotation methods. 
+
+Sparsely Annotated Oriented Object Detection. Recently, sparsely annotated oriented object detection (SAOOD) has gained attention for reducing annotation redundancy in dense remote sensing scenes. PECL (Lu et al., 2024) used conformal learning for high-quality pseudo-labels, DML (Zhang et al., 2025) applied dynamic multi-view learning, S2Teacher (Lin et al., 2026b) leveraged angle-consistency and progressive mining, and RSST (Liao et al., 2025) uti-lized large language models for pseudo-label assignment. However, these methods rely on strong category-dependent priors, making random initialization unstable, and the value of sparse samples is largely unexplored. To address this, we propose Active-SAOOD, which actively selects high-value 2Active-SAOOD: Active Sparsely Annotated Oriented Object Detection in Remote Sensing Images 
+
+samples for sparse annotation, ensuring stable performance and extending SAOOD to more general scenarios. 
+
+Active Learning. Active learning reduces annotation costs by selecting the most informative samples. While it has been widely studied in image classification (Wang et al., 2016) and extended to semi-supervised object detection, Active Teacher (Mi et al., 2022) selects valuable images, MI-AOD (Yuan et al., 2021) estimates uncertainty via mul-tiple instance learning, ALWOD (Wang et al., 2023) uses teacher–student disagreement, and PPAL (Yang et al., 2024) provides a plug-and-play module. These methods focus on image-level value. Sparse annotation, however, emphasizes instance-level value, and existing approaches ignore orien-tation uncertainty, which is critical in OOD. We address this by introducing multi-dimensional instance-level annota-tion value, including orientation, enabling active learning to enhance SAOOD under random initialization. 
+
+## 3. Active-SAOOD 
+
+Given a small sparsely annotated instances set DI =
+
+{X I , YI } and a large unlabeled instance set DU = {X U },where X denotes instances and Y denotes labels, Active-SAOOD aims to select the most valuable instances from DU
+
+for annotation and merge them with DI to form an actively annotated set DA, which is used to train the oriented object detector for improving performance. As shown in Fig. 2, Active-SAOOD starts from a small set of randomly and sparsely annotated instances to initialize a teacher–student SAOOD framework. The initialized teacher model evaluates the annotation value of samples based on instance-level classification, localization, and orientation un-certainties, as well as inter- and intra-class diversity. Guided by the model state observation strategy, it selects the sam-ples that are most suitable for the current model state. The selected samples are then manually annotated and merged with the initial training set to form the active learning train-ing set, which is subsequently used to iteratively train the student model. 
+
+3.1. Instance-Level Active Sampling for SAOOD 
+
+Existing active learning methods have mainly focused on image classification and semi-supervised object detection, and cannot be directly applied to SAOOD for two reasons. First, they target image-level annotation value, whereas SAOOD emphasizes instance-level value, creating a gran-ularity mismatch. Second, the angular dimension in ori-ented object detection and its impact on annotation value remain unexplored. To address this, we decompose SAOOD into classification, localization, and orientation tasks, and define instance-level uncertainties for each dimension to select samples that improve the corresponding model ca-
+
+Algorithm 1 Pseudo Code of Active-SAOOD 
+
+Require: Sparsely annotated instance set DI ; Unlabeled instance set DU ; Maximum iteration N
+
+Ensure: Trained oriented object detector M t 
+
+> 1:
+
+Train initial student model M s 
+
+> 0
+
+on DI and DU 
+
+> 2:
+
+Initialize teacher model M t 
+
+> 0
+
+via EMA  
+
+> 3:
+
+for n = 1 , . . . , N do  
+
+> 4:
+
+Observe model state On−1 using model state obser-vation module (MSO) based on M tn−1 
+
+> 5:
+
+for all xu ∈ D n−1 
+
+> U
+
+do  
+
+> 6:
+
+Evaluate annotation value S(xu | O n−1) using teacher model M tn−1 via Eq. (12)  
+
+> 7:
+
+end for  
+
+> 8:
+
+Rank all unlabeled instances by S(xu | O n−1) 
+
+> 9:
+
+Select top-K instances X kA and annotate labels YkA 
+
+> 10:
+
+Update labeled set DnA = Dn−1 
+
+> A
+
+∪ {X kA, YkA} 
+
+> 11:
+
+Update unlabeled set DnU = Dn−1 
+
+> U
+
+\ {X kA} 
+
+> 12:
+
+Retrain student model M sn on updated DnA 
+
+> 13:
+
+Update teacher model M tn using EMA  
+
+> 14:
+
+end for  
+
+> 15:
+
+return M tN
+
+pabilities. To handle the long-tailed distribution and large intra-class variations in remote sensing imagery, we further introduce inter- and intra-class diversity, encouraging selec-tion of samples that enhance detection of rare categories and intra-class robustness. Together, these criteria form a comprehensive instance-level active sampling framework tailored for SAOOD. 
+
+3.2. Instance-Level Classification Uncertainty 
+
+Uncertainty is a widely used measure in active learning. Following prior work (Wu et al., 2022), we adopt the in-formation entropy of the predicted class probability distri-bution from the teacher model as the instance-level clas-sification uncertainty. Specifically, for each object, the teacher model outputs a normalized probability distribution 
+
+p = [ p1, p 2, . . . , p C ], where pc represents the probability that the object belongs to class c. The instance-level classi-fication uncertainty is defined as the information entropy: 
+
+Ucls = −
+
+> C
+
+X
+
+> c=1
+
+pc log( pc), (1) Higher entropy indicates greater class prediction uncertainty and lower classification confidence. 
+
+3.3. Instance-Level Localization and Orientation Uncertainty 
+
+In oriented object detection, the localization task can be de-composed into two components: bounding box localization and orientation prediction. Since previous active learning 3Active-SAOOD: Active Sparsely Annotated Oriented Object Detection in Remote Sensing Images Labeled Instances      
+
+> Teacher  Student
+> LUP
+> LUP
+> ++LReal GT LPseu GT LLUP
+> Sample Valuation
+> Raw Instances
+> Choose
+> Randomly
+> Label
+> Manually
+> Weak Aug
+> Strong Aug
+> EMA
+> Sup. Train
+> Choose
+> Actively
+> Add
+> New instances
+> Ucls
+> Uloc_ θ
+> Dinter and Dintra
+> Hard-to-classify
+> Orientation and
+> localization-hard
+> Rare-class and
+> feature-distinctive
+
+## LUP 
+
+> Cls. branch
+> Reg. branch
+> Loc. & Ori. Uncer. branch
+
+Train 
+
+Active 
+
+Selection 
+
+> Pseudo Label
+> Model Status Assessment
+> Sample Space
+
+Figure 2. Overall framework of Active-SAOOD. A small subset of training instances is sparsely annotated to initialize the teacher and student models. A model state observation module assesses the capability of teacher across classification, localization, and orientation. Guided by this module, the teacher evaluates unlabeled instances on multiple dimensions, to actively select the most valuable samples, progressively enhancing the training labels. 
+
+methods mainly focus on image-level annotation value, with limited exploration of instance-level localization uncertainty. Moreover, no prior work has explored orientation uncer-tainty. To this end, we propose a novel instance-level metric for localization and orientation uncertainty. Unlike the clas-sification branch, the localization branch does not output a probabilistic distribution, making it difficult to directly evaluate the accuracy of bounding box. Therefore, we de-sign a plug-and-play localization and orientation uncertainty prediction (LUP) module, which can be integrated into any detector with minimal additional training cost. As shown in Fig. 2, taking Rotated FCOS as an example, we add a par-allel uncertainty prediction branch to the last convolutional layer of the regression head. The uncertainty branch con-sists of a single 3 × 3 convolution with one output channel, responsible for predicting the localization and orientation uncertainty of each rotated bounding box. During training, the LUP module requires a supervision signal. To better assess the localization uncertainty of a rotated box, we use the Rotated Intersection over Union (RIoU) between the predicted box and the ground truth box as the uncertainty metric, defined as: 
+
+Uloc = 1 − RIoU (Bpred , B gt ), (2) where Bpred and Bgt denote the predicted box and ground truth, respectively. A larger RIoU corresponds to smaller localization uncertainty, indicating that the object is easy to localize and contributes less to improving the localization capability. Conversely, instances with high localization uncertainty are considered difficult samples, and labeling them can effectively improve the localization performance of model. Although RIoU can indirectly reflect the orientation accu-racy of rotated boxes, it is inherently a strongly coupled measure of both localization and orientation. Previous stud-ies (Zeng et al., 2024a) have shown that even for elongated objects with an aspect ratio of 5:1, the RIoU can still remain above 0.5 when the angular deviation is below 15°. This indicates that RIoU alone cannot accurately capture angular errors. Therefore, we further propose orientation uncertainty. Since orientation uncertainty has not been explored in prior work, we introduce a new orientation uncertainty metric. Specifically, we measure the angular deviation between the predicted and ground truth boxes. In oriented object de-tection, there exists a edge-swapping problem. When the predicted box and the ground truth have different long-side orientations, for example, when the predicted box takes the width as its long side while the ground truth takes the height, they are geometrically equivalent under a 90 ◦ rota-tion. Therefore, the predicted angle needs to be corrected to ensure that the long-side direction of the predicted box is consistent with that of the ground truth. To achieve this, we consider edge-swapping problem during the computation of angle deviation. For a predicted box (xp, y p, w p, h p, θ p)
+
+and a ground truth box (xg , y g , w g , h g , θ g ), where x and y
+
+denote the center coordinates, w and h denote the width and height, and θ is the angle, we first determine whether their long-side directions are consistent: 
+
+sp = [ wp ≥ hp], sg = [ wg ≥ hg ], (3) where [·] denotes the indicator function. If the long-side directions differ, i.e., sp ⊕ sg = 1 where ⊕ represents the 4Active-SAOOD: Active Sparsely Annotated Oriented Object Detection in Remote Sensing Images 
+
+XOR operation, the predicted and ground truth boxes are geometrically equivalent under a 90 ◦ rotation. In this case, we correct the predicted angle as: 
+
+θ′ 
+
+> p
+
+=
+
+(
+
+θp + π 
+
+> 2
+
+, if sp ⊕ sg = 1 ,θp, otherwise . (4) After this correction, the long-side orientation of the pre-dicted box becomes consistent with that of the ground truth, ensuring geometric alignment between the two. Then, the angles are further normalized into the range [− π 
+
+> 2
+
+, π 
+
+> 2
+
+). Since oriented object detection suffers from the angle boundary problem (Xu et al., 2024), directly computing the angular difference between the predicted box and ground truth may lead to discrepancies between the numerical and actual an-gular differences, causing instability in the training of the angle uncertainty prediction branch. Therefore, we compute the minimal angular difference as the supervision signal for angle uncertainty: 
+
+Uθ = min  |θ′ 
+
+> p
+
+− θg |, π − | θ′ 
+
+> p
+
+− θg |, (5) where θ′ 
+
+> p
+
+is the corrected predicted angle and θg is the ground truth angle. When the predicted orientation closely matches the ground truth, the orientation uncertainty is low, indicating that these samples are easier for orientation learn-ing. Conversely, samples with high orientation uncertainty pose greater challenges to the orientation estimation. Ac-tively annotating such samples can effectively enhance the orientation prediction ability. Considering that objects with different aspect ratios have different sensitivity for angular accuracy, where those with larger aspect ratios are more sensitive to angle deviation (Zeng et al., 2024b). Therefore, objects with large aspect ratios should be assigned greater weight on orientation un-certainty. Accordingly, the final instance-level localization and orientation uncertainty is defined as: 
+
+Uloc θ = w U loc + (1 − w) Uθ
+
+π/ 2 , w = e−β|log ( ho wo )|, (6) where wo and ho denote the width and height of the object, and β is a scaling factor that controls sensitivity to the aspect ratio, which is set to 0.5 in this paper. This formulation adaptively assigns higher orientation uncertainty weights to objects with larger aspect ratios, while assigning higher localization uncertainty weights to near-square objects. Since the localization and orientation uncertainty is normal-ized within the range [0 , 1] , the final loss function for the LUP module is formulated as a cross-entropy loss between the predicted uncertainties and the ground truth values: 
+
+LLUP = − X h 
+
+Uloc θ log ˆUloc θ +(1 −Uloc θ ) log(1 − ˆUloc θ )
+
+i
+
+,
+
+(7) where ˆUloc θ denotes the predicted localization and orienta-tion uncertainty for each instance. 
+
+3.4. Instance-Level Inter- and Intra-Class Diversity 
+
+The long-tailed distribution in remote sensing images sig-nificantly affects the detection accuracy of rare categories, especially under low sparse annotation rates, where the num-ber of annotated rare instances is extremely limited, exacer-bating this issue. To address this, we propose instance-level inter-class diversity to increase the sampling priority of rare categories. We define instance-level inter-class diversity using a global adjustment factor based on class frequency. Specifically, let Nc denote the number of labeled samples for class c, the inter-class diversity Dinter is defined as a sigmoid-like function: 
+
+Dinter = 11 + e(γN c−1) , (8) where γ is the smoothing coefficient, which is set to 0.01 in this work. When a class has fewer samples, Dinter is higher, encouraging selection of that class to improve overall category diversity. As the number of samples increases, Dc
+
+decreases, suppressing further sampling of that class. To address the large intra-class variations in remote sensing images, we further propose intra-class diversity to ensure that instance features within each class are rich and repre-sentative. We first compute the mean classification feature vector of initially annotated samples as the class prototype. During active learning, the cosine similarity between the feature of a candidate instance and its class prototype is used to compute intra-class diversity: 
+
+Dintra = 1 − fi · Pc
+
+∥fi∥ ∥ Pc∥ , (9) where fi denotes the classification feature of the i-th instance and Pc represents the prototype feature of the class to which the i-th instance belongs. A higher Dintra value indicates that the instance contributes novel information to the feature space, helping the model learn more diverse features and improving the generalization. To dynamically update the prototypes of selected samples for each class, we adopt an exponential moving average (EMA) strategy: 
+
+Pc ← αPc + (1 − α)fi, (10) where α is the momentum for intra-class diversity, which is set to 0.9 in this work. This mechanism smooths the prototype updates, reduces noise, and ensures that proto-types gradually reflect the evolving feature distribution of annotated instances. 
+
+3.5. Model State Observation Strategy 
+
+For image-level active learning, it is sufficient to directly select the most difficult images, since each image typically 5Active-SAOOD: Active Sparsely Annotated Oriented Object Detection in Remote Sensing Images 
+
+contains a diverse set of instances with varying difficulty. However, for instance-level active learning, selecting a large number of difficult instances at the early stages of training may adversely affect training stability (Wang et al., 2021). Curriculum learning studies have shown that gradually train-ing from easy to hard samples is more model-friendly. More-over, for different instance-level evaluation dimensions, a simple summation to obtain the final sample value may be suboptimal for the current model. To address these issues, we propose a model state observation strategy (MSO). The module evaluates the current capability of the model across multiple dimensions in a state space and guides the sample selection module to pick high-value samples most suitable for the current model state. Specifically, it observes the performance of model on the training set in terms of classification, localization, inter-class diversity, and intra-class diversity, aligning each dimension with the ultimate objectives of oriented object detection: classification ability is measured by mean Average Precision (mAP) across all classes, localization ability by the mean IoU of predicted boxes matched to the sparse ground truth, inter-class di-versity to improve rare-class performance, and intra-class diversity to enhance robustness within each class. Notably, the purpose of our MSO is to observe the relative evolution trends of model ability states across different dimensions during training, rather than to evaluate the absolute mAP of the final model in the conventional sense. These four dimensions are computed as: 
+
+Acls = 1
+
+C
+
+> C
+
+X
+
+> c=1
+
+AP c, Aloc = 1
+
+N
+
+> N
+
+X
+
+> i=1
+
+IoU 
+
+
+
+bpred  
+
+> i
+
+, b GT 
+
+> i
+
+
+
+,Ainter = X
+
+> c∈rare
+
+AP c, Aintra = 1
+
+C
+
+> C
+
+X
+
+> c=1
+
+Acc c · exp( −Var c) ,
+
+(11) where C is the number of classes, N the number of matched predictions, AP c the average precision of class c, bpred  
+
+> i
+
+and 
+
+bGT  
+
+> i
+
+the predicted and GT boxes, Acc c the accuracy of class 
+
+c, and Var c the confidence variance for class c. The final an-notation value is computed using a softmax-like composite scoring: 
+
+S = X
+
+> i
+
+e 1−Ai
+
+P 
+
+> j
+
+e 1−Aj Ui, (12) where i ∈ { cls , loc θ, inter , intra }, and Ui respectively represents classification, localization and orientation uncer-tainty, as well as inter- and intra-class diversity. The final sample score is then computed as: 
+
+Sfinal = ¯A · S + (1 − ¯A) · (1 − S), (13) where ¯A denotes the average model capability value across all dimensions. Based on the model capability values mea-sured by the proposed model state observation strategy, higher weights are adaptively assigned to dimensions in which the model is currently weaker during sample selec-tion, ensuring that the selected samples are well matched to the current learning state of model and aligned with the ulti-mate objectives of oriented object detection. This strategy avoids manually designed heuristics and leverages the own training status of model to guide sample selection, enabling more effective and principled instance selection. In early training stages, when the model capability is limited, Eq. 12 favors relatively easy samples, while as training progresses and the model capability gradually improves, increasingly harder samples are selected. This adaptive, state-aware selection process naturally improves training stability and progressively enhances detection performance. 
+
+## 4. Experiments 
+
+4.1. Dataset and Metric 
+
+To validate our method, we use two oriented object detec-tion datasets: DOTA-v1.0 (Xia et al., 2018) with 2,806 images and 188,282 instances across 15 categories (cropped to 1024 ×1024 patches) and DIOR (Cheng et al., 2022) with 23,463 images and 192,472 instances in 20 categories. For SAOOD, we create a sparse dataset by randomly selecting 
+
+p% of instances without class priors, ensuring at least one instance per category. Evaluation follows prior work (Lu et al., 2024) using mAP 50 .
+
+4.2. Experimental Settings 
+
+Following previous work (Hua et al., 2023), we use Ro-tated FCOS (Tian et al., 2019) with a ResNet-50 backbone pretrained on ImageNet as the baseline detector. Imple-mentation and hyperparameters follow the default mmrotate settings. For active learning, following the previous work (Mi et al., 2022), algorithm 1 runs for 2 iterations. Experi-ments are conducted on four NVIDIA RTX 3090 GPUs with batch size 4. Following common practice (Xu et al., 2021), the EMA momentum in the teacher–student framework is 0.9996, and the LUP module loss weight is 1. 
+
+4.3. Main Results 
+
+To validate the effectiveness of Active-SAOOD, we conduct experiments on DOTA-v1.0 under different sparse annota-tion rates. As shown in Table 1, compared with random annotation, Active-SAOOD evaluates samples across mul-tiple instance-level dimensions and, guided by the model state observation module, selects instances most suitable for the current model state. This ensures selected sam-ples are valuable and aligned with model capability. No-tably, at an extremely low annotation rate (1%), the baseline with random annotation achieves 20.94% mAP, while us-ing our actively selected high-value samples improved it 6Active-SAOOD: Active Sparsely Annotated Oriented Object Detection in Remote Sensing Images 
+
+Table 1. Comparison of our Active-SAOOD with other SAOOD and image-level active learning (AL) methods on DOTA-v1.0 under different annotation rate. mAP is used for evaluation, and ∆ denotes the mAP gain over the baseline. Active-Rotated FCOS is trained only with actively selected high-value samples, while Active-SAOOD additionally incorporates mined pseudo-labels.                                                                                           
+
+> Method paradigm Method Sparse annotation rate 1% ∆2% ∆5% ∆10% ∆
+> Baseline Rotated FCOS 20.94 +0.00 33.23 +0.00 48.59 +0.00 55.06 +0.00 SAOOD DML (Zhang et al., 2025) 21.62 +0.68 34.91 +1.68 52.51 +1.92 59.16 +4.10 RSST (Liao et al., 2025) 23.19 +2.25 37.20 +3.97 55.22 +6.63 60.62 +5.56 S2Teacher (Lin et al., 2026b) 30.73 +9.79 37.86 +4.63 55.49 +6.90 61.67 +6.61 Image-level AL Active Teacher (Mi et al., 2022) 29.20 +8.26 37.55 +4.32 55.06 +6.47 60.72 +5.66 PPAL (Yang et al., 2024) 30.71 +9.77 37.62 +4.39 56.23 +7.64 60.75 +5.69 Instance-level AL Active-Rotated FCOS 30.24 +9.30 35.42 +2.19 53.89 +5.30 57.90 +2.84 Active-SAOOD (DML-based) 32.24 +11.30 40.49 +7.26 56.12 +7.53 60.12 +5.06 Active-SAOOD (RSST-based) 38.54 +17.6 43.09 +9.86 57.99 +9.40 61.16 +6.10 Active-SAOOD (S 2Teacher-based) 35.79 +14.85 42.98 +9.75 58.39 +9.80 62.61 +7.55
+
+to 30.24%. For SAOOD methods, Active-SAOOD consis-tently boosts performance: using RSST, random annota-tion reaches 23.19% mAP, whereas Active-SAOOD (RSST-based) attains 38.54%. For S 2Teacher, random annotation obtains 30.73%, while Active-SAOOD reaches 35.79%. Random annotation easily selects less informative instances, leading to lower performance and unstable training, whereas Active-SAOOD prioritizes high-value samples, making bet-ter use of annotation budgets and improving both perfor-mance and stability. When samples are selected based on image-level evaluation dimensions, such as Active Teacher or PPAL, while pseudo-labels are mined with S 2Teacher, the mAP under the 1% annotation ratio is only 29.2% and 30.71%, respectively. In contrast, our instance-level Active-SAOOD achieves 35.79%. This is mainly because conven-tional image-level active learning evaluation dimensions and selection strategies are not well suited for the sparse annotation setting, resulting in selected samples that are less compatible with the model state. These results highlight the advantage of selection guided by MSO. 
+
+4.4. Generalization Experiment on DIOR 
+
+To evaluate generalization, we conducted experiments on the DIOR dataset. As Table 2 shows, Active-SAOOD consis-tently improves SAOOD performance under different sparse annotation ratios. Compared with DOTA, DIOR dataset has more object categories but fewer instances, making valuable sample selection harder. At a 1% annotation rate, random an-notation achieved only 15.64% mAP, while Active-SAOOD reached 25.58%, demonstrating its strong generalization. 
+
+4.5. Ablation Study 
+
+To verify the effectiveness of the proposed instance-level active learning evaluation metrics, we conducted ablation experiments on DOTA-v1.0 with 1% annotations. As shown in Table 3, removing any of the four evaluation dimensions, 
+
+Table 2. Generalization experiments on DIOR.                            
+
+> Annotation Rate Method mAP (%) ∆
+> 1% Rotated FCOS 15.64 +0.00 SAOOD (Lin et al., 2026b) 23.17 +7.53 Active-SAOOD 25.58 +9.94 2% Rotated FCOS 17.89 +0.00 SAOOD 20.57 +2.68 Active-SAOOD 32.73 +14.84 5% Rotated FCOS 33.41 +0.00 SAOOD 37.06 +3.65 Active-SAOOD 40.73 +7.32 10% Rotated FCOS 44.83 +0.00 SAOOD 48.79 +3.96 Active-SAOOD 50.84 +6.01
+
+including classification uncertainty, localization and orienta-tion uncertainty, inter-class diversity, and intra-class diver-sity, leads to varying degrees of performance degradation. This is because these four dimensions are specifically de-signed based on the intrinsic characteristics of the SAOOD task, and each dimension influences the value of selected samples from a different perspective, thereby affecting the final detection performance. Classification uncertainty im-proves the classification capability by selecting samples with higher classification difficulty. Localization and orientation uncertainty focuses on samples that are difficult to local-ize or estimate the angle, enhancing the localization and orientation ability and thereby improving overall detection performance. Inter-class diversity is designed to address the long-tailed distribution in remote sensing images, help-ing to balance the number of annotated instances across different categories and to mitigate class bias during the pre-diction process. Finally, intra-class diversity is introduced to address the large intra-class variations in remote sensing images, preventing the selection of overly feature-similar samples that may cause overfitting, thereby enhancing the intra-class robustness of model. MSO observes the capabili-ties of model in the state space and guides sample selection 7Active-SAOOD: Active Sparsely Annotated Oriented Object Detection in Remote Sensing Images classification uncertainty  localization uncertainty  orientation uncertainty  inter -class diversity  intra -class diversity 
+
+(a) Random sparse initialization  Active-SAOOD  Random sparse initialization  Active-SAOOD 
+
+(b) Figure 3. Visualization of instance selection and model performance. (a) Visualization of the actively selected instances. (b) Comparison of detection results for models trained on random versus actively selected instances. 
+
+Table 3. Ablation study of different evaluation dimensions on DOTA-v1.0 with 1% annotation rate.                                     
+
+> Ucls Uloc θDinter Dintra MSO mAP(%)
+> ✓✓✓✓✓35.79
+> –✓✓✓✓33.62
+> ✓–✓✓✓34.75
+> ✓✓–✓✓32.66
+> ✓✓✓–✓33.90
+> ✓✓✓✓–32.70
+
+Table 4. Repeated experiments on DOTA-v1.0 with 1% sparsely annotation rate. The mAP is the evaluation metric in the table, and var denotes the variance. 
+
+Method max min mean var Random annotation 24.03 4.42 16.46 74.12 SAOOD 30.73 12.15 26.25 62.59 Active-FCOS 30.24 25.52 27.35 4.29 Active-SAOOD 35.79 30.46 32.80 4.08 
+
+module to adaptively choose samples suited to the current model state, which further improves performance. 
+
+4.6. Repeat Annotation Experiment 
+
+To demonstrate that SAOOD improves stability compared with random sparse annotation, we conducted repeated ex-periments on DOTA with a 1% annotation rate. As shown in Table 4, over five runs, random annotation produced highly variable results, with mAP ranging from 4.42% to 24.03% and a variance of 74.12, sometimes even causing training failure. SAOOD method with pseudo-label mining reached a maximum of 30.73% mAP, but variance remained high at 62.59. In contrast, Active-SAOOD achieved a maximum of 35.79% and a minimum of 30.46%, with a variance of only 4.08, improving performance by 11.76 and 26.04% over random annotation. These results demonstrate that Active-SAOOD can maintain stable, high performance under ex-tremely sparse annotation by actively selecting the most valuable samples. This stability is crucial in real-world an-notation, where random annotation failures can significantly raise labeling costs and hinder practical use of SAOOD. 
+
+4.7. Visualization Analysis 
+
+To better understand the samples selected by different cri-teria, we conducted a visualization analysis. As illustrated in Fig. 3, samples selected based on classification uncer-tainty tend to correspond to instances with ambiguous vi-sual features and higher classification difficulty. Samples chosen under localization uncertainty are typically those whose predicted boxes exhibit larger positional deviations, indicating higher localization difficulty. When orientation uncertainty is considered, the selected samples are those with greater errors in angle prediction, representing more challenging oriented instances. Incorporating inter-class 8Active-SAOOD: Active Sparsely Annotated Oriented Object Detection in Remote Sensing Images 
+
+diversity encourages the selection of instances from rare categories, while intra-class diversity favors the selection of visually distinctive samples within each class, enriching the diversity of features. These visualizations demonstrate that Active-SAOOD effectively selects the most valuable in-stances for annotation from multiple perspectives, including orientation, classification, and localization uncertainty, as well as inter- and intra-class diversity, thereby enhancing the informational richness and ensuring model performance. 
+
+## 5. Conclusion 
+
+In this work, we propose Active-SAOOD, an instance-level active learning framework to address the performance degra-dation and instability of SAOOD under random sparse anno-tation. By jointly considering instance-level classification, localization, and orientation uncertainties as well as inter-and intra-class diversity, Active-SAOOD selects high-value samples guided by a model state observation strategy. Ex-perimental results show that Active-SAOOD significantly outperforms random annotation and improves the stability of SAOOD under low sparse annotation rates, facilitating broader practical applications. 
+
+## References 
+
+Cheng, G., Wang, J., Li, K., Xie, X., Lang, C., Yao, Y., and Han, J. Anchor-free oriented proposal generator for object detection. IEEE Transactions on Geoscience and Remote Sensing , 60:1–11, 2022. Han, J., Ding, J., Li, J., and Xia, G.-S. Align deep fea-tures for oriented object detection. IEEE transactions on geoscience and remote sensing , 60:1–11, 2021a. Han, J., Ding, J., Xue, N., and Xia, G.-S. Redet: A rotation-equivariant detector for aerial object detection. In Pro-ceedings of the IEEE/CVF conference on computer vision and pattern recognition , pp. 2786–2795, 2021b. He, W., Zhang, X.-Y., Yin, F., and Liu, C.-L. Deep di-rect regression for multi-oriented scene text detection. In Proceedings of the IEEE international conference on computer vision , pp. 745–753, 2017. Hua, W., Liang, D., Li, J., Liu, X., Zou, Z., Ye, X., and Bai, X. Sood: Towards semi-supervised oriented object detection. In Proceedings of the IEEE/CVF conference on computer vision and pattern recognition , pp. 15558– 15567, 2023. Li, D., Wang, Z., Chen, Y., Jiang, R., Ding, W., and Oku-mura, M. A survey on deep active learning: Recent advances and new frontiers. IEEE Transactions on Neu-ral Networks and Learning Systems , 36(4):5879–5899, 2024. Li, Y., Li, X., Dai, Y., Hou, Q., Liu, L., Liu, Y., Cheng, M.-M., and Yang, J. Lsknet: A foundation lightweight backbone for remote sensing: Y. li et al. International Journal of Computer Vision , 133(3):1410–1431, 2025. Liang, D., Hua, W., Shi, C., Zou, Z., Ye, X., and Bai, X. Sood++: Leveraging unlabeled data to boost oriented object detection. IEEE Transactions on Pattern Analysis and Machine Intelligence , 2025. Liao, W., Xu, C., Wang, C., and Cui, Z. Llm-assisted seman-tic guidance for sparsely annotated remote sensing object detection. In Proceedings of the IEEE/CVF International Conference on Computer Vision , pp. 22519–22528, 2025. Lin, J., Shen, Y., Wang, B., Lin, S., Li, K., and Cao, L. Weakly supervised open-vocabulary object detection. In 
+
+Proceedings of the AAAI Conference on Artificial Intelli-gence , volume 38, pp. 3404–3412, 2024. Lin, J., Hu, Y., Shen, J., Shen, Y., Cao, L., Zhang, S., and Ji, R. What you perceive is what you conceive: a cognition-inspired framework for open vocabulary image segmen-tation. In Proceedings of the 33rd ACM International Conference on Multimedia , pp. 2841–2850, 2025. Lin, J., Lu, Y., Zhu, C., Shen, Y., Zhang, S., and Cao, L. Ro-bust pseudo-labeling via decoupled class-aware filtering and dynamic category correction. In Proceedings of the AAAI Conference on Artificial Intelligence , volume 40, pp. 6961–6969, 2026a. Lin, T.-Y., Goyal, P., Girshick, R., He, K., and Doll ´ar, P. Focal loss for dense object detection. In Proceedings of the IEEE international conference on computer vision ,pp. 2980–2988, 2017. Lin, Y., Lin, J., Ye, K., Shen, Y., Zhang, S., and Cao, L. S2teacher: Step-by-step teacher for sparsely anno-tated oriented object detection. In Proceedings of the AAAI Conference on Artificial Intelligence , volume 40, pp. 6997–7005, 2026b. Liu, M., Zhang, P., Liu, Y., Zhang, W., Zhou, Y., Liao, N., Gong, Z., Luo, J., Wang, Z., Yu, Y., et al. Par-tial weakly-supervised oriented object detection. arXiv preprint arXiv:2507.02751 , 2025. Lu, Z., Wang, C., Xu, C., Zheng, X., and Cui, Z. Progressive exploration-conformal learning for sparsely annotated object detection in aerial images. Advances in Neural Information Processing Systems , 37:40593–40614, 2024. Ma, J., Shao, W., Ye, H., Wang, L., Wang, H., Zheng, Y., and Xue, X. Arbitrary-oriented scene text detection via rotation proposals. IEEE transactions on multimedia , 20 (11):3111–3122, 2018. 9Active-SAOOD: Active Sparsely Annotated Oriented Object Detection in Remote Sensing Images 
+
+Mi, P., Lin, J., Zhou, Y., Shen, Y., Luo, G., Sun, X., Cao, L., Fu, R., Xu, Q., and Ji, R. Active teacher for semi-supervised object detection. In Proceedings of the IEEE/CVF conference on computer vision and pattern recognition , pp. 14482–14491, 2022. Tian, Z., Shen, C., Chen, H., and He, T. Fcos: Fully convo-lutional one-stage object detection. In Proceedings of the IEEE/CVF international conference on computer vision ,pp. 9627–9636, 2019. Wang, K., Zhang, D., Li, Y., Zhang, R., and Lin, L. Cost-effective active learning for deep image classification. 
+
+IEEE Transactions on Circuits and Systems for Video Technology , 27(12):2591–2600, 2016. Wang, X., Chen, Y., and Zhu, W. A survey on curriculum learning. IEEE transactions on pattern analysis and machine intelligence , 44(9):4555–4576, 2021. Wang, Y., Ilic, V., Li, J., Kisa ˇcanin, B., and Pavlovic, V. Alwod: Active learning for weakly-supervised object detection. In Proceedings of the IEEE/CVF international conference on computer vision , pp. 6459–6469, 2023. Wu, J., Chen, J., and Huang, D. Entropy-based active learning for object detection with progressive diversity constraint. In Proceedings of the IEEE/CVF conference on computer vision and pattern recognition , pp. 9397– 9406, 2022. Xia, G.-S., Bai, X., Ding, J., Zhu, Z., Belongie, S., Luo, J., Datcu, M., Pelillo, M., and Zhang, L. Dota: A large-scale dataset for object detection in aerial images. In 
+
+Proceedings of the IEEE conference on computer vision and pattern recognition , pp. 3974–3983, 2018. Xie, X., Cheng, G., Wang, J., Yao, X., and Han, J. Oriented r-cnn for object detection. In Proceedings of the IEEE/CVF international conference on computer vision , pp. 3520– 3529, 2021. Xu, H., Liu, X., Xu, H., Ma, Y., Zhu, Z., Yan, C., and Dai, F. Rethinking boundary discontinuity problem for oriented object detection. In Proceedings of the IEEE/CVF Con-ference on Computer Vision and Pattern Recognition , pp. 17406–17415, 2024. Xu, M., Zhang, Z., Hu, H., Wang, J., Wang, L., Wei, F., Bai, X., and Liu, Z. End-to-end semi-supervised ob-ject detection with soft teacher. In Proceedings of the IEEE/CVF international conference on computer vision ,pp. 3060–3069, 2021. Yang, C., Huang, L., and Crowley, E. J. Plug and play active learning for object detection. In Proceedings of the IEEE/CVF conference on computer vision and pattern recognition , pp. 17784–17793, 2024. Yang, X., Yan, J., Feng, Z., and He, T. R3det: Refined single-stage detector with feature refinement for rotat-ing object. In Proceedings of the AAAI conference on artificial intelligence , volume 35, pp. 3163–3171, 2021. Yang, X., Zhang, G., Li, W., Wang, X., Zhou, Y., and Yan, J. H2rbox: Horizontal box annotation is all you need for ori-ented object detection. arXiv preprint arXiv:2210.06742 ,2022a. Yang, X., Zhou, Y., Zhang, G., Yang, J., Wang, W., Yan, J., Zhang, X., and Tian, Q. The kfiou loss for rotated object detection. arXiv preprint arXiv:2201.12558 , 2022b. Yu, Y. and Da, F. Phase-shifting coder: Predicting accurate orientation in oriented object detection. In Proceedings of the IEEE/CVF conference on computer vision and pattern recognition , pp. 13354–13363, 2023. Yu, Y., Yang, X., Li, Q., Zhou, Y., Da, F., and Yan, J. H2rbox-v2: Incorporating symmetry for boosting hor-izontal box supervised oriented object detection. Ad-vances in Neural Information Processing Systems , 36: 59137–59150, 2023. Yu, Y., Ren, B., Zhang, P., Liu, M., Luo, J., Zhang, S., Da, F., Yan, J., and Yang, X. Point2rbox-v2: Rethinking point-supervised oriented object detection with spatial layout among instances. In Proceedings of the Computer Vision and Pattern Recognition Conference , pp. 19283–19293, 2025a. Yu, Y., Yang, X., Li, Y., Han, Z., Da, F., and Yan, J. Wholly-wood: Wholly leveraging diversified-quality labels for weakly-supervised oriented object detection. IEEE Trans-actions on Pattern Analysis and Machine Intelligence ,2025b. Yuan, T., Wan, F., Fu, M., Liu, J., Xu, S., Ji, X., and Ye, Q. Multiple instance active learning for object detection. In 
+
+Proceedings of the IEEE/CVF Conference on Computer Vision and Pattern Recognition , pp. 5330–5339, 2021. Zeng, Y., Chen, Y., Yang, X., Li, Q., and Yan, J. Ars-detr: Aspect ratio-sensitive detection transformer for aerial ori-ented object detection. IEEE transactions on geoscience and remote sensing , 62:1–15, 2024a. Zeng, Y., Chen, Y., Yang, X., Li, Q., and Yan, J. Ars-detr: Aspect ratio-sensitive detection transformer for aerial ori-ented object detection. IEEE transactions on geoscience and remote sensing , 62:1–15, 2024b. Zhang, R., Xu, C., Zhu, H., Xu, F., Yang, W., Zhang, H., and Xia, G.-S. Minimizing sample redundancy for label-efficient object detection in aerial images. IEEE Transac-tions on Geoscience and Remote Sensing , 2025. 10 Active-SAOOD: Active Sparsely Annotated Oriented Object Detection in Remote Sensing Images (Supplementary Material) 
+
+## 1. More detailed experimental settings. 
+
+Following most low-cost annotated oriented object detection studies (Yang et al., 2022a; Hua et al., 2023), we adopt Rotated FCOS as our baseline detector, with a ResNet-50 backbone pretrained on ImageNet. Focal Loss is used for classification, with its parameters configured according to (Lin et al., 2017). IoU Loss is employed for regression, and a cross-entropy loss is applied to centerness. All loss weights are set to 1. Consistent with prior work (Lin et al., 2026b;a), we use a teacher–student framework to mine pseudo labels for sparse-annotation training in oriented object detection. Following common practice (Hua et al., 2023; Lin et al., 2024), the EMA momentum of the teacher model is set to 0.9996, and the teacher parameters are updated via EMA at each iteration (Lin et al., 2025). All remaining settings follow the standard configurations in mmrotate. To ensure a fair comparison, we strictly match the number of annotated objects between the randomly sparse annotations and those actively selected by our Active-SAOOD approach. 
+
+## 2. More detailed experiments. 
+
+2.1. More detailed hyperparameter experiments. 
+
+To analyze how the hyperparameters in our evaluation met-rics influence both the selected instances and the final de-tection performance, we conduct detailed hyperparameter experiments. The hyperparameter γ in the inter-class diver-sity controls the slope of the sigmoid-like function. A larger 
+
+γ yields a steeper slope, making the inter-class diversity more sensitive to the sampled number Nc. However, an excessively large γ causes the diversity score to drop too rapidly, weakening the contribution of this metric, while an overly small γ makes the diversity score insensitive to Nc,limiting its ability to highlight rare categories. As shown in Table 5, both overly large and overly small γ values de-grade the effectiveness of the inter-class diversity, ultimately leading to performance drops in Active-SAOOD. When γ
+
+is set too small (e.g., 0.001 ), the inter-class diversity score is excessively large, which can mislead the overall eval-uation of instance annotation value and result in training failure. When γ is set to 0.01 , Active-SAOOD achieves the best performance, indicating that this value provides the most effective balance. Therefore, we set γ = 0 .01 
+
+in experiments. We also conduct hyperparameter studies on β in the localization and orientation uncertainty metric. 
+
+β controls the relative emphasis between orientation and localization uncertainties. In the extreme case where β = 0 ,
+
+Uloc θ is determined solely by localization uncertainty. As 
+
+β increases, the metric increasingly prioritizes orientation uncertainty, particularly for objects with large aspect ratios. When β becomes excessively large, the orientation uncer-tainty for high–aspect-ratio objects dominates the metric, causing Uloc θ to overlook localization uncertainty, which adversely affects performance. As shown in Table 5, setting 
+
+β = 0 .5 yields the highest performance of Active-SAOOD. Therefore, we use β = 0 .5 in experiments.      
+
+> Table 5. Hyperparameter study. γis the hyperparameter used in inter-class diversity, βis the hyperparameter used in localization and orientation uncertainty.
+
+γ AP(%) β AP(%) 0.001 - 0 29.31 0.005 31.96 0.25 33.97 0.01 35.79 0.5 35.79 0.05 33.15 0.75 31.80 0.1 22.62 1.0 33.93 
+
+2.2. Ablation study on evaluation dimensions and model abilities. 
+
+To further demonstrate that samples selected by different evaluation dimensions indeed affect the model capability along corresponding aspects during training, we conduct a more fine-grained ablation study. As shown in Table 6, when the classification uncertainty dimension is removed during sample selection, the classification accuracy of the trained model drops to 76.94%, representing a decrease of 3.66% compared with the full model. This is mainly be-cause classification uncertainty emphasizes selecting hard-to-classify instances to enhance the classification capability of model. Without this evaluation dimension, the actively selected samples lack sufficient classification difficulty, lead-ing to degraded classification performance. Localization uncertainty focuses on selecting instances that are difficult to localize, thereby improving the localization capability of model. Removing this dimension results in weaker lo-calization performance, which is reflected by a decrease of 10.65% in the average IoU. Inter-class diversity prioritizes instances from rare categories to encourage a more balanced class distribution. This strategy effectively alleviates the 11 Active-SAOOD: Active Sparsely Annotated Oriented Object Detection in Remote Sensing Images  
+
+> Table 6. Ablation study of evaluation dimensions on model capabil-ity. All denotes the full model with all dimensions, and other rows show performance after removing each dimension. Bold values indicate significant drop in the corresponding capability.
+
+Setting Acc (%) IoU (%) Rare Acc (%) Recall (%) All 80.60 69.77 69.86 60.30 
+
+Ucls 76.94 69.06 68.56 59.26 
+
+Uloc θ 80.52 59.12 69.51 60.20 
+
+Dinter 79.25 69.12 66.52 59.69 
+
+Dintra 80.16 69.24 69.22 55.68   
+
+> (a) (b) Figure 4. Comparison with and without model state observation (MSO) strategy. (a) Training loss. (b) Training gradients. Tradi-tional image-level active learning methods do not use MSO and directly select the most difficult instances, leading to unstable training. Active-SAOOD uses MSO to select appropriate instances according to the current model state, ensuring the training stability.
+
+long-tailed distribution issue commonly observed in remote sensing images, where rare categories tend to suffer from inferior performance. When inter-class diversity is removed, the classification accuracy of rare categories decreases by 3.34%. Intra-class diversity aims to select instances with more distinctive features, which enhances intra-class ro-bustness and helps address the large intra-class variations in remote sensing images. Removing intra-class diversity leads to a decline in the mean recall across categories, indi-cating reduced detection robustness for visually distinctive instances. Overall, the ablation results and the analysis of model performance across different capability dimensions validate the effectiveness of the proposed instance-level evaluation dimensions, which are designed by explicitly considering the intrinsic characteristics of the SAOOD. 
+
+2.3. Generalization experiments of the MSO model state observation. 
+
+Our MSO strategy guides Active-SAOOD in selecting the most suitable high-value samples by observing the model state on the initially annotated ground-truth (GT). To verify its generalization ability, we conduct corresponding experi-ments. To avoid data leakage caused by introducing valida-tion or test data during training, the model state cannot be evaluated on validation or test sets to guide sample selection. Therefore, we study two settings for model state observa-            
+
+> Table 7. Generalization experiments of the MSO strategy. MSO is employed to evaluate the model state on both the initially an-notated GT and an independent held-out set of comparable size, respectively, to guide high-value label selection.
+> Ability evalutation setting Sparse annotation rate 1% 2% 5% 10% Evaluated on initially labeled GT 35.79 42.98 58.39 62.61 Evaluated on held-out set 34.96 42.67 58.32 62.60
+
+tion using MSO: (1) observated on the initially annotated GT set, and (2) observated on an independently held-out subset of comparable size that is randomly sampled and non-overlapping with the initially annotated GT set. In both cases, the observed model state is used to guide the selection of high-value instances for subsequent training. As shown in Table 11, the final performance of Active-SAOOD is highly consistent regardless (less than 1% differ-ence) of whether the model state is evaluated on the initial GT set or on the independent held-out set, and both settings yield significant performance improvements. This indicates that MSO is insensitive to the choice of data used as labels for model state evaluation, as MSO is designed to observe the relative evolution trend of the model’s ability across different dimensions, rather than to estimate the absolute mAP in the conventional sense. Since this evolution reflects the intrinsic state of the model, its trend remains consistent when measured on either the training-participating initial GT or the non-training independent held-out set, leading to nearly identical final performance. Notably, under low annotation ratios (e.g., 1% annotation ratio), observing the model state on the initially annotated GT set even achieves slightly better performance than using an independent held-out set. This is mainly because, under extremely limited annotations, the model is insufficiently trained, and model state observation on a completely unseen independent held-out set may not accurately reflect the current model state. Consequently, the guided sample selection may become less suitable for the current model state. In addition, annotating an additional independent held-out set would incur extra labeling costs, we ultimately adopt the MSO on the initially annotated GT set for model state observation. To further validate this observation, we additionally evaluate the model ability on the evaluation set that is not involved in training. As shown in Table 8, the evolution trends of model ability observed on the initially labeled GT are con-sistent with those observed on non-training evaluation set. Specifically, during the early stage, the model capabilities observed on both are relatively weak, causing MSO to favor relatively easy samples. As training progresses, the model capabilities on both rapidly improve, leading MSO to gradu-ally select challenging samples, and eventually converge in the late training stage. These results indicate that the sample 12 Active-SAOOD: Active Sparsely Annotated Oriented Object Detection in Remote Sensing Images 
+
+Table 8. Experiments on the evolution trends of model ability across different training stages. Average ability is the mean of model ability dimensions in Eq. 11. The MSO strategy is employed to evaluate the current model ability on both the initially annotated GT set involved in training and the evaluation data excluded from training.                          
+
+> Annotation rate Evaluation Set Metric Train stage Early stage Middle stage Late stage Convergence stage 1% Initially labeled GT Average Ability 0.49 0.63 (+0.14) 0.702 (+0.072) 0.705 (+0.003) Non-training evaluation set 0.40 0.49 (+0.09) 0.532 (+0.042) 0.534 (+0.002) 5% Initially labeled GT Average Ability 0.60 0.72 (+0.12) 0.750 (+0.030) 0.751 (+0.002) Non-training evaluation set 0.56 0.67 (+0.11) 0.698 (+0.028) 0.699 (+0.001)
+
+Table 9. Generalization experiments on different datasets.               
+
+> Dataset Method Annotation Rate 1% 5% DOTA-v1.5 Rotated FCOS 21.91 42.12 S2Teacher 27.61 47.72 Active-SAOOD (S 2Teacher-based) 33.72 50.76
+> SODA-A Rotated FCOS 37.54 59.56 S2Teacher 41.27 62.68 Active-SAOOD (S 2Teacher-based) 47.27 66.24
+
+selection guided by MSO based on the initially labeled GT is nearly identical to that guided by observations on non-training data, thereby demonstrating the generalization and rationality of MSO. 
+
+2.4. Experiments on instance difficulty selection guided by MSO. 
+
+To demonstrate the MSO strategy is able to select instances with appropriate difficulty according to the model capabil-ity at different training stages, we conduct the experiments. As shown in Table 8, at the early stage of training, the MSO strategy observes that the capabilities of model are relatively weak, and selects relatively simple instances. As training progresses, the capabilities of model rapidly im-prove, MSO correspondingly observes this enhancement and selects instances of increasing difficulty at the middle stage. At the late stage, MSO observes that the capabil-ities of model are already strong, and thus selects more difficult instances. Learning from these more challenging samples further boosts performance. Guided by MSO, se-lecting instances that are most suitable for the current model state, while gradually increasing the difficulty of the se-lected instances as the ability of model improves, effectively enhances the training stability and the overall performance. As shown in Fig. 4, we visualize and compare the training loss of the traditional image-level active learning method, which directly selects the most difficult samples, with our state observation–based instance-level active learning ap-proach that gradually increases the sample difficulty accord-ing to the model state. The traditional image-level active learning strategy tends to introduce a large number of hard 
+
+Table 10. Comparison experiments with other reducing annotation cost methods.                    
+
+> Setting Method Annotation budget mAP(%) Weakly supervised H2RBox-v2 150% Point 72.3 Point2RBox-v2 100% Point 62.61 Wholly-WOOD 100% Point 62.63 Partial weakly supervised PWOOD 10% Point 42.35 Semi-supervised SOOD++ 20.5% Point 54.2 Active learning Active-SAOOD 10.24% Point 58.39 20.5% Point 62.6
+
+samples at an early stage, which often leads to loss oscil-lation and unstable training in SAOOD. In contrast, the proposed model state observation–guided active learning strategy progressively selects more difficult instances based on the current model state, thereby ensuring more stable training and superior performance. 
+
+2.5. Generalization experiments on more datasets. 
+
+We further conduct generalization experiments of Active-SAOOD on the DOTA-v1.5 and SODA-A datasets, which contain large numbers of dense scenes and small objects. As shown in Table 9, Active-SAOOD consistently achieves sig-nificant performance improvements over S 2Teacher under different annotation ratios on both datasets, demonstrating the strong generalization capability of our method in dense scenarios. Notably, the performance gains become even more signifi-cant under the extremely low annotation ratio of 1%. This is mainly because, under severely limited annotation budgets, random annotation is more likely to produce samples that are unsuitable for effective model learning, thereby wasting valuable annotation costs. In contrast, Active-SAOOD can actively select the most suitable high-value samples that best match the current model state, leading to substantial performance improvements under extremely low annotation ratios. 
+
+2.6. Comparison experiments with other reducing annotation cost methods. 
+
+We further conduct comparison experiments between Active-SAOOD and other reducing annotation costs meth-13 Active-SAOOD: Active Sparsely Annotated Oriented Object Detection in Remote Sensing Images          
+
+> Table 11. Experiment on the number of active learning selection.
+> Method Iteration number mAP (%) Active-Rotated FCOS 230.24 330.73 Active-SAOOD 235.79 337.83
+
+ods in oriented object detection. Since different settings adopt different annotation forms, we follow the relative an-notation costs among RBox, HBox, and Point annotations provided in Wholly-WOOD (Yu et al., 2025b) and convert all annotation budgets into an equivalent Point-based budget for a fair comparison. As shown in Table 10, under a 10% Equivalent point budget, Active-SAOOD reaches 58.39% AP, significantly outperforming partial weakly-supervised PWOOD (Liu et al., 2025) (42.35%). Moreover, compared with the Point2RBox-v2 (Yu et al., 2025a), Active-SAOOD achieves comparable performance with only one-fifth of the annotation budget. Although H2RBox-v2 (Yu et al., 2023) (HBox supervised) achieves higher performance, its anno-tation budget is much higher than Active-SAOOD. Com-pared with weakly supervised methods, Active-SAOOD can achieve strong performance under extremely low annota-tion budgets, with Table 1 highlight that Active-SAOOD achieves greater performance gains at lower annotation bud-gets, e.g., a 14.85% gain at 1% annotation rate and a 9.8% gain at 5%. Compared with the semi-supervised method SOOD++ (Liang et al., 2025), Active-SAOOD achieves significantly higher performance under the same annota-tion budget (62.61% vs. 54.2%). Unlike weakly- or semi-supervised methods, which cannot select representative in-stances and suffer from feature redundancy and wasted an-notation budget. The key advantage of Active-SAOOD lies in addressing this problem from a novel instance-level ac-tive learning perspective, enabling the active selection of high-value and representative instances, thereby achieving comparable or superior performance under extremely low annotation costs. 
+
+2.7. Experiment on the number of active learning iterations. 
+
+We further investigate the effect of the number of selection iterations in the active learning. As shown in Table 11, we set the number of iterations in Algorithm 1 to different val-ues. When the number of active learning iterations increases from 2 to 3, the performance of Active-Rotated FCOS im-proves by 0.49%, while the performance of Active-SAOOD increases from 35.79% to 37.83%, yielding an improvement of 2.04%. This is mainly because a larger number of it-erations corresponds to more active selection rounds. For example, increasing the iterations from 2 to 3 introduces an additional intermediate selection step. This allows Active-SAOOD to select more suitable samples based on the model                
+
+> Table 12. Computational cost experiments of the LUP and MSO.
+> Method Train time Parameters Inference time (min) (M) (s) + LUP 20.0046 0+ MSO 32 00+ LUP + MSO 34 0.0046 0
+
+state at intermediate training stages, thereby progressively enhancing detection performance. However, increasing the number of iterations also leads to higher training costs. Con-sidering the trade-off between training cost and detection performance, we recommend setting the number of itera-tions in Algorithm 1 to 2. 
+
+2.8. Computational cost experiments of LUP and MSO. 
+
+Since our main goal is to reduce annotation costs while improving performance, we conduct a simple analysis of the additional computational costs introduced by LUP and MSO. As shown in Table 12, both LUP and MSO are only applied during training and can be removed during infer-ence, thus they do not affect inference speed. LUP adopts a simple 3 × 3 convolution, while MSO only involves evalua-tion metrics and softmax operations, resulting in negligible overhead in both parameters and training time. These re-sults demonstrate that Active-SAOOD does not introduce significant additional training time. 
+
+2.9. Failure cases analysis. 
+
+To gain a deeper understanding of Active-SAOOD, we fur-ther conduct a visualization analysis of several failure cases during detection. As shown in Fig. 6, for small vehicles heavily occluded by shadows, the extremely blurred ap-pearance still leads to missed detections. However, we observe that even under such extreme conditions, one small vehicle is still correctly detected. This is mainly because the classification uncertainty encourages the selection of classification-challenging instances for training, which in turn helps the model better recognize such difficult objects. For extremely rare categories such as helicopter, although the inter-class diversity prioritizes selecting these instances for annotation, the number of rare-category samples in the training set remains limited under very low annotation ra-tios. As a result, some rare objects may still be missed. Nevertheless, compared with random sparse annotation, the detection accuracy for rare categories is already significantly improved. As shown in Fig. 6, Active-SAOOD occasionally misclassifies containers as large vehicles, likely because the increased intra-class diversity enriches the feature space of the training set, and the visual similarity between contain-ers and large vehicles is very high, making them harder to distinguish. In addition, during visualization, we observed that some small vehicles partially occluded in the images 14 Active-SAOOD: Active Sparsely Annotated Oriented Object Detection in Remote Sensing Images Randomly Select  Active Select  Randomly Select  Randomly Select Active Select  Active Select       
+
+> (a) Original Image Ground Truth Rotated FCOS Active -FCOS SAOOD Active -SAOOD
+> (b) Figure 5. Visualization analysis of instance selection and model performance. (a) Visualization comparing randomly annotated instances with actively selected instances. (b) Visualization comparing the detection results of models trained on randomly annotated instances versus those trained on actively selected instances.
+
+were overlooked during the manual annotation. Owing to the improved generalization ability brought by actively se-lected instances, Active-SAOOD is still able to detect these manually missed small vehicles, which further demonstrates the strong generalization ability of our Active-SAOOD. 
+
+## 3. More detailed visualization analysis. 
+
+To deeper insights into the high-value instances selected by Active-SAOOD, we conduct a comparative visualization analysis between randomly selected instances and those ac-tively selected by our method. As shown in Fig. 5a, random selection exhibits strong randomness, and under low anno-tation ratios it often selects instances with highly similar characteristics, thereby reducing the overall feature diver-sity of the annotated data. For example, in the left figure, most selected planes share very similar appearances, while more visually distinctive airplanes remain unannotated. In contrast, Active-SAOOD leverages our proposed intra-class diversity metric to evaluate and select instances with more distinctive characteristics, ensuring richer feature diversity even under low annotation ratios. Moreover, compared with random selection, Active-SAOOD tends to actively choose objects with large aspect ratios (such as the large-vehicle in the middle figure). This is because orientation prediction errors have a stronger impact on the localization of such ob-jects, and our localization and orientation uncertainty metric encourages selecting these challenging instances for train-ing. For rare categories (such as the runway and sports field in the right figure), random selection often fails to include them under low annotation ratios. Active-SAOOD, however, prioritizes these rare categories through our inter-class di-versity metric, preventing model overfitting and improving detection accuracy for infrequent classes. To understand how training with actively selected instances benefits the detector, we compare the detection results of models trained on different instance selection strategies. As shown in Fig. 5b, Rotated FCOS represents the baseline trained with randomly selected sparse annotations, while Active-FCOS denotes the same baseline trained with in-stances actively selected by our method (with the annotation budget kept identical). Both models share the same net-work architecture and training settings. SAOOD is trained on randomly selected sparse annotations but incorporates pseudo-label mining, whereas Active-SAOOD uses actively 15 Active-SAOOD: Active Sparsely Annotated Oriented Object Detection in Remote Sensing Images  
+
+> (a)
+> (b) Figure 6. Visualization analysis of the failure cases. Red boxes denote false positives, and green boxes denote true positives.
+
+selected instances together with pseudo-label training. Due to sparse supervision, Rotated FCOS lacks sufficient positive samples, especially under low annotation ratios. The limited diversity of the annotated instances causes the model to overfit easily, resulting in a small number of de-tected objects. In contrast, Active-FCOS benefits from our actively selected high-value samples, which provide richer feature diversity even under low annotation ratios. This alleviates overfitting to some extent, enabling the model to detect more objects. However, without pseudo-label train-ing, unlabeled objects still confusion foreground and back-ground features, leading to missed detections, particularly for small vehicles. SAOOD alleviates overfitting by mining pseudo-labels for unlabeled objects, thereby increasing the number of positive samples and reducing missed detections. Nevertheless, the localization and orientation accuracy of pseudo-labels is not always reliable. This can negatively impact the ability of model to localize and orient objects accurately, causing angle prediction errors for large aspect-ratio objects (e.g., large-vehicle). Active-SAOOD addresses this issue by selecting localization and orientation challeng-ing objects through our proposed uncertainty dimension, allowing the model to better learn accurate localization and orientation for difficult cases. As a result, large aspect-ratio objects with challenging rotation angles exhibit more precise orientation predictions. For example, the yellow large-vehicle in Fig. 5b shows notably improved angle accu-racy. In addition, objects with distinctive features, as well as partially occluded objects, are better detected because our method selects high value instances using classification un-certainty and intra-class diversity, further enhancing overall detection performance. 16
