@@ -1,0 +1,631 @@
+Title: Latent Space Guided Scenario Sampling for Multimodal Segmentation Under Missing Modalities
+
+URL Source: https://arxiv.org/pdf/2605.20372v1
+
+Published Time: Thu, 21 May 2026 00:08:07 GMT
+
+Number of Pages: 14
+
+Markdown Content:
+# Latent Space Guided Scenario Sampling for Multimodal Segmentation Under Missing Modalities ⋆
+
+## Irem Ulku a,∗, Ömer Özgür Tanrıöver a and Erdem Akagündüz b
+
+> a
+
+Department of Computer Engineering, Ankara University, Ankara, Türkiye, 
+
+> b
+
+Department of Modeling and Simulation, Graduate School of Informatics, METU, Ankara, Türkiye, 
+
+A R T I C L E I N F O 
+
+Keywords :Semantic segmentation Remote sensing Fine-tuning 
+
+A B S T R A C T 
+
+Multimodal semantic segmentation benefits remote sensing analysis by combining complementary information from different sensor modalities. In real-world remote sensing applications, one or more modalities may be unavailable due to sensor failures, adverse atmospheric conditions, or data acquisition problems. Even with pretrained multimodal representations and existing fine-tuning or adaptation strategies, performance may remain limited because all modality availability scenarios are typically treated as equally informative during training. In this paper, we propose a novel training strategy that learns a scenario sampling distribution directly from the pretrained latent space. Instead of relying on uniform random modality dropout, the proposed method guides fine-tuning toward more informative modality availability scenarios. More specifically, we quantify the effect of each scenario independently based on the distortion it induces in the shared latent representation. We then capture scenario relations using a radial basis function kernel and derive refined scenario scores through a regularized kernel smoothing. These scores are then converted into a probability distribution during scenario sampling for fine-tuning. We evaluate this strategy on three remote sensing image sets, namely DSTL, Potsdam, and Hunan, using CBC-SLP, CBC, and CMX backbones. The experimental results with different image sets and backbones show that our method outperforms standard fine-tuning and LoRA-based adaptation. These findings suggest that the pretrained latent representation can serve as an effective basis for sampling during missing modality fine-tuning. Code is available at https://github.com/iremulku/Latent-Space-Guided-Scenario-Sampling 
+
+## 1. Introduction 
+
+Semantic segmentation in the remote sensing domain aims to assign a semantic category to each pixel in an image, which supports a wide range of Earth observation appli-cations, including land cover mapping [34], environmental monitoring [13], and urban management [38]. Rather than relying on a single modality, multiple heterogeneous modal-ities acquired by different sensors can be used to exploit complementary cues [28]. For instance, multispectral opti-cal imagery provides discriminative reflectance information, while digital surface model (DSM) or synthetic aperture radar (SAR) data contribute complementary geometric and structural cues that may not be recoverable from optical observations alone [6]. Despite these advantages, in real deployment settings, some modalities may be partially or completely unavailable [9]. Sensor malfunctions, poor atmospheric conditions, and data acquisition failures [3] may all lead to missing inputs at inference time. As a result, test performance may degrade substantially when one or more modalities are absent [21], especially for a model trained by assuming that all modalities are available. Therefore, many methods have been proposed  
+
+> ⋆
+
+This document is the results of the research project funded by the Scientific and Technological Research Council of Turkey (TUBITAK) under the Grant Number 124E725. 
+
+> ∗
+
+Corresponding author  
+
+> irem.ulku@ankara.edu.tr
+
+(I. Ulku); tanriover@ankara.edu.tr 
+
+(Ö.Ö. Tanrıöver); akaerdem@metu.edu.tr) (E. Akagündüz) 
+
+> ORCID
+
+(s): 0000-0003-4998-607X (I. Ulku); 0000-0003-0833-3494 (Ö.Ö. Tanrıöver); 0000-0002-0792-7306 (E. Akagündüz) 
+
+to address this problem. For instance, MetaRS [37] ad-dresses incomplete remote sensing segmentation by extract-ing modality-invariant features and using them to recover absent modalities. As a multimodal foundation model for remote sensing, RobSense [6] manages incomplete spectral or temporal observations through latent reconstruction. The MHHL framework [9] introduces a heterogeneous hyper-graph model to propagate information across samples with incomplete remote sensing modalities. In the context of incomplete remote sensing data fusion, a robust approach [2] is proposed to combine modality attention and masked self-attention with contrastive and reconstruction-based pre-training. In general, robustness has also been enhanced by entropy-based regularization [36], masked mutual learning [15], and modality-aware regularization with distillation in MMANet [29]. However, these studies rely on uniform random modality dropout training policy [36, 15, 29]. Recently, we developed an alternative architectural de-sign, CBC-SLP [27], for missing modalities in remote sens-ing to reduce the performance degradation when all modal-ities are available at the inference time. Specifically, we structured the latent space into shared and modality-specific components and adaptively transferred them to the decoder according to the modality availability mask. In experiments, we showed that our model outperforms other state-of-the-art approaches across a range of remote sensing image sets with various modality availabilities. However, even with an optimally structured latent space, performance may still be limited because all modality availability scenarios are 
+
+Ulku et al. Page 1 of 14 
+
+> arXiv:2605.20372v1 [cs.CV] 19 May 2026 Latent Space Guided Scenario Sampling
+
+treated as equally informative during sampling. We hy-pothesize that during fine-tuning, the modality availability scenarios should be sampled according to how strongly they affect the model’s learned latent space. Taking inspiration from the MaD-Mix framework [31], we compute scenario descriptors from latent-space behav-ior, model relations between scenarios through kernelized coupling, and derive a non-uniform training distribution from these scenario effects. Different from MaD-Mix, which reweights training domains for vision-language model train-ing, our strategy reweights modality availability scenarios for multimodal semantic segmentation. In our experiments, this training strategy further improves performance over uniform random modality dropout and surpasses LoRA [10] adaptation baselines. These results indicate that directly ex-ploiting the pretrained latent structure provides more infor-mative and task-relevant guidance for training than generic parameter-efficient fine-tuning [17, 18]. The main contributions of this paper are summarized as follows: 
+
+• We establish a novel training strategy for multimodal semantic segmentation when some modalities are missing. It derives scenario weights directly from the learned latent space and replaces uniform random modality dropout with a learned distribution over modality availability scenarios. 
+
+• We define scenario importance through shared latent distortion and convert these raw scenario statistics into a sampling distribution by solving a regularized kernel smoothing problem over the scenario space. This formulation captures the relative effect of each scenario and also the relations between scenarios in the latent descriptor space. 
+
+• We evaluate the proposed strategy on the DSTL, Pots-dam, and Hunan remote sensing image sets using CBC-SLP, CBC, and CMX, and compare it against standard training with random modality dropout and LoRA-based adaptation. The results show that the proposed strategy provides more consistent improve-ments across image sets and models. 
+
+## 2. Related Works 
+
+2.1. Multimodal Semantic Segmentation with Missing Modalities 
+
+Semantic segmentation under missing modalities has gained significant popularity because incomplete inputs re-main a problem for multimodal systems in real-world ap-plications. Existing studies have addressed this problem from several perspectives. Some methods recover absent information through reconstruction, synthesis, or modality completion [37, 6]. Others improve robustness to incomplete information by learning modality-invariant or shared repre-sentations through explicit cross-modal correlation model-ing [33, 20, 2, 9, 29]. Meanwhile, several methods strengthen robustness through modified training objectives, including distillation, entropy-based regularization, mutual learning, and modality-aware regularization [36, 15, 29]. For instance, the MMANet [29] framework combines margin-aware distillation and modality-aware regularization strategies to assist incomplete multimodal learning. To bal-ance the contribution of each modality, [36] introduces a regularization term based on functional entropy. A masked mutual learning scheme has been proposed in [15] to en-sure multi-level consistency and enhance mutual learning in incomplete multimodal scenarios. The mmFormer archi-tecture [33] learns modality-invariant features by combining modality-specific encoders with an inter-modal Transformer that builds and aligns long-range relations across modalities. MMMViT [20] improves incomplete modality segmenta-tion performance by explicitly leveraging modality corre-lations before shared-representation fusion. These studies demonstrate that robustness under missing modalities can be improved through more effective representation design and training objectives. However, the sampling distribution in the training phase still tends to treat modality availabilities as equally important, potentially overlooking how differently these scenarios affect the learned latent representation. 
+
+2.2. Multimodal Remote Sensing Segmentation with Missing Modalities 
+
+Although multimodal semantic segmentation with miss-ing or incomplete modalities has been extensively studied in the medical imaging domain [33, 20, 24, 35], its potential in remote sensing remains underexplored. In one relevant study [37], MetaRS addresses incomplete remote sensing segmen-tation by extracting modality-invariant meta-modal features and using them to recover absent modalities while regu-larizing the learned representation for the target task. As a robust multimodal foundation model, RobSense [6] manages incomplete spectral or temporal inputs through unimodal latent reconstructors trained with masked spectral bands and time points. The MHHL [9] framework enables incomplete modalities to learn features from complete modalities by incorporating heterogeneous hypernodes that capture rela-tionships among different modality combinations. In addi-tion, a robust remote sensing fusion approach [2] combines modality attention and masked self-attention mechanisms, and employs reconstruction and contrastive loss to maintain high performance when dealing with incomplete inputs. These studies demonstrate the advantage of dedicated representation learning or training mechanisms for remote sensing segmentation with missing modalities rather than traditional fusion methods [12, 32, 28]. More recently, our CBC-SLP [27] extends this line by structuring the latent space into shared and modality-specific components and adaptively routing private features according to the modality available scenarios. While CBC-SLP achieves state-of-the-art test set performance across full and missing modalities, it still relies on uniform random modality dropout during training. Consequently, a critical challenge is to develop principled techniques that learn the scenario distribution  
+
+> Ulku et al. Page 2 of 14 Latent Space Guided Scenario Sampling
+
+from the pretrained latent structure rather than treating all modality scenarios as equally important [7]. 
+
+2.3. Training Strategies for Multimodal Segmentation with Incomplete Modalities 
+
+Instead of addressing incomplete multimodal segmen-tation only through architecture design, recent studies have increasingly explored how training itself should be adapted. This has led to a new line of methods that improve ro-bustness through adaptive optimization and modality-aware training strategies. To jointly address unimodal and mul-timodal imbalance, hierarchical gradient alignment [24] is proposed as a meta-learning-inspired optimization strategy. Their method enables more stable learning for missing modalities. MECS-Net [1] employs a task-oriented sample-level modal contribution evaluation and resampling op-timization strategy to guide the training process towards high-contribution modality combinations. Additionally, it enhances the representational capacity of low-contribution modalities by a sample-level resampling. CHARM [30] introduces a complementary learning framework for dis-covering modality-interactive correspondences, while pre-serving modality-specific characteristics through a dual-path optimization strategy. DANTE [35] introduces a two-stage framework, first adopting a self-supervised pretraining to improve feature robustness for absent modalities, followed by information-theoretic regularization to maximize the transfer of rich information. To integrate data from multiple modalities in the remote sensing domain when modality-aligned data is limited, two novel self-supervised learning approaches are proposed in [16]. By leveraging a mixing strategy during pretraining, this study mitigates spatial misalignment errors and improves model robustness. In a related line of research, a parameter-efficient adaptation pro-cedure [21] for multimodal learning modulates intermediate features using scaling, shifting, or low-rank transformations to improve robustness to missing modalities. Overall, these studies demonstrate that robustness to missing modalities can be enhanced through specifically designed training strategies. Recently, MaD-Mix [31] showed that multimodal vision-language model training need not rely on manually specified data mixtures, but can instead be guided by a specialized latent-space formulation that assigns sampling weights to different training domains. To address incomplete data, they propose explicitly decoupling missing modalities from the optimization process, ensuring no associated noise is propagated into the alignment objective. Their results are obtained by casting multimodal data mixing as a latent-space coupling objective and deriving closed-form align-ment scores through a dual solution. An important question arises in this context: If a shared latent space can reveal the relative importance of multimodal training domains, can it also be used to determine the relative importance of modality scenarios for incomplete multimodal segmentation? Our research addresses this question by studying how scenario importance can be derived directly from the learned latent space of a pretrained segmentation model. We examine whether the latent structure can provide a more informative basis for training than uniform random modality dropout, and use it to construct a scenario-aware training distribution for multimodal segmentation with incomplete modalities. 
+
+## 3. Methodology 
+
+We propose a fine-tuning strategy for multimodal seman-tic segmentation in the presence of missing modalities. An overview of our strategy is shown in Fig. 1. The main idea is to replace the uniform scenario sampling used in standard random modality dropout with a probability distribution over modality availability scenarios. The proposed distri-bution is obtained from the latent behavior of a pretrained multimodal segmentation model and is then used during the fine-tuning stage. The proposed strategy is inspired by the MaD-Mix framework [31], which derives sampling weights through a regularized kernel operator defined on multimodal represen-tations. However, unlike MaD-Mix, which computes sam-pling weights over multimodal data domains, our strategy computes sampling probabilities over modality availability scenarios. Moreover, since a scenario is a masking condition applied to the same multimodal data rather than a standalone semantic domain, scenario importance is defined through the distortion induced in the shared latent space of the pretrained segmentation model. The proposed strategy will be described on the CBC-SLP architecture shown in Fig. 2. Although the derivation in this section is presented for the CBC-SLP model, the same training strategy is not restricted to this architecture. For models that only use a shared latent representation, such as the original CBC model, the formulation is directly applicable without modification. 
+
+3.1. Problem Definition 
+
+The input sample is denoted by 𝐗 = [ 𝐗 1, 𝐗 2, … , 𝐗 𝑀 ],where 𝑀 is the number of modalities and 𝐗 𝑚 is the input tensor of modality 𝑚 . Here,  denotes the set of all modal-ities as  = {1 , 2, … , 𝑀 }. To model missing modalities, a binary modality availability mask is introduced as 
+
+𝐬 ∈ {0 , 1} 𝐵 ×𝑀 , (1) where 𝐵 denotes the batch size, 𝑠 𝑏,𝑚 = 1 indicates that modality 𝑚 is available for sample 𝑏 , and 𝑠 𝑏,𝑚 = 0 indicates that modality 𝑚 is missing. In standard random modality dropout, modality avail-ability scenarios are sampled uniformly. However, the pro-posed strategy assigns a non-uniform probability to each scenario. The probability distribution is determined by how strongly a scenario disrupts the latent representation of the pretrained model. 
+
+3.2. Structured Latent Representation 
+
+The CBC-SLP architecture [27] shown in Fig. 2 in-cludes both shared and modality-specific latent branches. In   
+
+> Ulku et al. Page 3 of 14 Latent Space Guided Scenario Sampling
+> Figure 1: Overview of the latent-space-guided scenario sampling framework.
+
+the proposed training strategy, scenario weighting is com-puted from the shared latent representation. Let 𝐗 𝑖𝑛𝑡𝑒𝑟  
+
+> 6
+
+denote the deep inter-modal fused latent representation. Then, the shared latent representation is defined as 
+
+𝐳 𝑠ℎ = Conv 1×1×1 
+
+> 𝑠ℎ
+
+(𝐗 𝑖𝑛𝑡𝑒𝑟 
+
+> 6
+
+) , (2) where Conv 1×1×1  
+
+> 𝑠ℎ
+
+(⋅) denotes a learnable 1 × 1 × 1 projection layer. This shared latent tensor provides a compact represen-tation of the multimodal fused information before decoding and serves as the basis for the proposed scenario scoring mechanism. 
+
+3.3. Missing Modality Scenarios 
+
+The set of modality availability scenarios can be defined as 
+
+ = {𝐬 (𝑘 )}𝐾 𝑘 =1 , 𝐬 (𝑘 ) ∈ {0 , 1} 𝑀 , (3) where 𝐾 = 2 𝑀 − 1 is the number of modality combinations and 𝐬 (𝑘 ) denotes the 𝑘 𝑡ℎ modality availability scenario. In conventional random modality dropout, each scenario in  is sampled uniformly. The limitation of this strategy is that all scenarios are treated as equally informative, although in practice, some missing modality patterns disrupt the latent representation more than others. 
+
+3.4. Full Modality Reference State 
+
+To quantify the effect of each scenario, we use the shared latent representation obtained under full modality availability as a reference. Let 𝐳 𝑠ℎ (𝐗 , 𝐬 ) denote the shared latent representation produced by the model for input 𝐗 
+
+under modality mask 𝐬 . If 𝐅 𝑀 = [1 , 1, … , 1] ∈ {1} 𝑀 
+
+denotes the full modality mask, then the forward pass for a training sample 𝐗 𝑖 yields 
+
+𝐳 𝑠ℎ,𝑓 𝑢𝑙𝑙 𝑖 = 𝐳 𝑠ℎ (𝐗 𝑖 , 𝐅 𝑀 ), (4) where 𝐳 𝑠ℎ,𝑓 𝑢𝑙𝑙 𝑖 is the shared latent representation of sample 
+
+𝑖 under full modality availability. Since the full modality case preserves the complete shared multimodal information, deviations from this reference indicate how much the shared latent representation is altered under a given missing modal-ity scenario. 
+
+3.5. Shared Latent Distortion 
+
+This scenario statistic measures how much a scenario disrupts the shared latent representation. For sample 𝑖 and scenario 𝐬 (𝑘 ), the shared latent distortion is defined as 
+
+𝑑 (𝑘 ) 
+
+> 𝑠ℎ
+
+(𝑖 ) = 1
+
+|Ω𝑠ℎ |‖‖‖𝐳 𝑠ℎ (𝐗 𝑖 , 𝐬 (𝑘 )) − 𝐳 𝑠ℎ (𝐗 𝑖 , 𝐅 𝑀 )‖‖‖ 
+
+> 22
+
+, (5) where |Ω𝑠ℎ | denotes the total number of elements in the shared latent tensor and ‖ ⋅ ‖22 expresses the squared Eu-clidean norm over all entries. Equation (5) measures the mean-squared deviation of the shared latent tensor under scenario 𝐬 (𝑘 ) from the full modality shared latent tensor. A larger value indicates that the scenario causes a stronger degradation in the shared representation. The average shared distortion of scenario 𝑘 over the training set is then given by 
+
+𝐷 (𝑘 ) 
+
+> 𝑠ℎ
+
+= 1
+
+𝑁 
+
+> 𝑁
+
+∑
+
+> 𝑖 =1
+
+𝑑 (𝑘 ) 
+
+> 𝑠ℎ
+
+(𝑖 ), (6) where 𝑁 is the number of samples used to estimate the scenario statistics. 
+
+3.6. Scenario Importance Score 
+
+Since the proposed formulation is based only on the shared latent branch, the importance of scenario 𝑘 is defined directly from the average shared latent distortion as 
+
+𝜂 (𝑘 ) = 𝐷 (𝑘 ) 
+
+> 𝑠ℎ
+
+. (7)   
+
+> Ulku et al. Page 4 of 14 Latent Space Guided Scenario Sampling
+> Figure 2: Overview of CBC-SLP pipeline.
+
+A larger value of 𝜂 (𝑘 ) indicates that scenario 𝑘 induces a stronger distortion in the shared latent representation. Thus, 
+
+𝜂 (𝑘 ) measures the severity of scenario 𝑘 from the perspective of the pretrained model. 
+
+3.7. Kernelized Scenario Coupling 
+
+The proposed strategy is inspired by the MaD-Mix framework [31], which computes sampling weights through a regularized kernel operator defined on multimodal domain embeddings. In our strategy, this idea is adapted to modality availability scenario reweighting. Specifically, we assign scores to missing modality scenarios based on their latent effect on the pretrained segmentation model. To capture similarity relations between scenarios, we define a radial basis function (RBF) kernel [23] over the scenario descriptors. That is, beyond the individual raw distortions, we also model the relations between scenarios in the descriptor space. We choose the RBF kernel because our goal is to assign similar refined scores to scenarios that induce similar levels of shared latent distortion. The RBF kernel provides such a distance-based coupling by assigning high similarity to nearby descriptors and gradually decreas-ing similarity as their latent effects diverge. In addition, since the RBF kernel corresponds to an inner product in an infinite-dimensional space, it can capture nonlinear relations among scenario descriptors [19]. Accordingly, the RBF kernel over the scenario descriptors is defined as follows: 
+
+𝜅 (𝜂 (𝑝 ), 𝜂 (𝑞 )) = exp 
+
+(
+
+−
+
+(𝜂 (𝑝 ) − 𝜂 (𝑞 ))2
+
+2𝜎 2
+
+)
+
+, (8) 
+
+𝑝, 𝑞 ∈ {1 , … , 𝐾 },
+
+where 𝜎 > 0 is the kernel bandwidth parameter. Thus, two scenarios receive a high kernel value when they induce similar levels of shared latent distortion. Let  = [ 𝑝𝑞 ] ∈ ℝ𝐾 ×𝐾 denote the scenario kernel matrix, where 
+
+𝑝𝑞 = 𝜅 (𝜂 (𝑝 ), 𝜂 (𝑞 )) , (9) and let the corresponding raw scenario importance vector be expressed as follows: 
+
+𝝂 = [𝜂 (1) 𝜂 (2) ⋯ 𝜂 (𝐾 )]⊤ ∈ ℝ𝐾 . (10) The kernel matrix  encodes pairwise relations between scenarios, while the vector 𝝂 collects their raw importance values. We use these two quantities to estimate a refined scoring function over the scenario space, whose evaluations at the scenario descriptors define the final scenario score vector. Therefore, the final scenario score vector can be obtained by solving a regularized kernel smoothing problem over the scenario space [8]. We seek a refined scoring function that remains close to these raw values while varying smoothly across related scenarios. For this purpose, the scenario de-scriptors serve as inputs to a kernel-induced function space, which allows the scoring function to be defined in terms of the similarities encoded by the kernel. In particular, we define 𝜅 as the reproducing kernel Hilbert space (RKHS) [22] spanned by the kernel in equation (8). RKHS is a Hilbert space of functions associated with a positive semidefinite kernel. Its key advantage in our study is that the scoring function can be constructed from kernel similarity values between scenario descriptors. This property enables the es-timation of a smooth scoring function directly from pairwise similarities between scenarios. Hence, we denote 𝑓 ∈ 𝜅 as a scoring function defined on the scenario descriptor space, where 𝑓 (𝜂 (𝑘 )) represents the refined score assigned to scenario 𝑘 . Formulating the RKHS regression problem in [26], we define the scoring function in the RKHS associated with the chosen kernel. This allows the function to be estimated directly from the kernel similarities among the observed scenario descriptors. To obtain a function that both fits the raw scenario impor-tance values and remains smooth over the scenario space,  
+
+> Ulku et al. Page 5 of 14 Latent Space Guided Scenario Sampling
+
+we consider the following regularized objective: 
+
+min  
+
+> 𝑓 ∈𝜅
+
+12 ‖𝑓 ‖2 
+
+> 𝜅
+
++ 12𝜆 
+
+> 𝐾
+
+∑
+
+> 𝑘 =1
+
+(𝜂 (𝑘 ) − 𝑓 (𝜂 (𝑘 )))2 , (11) where ‖𝑓 ‖2 
+
+> 𝜅
+
+denotes the RKHS norm of 𝑓 , 𝜅 is the reproducing kernel Hilbert space defined by the kernel in (8), and 𝜆 > 0 is a regularization coefficient. The first term in (11) penalizes overly complex or irregular score functions, so that the resulting score function varies smoothly over the scenario space. The second term keeps the estimated scores close to the raw scenario importance values {𝜂 (𝑘 )}𝐾 𝑘 =1 .By the representer theorem [5], for regularized objec-tives of the form in equation (11), whose dependence on 
+
+𝑓 is restricted to the RKHS norm and the function values at the observed scenario descriptors, the minimizer does not need to be sought over the entire infinite-dimensional RKHS. Instead, the minimizer lies in the finite-dimensional subspace spanned by the kernel evaluations at the observed scenario descriptors, and therefore can be expressed with the following finite kernel expansion: 
+
+𝑓 (⋅) = 
+
+> 𝐾
+
+∑
+
+> 𝑗 =1
+
+𝑎 𝑗 𝜅 (𝜂 (𝑗 ), ⋅), (12) where 𝐚 = [𝑎 1, … , 𝑎 𝐾 ]⊤ denotes expansion coefficients. Evaluating the representer expansion in equation (12) at the scenario descriptors yields the score vector as 𝐫 =
+
+𝐚 . Furthermore, under this expansion, the RKHS norm becomes ‖𝑓 ‖2 
+
+> 𝜅
+
+= 𝐚 ⊤𝐚 . This follows from the inner-product structure of finite RKHS expansions. Substituting these expressions into equation (11) reduces the problem to a finite-dimensional quadratic optimization over the coeffi-cient vector 𝐚 . Solving the corresponding first-order optimal-ity condition gives 𝐚 = ( +𝜆 𝐈 )−1 𝝂 , and therefore the kernel-smoothed scenario score vector becomes as follows: 
+
+𝐫 =  ( + 𝜆 𝐈 )−1 𝝂 , (13) where 𝐈 is the 𝐾 × 𝐾 identity matrix and 𝐫 ∈ ℝ𝐾 contains the final kernel-smoothed scores of all scenarios. Equation (13) ensures that the proposed method does not score each scenario independently. Instead, the raw severity of a scenario is smoothed according to its similarity to other scenarios in the shared latent descriptor space. Therefore, scenarios with similar latent disturbance levels receive sim-ilar scores. 
+
+Spectral Interpretation 
+
+Since  is a symmetric kernel matrix, the spectral the-orem for symmetric matrices implies that it is orthogonally diagonalizable [25]. Therefore,  can be written as 
+
+ = 𝐔𝚺𝐔 ⊤, (14) where 𝚺 = diag( 𝜎 1, … , 𝜎 𝐾 ) contains the eigenvalues of 
+
+and the columns of 𝐔 are the corresponding orthonormal eigenvectors. Substituting (14) into (13) results the follow-ing: 
+
+𝐫 = 𝐔 diag 
+
+( 𝜎 1
+
+𝜎 1 + 𝜆 , … , 𝜎 𝐾 
+
+𝜎 𝐾 + 𝜆 
+
+)
+
+𝐔 ⊤𝝂 . (15) Equation (15) shows that the proposed kernel operator applies a spectral soft-thresholding filter to the raw scenario importance vector. Directions associated with large eigen-values are preserved more strongly, whereas directions asso-ciated with small eigenvalues are attenuated. Hence, the final scenario scores emphasize the main directions of variation in the scenario space while suppressing noisy directions. The advantage of the proposed approach over direct heuristic weighting is that it accounts not only for the mag-nitude of scenario importance, but also for the relations between scenarios in the latent descriptor space. As a result, similar scenarios are assigned more consistent scores, which reduces sensitivity to noisy estimates and yields a smoother probability distribution. 
+
+3.8. Probability Distribution over Scenarios 
+
+The scenario scores are converted into probabilities in three steps. First, the score vector is standardized as follows: ̄𝑟 (𝑘 ) = 𝑟 (𝑘 ) − 𝜇 𝑟 
+
+𝜎 𝑟 
+
+, 𝑘 = 1 , … , 𝐾, (16) where 
+
+𝜇 𝑟 = 1
+
+𝐾 
+
+> 𝐾
+
+∑
+
+> 𝑘 =1
+
+𝑟 (𝑘 ), 𝜎 𝑟 =
+
+√√√√ 1
+
+𝐾 
+
+> 𝐾
+
+∑
+
+> 𝑘 =1
+
+(𝑟 (𝑘 ) − 𝜇 𝑟 
+
+)2. (17) Here, 𝜇 𝑟 and 𝜎 𝑟 denote the mean and standard deviation of the scenario scores, respectively. Second, a temperature-scaled softmax is applied to con-vert the scenario scores into probabilities as follows: 
+
+𝑝 (𝑘 ) 
+
+> 𝑠𝑜𝑓 𝑡
+
+= exp (𝜏̄ 𝑟 (𝑘 ))∑𝐾 𝑗 =1 exp (𝜏̄ 𝑟 (𝑗 )) , 𝑘 = 1 , … , 𝐾, (18) where 𝜏 > 0 is the temperature parameter. This scaling is used to avoid sharp probability assignments, resulting in a smoother distribution across scenarios. Third, a convex combination of the softmax distribu-tion and the uniform distribution is used to incorporate the obtained scenario preference while maintaining a balanced sampling pattern: 
+
+𝑝 (𝑘 ) = (1 − 𝛾 ) 1
+
+𝐾 + 𝛾𝑝 (𝑘 )
+
+> 𝑠𝑜𝑓 𝑡
+
+, 𝑘 = 1 , … , 𝐾, (19) where 𝛾 ∈ [0 , 1] is a mixing coefficient controlling the relative contribution of the uniform distribution and the softmax distribution. The uniform component in equation (19) ensures that all scenarios remain observable during fine-tuning and prevents the training from collapsing to only a small subset of modality availability patterns. Therefore, the  
+
+> Ulku et al. Page 6 of 14 Latent Space Guided Scenario Sampling
+
+probabilities are normalized to ensure a valid probability distribution as 
+
+> 𝐾
+
+∑
+
+> 𝑘 =1
+
+𝑝 (𝑘 ) = 1 . (20) 
+
+3.9. Probability Guided Training Loss Function 
+
+Let 𝓁 𝑠𝑒𝑔 (𝐗 , 𝐘 ; 𝐬 , 𝜃 ) denote the segmentation loss of the model with parameters 𝜃 for input 𝐗 and ground-truth mask 
+
+𝐘 under scenario mask 𝐬 . By using standard random modal-ity dropout, the expected training loss is defined as follows: 
+
+𝑢𝑛𝑖 (𝜃 ) = 𝔼 (𝐗 ,𝐘 )∼ , 𝐬 ∼Unif( )
+
+[𝓁 𝑠𝑒𝑔 (𝐗 , 𝐘 ; 𝐬 , 𝜃 )] , (21) where  denotes the training distribution and Unif( ) de-notes uniform sampling over all valid scenarios. In contrast, the proposed training loss uses the scenario probabilities derived from the latent descriptor space as follows: 
+
+𝑝𝑟𝑜𝑏 (𝜃 ) = 𝔼 (𝐗 ,𝐘 )∼ , 𝐬 ∼𝑝 
+
+[𝓁 𝑠𝑒𝑔 (𝐗 , 𝐘 ; 𝐬 , 𝜃 )] , (22) where 𝑝 denotes the non-uniform scenario distribution ob-tained from (19). Equation (22) means that the model is fine-tuned more often on scenarios that induce stronger latent distortions, while still retaining exposure to the remaining scenarios through the uniform component in equation (19). The method includes in two stages. First, the multimodal segmentation model is trained with the random modality dropout strategy. Finally, the model is fine-tuned for a small number of additional epochs by sampling scenario masks according to the learned distribution 𝑝 instead of the uniform distribution. 
+
+3.10. Discussion 
+
+Fig. 1 illustrates the overall latent-space-guided scenario sampling framework. The motivation is that different modal-ity availability scenarios disrupt the shared latent branch to different degrees. Uniform random modality dropout ignores this heterogeneity. The proposed method instead estimates scenario importance directly from the shared latent behav-ior of the pretrained model and then uses a kernelized probability distribution to bias fine-tuning toward the most informative scenarios. MaD-Mix framework [31] derives its regularized ker-nel operator from a modality-aware primal-dual alignment objective over data domains. In contrast, the proposed method uses a regularized kernel smoothing formulation over modality availability scenarios. Since a scenario is not itself a semantic data domain but rather a masking condition applied to the same data, the proposed formulation measures how strongly each scenario disrupts the pretrained shared latent representation instead of defining scenario importance through domain-level alignment. The proposed strategy is a general training mechanism for multimodal segmentation models trained with random modality dropout. Since it relies only on the shared la-tent behavior of a pretrained model, it can be applied to multimodal models that operate entirely on a shared latent representation. 
+
+## 4. Experiments 
+
+We evaluate the performance of the proposed sampling strategy on three multimodal remote sensing image sets. Our goal is to determine whether replacing uniform scenario sampling with a latent-space-guided distribution during fine-tuning yields better segmentation results across all possible modality availability scenarios. We consider three preva-lent models on missing multimodal semantic segmentation, namely CBC-SLP [27], CBC [28], and CMX [32]. The pretrained models are fine-tuned using four set-tings. No fine-tuning is the baseline, where the models are trained for 70 epochs with uniform random modality dropout. In this setting, we directly report the results from our previous experiments [27] without fine-tuning. Fine-tune with random modality dropout represents fine-tuning the pretrained baseline models for 10 epochs using a random modality dropout sampling policy. Fine-tune with LoRA-based adaptation provides a parameter-efficient fine-tuning method applied to pretrained baseline models for 10 epochs with the same uniform sampling. In this setting, LoRA updates are restricted to selected deeper multimodal fusion layers, whereas the remaining pretrained parameters are kept fixed. Lastly, the Fine-tune with our strategy replaces uni-form scenario sampling during 10 epochs of fine-tuning with the probability distribution estimated from the pretrained latent space. Each experiment is conducted as a binary semantic segmentation task. 
+
+4.1. Image sets 
+
+To evaluate the proposed training strategy under both homogeneous and heterogeneous modalities, we conduct experiments on three public remote sensing image sets. These sets contain information from different sensor types, spatial resolutions, and modality compositions. For each image set, the target class is selected based on sufficient annotation and high responsiveness to the modality-specific information from the available inputs. 
+
+DSTL The DSTL [4] image set consists of 25 image tiles from the WorldView-3 optical Earth observation satellite, each covering approximately 1 km × 1 km. We chose this im-age set because it provides homogeneous optical images as RGB, near-infrared (NIR), and shortwave infrared (SWIR), allowing us to examine the performance of our strategy under spectral modalities. The visible RGB bands cover the 450-690 nm wavelength region, the NIR bands span 770-1040 nm, and the SWIR modality consists of eight bands in the 1195-2365 nm range. These modalities are acquired at different spatial resolutions, namely about 0.31 m for the visible bands, 1.24 m for the multispectral bands, and approximately 7.5 m for SWIR. The crop category is selected as the target class because it is sufficiently annotated and  
+
+> Ulku et al. Page 7 of 14 Latent Space Guided Scenario Sampling
+
+benefits strongly from the discriminative information in the NIR and SWIR bands. 
+
+Potsdam The Potsdam [11] is a high-resolution aerial im-age set for semantic segmentation provided by the Interna-tional Society for Photogrammetry and Remote Sensing. It consists of 38 images, each of size 6000 × 6000 pixels, with a ground sampling distance of 0.05 m. In our experiments, Potsdam is used as a heterogeneous trimodal image set composed of RGB, IRRG (NIR-R-G), and DSM modalities. The tree category typically provides sufficient annotation and is highly responsive to the complementary modalities, making it a suitable target class for evaluation. 
+
+Hunan The Hunan [14] is a heterogeneous trimodal image set collected over Hunan Province, China. It combines Sentinel-2 multispectral optical imagery, Sentinel-1 SAR observations, and topographic data, which are used in this work as MSI, SAR, and DEM modalities, respectively. Sentinel-2 provides spectral observations in the 492.7-2202.4 nm wavelength range, covering visible, NIR, and SWIR bands, while Sentinel-1 contributes dual-polarization SAR measurements. The topographic modality contains both elevation and slope sources from the Shuttle Radar Topography Mission (SRTM). The spatial resolutions differ across modalities, such that 10 m and 20 m for Sentinel-2, 10 m for Sentinel-1, and 30 m for the DEM. Hunan has 500 images covering 32,768,000 pixels. Due to its extensive spa-tial coverage and high sensitivity to the provided modalities, the forest category is selected as the target class. 
+
+4.2. Training settings 
+
+As part of the preprocessing pipeline, all images are divided into 224 × 224 patches. Input normalization is per-formed separately for each modality by computing the per-channel mean only from the training subset and applying the resulting statistics to the training, validation, and test samples. For DSTL and Potsdam, the data is split into 72% training, 8% validation, and 20% test sets. For Hunan, the official split scheme of 80% training, 10% for validation, and 10% for testing is used. The implementation is based on PyTorch, and all exper-iments are conducted on the NVIDIA RTX 6000 Ada GPU. For each baseline model, the training phase lasts 70 epochs and uses the Adam optimizer with an initial learning rate of 
+
+1 × 10 −4 , a mini-batch size of 8, and binary cross-entropy loss. The learning rate is reduced by 9% every 5 epochs throughout training. To reduce sensitivity to a particular data partition, a 5-fold cross-validation protocol is used in all experiments. After the initial training stage, each pretrained model is further trained for 10 additional epochs under one of the three fine-tuning settings explained above. In the Fine-tune with random modality dropout setting, the same uniform random scenario sampling used in the original training stage is retained. In the Fine-tune with LoRA-based adaptation setting, the pretrained weights are frozen, and only low-rank residual adapters inserted into selected deeper multimodal fusion layers are updated. In the Fine-tune with our strategy setting, the fine-tuning is again fixed to 10 epochs, but the modality availability scenarios are drawn from the probability distribution estimated from the pretrained latent space. Therefore, all comparisons share the same pretrained backbone and the same number of epochs to directly measure the contribution of the proposed fine-tuning strategy on the final performance. For scenario probability estimation, the RBF kernel bandwidth and the regularization coefficient are set to 𝜎 =1.0 and 𝜆 = 10 −3 , respectively. The temperature-scaled softmax uses 𝜏 = 0 .5, and the final distribution is mixed with the uniform distribution using 𝛾 = 0 .5. Because all image sets contain three modalities, probability estimation is performed over the 23 −1 = 7 valid scenarios for modality availability. The scenario statistics are computed on the training split with a batch size of 1. For all valid modality scenarios, performance is evalu-ated using Intersection over Union (IoU) and 𝐹 1 score. Since there is only one selected class in each binary segmentation task, we report these metrics with respect to the correspond-ing target class. 
+
+4.3. Experimental results and discussion 
+
+Fig. 3 shows the scenario probability distributions learned for DSTL, Potsdam, and Hunan image sets. Different non-uniform distributions are observed across image sets, which demonstrates that modality availability scenarios do not disturb the pretrained latent space to the same extent. As shown in the results, the proposed training strat-egy yields consistent improvements across multiple scenario configurations, datasets, and backbones. According to the CBC-SLP results reported in Tables 1, 2, and 3, the proposed strategy consistently improves test performance compared to the other training settings. Remarkably, a consistent im-provement across all three image sets is observed when all modalities are available, demonstrating that our training strategy does not compromise performance in the complete modality scenario while improving robustness to missing modalities. The largest performance gains in CBC-SLP are observed on image sets with heterogeneous modalities. In Table 2, when IRRG is missing, our latent-space-guided scenario sampling strategy improves IoU by 0.6% and 𝐹 1
+
+by 0.7% compared to fine-tuning with random modality dropout. Specifically, when only RGB is available, the pro-posed strategy achieves an IoU of 0.713, surpassing the random modality dropout fine-tuning by 0.9%. In Table 3, the proposed strategy yields an IoU gain of 0.8% over a random modality dropout training policy when only the SAR modality is available. In addition, relative to LoRA-based adaptation, the proposed strategy yields an IoU gain of 1.3% when all modalities are available and 1.2% when MSI is missing. These results demonstrate that the proposed fine-tuning policy is particularly effective when the pretrained model already maintains a meaningful structured latent rep-resentation, as in the CBC-SLP model.  
+
+> Ulku et al. Page 8 of 14
+
+Latent Space Guided Scenario Sampling 
+
+Figure 3: Scenario probability distributions obtained for the DSTL, Potsdam, and Hunan image sets. 
+
+Table 1 
+
+DSTL test set results for CBC-SLP model under different fine-tuning strategies 
+
+Modalities CBC-SLP (baseline) CBC-SLP CBC-SLP CBC-SLP RGB NIR SWIR No fine-tuning Fine-tune with random modality dropout Fine-tune with LoRA-based adaptation Fine-tune with our strategy IoU F1 IoU F1 IoU F1 IoU F1
+
+✓ ✓ ✓ 0.903 ± 0.255 0.916 ± 0.242 0.904 ± 0.253 0.917 ± 0.240 0.903 ± 0.255 0.916 ± 0.242 0.907 ± 0.248 0.921 ± 0.234 
+
+✗ ✓ ✓ 0.901 ± 0.256 0.915 ± 0.241 0.903 ± 0.254 0.917 ± 0.241 0.901 ± 0.257 0.915 ± 0.242 0.904 ± 0.250 0.919 ± 0.236 
+
+✓ ✗ ✓ 0.893 ± 0.269 0.907 ± 0.255 0.890 ± 0.267 0.906 ± 0.250 0.893 ± 0.268 0.908 ± 0.255 0.894 ± 0.264 0.910 ± 0.247 
+
+✓ ✓ ✗ 0.902 ± 0.256 0.916 ± 0.241 0.903 ± 0.254 0.917 ± 0.240 0.902 ± 0.256 0.916 ± 0.241 0.905 ± 0.250 0.919 ± 0.234 
+
+✓ ✗ ✗ 0.876 ± 0.300 0.887 ± 0.293 0.874 ± 0.299 0.886 ± 0.289 0.876 ± 0.300 0.887 ± 0.293 0.877 ± 0.297 0.888 ± 0.289 
+
+✗ ✓ ✗ 0.896 ± 0.265 0.910 ± 0.251 0.899 ± 0.264 0.912 ± 0.252 0.896 ± 0.265 0.910 ± 0.251 0.900 ± 0.259 0.914 ± 0.245 
+
+✗ ✗ ✓ 0.865 ± 0.306 0.879 ± 0.294 0.863 ± 0.314 0.875 ± 0.304 0.865 ± 0.306 0.879 ± 0.295 0.865 ± 0.306 0.877 ± 0.302 
+
+Note: The best scores under each modality availability combination are marked as bold. ✗ and ✓ are used to represent missing and available modalities in the DSTL image set, respectively. Crop class is used. 
+
+As shown in Tables 4, 5, 6, the proposed strategy con-sistently benefits the CBC model across the three image sets, with the clearest gains observed on Hunan and more scenario-dependent behavior on Potsdam. Table 6 shows that the proposed strategy achieves the best performance on all scenarios, with notable gains for several difficult cases. Specifically, it achieves an IoU of 0.545 when only DEM is available, surpassing the random modality dropout result by 0.8%. When MSI or DEM is missing, we observe a largest IoU gain of 3.8% relative to LoRA-based adaptation, demon-strating that latent-space-guided fine-tuning provides more effective adaptation than generic fine-tuning. Although the proposed strategy exhibits suboptimal results on Potsdam (Table 5) when only RGB or IRRG is available, it still im-proves IoU by 0.2% in the most challenging DSM-only case and by 0.4% when all modalities are available, compared 
+
+Table 2 
+
+Potsdam test set results for CBC-SLP model under different fine-tuning strategies 
+
+Modalities CBC-SLP (baseline) CBC-SLP CBC-SLP CBC-SLP RGB IRRG DSM No fine-tuning Fine-tune with random modality dropout Fine-tune with LoRA-based adaptation Fine-tune with our strategy IoU F1 IoU F1 IoU F1 IoU F1
+
+✓ ✓ ✓ 0.766 ± 0.325 0.811 ± 0.312 0.774 ± 0.320 0.818 ± 0.307 0.768 ± 0.324 0.812 ± 0.310 0.776 ± 0.318 0.819 ± 0.305 
+
+✗ ✓ ✓ 0.758 ± 0.331 0.803 ± 0.317 0.767 ± 0.324 0.812 ± 0.311 0.760 ± 0.329 0.805 ± 0.315 0.768 ± 0.323 0.813 ± 0.309 
+
+✓ ✗ ✓ 0.711 ± 0.361 0.758 ± 0.349 0.724 ± 0.354 0.770 ± 0.342 0.714 ± 0.359 0.761 ± 0.347 0.730 ± 0.351 0.777 ± 0.339 
+
+✓ ✓ ✗ 0.761 ± 0.329 0.806 ± 0.316 0.769 ± 0.325 0.813 ± 0.312 0.761 ± 0.329 0.806 ± 0.316 0.771 ± 0.322 0.815 ± 0.309 
+
+✓ ✗ ✗ 0.691 ± 0.376 0.737 ± 0.366 0.704 ± 0.369 0.749 ± 0.360 0.691 ± 0.377 0.736 ± 0.367 0.713 ± 0.363 0.758 ± 0.352 
+
+✗ ✓ ✗ 0.750 ± 0.337 0.795 ± 0.324 0.760 ± 0.330 0.805 ± 0.317 0.749 ± 0.337 0.795 ± 0.324 0.761 ± 0.329 0.806 ± 0.316 
+
+✗ ✗ ✓ 0.576 ± 0.432 0.614 ± 0.427 0.583 ± 0.431 0.622 ± 0.427 0.583 ± 0.429 0.622 ± 0.425 0.579 ± 0.434 0.616 ± 0.429 
+
+Note: The best scores under each modality availability combination are marked as bold. ✗ and ✓ are used to represent missing and available modalities in the Potsdam image set, respectively. Tree class is used. 
+
+Ulku et al. Page 9 of 14 Latent Space Guided Scenario Sampling 
+
+Table 3 
+
+Hunan test set results for CBC-SLP model under different fine-tuning strategies 
+
+Modalities CBC-SLP (baseline) CBC-SLP CBC-SLP CBC-SLP SAR MSI DEM No fine-tuning Fine-tune with random modality dropout Fine-tune with LoRA-based adaptation Fine-tune with our strategy IoU F1 IoU F1 IoU F1 IoU F1
+
+✓ ✓ ✓ 0.659 ± 0.299 0.743 ± 0.287 0.670 ± 0.290 0.755 ± 0.275 0.659 ± 0.299 0.744 ± 0.286 0.672 ± 0.289 0.757 ± 0.269 
+
+✗ ✓ ✓ 0.640 ± 0.304 0.727 ± 0.295 0.642 ± 0.305 0.728 ± 0.297 0.640 ± 0.304 0.727 ± 0.295 0.645 ± 0.302 0.731 ± 0.290 
+
+✓ ✗ ✓ 0.582 ± 0.323 0.670 ± 0.326 0.591 ± 0.318 0.681 ± 0.318 0.583 ± 0.323 0.671 ± 0.326 0.595 ± 0.314 0.686 ± 0.313 
+
+✓ ✓ ✗ 0.652 ± 0.300 0.737 ± 0.291 0.659 ± 0.298 0.743 ± 0.290 0.653 ± 0.300 0.738 ± 0.290 0.663 ± 0.297 0.747 ± 0.286 
+
+✓ ✗ ✗ 0.569 ± 0.298 0.668 ± 0.302 0.561 ± 0.313 0.656 ± 0.318 0.558 ± 0.316 0.652 ± 0.323 0.569 ± 0.297 0.663 ± 0.312 
+
+✗ ✓ ✗ 0.616 ± 0.313 0.704 ± 0.306 0.620 ± 0.313 0.707 ± 0.305 0.617 ± 0.313 0.705 ± 0.305 0.626 ± 0.310 0.713 ± 0.302 
+
+✗ ✗ ✓ 0.518 ± 0.322 0.616 ± 0.321 0.515 ± 0.345 0.601 ± 0.353 0.504 ± 0.344 0.592 ± 0.351 0.509 ± 0.339 0.598 ± 0.345 
+
+Note: The best scores under each modality availability combination are marked as bold. ✗ and ✓ are used to represent missing and available modalities in the Hunan image set, respectively. Forest class is used. 
+
+Table 4 
+
+DSTL test set results for CBC model under different fine-tuning strategies 
+
+Modalities CBC (baseline) CBC CBC CBC RGB NIR SWIR No fine-tuning Fine-tune with random modality dropout Fine-tune with LoRA-based adaptation Fine-tune with our strategy IoU F1 IoU F1 IoU F1 IoU F1
+
+✓ ✓ ✓ 0.881 ± 0.289 0.894 ± 0.279 0.885 ± 0.282 0.899 ± 0.270 0.881 ± 0.289 0.894 ± 0.279 0.885 ± 0.281 0.899 ± 0.269 
+
+✗ ✓ ✓ 0.880 ± 0.292 0.892 ± 0.284 0.885 ± 0.281 0.899 ± 0.271 0.880 ± 0.292 0.892 ± 0.284 0.886 ± 0.281 0.899 ± 0.286 
+
+✓ ✗ ✓ 0.871 ± 0.299 0.885 ± 0.289 0.869 ± 0.303 0.882 ± 0.293 0.871 ± 0.299 0.885 ± 0.289 0.869 ± 0.302 0.882 ± 0.293 
+
+✓ ✓ ✗ 0.881 ± 0.291 0.893 ± 0.282 0.884 ± 0.285 0.897 ± 0.275 0.881 ± 0.291 0.893 ± 0.282 0.884 ± 0.284 0.897 ± 0.272 
+
+✓ ✗ ✗ 0.872 ± 0.298 0.886 ± 0.287 0.868 ± 0.301 0.883 ± 0.291 0.872 ± 0.298 0.886 ± 0.287 0.876 ± 0.296 0.889 ± 0.286 
+
+✗ ✓ ✗ 0.879 ± 0.294 0.891 ± 0.286 0.883 ± 0.290 0.894 ± 0.282 0.879 ± 0.294 0.891 ± 0.286 0.885 ± 0.287 0.897 ± 0.277 
+
+✗ ✗ ✓ 0.856 ± 0.323 0.868 ± 0.313 0.860 ± 0.314 0.874 ± 0.303 0.856 ± 0.323 0.868 ± 0.313 0.862 ± 0.313 0.875 ± 0.302 
+
+Note: The best scores under each modality availability combination are marked as bold. ✗ and ✓ are used to represent missing and available modalities in the DSTL image set, respectively. Crop class is used. 
+
+with the random modality dropout strategy. As shown in Fig. 3, higher probabilities are assigned to scenarios with DSM modality, whereas scenarios including RGB and IRRG receive lower sampling emphasis. Therefore, the fine-tuning process is biased toward modality combinations that appear more disruptive in the pretrained latent space. As a result, the proposed strategy may provide clearer benefits in more chal-lenging scenarios of the Potsdam image set, while yielding weaker gains in some relatively simpler configurations. To show that the proposed training strategy is not limited to a specific architectural design, we also evaluate it using the state-of-the-art CMX model. The test set results are reported in Tables 7, 8, and 9. As shown in Table 7, the proposed 
+
+Table 5 
+
+Potsdam test set results for CBC model under different fine-tuning strategies 
+
+Modalities CBC (baseline) CBC CBC CBC RGB IRRG DSM No fine-tuning Fine-tune with random modality dropout Fine-tune with LoRA-based adaptation Fine-tune with our strategy IoU F1 IoU F1 IoU F1 IoU F1
+
+✓ ✓ ✓ 0.762 ± 0.331 0.805 ± 0.320 0.772 ± 0.323 0.812 ± 0.311 0.762 ± 0.332 0.805 ± 0.321 0.776 ± 0.320 0.815 ± 0.320 
+
+✗ ✓ ✓ 0.758 ± 0.332 0.802 ± 0.321 0.765 ± 0.325 0.810 ± 0.312 0.757 ± 0.333 0.802 ± 0.322 0.767 ± 0.326 0.811 ± 0.313 
+
+✓ ✗ ✓ 0.713 ± 0.362 0.759 ± 0.351 0.718 ± 0.354 0.766 ± 0.341 0.712 ± 0.363 0.757 ± 0.353 0.720 ± 0.357 0.766 ± 0.346 
+
+✓ ✓ ✗ 0.753 ± 0.339 0.796 ± 0.329 0.766 ± 0.328 0.809 ± 0.316 0.752 ± 0.339 0.795 ± 0.329 0.762 ± 0.330 0.806 ± 0.318 
+
+✓ ✗ ✗ 0.682 ± 0.386 0.725 ± 0.379 0.698 ± 0.375 0.741 ± 0.367 0.682 ± 0.386 0.724 ± 0.379 0.680 ± 0.383 0.725 ± 0.375 
+
+✗ ✓ ✗ 0.745 ± 0.343 0.789 ± 0.333 0.759 ± 0.332 0.803 ± 0.320 0.745 ± 0.344 0.789 ± 0.333 0.748 ± 0.338 0.793 ± 0.327 
+
+✗ ✗ ✓ 0.584 ± 0.420 0.628 ± 0.415 0.589 ± 0.424 0.630 ± 0.419 0.583 ± 0.423 0.625 ± 0.418 0.591 ± 0.422 0.634 ± 0.416 
+
+Note: The best scores under each modality availability combination are marked as bold. ✗ and ✓ are used to represent missing and available modalities in the Potsdam image set, respectively. Tree class is used. 
+
+Ulku et al. Page 10 of 14 Latent Space Guided Scenario Sampling 
+
+Table 6 
+
+Hunan test set results for CBC model under different fine-tuning strategies 
+
+Modalities CBC (baseline) CBC CBC CBC SAR MSI DEM No fine-tuning Fine-tune with random modality dropout Fine-tune with LoRA-based adaptation Fine-tune with our strategy IoU F1 IoU F1 IoU F1 IoU F1
+
+✓ ✓ ✓ 0.621 ± 0.309 0.709 ± 0.300 0.654 ± 0.299 0.739 ± 0.288 0.620 ± 0.309 0.708 ± 0.301 0.658 ± 0.299 0.742 ± 0.289 
+
+✗ ✓ ✓ 0.606 ± 0.314 0.696 ± 0.304 0.633 ± 0.306 0.721 ± 0.295 0.606 ± 0.314 0.696 ± 0.304 0.640 ± 0.302 0.728 ± 0.291 
+
+✓ ✗ ✓ 0.526 ± 0.319 0.623 ± 0.323 0.558 ± 0.307 0.656 ± 0.309 0.526 ± 0.319 0.623 ± 0.322 0.564 ± 0.304 0.663 ± 0.306 
+
+✓ ✓ ✗ 0.604 ± 0.321 0.690 ± 0.317 0.636 ± 0.313 0.720 ± 0.305 0.603 ± 0.321 0.690 ± 0.316 0.641 ± 0.313 0.724 ± 0.306 
+
+✓ ✗ ✗ 0.497 ± 0.315 0.599 ± 0.318 0.526 ± 0.312 0.625 ± 0.320 0.498 ± 0.315 0.599 ± 0.318 0.532 ± 0.310 0.631 ± 0.318 
+
+✗ ✓ ✗ 0.590 ± 0.324 0.679 ± 0.316 0.620 ± 0.312 0.708 ± 0.301 0.591 ± 0.324 0.679 ± 0.316 0.626 ± 0.309 0.714 ± 0.299 
+
+✗ ✗ ✓ 0.517 ± 0.345 0.603 ± 0.350 0.537 ± 0.342 0.622 ± 0.349 0.517 ± 0.345 0.603 ± 0.350 0.545 ± 0.343 0.630 ± 0.348 
+
+Note: The best scores under each modality availability combination are marked as bold. ✗ and ✓ are used to represent missing and available modalities in the Hunan image set, respectively. Forest class is used. 
+
+Table 7 
+
+DSTL test set results for CMX model under different fine-tuning strategies 
+
+Modalities CMX (baseline) CMX CMX CMX RGB NIR SWIR No fine-tuning Fine-tune with random modality dropout Fine-tune with LoRA-based adaptation Fine-tune with our strategy IoU F1 IoU F1 IoU F1 IoU F1
+
+✓ ✓ ✓ 0.860 ± 0.324 0.869 ± 0.319 0.863 ± 0.321 0.872 ± 0.316 0.860 ± 0.324 0.869 ± 0.319 0.864 ± 0.320 0.872 ± 0.315 
+
+✗ ✓ ✓ 0.853 ± 0.332 0.862 ± 0.326 0.853 ± 0.330 0.863 ± 0.324 0.852 ± 0.335 0.860 ± 0.329 0.856 ± 0.325 0.867 ± 0.318 
+
+✓ ✗ ✓ 0.859 ± 0.325 0.868 ± 0.320 0.862 ± 0.322 0.871 ± 0.317 0.859 ± 0.325 0.868 ± 0.320 0.863 ± 0.321 0.872 ± 0.316 
+
+✓ ✓ ✗ 0.853 ± 0.333 0.862 ± 0.328 0.858 ± 0.327 0.867 ± 0.322 0.854 ± 0.332 0.862 ± 0.328 0.859 ± 0.324 0.868 ± 0.319 
+
+✓ ✗ ✗ 0.854 ± 0.331 0.863 ± 0.325 0.858 ± 0.326 0.867 ± 0.321 0.855 ± 0.330 0.864 ± 0.325 0.860 ± 0.324 0.869 ± 0.320 
+
+✗ ✓ ✗ 0.806 ± 0.377 0.815 ± 0.371 0.827 ± 0.348 0.841 ± 0.339 0.805 ± 0.378 0.814 ± 0.373 0.830 ± 0.348 0.842 ± 0.341 
+
+✗ ✗ ✓ 0.849 ± 0.335 0.859 ± 0.328 0.850 ± 0.333 0.860 ± 0.326 0.847 ± 0.338 0.856 ± 0.332 0.853 ± 0.327 0.864 ± 0.319 
+
+Note: The best scores under each modality availability combination are marked as bold. ✗ and ✓ are used to represent missing and available modalities in the DSTL image set, respectively. Crop class is used. 
+
+strategy outperforms other fine-tuning policies, achieving superior IoU scores on all scenarios. Notably, Tables 8 and 9 demonstrate large performance gains, indicating that the proposed training strategy generalizes particularly well to the CMX architecture under heterogeneous modality set-tings. In Table 8, when RGB is missing on Potsdam, the proposed strategy improves IoU and 𝐹 1 over the random modality dropout scheme by 2.7% and 5.0%, respectively. As listed in Table 9, when only DEM is available on Hunan, our strategy achieves a noticeable improvement over LoRA-based adaptation. Specifically, it improves the IoU by 3.7% and 𝐹 1 by 2.9%. These results suggest that the proposed training strategy can generalize across different multimodal segmentation backbones. This may be because the strategy 
+
+Table 8 
+
+Potsdam test set results for CMX model under different fine-tuning strategies 
+
+Modalities CMX (baseline) CMX CMX CMX RGB IRRG DSM No fine-tuning Fine-tune with random modality dropout Fine-tune with LoRA-based adaptation Fine-tune with our strategy IoU F1 IoU F1 IoU F1 IoU F1
+
+✓ ✓ ✓ 0.541 ± 0.426 0.590 ± 0.408 0.561 ± 0.416 0.614 ± 0.396 0.538 ± 0.431 0.585 ± 0.413 0.574 ± 0.406 0.631 ± 0.385 
+
+✗ ✓ ✓ 0.532 ± 0.434 0.577 ± 0.418 0.535 ± 0.436 0.579 ± 0.421 0.526 ± 0.440 0.568 ± 0.425 0.562 ± 0.391 0.629 ± 0.368 
+
+✓ ✗ ✓ 0.516 ± 0.448 0.553 ± 0.436 0.527 ± 0.441 0.568 ± 0.428 0.526 ± 0.441 0.567 ± 0.428 0.508 ± 0.452 0.543 ± 0.440 
+
+✓ ✓ ✗ 0.539 ± 0.426 0.589 ± 0.408 0.562 ± 0.415 0.616 ± 0.395 0.536 ± 0.431 0.583 ± 0.413 0.573 ± 0.407 0.630 ± 0.385 
+
+✓ ✗ ✗ 0.519 ± 0.445 0.558 ± 0.430 0.517 ± 0.447 0.554 ± 0.434 0.525 ± 0.440 0.567 ± 0.426 0.502 ± 0.455 0.535 ± 0.443 
+
+✗ ✓ ✗ 0.526 ± 0.435 0.571 ± 0.421 0.537 ± 0.434 0.581 ± 0.419 0.522 ± 0.442 0.562 ± 0.428 0.561 ± 0.394 0.626 ± 0.371 
+
+✗ ✗ ✓ 0.444 ± 0.492 0.448 ± 0.493 0.444 ± 0.496 0.448 ± 0.496 0.444 ± 0.496 0.448 ± 0.496 0.444 ± 0.491 0.448 ± 0.491 
+
+Note: The best scores under each modality availability combination are marked as bold. ✗ and ✓ are used to represent missing and available modalities in the Potsdam image set, respectively. Tree class is used. 
+
+Ulku et al. Page 11 of 14 Latent Space Guided Scenario Sampling 
+
+Table 9 
+
+Hunan test set results for CMX model under different fine-tuning strategies                                                                                                                                                                                                     
+
+> Modalities CMX (baseline) CMX CMX CMX SAR MSI DEM No fine-tuning Fine-tune with random modality dropout Fine-tune with LoRA-based adaptation Fine-tune with our strategy IoU F1IoU F1IoU F1IoU F1
+> ✓✓✓0.651 ±0.306 0.733 ±0.300 0.627 ±0.321 0.709 ±0.316 0.618 ±0.324 0.700 ±0.322 0.634 ±0.333 0.710 ±0.330
+> ✗✓✓0.625 ±0.325 0.705 ±0.321 0.623 ±0.321 0.706 ±0.321 0.617 ±0.326 0.699 ±0.322 0.634 ±0.329 0.711 ±0.323
+> ✓✗✓0.555 ±0.328 0.644 ±0.339 0.540 ±0.330 0.630 ±0.339 0.523 ±0.335 0.612 ±0.348 0.562 ±0.348 0.646 ±0.354
+> ✓✓✗0.639 ±0.307 0.723 ±0.304 0.609 ±0.322 0.694 ±0.319 0.596 ±0.327 0.680 ±0.326 0.607 ±0.322 0.691 ±0.326
+> ✓✗✗0.476 ±0.313 0.580 ±0.315 0.465 ±0.330 0.563 ±0.327 0.399 ±0.346 0.488 ±0.339 0.441 ±0.286 0.554 ±0.301
+> ✗✓✗0.599 ±0.326 0.683 ±0.325 0.598 ±0.323 0.684 ±0.321 0.582 ±0.326 0.669 ±0.325 0.602 ±0.318 0.688 ±0.321
+> ✗✗✓0.509 ±0.340 0.598 ±0.343 0.519 ±0.339 0.606 ±0.352 0.506 ±0.340 0.594 ±0.352 0.543 ±0.351 0.623 ±0.358
+
+Note: The best scores under each modality availability combination are marked as bold. ✗ and ✓ are used to represent missing and available modalities in the Hunan image set, respectively. Forest class is used. 
+
+Figure 4: Qualitative comparison of different fine-tuning settings under missing modality scenarios. 
+
+relies on scenario-induced distortions in the pretrained latent space, which provide a model-agnostic signal for guiding fine-tuning. Fig. 4 shows qualitative comparisons under different modality availability scenarios for the tree class on Potsdam and the forest class on Hunan. In these prediction maps, light green shows correctly predicted target pixels, dark green indicates missed pixels, and red marks falsely predicted re-gions. We evaluate the effectiveness of our training strategy in challenging scenarios, where important complementary information is unavailable. In the first row, for CBC-SLP on Potsdam, only the RGB modality is available, while IRRG and DSM are missing. This makes the segmentation task more difficult, since in-frared and elevation information are both crucial for accurate tree segmentation. Even under this scenario, our strategy better preserves the lower and right-side boundaries of the target region than the other fine-tuning strategies. In the second row, where RGB is missing, our strategy recovers a 
+
+Ulku et al. Page 12 of 14 Latent Space Guided Scenario Sampling 
+
+larger portion of the target, whereas the competing methods miss pixels around the lower central part of the region. In the third example, the absence of MSI removes rich spectral information, causing random modality dropout and LoRA-based adaptation strategies to miss many of the fine-grained details. In contrast, our strategy yields a more spatially con-sistent prediction by capturing complex boundary regions. For CMX on Hunan shown in the fourth row, only SAR is available, while MSI and DEM are both missing. This is the most difficult scenario among the shown examples, since both the spectral content and the topographic information are absent. Even in this challenging case, our strategy recovers more target pixels and yields smoother boundaries. Taken together, these qualitative examples indicate that the proposed strategy yields more accurate boundaries, fewer missed target pixels, and better recovery of complex details under different modality availabilities. Since this trend is consistent for both CBC-SLP and CMX models on Potsdam and Hunan image sets, the proposed strategy appears to generalize across different multimodal segmenta-tion backbones. A possible reason is that latent-space-guided scenario sampling encourages the model to focus more effectively on challenging modality configurations during fine-tuning. 
+
+## 5. Conclusion 
+
+We proposed a novel training strategy for multimodal semantic segmentation under missing modalities. We first measure the importance of each scenario with missing modalities according to the distortion it causes in the shared latent representation. We then use regularized kernel smooth-ing to convert these scenario statistics into a probability distribution. In this way, the proposed method replaces uniform random modality dropout with a training strategy that prioritizes more informative scenarios during fine-tuning. We further showed that this formulation is not limited to a specific architectural design, but can be applied across different multimodal segmentation backbones. This is demonstrated by the fact that the proposed strategy yields more consistent improvements than standard fine-tuning with random modality dropout and LoRA-based adaptation on the DSTL, Potsdam, and Hunan image sets, and across CBC-SLP, CBC, and CMX models. Finally, because the pro-posed strategy is driven by pretrained latent behavior, it may provide a framework for improving fine-tuning performance across different multimodal segmentation backbones when some modalities are unavailable. 
+
+## Acknowledgment 
+
+This study was supported by the Scientific and Techno-logical Research Council of Turkey (TUBITAK) under the Grant Number 124E725. The authors thank TUBITAK for their support. 
+
+## References 
+
+[1] Chen, X., Tao, H., Li, B., 2026. Towards robust incomplete multi-modal open-set domain generalization with uncertain missing modal-ities. Knowledge-Based Systems 341, 115777. [2] Chen, Y., Zhao, M., Bruzzone, L., 2024. A novel approach to incomplete multimodal learning for remote sensing data fusion. IEEE Transactions on Geoscience and Remote Sensing 62, 1–14. [3] Das, M., Ghosh, S.K., 2017. A deep-learning-based forecasting ensemble to predict missing data for remote sensing analysis. IEEE Journal of Selected Topics in Applied Earth Observations and Remote Sensing 10, 5228–5236. [4] Detection, D.S.I.F., 2016. DSTL Satellite Imagery Feature Detection. Kaggle competition. [Online]. Available: https://www.kaggle.com/c/dstl-satellite-imagery-feature-detection. Accessed: Jan. 29, 2026. [5] Dinuzzo, F., Schölkopf, B., 2012. The representer theorem for hilbert spaces: a necessary and sufficient condition. Advances in neural information processing systems 25. [6] Do, M.K., Han, K., Lai, P., Phan, K.T., Xiang, W., 2025. Robsense: A robust multi-modal foundation model for remote sensing with static, temporal, and incomplete data adaptability, in: Proceedings of the Computer Vision and Pattern Recognition Conference, pp. 7427– 7436. [7] Dong, H., Liu, M., Zhou, K., Chatzi, E., Kannala, J., Stachniss, C., Fink, O., 2026. Advances in multimodal adaptation and general-ization: From traditional approaches to foundation models. IEEE Transactions on Pattern Analysis and Machine Intelligence 48, 5672– 5691. [8] Gong, A., Choi, K., Dwivedi, R., 2024. Supervised kernel thinning. Advances in Neural Information Processing Systems 37, 6267–6322. [9] Han, W., Geng, J., Xu, Z., Jiang, W., 2025. Multimodal heterogeneous hypergraph learning for incomplete multimodal semantic segmenta-tion of remote sensing images. IEEE Transactions on Geoscience and Remote Sensing 63, 1–15. [10] Hu, E.J., Shen, Y., Wallis, P., Allen-Zhu, Z., Li, Y., Wang, S., Wang, L., Chen, W., et al., 2022. Lora: Low-rank adaptation of large language models. Iclr 1, 3. [11] ISPRS, 2014. 2D Semantic Labeling Contest: Potsdam. ISPRS Benchmark Datasets (UrbanSemLab). [Online]. Available: https://www.isprs.org/resources/datasets/benchmarks/UrbanSemLab. Accessed: Jan. 30, 2026. [12] Li, J., Wang, Z., Xu, N., You, Z., 2025. Semantic segmentation with scale alignment and contextual information fusion for multimodal remote sensing images. Information Fusion , 103671. [13] Li, X., Wen, X., Xu, H., Wang, X., 2026. Structfuse-net: A structure-aware multimodal fusion network for geometry-consistent optical–sar image segmentation. IEEE Transactions on Geoscience and Remote Sensing 64, 1–20. [14] Li, Y., Zhou, Y., Zhang, Y., Zhong, L., Wang, J., Chen, J., 2022. Dkdfn: Domain knowledge-guided deep collaborative fusion network for multimodal unitemporal remote sensing land cover classification. ISPRS Journal of Photogrammetry and Remote Sensing 186, 170– 189. [15] Liang, G., Zhou, Q., Wang, Z., Chen, J., Gu, L., Yao, C., Wu, S., Huang, B., Chen, K., 2025. Semantic-guided masked mutual learning for multi-modal brain tumor segmentation with arbitrary missing modalities, in: Proceedings of the AAAI Conference on Artificial Intelligence, pp. 5137–5145. [16] Linial, O., Leifman, G., Blau, Y., Sherman, N., Gigi, Y., Sirko, W., Beryozkin, G., 2025. Enhancing remote sensing representations through mixed-modality masked autoencoding, in: Proceedings of the Winter Conference on Applications of Computer Vision, pp. 507– 516. [17] Ma, X., Zhang, X., Pun, M.O., Huang, B., 2025a. A unified framework with multimodal fine-tuning for remote sensing semantic segmenta-tion. IEEE Transactions on Geoscience and Remote Sensing 63, 1–15. [18] Ma, Y., Tong, H., Chai, L., Mao, S., Zhang, Y., 2025b. Sasam: Scale-aware segmentation anything model for multimodal remote sensing 
+
+Ulku et al. Page 13 of 14 Latent Space Guided Scenario Sampling 
+
+images. Information Fusion 129, 104054. [19] Momeni, S., Mazumder, S., Liu, B., 2025. Continual learning using a kernel-based method over foundation models, in: Proceedings of the AAAI Conference on Artificial Intelligence, pp. 19528–19536. [20] Qiu, C., Song, Y., Liu, Y., Zhu, Y., Han, K., Sheng, V.S., Liu, Z., 2024. Mmmvit: Multiscale multimodal vision transformer for brain tumor segmentation with missing modalities. Biomedical Signal Processing and Control 90, 105827. [21] Reza, M.K., Prater-Bennette, A., Asif, M.S., 2024. Robust multi-modal learning with missing modalities via parameter-efficient adap-tation. IEEE transactions on pattern analysis and machine intelligence 47, 742–754. [22] Rosipal, R., Trejo, L.J., 2001. Kernel partial least squares regression in reproducing kernel hilbert space. Journal of machine learning research 2, 97–123. [23] Scholkopf, B., Sung, K.K., Burges, C.J., Girosi, F., Niyogi, P., Poggio, T., Vapnik, V., 1997. Comparing support vector machines with gaussian kernels to radial basis function classifiers. IEEE transactions on Signal Processing 45, 2758–2765. [24] Shi, J., Sun, Z., Yu, L., Yang, X., Yan, Z., 2026. Addressing imbal-anced modal incompleteness in realistic multi-modal medical image segmentation via hierarchical gradient alignment. IEEE Transactions on Medical Imaging . [25] Trouillon, T., Dance, C.R., Gaussier, É., Welbl, J., Riedel, S., Bouchard, G., 2017. Knowledge graph completion via complex tensor factorization. Journal of Machine Learning Research 18, 1–38. [26] Tsai, C.P., Yeh, C.K., Ravikumar, P., 2023. Sample based explana-tions via generalized representers. Advances in Neural Information Processing Systems 36, 23485–23498. [27] Ulku, I., Akagündüz, E., Ömer Özgür Tanrıöver, 2026. Robust multispectral semantic segmentation under missing or full modalities via structured latent projection. URL: https://arxiv.org/abs/2604. 15856 , arXiv:2604.15856 .[28] Ulku, I., Ozgur Tanriover, O., Akagündüz, E., 2025. Cross-band correlation-aware interactive fusion for multispectral images. IEEE Geoscience and Remote Sensing Letters 22, 1–5. [29] Wei, S., Luo, C., Luo, Y., 2023. Mmanet: Margin-aware distillation and modality-aware regularization for incomplete multimodal learn-ing, in: Proceedings of the IEEE/CVF conference on computer vision and pattern recognition, pp. 20039–20049. [30] Wen, L., Xiao, J., Liao, L., Chen, J., Wang, M., 2026. Charm: Collaborative harmonization across arbitrary modalities for modality-agnostic semantic segmentation, in: Proceedings of the AAAI Confer-ence on Artificial Intelligence, pp. 10603–10611. [31] Xie, W., Tonin, F., Cevher, V., 2026. Mad-mix: Multi-modal data mixtures via latent space coupling for vision-language model training. arXiv preprint arXiv:2602.07790 . [32] Zhang, J., Liu, H., Yang, K., Hu, X., Liu, R., Stiefelhagen, R., 2023. Cmx: Cross-modal fusion for rgb-x semantic segmentation with transformers. IEEE Transactions on intelligent transportation systems 24, 14679–14694. [33] Zhang, Y., He, N., Yang, J., Li, Y., Wei, D., Huang, Y., Zhang, Y., He, Z., Zheng, Y., 2022. mmformer: Multimodal medical transformer for incomplete multimodal learning of brain tumor segmentation, in: International conference on medical image computing and computer-assisted intervention, Springer. pp. 107–117. [34] Zhang, Z., Shu, D., Liao, C., Liu, C., Zhao, Y., Wang, R., Huang, X., Zhang, M., Gong, J., 2025. Flexisam: A flexible sam-based semantic segmentation model for land cover classification using high-resolution multimodal remote sensing imagery. ISPRS Journal of Photogrammetry and Remote Sensing 227, 594–612. [35] Zhang, Z., Zhou, Y.J., Hu, Y., Ma, X., Yuan, Z., Wang, Z., Zhang, H., Xu, M., 2026. Disentangling for transfer: Boosting limited modalities via information-theoretic regularization and cross-modal reconstruction, in: Proceedings of the AAAI Conference on Artificial Intelligence, pp. 13052–13060. [36] Zheng, X., Lyu, Y., Jiang, L., Paudel, D.P., Van Gool, L., Hu, X., 2025. Reducing unimodal bias in multi-modal semantic segmentation with multi-scale functional entropy regularization, in: Proceedings of the IEEE/CVF International Conference on Computer Vision, pp. 21166– 21176. [37] Zhou, Y., Ma, A., Wang, J., Chen, Z., Zhong, Y., 2026. Remote sensing meta modal representation for missing modality land cover mapping: From earthmiss dataset to metars method. Remote Sensing of Environment 333, 115132. [38] Zhou, Y., Wang, Y., Su, J., Wen, Z., Zhang, P., Zhang, W., 2025. Emsnet: Efficient multimodal symmetric network for semantic seg-mentation of urban scene from remote sensing imagery. IEEE Journal of Selected Topics in Applied Earth Observations and Remote Sensing 18, 5878–5892. 
+
+Irem Ulku received B.Sc. degrees in both Elec-tronics and Communication Engineering and in Industrial Engineering from Çankaya University (Ankara, Turkey) in 2009 and 2010, respectively, followed by an M.Sc. degree in Electrical and Elec-tronics Engineering from the Middle East Tech-nical University (Ankara, Turkey) in 2013. She then received her PhD degree in Electronics and Communication Engineering from Çankaya Uni-versity in 2017. In 2019, she was a Research As-sociate at Imperial College London, United King-dom. She is currently an Assistant Professor at the Department of Computer Engineering, Ankara University (Turkey). Her research interests include hyperspectral image processing and deep learning-based semantic segmentation. 
+
+Erdem Akagündüz received his B.Sc., M.Sc., and Ph.D. degrees in Electrical and Electronics En-gineering from Middle East Technical University in 2001, 2004, and 2010, respectively. Between 2001–2008, he worked as a research assistant at METU Computer Vision and Intelligent Systems Laboratory; between 2008–2009, he was a research fellow at the University of York, UK; and from 2009–2016, he served as an embedded algorithm development engineer at ASELSAN Inc. In 2016, he worked as a postdoctoral researcher at the Uni-versity of York again. After serving at Çankaya University between 2018–2021, he joined METU Informatics Institute, where he currently works. His research interests include deep learning ap-plications and embedded deep learning. Dr. Ak-agündüz holds several international patents and publications in these areas. 
+
+Ömer Özgür Tanrıöver received the B.Sc. degree in Computer Engineering, the M.Sc. and Ph.D. degrees in Information Systems from Middle East Technical University, Ankara, Turkey. Earlier, he was as a Certified Information Systems Auditor (CISA) with the Information Management Depart-ment, Banking Regulation Agency of Turkey. He is currently an Associate Professor in the Computer Engineering Department of Ankara University. His current research interests include applications of deep learning in medical informatics, remote sens-ing, human computer interaction, and information system security. 
+
+Ulku et al. Page 14 of 14
