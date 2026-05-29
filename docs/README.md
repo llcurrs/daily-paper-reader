@@ -6,31 +6,30 @@
 </div>
 
 ## 每次日报
-- 最新运行日期：2026-05-28
-- 运行时间：2026-05-28 21:52:33 UTC
+- 最新运行日期：2026-05-29
+- 运行时间：2026-05-29 21:23:29 UTC
 - 运行状态：成功
-- 本次总论文数：3
-- 精读区：2
+- 本次总论文数：2
+- 精读区：1
 - 速读区：1
 
 ### 今日简报（AI）
-今日精读两篇高分遥感论文：异步时序融合去云与多模态生态基础模型。
-最值得关注方向：云遮挡下的时序重建，以及跨传感器尺度的生态遥感通用模型。
-建议优先精读这两篇9分论文，尤其适合遥感与生态交叉领域研究者。
-- 详情：[/202605/28/README](/202605/28/README)
+今天精读1篇高分遥感变化检测论文，速读1篇地质建模研究，聚焦多模态语义融合。
+
+最值得看的是《OmniCD》提出的多模态语义引导框架，显著提升变化检测性能；《FMSIM》则用流匹配实现条件地质建模，值得尝试。
+
+建议优先精读OmniCD，了解如何将文本与图像语义结合优化遥感分析。
+- 详情：[/202605/29/README](/202605/29/README)
 
 ### 精读区论文标签
-1. [Asynchronous Remote Sensing Time-Series Fusion for Cloud Removal and Anytime Reconstruction](/202605/28/2605.27726v1-asynchronous-remote-sensing-time-series-fusion-for-cloud-removal-and-anytime-reconstruction)  
-   标签：评分：9.0/10、query:multi-modal
-   evidence：融合S1 SAR和S2光学传感器进行云去除和任意时刻重建
-2. [FLORO: A Multimodal Geospatial Foundation Model for Ecological Remote Sensing Across Sensors and Scales](/202605/28/2605.28174v1-floro-a-multimodal-geospatial-foundation-model-for-ecological-remote-sensing-across-sensors-and-scales)  
-   标签：评分：9.0/10、query:multi-modal
-   evidence：多源遥感跨传感器跨尺度融合
+1. [OmniCD: A Foundational Framework for Remote Sensing Image Change Detection Guided by Multimodal Semantics](/202605/29/2605.30168v1-omnicd-a-foundational-framework-for-remote-sensing-image-change-detection-guided-by-multimodal-semantics)  
+   标签：评分：8.0/10、query:multi-modal
+   evidence：多模态遥感融合与语义引导
 
 ### 速读区论文标签
-1. [End-to-End Unmixing with Material Prompts for Hyperspectral Object Tracking](/202605/28/2605.20569v1-end-to-end-unmixing-with-material-prompts-for-hyperspectral-object-tracking)  
+1. [FMSIM: A Multimodal Flow Matching Framework for Conditional Geomodeling](/202605/29/2605.25161v1-fmsim-a-multimodal-flow-matching-framework-for-conditional-geomodeling)  
    标签：评分：6.0/10、query:multi-modal
-   evidence：高光谱与RGB融合用于目标跟踪
+   evidence：多模态流匹配框架整合地质描述、钻井观测和空间先验
 
 
 <div class="dpr-home-promo-card">
