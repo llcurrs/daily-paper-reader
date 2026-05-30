@@ -6,30 +6,39 @@
 </div>
 
 ## 每次日报
-- 最新运行日期：2026-05-29
-- 运行时间：2026-05-29 21:23:29 UTC
+- 最新运行日期：2026-05-30
+- 运行时间：2026-05-30 20:33:19 UTC
 - 运行状态：成功
-- 本次总论文数：2
-- 精读区：1
-- 速读区：1
+- 本次总论文数：6
+- 精读区：0
+- 速读区：6
 
 ### 今日简报（AI）
-今天精读1篇高分遥感变化检测论文，速读1篇地质建模研究，聚焦多模态语义融合。
-
-最值得看的是《OmniCD》提出的多模态语义引导框架，显著提升变化检测性能；《FMSIM》则用流匹配实现条件地质建模，值得尝试。
-
-建议优先精读OmniCD，了解如何将文本与图像语义结合优化遥感分析。
-- 详情：[/202605/29/README](/202605/29/README)
+今日速读6篇遥感论文，聚焦图像条件实例提示网络与多模态大模型高度线索基准。值得关注《Image-Conditioned Instance Prompt Network》和《VertiCue-Bench》两项7分工作，分别解决遥感分割中的实例提示和2D歧义消除。建议优先阅读这两篇论文，深入理解其方法差异与适用场景。
+- 详情：[/202605/30/README](/202605/30/README)
 
 ### 精读区论文标签
-1. [OmniCD: A Foundational Framework for Remote Sensing Image Change Detection Guided by Multimodal Semantics](/202605/29/2605.30168v1-omnicd-a-foundational-framework-for-remote-sensing-image-change-detection-guided-by-multimodal-semantics)  
-   标签：评分：8.0/10、query:multi-modal
-   evidence：多模态遥感融合与语义引导
+- 本次无精读推荐。
 
 ### 速读区论文标签
-1. [FMSIM: A Multimodal Flow Matching Framework for Conditional Geomodeling](/202605/29/2605.25161v1-fmsim-a-multimodal-flow-matching-framework-for-conditional-geomodeling)  
+1. [Image-Conditioned Instance Prompt Network for Referring Remote Sensing Image Segmentation](/202605/30/2605.24532v1-image-conditioned-instance-prompt-network-for-referring-remote-sensing-image-segmentation)  
+   标签：评分：7.0/10、query:multi-modal
+   evidence：跨模态图像文本融合用于遥感指代分割
+2. [VertiCue-Bench: Diagnosing Whether MLLMs Use Height Cues to Resolve 2D Ambiguity in Remote Sensing Natural Scenes](/202605/30/2605.25784v1-verticue-bench-diagnosing-whether-mllms-use-height-cues-to-resolve-2d-ambiguity-in-remote-sensing-natural-scenes)  
+   标签：评分：7.0/10、query:multi-modal
+   evidence：利用高度线索的遥感多模态融合
+3. [Leveraging pretrained RGB denoisers for hyperspectral image restoration](/202605/30/2605.24769v1-leveraging-pretrained-rgb-denoisers-for-hyperspectral-image-restoration)  
    标签：评分：6.0/10、query:multi-modal
-   evidence：多模态流匹配框架整合地质描述、钻井观测和空间先验
+   evidence：从RGB到高光谱的跨模态迁移用于图像恢复
+4. [ForestHG-Trace: Traceable Long-Horizon Ecological Reasoning over Large-Scale Forest Scenes](/202605/30/2605.27590v1-foresthg-trace-traceable-long-horizon-ecological-reasoning-over-large-scale-forest-scenes)  
+   标签：评分：6.0/10、query:multi-modal
+   evidence：基于超图和LLM智能体的多模态遥感推理
+5. [Transfer learning RGB models to hyperspectral images with trainable tensor decompositions](/202605/30/2605.28331v1-transfer-learning-rgb-models-to-hyperspectral-images-with-trainable-tensor-decompositions)  
+   标签：评分：6.0/10、query:multi-modal
+   evidence：通过张量分解将RGB模型迁移到高光谱图像
+6. [xModel-KD: Cross-modal Knowledge Distillation for 3D Scene Perception using LiDAR](/202605/30/2605.30111v1-xmodel-kd-cross-modal-knowledge-distillation-for-3d-scene-perception-using-lidar)  
+   标签：评分：6.0/10、query:multi-modal
+   evidence：2D图像与3D激光雷达点云之间的跨模态知识蒸馏用于场景感知
 
 
 <div class="dpr-home-promo-card">
