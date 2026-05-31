@@ -1,0 +1,458 @@
+Title: Image-Conditioned Instance Prompt Network for Referring Remote Sensing Image Segmentation
+
+URL Source: https://arxiv.org/pdf/2605.24532v1
+
+Published Time: Tue, 26 May 2026 00:41:17 GMT
+
+Number of Pages: 6
+
+Markdown Content:
+# Image-Conditioned Instance Prompt Network for Referring Remote Sensing Image Segmentation 
+
+Biaoyu Ren 1†, Qingsheng Wang 1†, Cun Xu 1, Dingkang Yang 2∗, Wenxuan Wang 1,3∗
+
+> 1
+
+School of Computer Science, Northwestern Polytechnical University, Xi’an, China 
+
+> 2
+
+College of Intelligent Robotics and Advanced Manufacturing, Fudan University, Shanghai, China 
+
+> 3
+
+Shenzhen Research Institute of Northwestern Polytechnical University, Shenzhen, China 
+
+{renby, wqshmzh, xucun }@mail.nwpu.edu.cn, dkyang20@fudan.edu.cn, wxwang@nwpu.edu.cn 
+
+Abstract —Referring Remote Sensing Image Segmentation (RRSIS) is a situated, task-driven cross-modal task related to the embodied perception paradigm, requiring models to align visual-spatial features with linguistic intentions for precise target perception. Recent research has focused on refining the granular-ity of textual features and optimizing image-text feature fusion to better guide target feature representations. However, insufficient descriptive granularity and sensitivity to semantic shifts can cause bottlenecks in cross-modal feature fusion. To address these issues, we propose the Image-Conditioned Instance Prompt Network (ICIPNet) with Bilateral Information Fusion, which is designed to alleviate bottlenecks in cross-modal feature fusion. ICIPNet introduces an Image-Conditioned Instance Prompt (ICIP) mod-ule to generate self-adaptive visual and semantic representations without external knowledge. The Bilateral Information Fusion (BIF) module enhances feature fusion along the token and channel dimensions. Experiments demonstrate that the proposed ICIPNet outperforms existing RRSIS models. 
+
+Index Terms —Referring Remote Sensing Image Segmenta-tion, Embodied Perception, Cross-modal feature fusion, Image-Conditioned Instance Prompt. 
+
+I. I NTRODUCTION 
+
+Referring Remote Sensing Image Segmentation (RRSIS) aims to segment specified objects in remote sensing images based on natural language expressions. It is an important cross-modal task related to the embodied perception paradigm, with broad applications in ground object recognition, urban management, and environmental monitoring. In contrast to traditional image segmentation methods, the RRSIS requires a comprehensive understanding of object attributes and geo-graphic details, which makes the task more challenging. In the literature, one of the research categories on referring remote sensing image segmentation [1]–[6] includes directly integrating textual features into visual features at intermediate layers of the visual encoder, followed by predicting the seg-mentation masks using a lightweight segmentation decoder. As shown in Fig. 1 (a), the textual features of the natural language expressions are fused with the visual features using a pixel-level attention mechanism, which guides the extraction of the target features. However, these works are sensitive to insufficient language granularity and semantic shifts [7]. To 
+
+> †
+
+Equal contribution. ∗Corresponding authors. Code available at: https://github.com/Ren-by/ICIPNet. (a) The bottleneck effect in text -image alignment for RRSIS   
+
+> T
+> Text Encoder
+> The vehicle is
+> on the upper
+> left of the
+> airplane on the
+> lower right
+> T
+> Image Encoder Fusion T
+> Segment
+> Decoder
+
+(b) The proposed Image -Conditioned Instance Prompt for RRSIS in this paper     
+
+> T
+> Text Encoder
+> The vehicle is
+> on the upper
+> left of the
+> airplane on the
+> lower right
+> T
+> Image Encoder T
+> Segment
+> Decoder
+> Fusion
+> GT Predict GT
+> GT Predict
+> T
+> BIF ICIP T
+> BIF ICIP
+
+Fig. 1. The motivation of our proposed model. Figure (a) illustrates how previous models fuse vision–language features by leveraging a fixed language distribution. Figure (b) describes the proposed ICIPNet, where the semantic prompts no longer rely on a fixed and uneven language distribution, but are influenced by the dynamic stretching and redistribution of visual content. This adaptively adjusts the semantic features across layers and enables the model to dynamically focus on key regions in remote sensing images. 
+
+address this issue, we revisit the conventional alignment ap-proach and propose to leverage semantic self-adaptation from visual contexts in the input images. As illustrated in Fig. 1 (b), ICIPNet enables the semantic prompts to be influenced by the dynamic feature distributions of the visual contents across input images, instead of relying on a fixed and uneven language distribution from the language backbone, which in turn adjusts the attention regions in the input images across intermediate layers of the image encoder, thereby ensuring semantic consistency across hierarchical levels. Conventional cross attention captures irrelevant visual patch features and language features, leading to high sensitivity to target backgrounds in the input images and high-frequency co-occurring words (e.g., ”object”, ”area”) in the natural language expressions. To address this, we propose Bilateral Information 
+
+> arXiv:2605.24532v1 [cs.CV] 23 May 2026
+
+Fusion (BIF) module to dynamically suppress attention noise between visual and language modalities and better reconstruct the encoded features. Specifically, query and key features are split to conduct separate attention operations to suppress attention noise and the feature reconstruction after the attention is conducted by another bilateral fusion strategy, which is Multi-modal Feature Reconstruction (MFR) that implicitly models and applies nonlinear transformations along the token and channel dimensions. The main contributions of this paper are summarized as follows:  
+
+> •
+
+We propose an ICIP module that learns image-conditioned instance prompts to extract flexible vision-language features varying across different input images.  
+
+> •
+
+We design a BIF module to refine the visual features of input images by capturing critical vision-language features using bilateral cross attentions and MFR.  
+
+> •
+
+We conduct extensive experiments on the RefSegRS and RRSIS-D datasets, achieving state-of-the-art (SOTA) performance. II. R ELATED WORK 
+
+A. Referring Remote Sensing Image Segmentation 
+
+Remote sensing referring image segmentation (RRSIS) fo-cuses on pixel-level localization of target objects conditioned on associated natural language expressions. Recent methods primarily concentrate on enhancing language granularity and strengthening vision–language alignment to improve segmen-tation performance [1]–[6]. Despite these advancements, ex-isting approaches still face challenges inherent to remote sensing images, including large-scale variations [8], complex background clutter, and semantic discrepancies between visual content and textual descriptions. 
+
+B. Instance-level Visual Prompt Tuning 
+
+Instance-level visual prompt tuning dynamically generates instance-specific prompts for each input image [9]–[13], aim-ing to specifically capture fine-grained features of different input images to achieve flexibility. While this approach can enhance object recognition to some extent, single-modality prompts are limited in modeling cross-modal correlations and struggle to maintain the spatial consistency of targets across multi-scale features. To address these limitations, our method is designed to overcome the modality constraints and spatial restrictions inherent in conventional prompts, enabling more flexible visual feature perception. III. M ETHODOLOGY 
+
+This section introduces the proposed ICIPNet. As shown in Fig. 2, given an input RGB image I ∈ RH×W ×3 and a natural language expression E = {ωj }Nj=1 , where H and W denote the height and width of I, respectively, ωj denotes the j-th word, and N represents the sentence length. The input natural language expressions in a batch are encoded into language feature matrix L ∈ RB×N ×C via a pre-trained BERT [14], where B is the batch size and C is the number of channels of each word embedding. Hierarchical visual feature matrix 
+
+V i ∈ RB×Pi×Ci , i ∈ { 1, 2, 3, 4} outputted from the i-th pre-trained Swin Transformer [15] (ST) layer is extracted from 
+
+I, where Pi and Ci denote the number of image patches and the number of channels, respectively. The ICIP and BIF modules perform cross-modal modeling on the visual features 
+
+V i at each ST layer to extract more discriminative multi-modal features. Finally, a lightweight segmentation decoder gener-ates pixel-level segmentation masks. Section III-A provides a detailed description of the ICIP module, while Section III-B describes the BIF module. 
+
+A. Image-Conditioned Instance Prompt 
+
+We design the Image-Conditioned Instance Prompt (ICIP) module to adaptively generate language features conditioned on the visual contexts in different input images. Specifically, we perform attention-based interaction modeling between ran-domly initialized visual prompts and image patch features and adaptively aggregate visual contexts from the input images to form context-aware instance-level visual prompts. The randomly initialized visual prompts at the i-th ST layer are placed in a matrix, which is: 
+
+T i = {ti
+
+> 1
+
+, ti
+
+> 2
+
+, . . . , tiMi } ∈ RB×Mi×D (1) where B denotes the batch size, Mi is the manually defined number of visual prompt vectors, tiMi ∈ RB×Ci is a visual prompt matrix containing B copied visual prompt vectors with 
+
+Ci channels, and Pi denotes the number of image patches at the i-th ST layer. First, we map V i from Ci to D channels via an MLP f
+
+to acquire ˆV i
+
+= f (V i) ∈ RB×Pi×D . In order to adaptively perceive the variations of target regions in the input images, we compute the similarity matrix Ai between ˆV i
+
+and T i:
+
+Ai = tanh 
+
+ ˆV i
+
+(T i)⊤
+
+∈ RB×Pi×Mi (2) where tanh() denotes the hyperbolic tangent activation func-tion. The attention weight matrix αi ∈ RB×Pi×Mi between 
+
+ˆV i
+
+and T i is then computed as: 
+
+αib,p,m = exp  Aib,p,m 
+
+PPi 
+
+> p′=1
+
+exp  Aib,p ′,m 
+
+ (3) where b ∈ {1, . . . , B } denotes the batch index, p ∈{1, . . . , P i} denotes the index of the image patch at the i-th layer, p′ ∈ { 1, . . . , P i} denotes the image patch index used for summation over all patches in the softmax computation, and 
+
+m ∈ { 1, . . . , M i} denotes the index of the learnable instance prompts at the i-th layer. Next, the image-conditioned instance prompts matrix T io ∈
+
+RB×Mi×D is preliminarily computed by residually aggregat-ing the image patch features in ˆV i
+
+according to the above attention weight matrix αi:
+
+T io = ( αi)⊤ ˆV i
+
++ T i (4) The final image-conditioned instance prompts not only perceive visual contexts in the input images, but also capture The airplane on 
+
+the right 
+
+Encoder 
+
+Layer 1 
+
+Encoder 
+
+Layer 2 
+
+Encoder 
+
+Layer 3 
+
+Encoder 
+
+Layer 4 
+
+BERT 
+
+Decoder 
+
+> output
+
+tanh 
+
+softmax 
+
+> f
+> 𝑯 𝒊
+
+Attention Fusion 
+
+> f𝑞
+> f𝑘
+> f𝑣
+> 𝑳
+> 𝑽 𝒊
+> 𝑳 𝒐
+> 𝒊
+> 𝑻 𝒊
+> C
+
++ 
+
+> +
+> C
+> dot product
+> concat
+> add
+> tunable
+> frozen
+> ICIP BIF
+> input
+> 𝑨 𝒊
+> ෡𝑽 𝒊
+> 𝑪 𝒊
+> 𝜶 𝒊
+> 𝑻 𝒐
+> 𝒊
+> Transformer
+> layer
+> Token Mixture
+
+＋
+
+> Channel Mixture
+
+＋                      
+
+> MFR
+> 𝑸 𝟏
+> 𝒊 𝑸 𝟐
+> 𝒊
+> 𝑲 𝟏
+> 𝒊 𝑲 𝟐
+> 𝒊
+> 𝑽 𝒐
+> 𝒊
+> 𝑽 𝑬
+> 𝒊
+> 𝑶 𝒊 Fig. 2. Overall pipeline of the proposed ICIPNet. Our model is based on a hierarchical language-aware visual encoding via a pre-trained Swin Transformer. At the i-th layer, the input image is encoded into the input image visual feature matrix Vi, i ∈ { 1,2,3,4}. In the Image-Conditioned Instance Prompt (ICIP) module introduced in (Sec. III-A), Viis used to adaptively generate Tio, which is then concatenated with the language features matrix L. Subsequently, the Bilateral Information Fusion module (BIF) (Sec. III-B) fuses Liowith Vito produce enhanced multimodal fused features O. Finally, a standard segmentation decoder generates the final pixel-level segmentation output.
+
+language features of E. We concatenate T io and L along the token dimension, resulting in the image-conditioned instance prompt matrix Lio = [ T io; L] ∈ RB×(Mi+N )×D that incorpo-rates both visual contextual features and language features. 
+
+B. Bilateral Information Fusion 
+
+In this section, we provide a detailed description of the BIF module, as illustrated in Fig. 2. The module first performs dynamic feature modulation between V i and Lio at the i-th ST layer. Then, the Multi-Modal Feature Reconstruction (MFR) module reconstructs the modulated features and performs semantic disentanglement. These modules enable dynamic optimization and structured aggregation of cross-modal fea-tures, providing more discriminative and robust representations for vision-language understanding in complex remote sensing scenarios. 
+
+1) Dynamic Feature Modulation: Following the work of [16], we adaptively and linearly split the projected Lio and 
+
+V i into two sets to enable the model to dynamically suppress attention noise during the bilateral cross attention operations. The bilateral attention responses of two feature sets highlight semantically significant regions, thereby enhancing the recog-nition of critical areas. First, V i and Lio are linearly projected through a set of linear layers fq , fk, and fv to acquire query, key, and value matrices Qi, Ki, and Hi:
+
+Qi = fq (V i), K i = fk(Lio), H i = fv (Lio) (5) where the shapes of Qi, K i, and H i are all B×Mi ×2D. The two matrices Qi and K i are split along the channel dimension into two sets {Qi
+
+> 1
+
+, Ki
+
+> 1
+
+} and {Qi
+
+> 2
+
+, Ki
+
+> 2
+
+}:
+
+Qi
+
+> 1
+
+, Qi 
+
+> 2
+
+= split (Qi, dim = −1) ,
+
+K i
+
+> 1
+
+, K i 
+
+> 2
+
+= split (K i, dim = −1) (6) where split (Z, dim = −1) denotes evenly dividing Z along the last dimension. To adaptively balance the contributions of different subspaces in cross-modal feature interactions, a learnable weighting coefficient λiv is introduced, which is computed via the dot product of four Gaussian initialized and learnable parameters λiq1, λik1, λiq2, and λik2, whose shapes are 1 × D:
+
+λiv = exp( λiq1 · λi ⊤ 
+
+> k1
+
+) − exp( λiq2 · λi ⊤ 
+
+> k2
+
+) + λi (7) where λiq1 and λik1 adjust the correlation of Qi 
+
+> 1
+
+and K i 
+
+> 1
+
+in the first subspace, λiq2 and λik2 adjust the correlation of Qi 
+
+> 2
+
+and 
+
+K i 
+
+> 2
+
+in the second subspace, and λi is a layer-wise dynamic bias term. The correlation matrix F i of the two subspaces is then acquired as follows: 
+
+F i = 1
+
+√Gi
+
+(Qi
+
+> 1
+
+K i ⊤ 
+
+> 1
+
+) − λv
+
+√Gi
+
+(Qi
+
+> 2
+
+K i ⊤ 
+
+> 2
+
+) (8) where Gi is the number of feature channels. Finally, the original features are weighted F i:
+
+V io = F iH i (9) 
+
+2) Bilateral Feature Reconstruction: The Bilateral Feature Reconstruction (BFR) module performs implicit modeling of feature distributions, enabling the reconstruction and aggrega-tion of feature representations. We first perform token mixture, which operates along the token dimension, to model global contextual relationships and cross-position semantic corre-lations, thereby improving the overall feature consistencies across different tokens. Then, a channel mixture operation is performed for each token to capture dependencies across channels, facilitating fine-grained feature interactions and en-hancing discriminative capacity. TABLE I RESULTS OF REFERRING IMAGE SEGMENTATION WITH DIFFERENT MODELS ON THE REF SEG RS DATASET . T HE BEST RESULTS ARE IN BOLD .Method Publication Visual Encoder Text Encoder P@0.5 P@0.6 P@0.7 P@0.8 P@0.9 mIoU oIoU Val Test Val Test Val Test Val Test Val Test Val Test Val Test RMSIN CVPR’2024 Swin-B BERT 93.04 75.45 88.40 63.73 77.26 38.14 33.87 14.14 7.42 2.97 74.06 60.23 81.58 74.64 MAFN GRSL’2025 Swin-B BERT 95.59 78.32 91.18 67.42 82.37 42.93 45.48 16.73 8.35 3.03 76.53 62.36 82.04 74.26 FIANet TGRS’2025 Swin-B BERT 94.90 78.22 92.81 68.17 84.22 40.22 47.33 18.98 9.98 3.08 77.18 62.89 82.51 74.94 RemoteSAM MM’2025 Swin-B BERT 96.29 79.20 93.97 67.20 84.69 43.53 45.71 17.45 8.35 3.14 77.31 62.90 82.69 74.77 Ours —— Swin-B BERT 96.23 82.39 93.93 73.77 87.40 57.47 51.81 22.84 9.54 4.64 78.25 66.08 83.78 76.55 
+
+TABLE II RESULTS OF REFERRING IMAGE SEGMENTATION WITH DIFFERENT MODELS ON THE RRSIS-D DATASET . T HE BEST RESULTS ARE IN BOLD .Method Publication Visual Encoder Text Encoder P@0.5 P@0.6 P@0.7 P@0.8 P@0.9 mIoU oIoU Val Test Val Test Val Test Val Test Val Test Val Test Val Test RMSIN CVPR’2024 Swin-B BERT 72.70 71.70 64.89 65.10 54.43 53.92 42.30 41.25 22.82 22.46 63.14 62.37 76.31 75.91 MAFN GRSL’2025 Swin-B BERT 74.63 73.35 67.22 67.20 56.47 56.28 43.43 42.61 24.75 23.62 64.08 63.21 77.23 76.14 FIANet TGRS’2025 Swin-B BERT 73.74 73.20 67.64 66.79 55.92 55.73 43.62 41.11 25.23 24.10 63.87 63.01 76.95 76.35 RemoteSAM MM’2025 Swin-B BERT 73.60 73.56 66.59 65.98 57.47 54.48 43.77 42.47 25.75 24.39 64.11 63.31 77.04 76.41 Ours —— Swin-B BERT 75.17 73.84 67.83 67.56 56.60 56.11 44.06 43.20 24.99 24.63 65.19 63.93 77.69 76.87 
+
+The token mixture is formulated as follows: 
+
+Oi 
+
+> TM
+
+= R2
+
+ Ptoken (R1(V io))  (10) where Ptoken denotes an MLP applied along the token di-mension and consists of two linear layers with GeLU [17] activation function inserted between them, R1 and R2 repre-sent transposing the token and channel dimensions. The token mixture output V iE is obtained via a residual connection: 
+
+V iE = V io + Oi 
+
+> TM
+
+(11) Next, the channel mixture operates along the channel di-mension of each token to adaptively integrate cross-channel information: 
+
+Oi 
+
+> CM
+
+= Pchannel (V iE ) (12) where Pchannel first increases channels of V iE and then projects it back to D channels. The final reconstructed feature matrix Oi ∈ RB×(Mi+N )×D is obtained via a residual connection: 
+
+Oi = V iE + Oi 
+
+> CM
+
+(13) 
+
+3) Training: Our model is trained using a weighted com-bination of Dice Loss and Weighted Cross-Entropy Loss: 
+
+Ltotal = (1 − λ) LCE + λ LDice , λ ∈ [0 , 1] (14) where λ is a hyperparameter controlling the relative contribu-tion of Dice Loss and Cross-Entropy Loss during training. In our experiments, λ is set to 0.1. 
+
+4) Inference: During the inference stage, all input images are uniformly resized to a resolution of 480 ×480 and fed into the model for inference. IV. E XPERIMENTS 
+
+A. Implementation Details 1) Experiment Settings: The adopted Swin Transformer is pre-trained on ImageNet-22K [18]. Our proposed ICIPNet is optimized using AdamW [19] with 40 epochs in total. The weight decay and learning rate are set to 0.01 and 
+
+3 × 10 −5. The number of channels D is set to 768. We apply a polynomial decay learning rate scheduler to gradually reduce the learning rate during training. All experiments are conducted on a single NVIDIA GeForce RTX 3090 GPU with a batch size B of 4. 
+
+2) Metrics: We evaluate the model using Overall Intersection-over-Union (oIoU), Mean Intersection-over-Union (mIoU), and Precision@X (P@X), where P@X is computed under IoU thresholds ranging from 0.5 to 0.9. 
+
+B. Comparison with State-of-the-Art RIS Methods 
+
+We conduct experiments of the proposed method and several recent RRSIS models on the validation and test sets of the RefSegRS and RRSIS-D datasets. To ensure fair comparison, we re-implemented the recent RRSIS works above, including RMSIN [1], FIANet [2], RemoteSAM [3], and MAFN [5], with the number of visual prompts Mi at the i-th ST layer equaling to 8. Table I reports performances of different works on the Ref-SegRS dataset. The evaluation results on both the validation and test sets indicate that our proposed ICIPNet outperforms other existing works on many results. On the validation set, the model surpasses the runner-up model RemoteSAM by 
+
+0.94% and 1.09% in terms of mIoU and oIoU, respectively. On the test set, our proposed model follows the same trend that exceeds the runner-up model RemoteSAM on mIoU and FIANet on oIoU by 3.18% and 1.61% , respectively. These results further demonstrate the effectiveness of our method in cross-modal feature alignment and semantic modeling. Table II reports the performances of different models on the RRSIS-D dataset. Results on both the validation and test sets indicate that our method outperforms other models on most results. On the validation set, our method improves over the runner-up models RemoteSAM on mIoU and MAFN on oIoU by 1.08% and 0.46% , respectively. On the test set, our model exceeds the runner-up model RemoteSAM in both mIoU and oIoU by 0.62% and 0.46% , respectively. These results further demonstrate the effectiveness of our method for fine-grained referring remote sensing image segmentation tasks. Expression : A vehicle is on the upper right of the airplane on the lower left 
+
+Expression : The larger windmill in middle 
+
+GT  Ours  RMSIN  FIANet  MAFN  RemoteSAM 
+
+Expression : Road Fig. 3. Qualitative results of the proposed model and other existing models across different scenarios. TABLE III ABLATION STUDY ON ICIP AND BIF MODULES . ✓ AND ✗ INDICATE WHETHER A MODULE IS INCLUDED OR NOT . T HE BEST RESULTS ARE IN BOLD .ICIP BIF P@0.5 P@0.6 P@0.7 P@0.8 P@0.9 mIoU oIoU                                 
+
+> ✗✗93.04 88.40 77.26 33.87 7.42 74.06 81.58
+> ✓✗94.90 92.34 82.60 40.84 9.28 76.27 82.97
+> ✗✓95.59 91.42 84.92 49.19 11.37 77.62 83.53
+> ✓✓96.22 93.85 87.30 51.64 9.49 78.21 83.77
+
+C. Ablation study 
+
+To systematically evaluate the effectiveness of the pivotal components in ICIPNet, we conduct a series of ablation studies on the RefSegRS validation set. The experiments implement RMSIN as the base model, and the ICIP and BIF modules are introduced individually for comparative evaluation. The number of visual prompts in the i-th ST encoder layer Mi is set to 5 in the ICIP module. The quantitative results for each model are reported in Table III. As shown in Table III, by adding the ICIP module alone, the mIoU and oIoU are increased by 2.21% and 1.39% ,respectively, which highlights the model’s enhanced ability to capture key instance-level features. With the addition of the BIF module, mIoU and oIoU are further improved by 3.56% 
+
+and 1.95% , indicating that this module can optimize feature distribution and enhance model’s perceptual capability. When the ICIP module and the BIF module are both integrated, the model achieves the best performance across most metrics, where the mIoU is rised to 4.15% and the oIoU increases 
+
+TABLE IV ABLATION STUDY OF DIFFERENT Mi IN THE ICIP MODULE ON THE 
+
+REF SEG RS TEST SET .Options P@0.5 P@0.6 P@0.7 P@0.8 P@0.9 mIoU oIoU Base Model 75.45 63.73 38.14 14.14 2.97 60.23 74.64 +ICIP ( Mi=3) 78.65 67.64 45.18 18.16 3.52 62.72 75.60 +ICIP ( Mi=5) 79.97 69.40 46.01 18.44 3.52 63.40 75.85 +ICIP ( Mi=8) 80.02 68.13 43.31 17.94 3.96 63.07 75.77 
+
+by 2.19% , demonstrating significant synergistic effects of our proposed two modules. 
+
+D. Visual Analysis 
+
+As shown in Fig. 3, our model accurately identifies targets across different scenarios, whereas baseline models exhibit broken prediction masks or noticeable deviations. 
+
+E. Effect of the number of Learnable Instance Prompts in ICIP 
+
+To investigate the effect of different numbers of visual prompts Mi in the ICIP module, we conduct a series of experiments on the RefSegRS test set. As shown in Table IV, the model consistently outperforms the RMSIN [1] baseline across all configurations, indicating that the proposed method can effectively enhance visual–text feature modeling. 
+
+F. Performance on Each Category of the RefSegRS Dataset 
+
+Table V presents fine-grained mIoU results, showing per-formance variations across ground objects; for instance, seg-menting “road marking” is relatively challenging, whereas TABLE V RESULTS ON EACH CATEGORY OF THE REF SEG RS DATASET . T HE BEST RESULTS ARE SHOWN IN BOLD .Category RMSIN MAFN FIANet RemoteSAM Ours impervious surface 82.29 81.21 82.25 79.40 82.85 
+
+low vegetation 53.66 65.23 60.18 57.67 70.31 
+
+road marking 23.28 24.07 25.12 23.51 24.86 paved road 74.94 74.22 77.91 76.00 79.00 
+
+building 89.99 90.63 91.99 89.88 92.32 
+
+sidewalk 67.85 67.27 71.60 67.05 72.94 
+
+vehicle 76.06 77.62 78.37 76.21 78.62 
+
+trailer 80.18 80.02 76.41 76.11 77.83 bikeway 63.67 65.15 65.59 62.06 67.45 
+
+truck 73.64 76.63 85.43 82.78 81.80 tree 63.17 62.77 67.83 65.77 69.07 
+
+car 75.99 76.73 77.21 74.67 78.07 
+
+van 73.86 74.54 75.59 68.79 75.89 
+
+average 69.12 70.47 71.96 69.22 73.15 
+
+segmenting “building” is comparatively easier. Our ICIPNet achieves substantially higher average and per-category mIoU than RMSIN, MAFN, FIANet, and RemoteSAM, demonstrat-ing its effectiveness in handling diverse targets. V. CONCLUSION In this paper, we propose ICIPNet for referring remote sens-ing image segmentation. Specifically, the Image-Conditioned Instance Prompt (ICIP) module generates adaptive visual prompts, allowing the model to acquire dynamic vision-language features of target instances, thereby effectively allevi-ating performance bottlenecks in cross-modal feature fusion. In addition, we design a Bilateral Information Fusion (BIF) strategy to optimize and reconstruct the cross-modal feature distribution. Our approach has been validated on two publicly available referring remote sensing datasets, RefSegRS and RRSIS-D. Future research may focus on developing more efficient visual prompt tuning methods within the embodied remote sensing perception, enabling models to acquire infor-mation through environment interaction and task-driven active exploration, thereby further enhancing their applicability in real-world scenarios. ACKNOWLEDGMENT 
+
+This work was supported by the National Natural Science Foundation of China (No. 62502387), the China Postdoctoral Science Foundation (No. BX20250486 & No. 2025M784419), the Natural Science Basic Research Program of Shaanxi (No. 2025JC-YBQN-861), the Guangdong Basic and Applied Basic Research Foundation (No. 2025A1515011465) and the Postdoctoral Science Foundation of Shaanxi Province (No. 2025BSHSDZZ105). REFERENCES [1] Sihan Liu, Yiwei Ma, Xiaoqing Zhang, Haowei Wang, Jiayi Ji, Xi-aoshuai Sun, and Rongrong Ji, “Rotated multi-scale interaction network for referring remote sensing image segmentation,” in Proceedings of the IEEE/CVF Conference on Computer Vision and Pattern Recognition ,2024, pp. 26658–26668. [2] Sen Lei, Xinyu Xiao, Tianlin Zhang, Heng-Chao Li, Zhenwei Shi, and Qing Zhu, “Exploring fine-grained image-text alignment for referring remote sensing image segmentation,” IEEE Transactions on Geoscience and Remote Sensing , 2024. [3] Liang Yao, Fan Liu, Delong Chen, Chuanyi Zhang, Yijun Wang, Ziyun Chen, Wei Xu, Shimin Di, and Yuhui Zheng, “Remotesam: Towards segment anything for earth observation,” in Proceedings of the 33rd ACM International Conference on Multimedia , 2025, pp. 3027–3036. [4] Tianxiang Zhang, Zhaokun Wen, Bo Kong, Kecheng Liu, Yisi Zhang, Peixian Zhuang, and Jiangyun Li, “Referring remote sensing image segmentation via bidirectional alignment guided joint prediction,” arXiv preprint arXiv:2502.08486 , 2025. [5] Leideng Shi and Juan Zhang, “Multimodal-aware fusion network for referring remote sensing image segmentation,” IEEE Geoscience and Remote Sensing Letters , 2025. [6] Zhenghang Yuan, Lichao Mou, Yuansheng Hua, and Xiao Xiang Zhu, “Rrsis: Referring remote sensing image segmentation,” IEEE Transac-tions on Geoscience and Remote Sensing , 2024. [7] Qingyan Zhao, Ruifang He, Jinpeng Zhang, Chang Liu, and Bo Wang, “Representation degeneration problem in prompt-based models for nat-ural language understanding,” in Proceedings of the 2024 Joint Interna-tional Conference on Computational Linguistics, Language Resources and Evaluation (LREC-COLING 2024) , Nicoletta Calzolari, Min-Yen Kan, Veronique Hoste, Alessandro Lenci, Sakriani Sakti, and Nianwen Xue, Eds., Torino, Italia, May 2024, pp. 13946–13957, ELRA and ICCL. [8] Xiaowen Ma, Rui Che, Tingfeng Hong, Mengting Ma, Ziyan Zhao, Tian Feng, and Wei Zhang, “Sacanet: Scene-aware class attention network for semantic segmentation of remote sensing images,” in 2023 IEEE International Conference on Multimedia and Expo (ICME) . IEEE, 2023, pp. 828–833. [9] Xi Xiao, Yunbei Zhang, Xingjian Li, Tianyang Wang, Xiao Wang, Yuxiang Wei, Jihun Hamm, and Min Xu, “Visual instance-aware prompt tuning,” in Proceedings of the 33rd ACM International Conference on Multimedia , 2025, pp. 2880–2889. [10] Zhihe Lu, Jiawang Bai, Xin Li, Zeyu Xiao, and Xinchao Wang, “Task-to-instance prompt learning for vision-language models at test time,” 
+
+IEEE Transactions on Image Processing , 2025. [11] Hantao Yao, Rui Zhang, Huaihai Lyu, Yongdong Zhang, and Chang-sheng Xu, “Bi-modality individual-aware prompt tuning for visual-language model,” IEEE Transactions on Pattern Analysis and Machine Intelligence , 2025. [12] Zhaozhi Xie, Bochen Guan, Weihao Jiang, Muyang Yi, Yue Ding, Hongtao Lu, and Lei Zhang, “Pa-sam: Prompt adapter sam for high-quality image segmentation,” in 2024 IEEE International Conference on Multimedia and Expo (ICME) . IEEE, 2024, pp. 1–6. [13] Kaiyang Zhou, Jingkang Yang, Chen Change Loy, and Ziwei Liu, “Conditional prompt learning for vision-language models,” in IEEE/CVF Conference on Computer Vision and Pattern Recognition (CVPR) , 2022. [14] Jacob Devlin, Ming-Wei Chang, Kenton Lee, and Kristina Toutanova, “BERT: Pre-training of deep bidirectional transformers for language understanding,” in Proceedings of the 2019 Conference of the North American Chapter of the Association for Computational Linguistics: Human Language Technologies, Volume 1 (Long and Short Papers) ,Jill Burstein, Christy Doran, and Thamar Solorio, Eds., Minneapolis, Minnesota, June 2019, pp. 4171–4186, Association for Computational Linguistics. [15] Ze Liu, Yutong Lin, Yue Cao, Han Hu, Yixuan Wei, Zheng Zhang, Stephen Lin, and Baining Guo, “Swin transformer: Hierarchical vision transformer using shifted windows,” in Proceedings of the IEEE/CVF International Conference on Computer Vision (ICCV) , 2021. [16] Tianzhu Ye, Li Dong, Yuqing Xia, Yutao Sun, Yi Zhu, Gao Huang, and Furu Wei, “Differential transformer,” in The Thirteenth International Conference on Learning Representations , 2025. [17] D Hendrycks, “Gaussian error linear units (gelus),” arXiv preprint arXiv:1606.08415 , 2016. [18] Olga Russakovsky, Jia Deng, Hao Su, Jonathan Krause, Sanjeev Satheesh, Sean Ma, Zhiheng Huang, Andrej Karpathy, Aditya Khosla, Michael Bernstein, et al., “Imagenet large scale visual recognition challenge,” International journal of computer vision , vol. 115, no. 3, pp. 211–252, 2015. [19] Ilya Loshchilov and Frank Hutter, “Decoupled weight decay regulariza-tion,” in International Conference on Learning Representations , 2019.
