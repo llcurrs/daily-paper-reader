@@ -6,32 +6,29 @@
 </div>
 
 ## 每次日报
-- 最新运行日期：2026-06-02
-- 运行时间：2026-06-02 22:06:19 UTC
+- 最新运行日期：2026-06-03
+- 运行时间：2026-06-03 21:55:51 UTC
 - 运行状态：成功
-- 本次总论文数：4
-- 精读区：2
+- 本次总论文数：3
+- 精读区：1
 - 速读区：2
 
 ### 今日简报（AI）
-今日精读2篇高分论文，速读2篇，聚焦遥感智能分析。最值得关注DarkVesselNet多模态暗船检测和CR-JEPA跨模态图像检索技术。建议深入多模态融合与自监督学习方向，提升遥感应用效能。
-- 详情：[/202606/02/README](/202606/02/README)
+今日精读RGB模型迁移至高光谱图像的张量分解方法，速读多模态信号恢复与森林生态推理两篇。重点推荐《Transfer learning RGB models to hyperspectral images》，评分8.0，张量分解技术可有效适配预训练模型。建议优先精读该文，掌握可训练张量分解的核心机制。
+- 详情：[/202606/03/README](/202606/03/README)
 
 ### 精读区论文标签
-1. [DarkVesselNet: Multi-Modal Remote Sensing and Trajectory Reasoning for Dark Vessel Detection](/202606/02/2606.00445v1-darkvesselnet-multi-modal-remote-sensing-and-trajectory-reasoning-for-dark-vessel-detection)  
+1. [Transfer learning RGB models to hyperspectral images with trainable tensor decompositions](/202606/03/2605.28331v1-transfer-learning-rgb-models-to-hyperspectral-images-with-trainable-tensor-decompositions)  
    标签：评分：8.0/10、query:multi-modal
-   evidence：融合SAR、光学和AIS多模态数据用于暗船检测
-2. [CR-JEPA: Cross-Modal Joint-Embedding Predictive Learning for Remote Sensing Image Retrieval](/202606/02/2606.00706v1-cr-jepa-cross-modal-joint-embedding-predictive-learning-for-remote-sensing-image-retrieval)  
-   标签：评分：8.0/10、query:multi-modal
-   evidence：跨模态遥感检索与融合
+   evidence：通过可训练张量分解将RGB模型迁移到高光谱图像，处理通道缺失问题
 
 ### 速读区论文标签
-1. [Deep Learning for Remote Sensing to Improve Flood Inundation Mapping](/202606/02/2606.02310v1-deep-learning-for-remote-sensing-to-improve-flood-inundation-mapping)  
+1. [Multimodal Signal Restoration with Signed Twofold Graph Learning](/202606/03/2605.26760v1-multimodal-signal-restoration-with-signed-twofold-graph-learning)  
    标签：评分：7.0/10、query:multi-modal
-   evidence：遥感云遮挡去除的扩散模型方法
-2. [Spatial Representation Learning Beyond Pixels: Unifying Raster Data and Vector Semantics for Human-Centric Geospatial Foundation Models](/202606/02/2606.02374v1-spatial-representation-learning-beyond-pixels-unifying-raster-data-and-vector-semantics-for-human-centric-geospatial-foundation-models)  
+   evidence：多模态信号恢复与图学习方法可迁移至传感器融合
+2. [ForestHG-Trace: Traceable Long-Horizon Ecological Reasoning over Large-Scale Forest Scenes](/202606/03/2605.27590v1-foresthg-trace-traceable-long-horizon-ecological-reasoning-over-large-scale-forest-scenes)  
    标签：评分：6.0/10、query:multi-modal
-   evidence：统一栅格与矢量模态用于地理空间基础模型
+   evidence：利用超图和LLM引导体对遥感场景进行多模态生态推理
 
 
 <div class="dpr-home-promo-card">
