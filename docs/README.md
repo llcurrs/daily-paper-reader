@@ -6,29 +6,29 @@
 </div>
 
 ## 每次日报
-- 最新运行日期：2026-06-03
-- 运行时间：2026-06-03 21:55:51 UTC
+- 最新运行日期：2026-06-04
+- 运行时间：2026-06-04 21:40:18 UTC
 - 运行状态：成功
 - 本次总论文数：3
 - 精读区：1
 - 速读区：2
 
 ### 今日简报（AI）
-今日精读RGB模型迁移至高光谱图像的张量分解方法，速读多模态信号恢复与森林生态推理两篇。重点推荐《Transfer learning RGB models to hyperspectral images》，评分8.0，张量分解技术可有效适配预训练模型。建议优先精读该文，掌握可训练张量分解的核心机制。
-- 详情：[/202606/03/README](/202606/03/README)
+今日推荐3篇论文，重点精读频域融合变化检测法（9.0分），辅以跨模态配准与解耦表示（各6.0分）。最值得关注FAF-CD如何通过频率感知融合解决多模态遥感数据的不完美问题。建议优先精读高分的FAF-CD论文，掌握其频域特征对齐策略。
+- 详情：[/202606/04/README](/202606/04/README)
 
 ### 精读区论文标签
-1. [Transfer learning RGB models to hyperspectral images with trainable tensor decompositions](/202606/03/2605.28331v1-transfer-learning-rgb-models-to-hyperspectral-images-with-trainable-tensor-decompositions)  
-   标签：评分：8.0/10、query:multi-modal
-   evidence：通过可训练张量分解将RGB模型迁移到高光谱图像，处理通道缺失问题
+1. [FAF-CD: Frequency-Aware Fusion for Change Detection under Imperfect Multimodal Remote Sensing](/202606/04/2606.03114v1-faf-cd-frequency-aware-fusion-for-change-detection-under-imperfect-multimodal-remote-sensing)  
+   标签：评分：9.0/10、query:multi-modal
+   evidence：处理包含模态偏移的不完美多模态观测
 
 ### 速读区论文标签
-1. [Multimodal Signal Restoration with Signed Twofold Graph Learning](/202606/03/2605.26760v1-multimodal-signal-restoration-with-signed-twofold-graph-learning)  
-   标签：评分：7.0/10、query:multi-modal
-   evidence：多模态信号恢复与图学习方法可迁移至传感器融合
-2. [ForestHG-Trace: Traceable Long-Horizon Ecological Reasoning over Large-Scale Forest Scenes](/202606/03/2605.27590v1-foresthg-trace-traceable-long-horizon-ecological-reasoning-over-large-scale-forest-scenes)  
+1. [Cross-Modality Feature Fusion Based on Structured State Space Duality for Multimodal Image Registration Network](/202606/04/2606.03341v1-cross-modality-feature-fusion-based-on-structured-state-space-duality-for-multimodal-image-registration-network)  
    标签：评分：6.0/10、query:multi-modal
-   evidence：利用超图和LLM引导体对遥感场景进行多模态生态推理
+   evidence：跨模态特征融合的多模态图像配准网络
+2. [RePercENT: Scaling Disentangled Representation Learning Beyond Two Modalities](/202606/04/2606.05109v1-repercent-scaling-disentangled-representation-learning-beyond-two-modalities)  
+   标签：评分：6.0/10、query:multi-modal
+   evidence：可扩展至超出两种模态的自我监督多模态解耦表示学习框架
 
 
 <div class="dpr-home-promo-card">
