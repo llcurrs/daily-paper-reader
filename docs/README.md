@@ -6,29 +6,29 @@
 </div>
 
 ## 每次日报
-- 最新运行日期：2026-06-04
-- 运行时间：2026-06-04 21:40:18 UTC
+- 最新运行日期：2026-06-05
+- 运行时间：2026-06-05 21:42:31 UTC
 - 运行状态：成功
 - 本次总论文数：3
 - 精读区：1
 - 速读区：2
 
 ### 今日简报（AI）
-今日推荐3篇论文，重点精读频域融合变化检测法（9.0分），辅以跨模态配准与解耦表示（各6.0分）。最值得关注FAF-CD如何通过频率感知融合解决多模态遥感数据的不完美问题。建议优先精读高分的FAF-CD论文，掌握其频域特征对齐策略。
-- 详情：[/202606/04/README](/202606/04/README)
+今日解读3篇论文，精读1篇高分论文：物理引导深度展开实现盲跨传感器光谱超分辨率。最值得关注的方向是物理先验与深度学习结合解决跨传感器问题（评分9.0）。建议下一步关注盲超分辨率中通用物理模型的学习方法。
+- 详情：[/202606/05/README](/202606/05/README)
 
 ### 精读区论文标签
-1. [FAF-CD: Frequency-Aware Fusion for Change Detection under Imperfect Multimodal Remote Sensing](/202606/04/2606.03114v1-faf-cd-frequency-aware-fusion-for-change-detection-under-imperfect-multimodal-remote-sensing)  
+1. [Physics-Guided Deep Unfolding for Blind Cross-Sensor Spectral Super-Resolution via Learning the Spectral Transformation Function](/202606/05/2606.05759v1-physics-guided-deep-unfolding-for-blind-cross-sensor-spectral-super-resolution-via-learning-the-spectral-transformation-function)  
    标签：评分：9.0/10、query:multi-modal
-   evidence：处理包含模态偏移的不完美多模态观测
+   evidence：跨传感器光谱超分辨率融合多光谱和高光谱图像
 
 ### 速读区论文标签
-1. [Cross-Modality Feature Fusion Based on Structured State Space Duality for Multimodal Image Registration Network](/202606/04/2606.03341v1-cross-modality-feature-fusion-based-on-structured-state-space-duality-for-multimodal-image-registration-network)  
+1. [MMDG-Bench: A Benchmark for Multimodal Domain Generalization](/202606/05/2606.00891v1-mmdg-bench-a-benchmark-for-multimodal-domain-generalization)  
    标签：评分：6.0/10、query:multi-modal
-   evidence：跨模态特征融合的多模态图像配准网络
-2. [RePercENT: Scaling Disentangled Representation Learning Beyond Two Modalities](/202606/04/2606.05109v1-repercent-scaling-disentangled-representation-learning-beyond-two-modalities)  
+   evidence：多模态域泛化基准，方法上与多模态融合相关
+2. [Spatial Representation Learning Beyond Pixels: Unifying Raster Data and Vector Semantics for Human-Centric Geospatial Foundation Models](/202606/05/2606.02374v1-spatial-representation-learning-beyond-pixels-unifying-raster-data-and-vector-semantics-for-human-centric-geospatial-foundation-models)  
    标签：评分：6.0/10、query:multi-modal
-   evidence：可扩展至超出两种模态的自我监督多模态解耦表示学习框架
+   evidence：统一栅格与向量模态进行地理空间表示学习
 
 
 <div class="dpr-home-promo-card">
