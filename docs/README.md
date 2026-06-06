@@ -6,29 +6,35 @@
 </div>
 
 ## 每次日报
-- 最新运行日期：2026-06-05
-- 运行时间：2026-06-05 21:42:31 UTC
+- 最新运行日期：2026-06-06
+- 运行时间：2026-06-06 21:09:58 UTC
 - 运行状态：成功
-- 本次总论文数：3
-- 精读区：1
-- 速读区：2
+- 本次总论文数：4
+- 精读区：0
+- 速读区：4
 
 ### 今日简报（AI）
-今日解读3篇论文，精读1篇高分论文：物理引导深度展开实现盲跨传感器光谱超分辨率。最值得关注的方向是物理先验与深度学习结合解决跨传感器问题（评分9.0）。建议下一步关注盲超分辨率中通用物理模型的学习方法。
-- 详情：[/202606/05/README](/202606/05/README)
+今天速读了3篇论文，涉及多模态学习、城市绿地提取和图像表格分类，其中两篇评分7.0。  
+最值得关注的两项工作：多模态融合中特征对齐决定融合策略的对比研究，以及NDVI引导的全局记忆库Transformer用于城市绿地提取。  
+下一步建议精读这两篇高分论文，重点理解其方法设计并尝试复现关键实验。
+- 详情：[/202606/06/README](/202606/06/README)
 
 ### 精读区论文标签
-1. [Physics-Guided Deep Unfolding for Blind Cross-Sensor Spectral Super-Resolution via Learning the Spectral Transformation Function](/202606/05/2606.05759v1-physics-guided-deep-unfolding-for-blind-cross-sensor-spectral-super-resolution-via-learning-the-spectral-transformation-function)  
-   标签：评分：9.0/10、query:multi-modal
-   evidence：跨传感器光谱超分辨率融合多光谱和高光谱图像
+- 本次无精读推荐。
 
 ### 速读区论文标签
-1. [MMDG-Bench: A Benchmark for Multimodal Domain Generalization](/202606/05/2606.00891v1-mmdg-bench-a-benchmark-for-multimodal-domain-generalization)  
+1. [Feature Alignment Determines Fusion Strategy: A Comparative Study of Cross-Attention and Concatenation in Multimodal Learning](/202606/06/2606.01207v1-feature-alignment-determines-fusion-strategy-a-comparative-study-of-cross-attention-and-concatenation-in-multimodal-learning)  
+   标签：评分：7.0/10、query:multi-modal
+   evidence：多模态学习中跨注意力和拼接融合策略的比较研究，为多模态遥感融合提供了可迁移的方法论见解
+2. [GMBFormer: An NDVI-Guided Global Memory Bank Transformer for Urban Green-Space Extraction from Ultra-High-Resolution Imagery](/202606/06/2606.06363v1-gmbformer-an-ndvi-guided-global-memory-bank-transformer-for-urban-green-space-extraction-from-ultra-high-resolution-imagery)  
+   标签：评分：7.0/10、query:multi-modal
+   evidence：融合RGB和NDVI进行城市绿地提取
+3. [Disentangled Fine-Grained Prototype Learning for Incomplete Image-Tabular Classification](/202606/06/2606.05455v1-disentangled-fine-grained-prototype-learning-for-incomplete-image-tabular-classification)  
    标签：评分：6.0/10、query:multi-modal
-   evidence：多模态域泛化基准，方法上与多模态融合相关
-2. [Spatial Representation Learning Beyond Pixels: Unifying Raster Data and Vector Semantics for Human-Centric Geospatial Foundation Models](/202606/05/2606.02374v1-spatial-representation-learning-beyond-pixels-unifying-raster-data-and-vector-semantics-for-human-centric-geospatial-foundation-models)  
+   evidence：处理图像与表格数据中的缺失模态问题
+4. [BMCR: Adaptive Backbone Module Composition via Reinforcement Learning for Remote Sensing Object Detection](/202606/06/2606.05586v1-bmcr-adaptive-backbone-module-composition-via-reinforcement-learning-for-remote-sensing-object-detection)  
    标签：评分：6.0/10、query:multi-modal
-   evidence：统一栅格与向量模态进行地理空间表示学习
+   evidence：自适应融合CNN和ViT骨干用于遥感目标检测
 
 
 <div class="dpr-home-promo-card">
