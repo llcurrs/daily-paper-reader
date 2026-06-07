@@ -6,35 +6,31 @@
 </div>
 
 ## 每次日报
-- 最新运行日期：2026-06-06
-- 运行时间：2026-06-06 21:09:58 UTC
+- 最新运行日期：2026-06-07
+- 运行时间：2026-06-07 21:08:57 UTC
 - 运行状态：成功
-- 本次总论文数：4
-- 精读区：0
-- 速读区：4
+- 本次总论文数：3
+- 精读区：1
+- 速读区：2
 
 ### 今日简报（AI）
-今天速读了3篇论文，涉及多模态学习、城市绿地提取和图像表格分类，其中两篇评分7.0。  
-最值得关注的两项工作：多模态融合中特征对齐决定融合策略的对比研究，以及NDVI引导的全局记忆库Transformer用于城市绿地提取。  
-下一步建议精读这两篇高分论文，重点理解其方法设计并尝试复现关键实验。
-- 详情：[/202606/06/README](/202606/06/README)
+今日精读高分对比学习动态多模态融合模型，兼读地理空间基础模型与多模态交互新架构。  
+最值得关注CL-DMDF的对比学习融合策略，以及时空表征学习从像素到矢量语义的突破。  
+建议优先精读CL-DMDF获取实用方法，速读另两篇拓展多模态与地理空间建模视野。
+- 详情：[/202606/07/README](/202606/07/README)
 
 ### 精读区论文标签
-- 本次无精读推荐。
+1. [CL-DMDF:Dynamic Multimodal Data Fusion Model Based on Contrastive Learning](/202606/07/2606.02659v1-cl-dmdfdynamic-multimodal-data-fusion-model-based-on-contrastive-learning)  
+   标签：评分：9.0/10、query:multi-modal
+   evidence：动态多模态融合并处理缺失模态
 
 ### 速读区论文标签
-1. [Feature Alignment Determines Fusion Strategy: A Comparative Study of Cross-Attention and Concatenation in Multimodal Learning](/202606/06/2606.01207v1-feature-alignment-determines-fusion-strategy-a-comparative-study-of-cross-attention-and-concatenation-in-multimodal-learning)  
-   标签：评分：7.0/10、query:multi-modal
-   evidence：多模态学习中跨注意力和拼接融合策略的比较研究，为多模态遥感融合提供了可迁移的方法论见解
-2. [GMBFormer: An NDVI-Guided Global Memory Bank Transformer for Urban Green-Space Extraction from Ultra-High-Resolution Imagery](/202606/06/2606.06363v1-gmbformer-an-ndvi-guided-global-memory-bank-transformer-for-urban-green-space-extraction-from-ultra-high-resolution-imagery)  
-   标签：评分：7.0/10、query:multi-modal
-   evidence：融合RGB和NDVI进行城市绿地提取
-3. [Disentangled Fine-Grained Prototype Learning for Incomplete Image-Tabular Classification](/202606/06/2606.05455v1-disentangled-fine-grained-prototype-learning-for-incomplete-image-tabular-classification)  
+1. [Spatial Representation Learning Beyond Pixels: Unifying Raster Data and Vector Semantics for Human-Centric Geospatial Foundation Models](/202606/07/2606.02374v1-spatial-representation-learning-beyond-pixels-unifying-raster-data-and-vector-semantics-for-human-centric-geospatial-foundation-models)  
    标签：评分：6.0/10、query:multi-modal
-   evidence：处理图像与表格数据中的缺失模态问题
-4. [BMCR: Adaptive Backbone Module Composition via Reinforcement Learning for Remote Sensing Object Detection](/202606/06/2606.05586v1-bmcr-adaptive-backbone-module-composition-via-reinforcement-learning-for-remote-sensing-object-detection)  
+   evidence：统一遥感栅格数据与矢量化语义，对多模态遥感融合有借鉴意义
+2. [GRAMformer: Any-Order Modality Interactions via Volumetric Multimodal Cross-Attention](/202606/07/2606.06249v1-gramformer-any-order-modality-interactions-via-volumetric-multimodal-cross-attention)  
    标签：评分：6.0/10、query:multi-modal
-   evidence：自适应融合CNN和ViT骨干用于遥感目标检测
+   evidence：体素多模态交叉注意力支持任意阶交互
 
 
 <div class="dpr-home-promo-card">
