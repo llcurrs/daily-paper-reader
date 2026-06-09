@@ -1,0 +1,1557 @@
+Title: PRISM: Topology-Aware Cross-Modal Imputation for Modality-Deficient Federated Graph Learning
+
+URL Source: https://arxiv.org/pdf/2606.09301v1
+
+Published Time: Tue, 09 Jun 2026 02:02:48 GMT
+
+Number of Pages: 12
+
+Markdown Content:
+> 1
+
+# PRISM: Topology-Aware Cross-Modal Imputation for Modality-Deficient Federated Graph Learning 
+
+Zekai Chen, Miao Zhang, Jiayang Xing, Xunkai Li, Xun Wu, Rong-Hua Li , Guoren Wang 
+
+Abstract —Multimodal federated graph learning (MM-FGL) aims to collaboratively learn from decentralized graphs with text and images. However, real-world clients may not share a common modality basis: a visual-search client may contain image– interaction graphs but no seller descriptions, while a catalog client may provide text but no product images. We refer to this practical setting as client-level modality deficiency. Unlike random instance-wise missingness, a deficient client lacks the local semantic basis needed to reconstruct the absent modality. More importantly, in graph learning, incomplete representations initialize message passing, so imputation errors can be filtered, mixed, and amplified by the receiving topology. To address this gap, we propose PRISM (Proactive Retrieval and Imputation via Structural Meta-prompting), a topology-aware federated cross-modal imputation framework. Rather than reconstructing the missing modality solely from local observations, PRISM recovers missing-modality semantics from the federation and introduces them into local graph propagation under topology-aware control. Experiments on six multimodal graph datasets across graph-centric and modality-centric tasks show that PRISM consistently improves modality-deficient clients, outperforming state-of-the-art baselines by 4.48% on average. 
+
+Index Terms —Multimodal federated graph learning, modality deficiency, cross-modal imputation, graph neural networks. 
+
+I. I NTRODUCTION 
+
+# GRAPH-structured data are increasingly generated and stored in modern communication systems, including smartphone-based mobile social networks [1], [2], IoT sensing networks with spatial-temporal correlations [3], [4], V2X cooperative perception systems [5], [6], and wearable sensor networks for human activity understanding [7]. Many of these applications are naturally multimodal, where users, devices, items, images, text, tags, and interactions are jointly organized as decentralized multimodal graphs [8], [9]. Centralized mining of such data can enhance intelligent communication services, but it is often impractical because raw graph data are distributed across mobile or edge clients and are constrained by privacy risks, limited bandwidth, and wireless transmission costs. Fed-erated graph learning (FGL) has therefore attracted increasing attention as a secure and communication-efficient paradigm for collaborative GNN training without exposing private nodes, edges, or attributes [10], [11]. Multimodal federated graph learning (MM-FGL) further aims to exploit both graph structure and cross-modal semantics across distributed communication environments while preserving raw-data locality.                      
+
+> Zekai Chen, Miao Zhang, Jiayang Xing, Xunkai Li, Xun Wu, Rong-Hua Li, Guoren Wang are with Beijing Institute of Technology, Beijing, 100081, China.(e-mail:zackchen02@163.com; 1120243383@bit.edu.cn;cs2024xjy@bit.edu.cn;cs.xunkai.li@gmail.com; alicewu0624@gmail.com;lironghuabit@126.com; wanggrbit@gmail.com)
+> Fig. 1. Client-level modality deficiency and its federation-wide impact.
+> Left: clients may observe different modality channels, and some clients may permanently lack specific modalities. Right: a diagnostic example on the Toys node-classification task compares the same clients under full-modality and missing-modality settings. Missing modalities cause larger degradation on deficient clients, while modality-complete clients can also be affected through shared federated training. This indicates that client-level modality deficiency is a federation-wide challenge rather than a purely local missing-feature issue.
+
+As illustrated in Fig. 1, real-world MM-FGL may violate the common-modality assumption implicitly adopted by most existing studies. Different mobile or edge clients may observe different modality channels due to heterogeneous sensing devices, platform-specific data-collection pipelines, licensing constraints, or intermittent modality availability. The diagnostic example in Fig. 1 shows that this mismatch is not merely a local missing-feature issue. When some clients permanently lose an entire modality channel, their own performance drops substantially, and even modality-complete clients can be affected through shared federated training. This suggests that client-level modality deficiency can induce federation-wide performance degradation. This modality deficiency introduces two coupled challenges. From the federated perspective, a deficient client lacks the local semantic basis of an entire modality and cannot recover it from its own observations alone. Moreover, because clients are coupled through shared model updates and cross-client semantic aggregation, modality-deficient clients may also affect the learned representation space of modality-complete clients. Since raw node attributes, missing-modality samples, and private edges cannot be exchanged across clients, the absent modality must be recovered only through privacy-preserving cross-client evidence. From the graph perspective, however, borrowing external semantics is risky. Unlike independent samples, where semantic incompleteness mainly affects the corresponding instance, node representations in a GNN serve as the initial conditions of neighborhood propagation. Once unreliable or incomplete representations enter the graph, their influence can be transmitted, mixed, and even amplified by local topology. In particular, an erroneous semantic cue attached to a structurally central node may affect a broad neighborhood after only a few propagation layers. We term this graph-specific failure mode a semantic boundary error . In Sec. III, we verify this phenomenon through empirical study. 
+
+> arXiv:2606.09301v1 [cs.LG] 8 Jun 2026 2
+
+These two challenges also explain why existing paradigms remain insufficient. On the one hand, multimodal graph com-pletion and masked graph reconstruction are structurally aware but semantically under-sourced [12]–[14]. They can exploit local topology to infer hidden information already supported by the observed feature space, but they cannot synthesize a modality basis that never appears locally. On the other hand, federated missing-modality learning is semantically informed but structurally uncontrolled [15]–[18]. Prototype sharing, cross-modal aggregation, and prompt-based adaptation can transfer useful semantics across clients, but they typically treat imputation as an instance-level supplement and do not control how the recovered semantics propagate through graph topology. Robust MM-FGL therefore requires a unified mechanism that can both obtain missing-modality semantics and regulate their topology-dependent influence in the receiving graph. How can a graph client borrow a missing modality from the federation without propagating the wrong semantics through its topology? We answer this question with PRISM (Proactive 
+
+Retrieval and Imputation via Structural Meta-prompting), a topology-aware federated cross-modal imputation framework built on the principle of retrieve globally, inject structurally. PRISM separates where missing semantics come from from how they enter graph propagation . Specifically, it obtains missing-modality semantics from cross-client multimodal evidence, converts them into graph-compatible auxiliary signals, and adaptively regulates their influence according to the receiving client’s topology and retrieval reliability. In this way, PRISM supplies the missing semantic basis while preventing unreliable semantics from being propagated uncontrollably during local message passing. 
+
+Our Contributions. (1) Problem Identification. We iden-tify client-level modality deficiency as a distinct MM-FGL setting, where a client permanently lacks an entire modal-ity. We further empirically reveal its graph-specific conse-quence, termed semantic boundary error . (2) New Framework. 
+
+We propose PRISM , a federated cross-modal imputation framework following the principle of retrieve globally, inject structurally. PRISM obtains missing-modality semantics from cross-client multimodal evidence, converts them into graph-compatible auxiliary signals, and regulates their influence according to the receiving client’s topology and retrieval reliability. (3) SOTA Performance. Experiments on six multi-modal graph datasets across three tasks show that PRISM improves performance by 12.24 % under missing-modality task settings, demonstrating its robustness under client-level modality deficiency. II. P RELIMINARIES AND RELATED WORK 
+
+A. Problem Formulation 
+
+Multimodal Federated Graph Learning. We consider a multimodal federated graph learning (MM-FGL) system with K
+
+clients. Client k privately holds a subgraph Gk = ( Vk, Ek, Ak),where nk = |V k| and Ak is the local adjacency matrix. Let 
+
+M denote the global modality set, such as image and text. In the full-modality setting, every node v ∈ V k is associated with features {x(m) 
+
+> v
+
+}m∈M . Under client-level modality deficiency ,client k observes only Mk ⊆ M and lacks access to ¯Mk =
+
+M\M k. Unlike random entry-wise missingness, this deficiency removes an entire modality basis from the client’s local training signal. Given the available modalities, a local multimodal encoder produces node representations 
+
+x(0)  
+
+> v
+
+= fk
+
+
+
+{x(m) 
+
+> v
+
+}m∈M k
+
+
+
+∈ Rd, X(0)  
+
+> k
+
+=
+
+h
+
+x(0) 
+
+> v
+
+i
+
+> v∈V k
+
+. (1) A GNN then propagates these features over the private graph. We first define the normalized propagation matrix as 
+
+˜Ak = D−1/2 
+
+> k
+
+(Ak + I)D−1/2 
+
+> k
+
+. (2) The layer-wise message-passing update is 
+
+H(ℓ+1)  
+
+> k
+
+= σ
+
+ ˜AkH(ℓ) 
+
+> k
+
+W(ℓ)nbr + H(ℓ) 
+
+> k
+
+W(ℓ)self 
+
+
+
+. (3) The learning objective is to optimize shared parameters Θ and client-adaptive components {Ωk}Kk=1 without exchanging raw node attributes, missing-modality samples, or private edges: 
+
+min  
+
+> Θ,{Ωk}Kk=1
+> K
+
+X
+
+> k=1
+
+nk
+
+PKj=1 nj
+
+Lk
+
+
+
+gΘ,Ωk (Gk, {x(m) 
+
+> v
+
+}m∈M k )
+
+
+
+. (4) 
+
+MM-FGL under Modality Deficiency. Under client-level modality deficiency, different clients participate in the same MM-FGL objective with different observable modality subsets. A full-modality client initializes node representations from the complete modality set M, whereas a deficient client can only use Mk and permanently lacks the semantic basis in ¯Mk. This setting is different from instance-wise missingness, because the missing modality is unavailable at the client level rather than absent for only a subset of nodes. Thus, modality-deficient MM-FGL requires recovering useful missing-modality semantics from cross-client evidence while preserving raw-data locality and avoiding uncontrolled propagation through the local graph. 
+
+B. Related Work 
+
+Multimodal Graph Learning. Multimodal graph learning integrates graph topology with multimodal node attributes.. Existing methods typically design modality-aware propagation, heterogeneous attention, multi-graph interaction, or multimodal fusion mechanisms to improve graph-centric and modality-centric tasks [8], [13], [14]. These approaches provide useful architectures for modeling modality–topology interactions, but they generally assume centralized access to the graph or, at minimum, that each learner possesses a comparable modality basis. 
+
+Federated Graph Learning. Federated graph learning extends FL to decentralized graph data while preserving the locality of nodes, edges, and attributes [10], [11]. Existing studies have explored a broad range of graph-specific chal-lenges, including structural heterogeneity, personalized collab-oration, and communication-efficient knowledge transfer [19]– [23]. However, most FGL methods treat node attributes as unimodal features. They therefore do not address modality-level deficiency, where a client entirely lacks one semantic channel and has no local basis from which that modality can be reconstructed. 3
+
+Federated Multimodal and Missing-modality Learning. 
+
+Federated multimodal learning studies collaboration when clients own heterogeneous or partially observed modalities, using prototype sharing, cross-modal aggregation, prompt-based adaptation, or personalized bypasses [15]–[18]. However, most methods treat recovered semantics as node-wise feature supplements, overlooking that once injected into a GNN, they may propagate and contaminate neighboring representations. PRISM addresses this missing interface by retrieving sparse cross-modal prototypes from the federation and injecting them as topology-regulated virtual anchors, rather than as unrestricted feature additions. III. EMPIRICAL STUDY Before introducing PRISM, we first examine a fundamental question: what exactly fails when client-level modality defi-ciency enters graph propagation? Our central hypothesis is that, unlike instance-wise missing features, client-level modality deficiency induces a semantic boundary error . A graph client starts message passing from an incomplete semantic basis, and the resulting error is filtered, redistributed, or amplified by the receiving topology. We investigate this mechanism through three progressive questions: Q1 : Does the same imputation error spread differently across client topologies? Q2 : Are structurally central nodes more hazardous entry points for incorrect external semantics? Q3 : Can topology-conditioned gating suppress the contamination caused by ambiguous imputation? 
+
+A. Topology-Dependent Error Spreading (Q1) 
+
+We first examine whether an identical modality-induced per-turbation evolves differently across diverse graph structures. For each dataset (Toys, KU, and QB), we construct full-modality node representations and then remove one modality from designated deficient clients (simulating Image-only and Text-only settings). This yields an observed deficient representation 
+
+X(0)  
+
+> k
+
+and a full-modality reference X∗ 
+
+> k
+
+for client k. We define the initial semantic error as ∆k = X(0)  
+
+> k
+
+− X∗ 
+
+> k
+
+, and quantify its propagated magnitude after L linearized message-passing steps by: 
+
+R(L) 
+
+> k
+
+= ∥SLk ∆k∥F
+
+∥∆k∥F
+
+. (5) where Sk denotes the normalized propagation operator of client 
+
+k. A larger R(L) 
+
+> k
+
+indicates error amplification, while a smaller value reflects attenuation. As shown in Fig. 2(a-c), across clients, the same modality-induced perturbation produces substantially different propa-gated error ratios. Dense or highly homophilous client graphs tend to preserve and diffuse the error more strongly, reaching approximately 1.42–1.58 times the initial error scale ( R(2)  
+
+> k
+
+> 1). Conversely, sparse or structurally fragmented subgraphs show lower average ratios (around 0.91–1.07) but exhibit noticeably larger variance, as a few bridge-like edges can still transmit the perturbation. Furthermore, as shown in Fig. 2(d-e), R(2)  
+
+> k
+
+is highly correlated with structural metrics such as average degree (ρ = 1 .00 ) and homophily ( ρ = 0 .98 ). These results confirm that missing modalities are not merely local feature gaps; once C1 C2 C3 C4 C5                          
+
+> Client (Sorted by degree)
+> 0.75
+> 1.00
+> 1.25
+> 1.50
+> 1.75
+> R (2)
+> k
+> aToys
+> C1 C2 C3 C4 C5
+> Client (Sorted by degree)
+> 0.75
+> 1.00
+> 1.25
+> 1.50
+> 1.75
+> bKU
+> C1 C2 C3 C4 C5
+> Client (Sorted by degree)
+> 0.75
+> 1.00
+> 1.25
+> 1.50
+> 1.75
+> cQB
+> 510
+> Average degree
+> 0.75
+> 1.00
+> 1.25
+> 1.50
+> 1.75
+> R (2)
+> k
+> ρ=1.00
+> d
+> 0.4 0.6 0.8
+> Homophily
+> 0.75
+> 1.00
+> 1.25
+> 1.50
+> 1.75 ρ=0.97
+> e
+> 0123
+> Propagation step L
+> 1.00
+> 1.25
+> 1.50
+> 1.75
+> Mean  R (L)
+> k
+> f
+> Sparse Mixed Dense Toys KU QB No amplification
+
+Fig. 2. Topology-dependent error spreading. (a-c) Propagated error ratio R(2) 
+
+> k
+
+across different client subgraphs on Toys, KU, and QB datasets. (d-f) Strong correlations between the propagated error ratio and structural statistics (Average Degree and Homophily), as well as the progression across propagation steps 
+
+L.1-hop 2-hop           
+
+> 0.25
+> 0.50
+> 0.75
+> 1.00
+> Contamination  aToys
+> 1-hop 2-hop
+> 0.25
+> 0.50
+> 0.75
+> 1.00
+> bKU
+> 1-hop 2-hop
+> 0.25
+> 0.50
+> 0.75
+> 1.00
+> cQB
+> 1.0 1.5 2.0
+> Central / Peripheral
+> Toys
+> KU
+> QB
+> 1.79×
+> 1.80×
+> 1.74×
+> d
+> Consistent 2-hop
+> risk amplification
+> Peripheral Central Equal risk (1.0×) Risk threshold (1.5×)
+
+Fig. 3. Central vs. Peripheral semantic injection risks. (a-c) Contamination scores for 1-hop and 2-hop neighborhoods when errors are injected into Top-20% central versus Bottom-20% peripheral nodes. (d) The 2-hop Cen-tral/Peripheral contamination ratio consistently exceeds 1.5 × across datasets. 
+
+propagation begins, their downstream impact becomes highly topology-dependent. 
+
+B. Structure-Sensitive Injection Risk (Q2) 
+
+We next ask whether the harm of incorrect semantic injection depends on where the error enters the graph. To isolate the effect of structural position, we inject a controlled semantic perturbation δ into selected nodes and measure the resulting representation shift on their h-hop neighborhoods. We define the h-hop neighbor contamination score for an injected node set A as: 
+
+Contam (h)(A) = 1
+
+|N h(A)|
+
+X
+
+> u∈N h(A)
+
+∥Hpert  
+
+> u
+
+− Hclean  
+
+> u
+
+∥2
+
+∥δ∥2
+
+.
+
+(6) and compare the Top-20% most central nodes (via PageRank) against the Bottom-20% peripheral nodes. As illustrated in Fig. 3, injecting the same wrong semantic vector into structurally central nodes causes markedly larger neighborhood contamination than injecting it into peripheral nodes. This effect becomes especially pronounced after two propagation steps, where errors introduced near hubs influence a much larger portion of the local subgraph. The two-hop contamination ratio approaches 1.8 × across datasets (Fig. 3d). This indicates that the risk of semantic imputation in MM-FGL depends not only on whether the retrieved semantics are accurate, but also on how structurally influential their injection locations are. 
+
+C. Topology-Conditioned Gating Control (Q3) 
+
+Finally, we examine whether controlling the propagation strength of retrieved semantics can mitigate the aforemen-4Fixed Conf. Topo              
+
+> 0.45
+> 0.60
+> 0.75
+> Contamination
+> aLow-margin, 1-hop
+> Fixed Conf. Topo
+> 0.6
+> 0.8
+> 1.0
+> 1.2
+> Contamination
+> bLow-margin, 2-hop
+> Fixed Conf. Topo
+> 0.32
+> 0.38
+> 0.44
+> RecoveryGain
+> cHigh-margin recovery
+> Fixed Conf.-only Topo-gate Toys KU QB
+> Fig. 4. Effectiveness of topology-conditioned gating. (a-b) Under low-margin (ambiguous) retrieval, topology-conditioned gating significantly reduces 1-hop and 2-hop contamination compared to fixed injection. (c) Under high-margin retrieval, the gate preserves the recovery gain (RecoveryGain), ensuring semantic recovery without structural risk.
+
+tioned risk. We divide server-side retrievals into low-margin (ambiguous) and high-margin (confident) groups, comparing fixed-strength injection against confidence-only and topology-conditioned gating strategies. As shown in Fig. 4, fixed injection severely amplifies con-tamination when retrieval confidence is low. By contrast, under low-margin retrievals, topology-conditioned gating substantially reduces one-hop and two-hop contamination (by 23.6% and 31.4%, respectively) compared with fixed-strength injection. Importantly, Fig. 4(c) demonstrates that the gate preserves most of the recovery benefit (measured by RecoveryGain) under high-margin retrievals. Taken together, these findings show that robust cross-modal imputation in federated graphs requires more than importing external semantics: it must also regulate their propagation budget according to both retrieval reliability and the structural properties of the receiving graph. This establishes the core de-sign principle of PRISM: retrieve globally, inject structurally .IV. M ETHODOLOGY 
+
+A. Overview 
+
+PRISM follows the principle retrieve globally, inject struc-turally . As illustrated in Fig. 5, PRISM addresses these two requirements through three coupled components in each communication round: a server-side Global Modality Bank that stores multimodal prototype keys and values, sparse prototype retrieval driven by the client’s surviving modalities, and virtual-anchor injection into local message passing. A structural meta-prompt derived from lightweight spectral and motif statistics further adapts both the retrieval projection and the anchor-injection gate, enabling PRISM to borrow missing semantics while controlling their graph-level influence. We detail these components in Secs. IV-B–IV-F. 
+
+B. Global Modality Bank 
+
+Motivation. A modality-deficient client cannot reconstruct an absent modality from local topology alone, because the corresponding semantic basis may never appear in its training data. PRISM therefore moves the source of missing semantics from local reconstruction to federated retrieval: the server maintains a compact global bank that accumulates cross-client multimodal evidence without exchanging raw nodes, edges, or modality samples. 
+
+Federated semantic basis. We assume that at least a subset of clients observe paired multimodal evidence, allowing the server-side bank to form an aligned semantic basis. If the federation contains no evidence for a missing modality, PRISM 
+
+Algorithm 1 Overview of PRISM 
+
+Require: Clients {G k}Kk=1 , global bank size J, warm-up rounds Tw.
+
+Ensure: Global parameters Θ, Φ and modality bank P. 
+
+> 1:
+
+Initialize Θ(0) , Φ(0) and P(0) by Eq. (7).  
+
+> 2:
+
+for each communication round t = 0 , . . . , T − 1 do  
+
+> 3:
+
+for each client k in parallel do  
+
+> 4:
+
+if t < T w then  
+
+> 5:
+
+Train local GNN without anchor injection.  
+
+> 6:
+
+else  
+
+> 7:
+
+Compute structural descriptor zk and projection 
+
+Pk by Eqs. (11)–(12).  
+
+> 8:
+
+if client k is modality-deficient then  
+
+> 9:
+
+Form cluster queries by Eq. (9) and retrieve top-s
+
+prototypes by Eq. (10).  
+
+> 10:
+
+Construct virtual anchors and confidence gate by Eqs. (13)–(14).  
+
+> 11:
+
+Perform anchor-augmented message passing by Eq. (15).  
+
+> 12:
+
+else  
+
+> 13:
+
+Perform standard full-modality message passing.  
+
+> 14:
+
+end if  
+
+> 15:
+
+end if  
+
+> 16:
+
+Optimize by Eqs. (16)–(18) and upload updates.  
+
+> 17:
+
+end for  
+
+> 18:
+
+Server refreshes P by Eq. (8) and aggregates Θ, Φ by Eq. (19).  
+
+> 19:
+
+end for 
+
+cannot synthesize that modality from nothing and reduces to topology-aware regularization without cross-modal recovery. The server maintains J multimodal prototypes 
+
+P = {pj }Jj=1 , pj =  {k(m) 
+
+> j
+
+}m∈M , p (v)
+
+> j
+
+. (7) where k(m) 
+
+> j
+
+∈ Rdq is the retrieval key for modality m, and 
+
+p(v) 
+
+> j
+
+∈ Rd is the prototype value used as semantic content. This key–value design separates semantic indexing from content transfer: compact keys support retrieval, while dense values are transmitted only for selected prototypes. 
+
+Prototype update. At initialization, the server builds the bank from normalized cluster centroids uploaded by warm-up clients. In later rounds, each participating client forms candidate updates from clusters whose assignment confidence exceeds a threshold ξ. A deficient client only updates keys for modalities it observes, whereas a full-modal client contributes aligned mul-timodal key–value pairs. The server matches each candidate to its nearest prototype key by cosine similarity; unmatched high-confidence candidates refresh low-usage prototypes. Matched updates are aggregated by client-size-weighted averaging and smoothed with exponential moving average: 
+
+p(t+1)  
+
+> j
+
+← βgp(t) 
+
+> j
+
++ (1 − βg)˜ p(t) 
+
+> j
+
+. (8) where ˜p(t) 
+
+> j
+
+is the aggregated prototype update at round t.Only prototype-level summaries are exchanged, preserving the standard raw-data locality boundary of federated learning. Clients do not transmit raw node attributes, missing-modality samples, or private edges. Prototype summaries may still leak 5Client C   
+
+> 1
+> 23
+> Full MAG B
+
+## ...   
+
+> Local Prototype
+> Client B
+> 1
+> 23
+> Full MAG C
+
+## ...    
+
+> Local Prototype
+> Proactive
+> Retrieval
+> Structual
+> Imputer 1
+> 23
+> ？
+> ？
+> Incomplete MAG
+> 1
+> 23
+> ？
+> ？
+> 4
+> Repaired MAG
+> Client A (Missing Modal Client)
+> Upload Download
+> Server
+> Prototype
+> Aggregation
+> Global Modality Bank
+> Cat
+> Dog
+> Duck
+
+## ... 
+
+> ...
+> ...
+> ...
+
+## ...    
+
+> Proactive Retrieval
+> 3？Text/Image
+> Encoder 1？
+> Global
+> Modality Bank
+> Query
+> Vector
+> Frozen Encoder Retrieval Nodes
+
++     
+
+> Retrieved Modality Client
+> Structual Imputer
+> 1
+> 23
+> Local MAG Topology Extraction
+> 1
+> Topology Signature
+> Down
+> load
+> Meta-Prompting
+> Generator 4
+> Imputed Node
+> 1
+> 23
+> 4
+> Repaired MAG
+> ？
+> ？
+> Server
+> GNN Up
+> load
+> Train
+> Client C
+> Fig. 5. Overview of PRISM. A modality-deficient client summarizes its surviving-modality graph into semantic queries, retrieves sparse prototypes from the server-side modality bank, instantiates them as virtual anchors, and injects them through a topology-conditioned gate during local message passing.
+
+aggregate information under strong adversaries; formal privacy guarantees can be incorporated through secure aggregation, norm clipping, or differential privacy, which are orthogonal to PRISM’s retrieval-and-injection design. 
+
+Training procedure. Each communication round follows four steps: (1) selected clients update local encoders and form confidence-filtered cluster summaries; (2) the server refreshes the modality bank through nearest-prototype matching and EMA smoothing; (3) modality-deficient clients retrieve top-s prototypes using the topology-conditioned metric; and (4) clients perform anchor-augmented local training before federated averaging. The exchanged payload consists of cluster-level keys and selected prototype values rather than node-level representations. 
+
+C. Proactive Cross-Modal Retrieval 
+
+Motivation. The global bank provides a federation-level modality basis, but a deficient client must still identify which external semantics are relevant to its own graph. Direct node-level retrieval is both noisy and communication-intensive. PRISM therefore performs cluster-level retrieval using the client’s surviving modality, yielding compact and more stable semantic queries. 
+
+Querying with the surviving modality. Client k first computes stable node representations ¯hv with a momentum encoder. To reduce retrieval noise and communication cost, nodes are grouped into C local semantic clusters {C r }Cr=1 . For an available modality m ∈ M k, each cluster is summarized and projected into the retrieval space as 
+
+q(m) 
+
+> r
+
+= 1
+
+|C r |
+
+X
+
+> v∈C r
+
+¯hv
+
+!
+
+W(m) 
+
+> Q
+
+. (9) 
+
+Sparse topology-conditioned retrieval. A topology-agnostic query would select the same semantic dimensions regardless of how the receiving graph propagates information. PRISM therefore transforms the query using a topology-conditioned projection Pk generated in Sec. IV-D . The client retrieves only the top-s prototypes: 
+
+Ir = Top s
+
+nD 
+
+q(m) 
+
+> r
+
+Pk, k (m)
+
+> j
+
+Eo Jj=1 
+
+. (10) The retrieved values {p(v) 
+
+> j
+
+: j ∈ I r } serve as a compact semantic substitute for the missing modality. Sparsity is essential here: irrelevant prototypes are not harmless, since once injected into a GNN they may be propagated across neighborhoods. 
+
+D. Structural Meta-Prompting 
+
+Motivation. The same external semantic cue may behave very differently across client graphs. Dense and homophilous graphs can often tolerate stronger semantic smoothing, whereas sparse, fragmented, or heterophilous graphs are more vulnerable to noisy anchor propagation. To prevent retrieved semantics from becoming topology-dependent boundary errors, PRISM conditions both retrieval and injection on a lightweight struc-tural prior. 
+
+Topology as an injection prior. For client k, we compute 
+
+zk = LayerNorm ([log λ1, . . . , log λr , d tri , d wedge ]) . (11) where {λi}ri=1 are the leading non-trivial eigenvalues of the normalized graph Laplacian, and dtri and dwedge denote triangle and wedge densities. This descriptor captures both global spectral smoothness and local motif structure, providing a compact summary of how the receiving graph may propagate external semantics. 
+
+Low-rank prompt basis. To avoid a large client-specific controller, PRISM learns a low-rank prompt basis. Here, “meta-prompt” denotes a topology-generated control vector that modulates retrieval and injection, rather than a text prompt. Let 6
+
+{ub}Bb=1 be global basis vectors and u0 be a shared base prompt. The topology-conditioned retrieval projection is generated as 
+
+ωk = softmax 
+
+ Wz zk
+
+τ
+
+
+
+, Pk = diag u0 +
+
+> B
+
+X
+
+> b=1
+
+ωk,b ub
+
+!
+
+.
+
+(12) The prompt reshapes the retrieval metric before external semantics enter the graph, deciding which semantic dimensions should be trusted under the current topology. 
+
+E. Virtual Anchor Injection 
+
+Motivation. Retrieval determines what semantics should be borrowed, but not how they should enter graph propagation. Directly concatenating retrieved features to node representations ignores the graph-specific risk identified in Sec. III: unreliable semantics may contaminate neighborhoods once message passing begins. PRISM instead introduces retrieved prototypes as virtual anchors and controls their propagation strength explicitly. 
+
+From retrieved prototypes to graph messages. For each cluster Cr , retrieved prototypes are instantiated as virtual nodes: Let Ar = {ar,j }j∈I r denote the virtual anchors retrieved for cluster Cr . The augmented graph is 
+
+˜Vk = Vk ∪ A r , ˜Ek = Ek ∪ (Ar × C r ). (13) Each anchor ar,j is initialized by p(v) 
+
+> j
+
+. To suppress ambiguous retrievals, PRISM computes a confidence gate from the retrieval margin: 
+
+γr = clip ( σ(a(Sr, 1 − Sr, 2 − c0)) , 0, γ max ) . (14) where Sr, 1 and Sr, 2 are the top-1 and top-2 retrieval scores. A small margin indicates that the bank does not provide a clear semantic match, and the corresponding anchor influence is therefore down-weighted. The local GNN then performs anchor-augmented message passing: 
+
+h(ℓ+1)  
+
+> v
+
+= UPD (ℓ)
+
+h(ℓ) 
+
+> v
+
+, X 
+
+> u∈N (v)
+
+αvu h(ℓ) 
+
+> u
+
++ γr
+
+X
+
+> j∈I r
+
+ρr,j p(v)
+
+> j
+
+ .
+
+(15) where v ∈ C r , ρr,j is the normalized retrieval weight, and 
+
+αvu is the original graph aggregation weight. Thus, missing semantics are injected as confidence-controlled graph messages rather than unrestricted feature additions. 
+
+F. Federated Optimization 
+
+Motivation. PRISM introduces an additional retrieval-and-injection loop, whose reliability depends on stable local representations and a meaningful global bank. Activating cross-modal retrieval too early may reinforce noisy associations before the semantic space is sufficiently formed. We therefore adopt a two-phase optimization strategy that first stabilizes local representations and then jointly trains task prediction, retrieval alignment, and topology-aware control. During warm-up, each client trains its local encoder and GNN backbone without anchor injection. After warm-up, clients activate PRISM and optimize 
+
+Lk = L(k)task + λret L(k)ret + λmeta L(k)meta . (16) Here L(k)task is the downstream task loss. The retrieval loss aligns confident anchors with local cluster representations: 
+
+L(k)ret = − 1
+
+C
+
+> C
+
+X
+
+> r=1
+
+log exp(sim( cr , P 
+
+> j∈I r
+
+ρr,j p(v) 
+
+> j
+
+)/τ r )
+
+PJj′=1 exp(sim( cr , p (v) 
+
+> j′
+
+)/τ r ) . (17) while the meta-prompt regularizer discourages degenerate topology controllers: 
+
+L(k)meta = ∥Pk − I∥2 
+
+> F
+
++ βωBX
+
+> b=1
+
+ωk,b log ωk,b . (18) The first term keeps the topology-conditioned metric close to the shared retrieval space unless structural evidence supports adaptation, while the entropy term prevents all clients from collapsing to the same basis element. The server aggregates the global backbone and prompt parameters by weighted averaging: 
+
+Θ(t+1) =
+
+> K
+
+X
+
+> k=1
+
+|V k|
+
+P 
+
+> k′
+
+|V k′ | Θ(t) 
+
+> k
+
+, Φ(t+1) =
+
+> K
+
+X
+
+> k=1
+
+|V k|
+
+P 
+
+> k′
+
+|V k′ | Φ(t) 
+
+> k
+
+.
+
+(19) where Φ = {Wz , u0, {ub}Bb=1 } denotes the structural meta-prompt parameters. This optimization remains compatible with standard FGL pipelines while adding a retrieval-and-injection layer for modality-deficient clients. Overall, PRISM forms a closed semantic recovery loop: the global bank supplies the missing modality basis, structural prompting adapts retrieval to the receiving topology, and confidence-aware anchors constrain how external semantics propagate through the graph. V. T HEORETICAL ANALYSIS 
+
+This section provides a mechanistic analysis of PRISM. Rather than establishing a full convergence or generalization guarantee, we analyze the three properties that directly support our design principle, retrieve globally, inject structurally .First, client-level modality deficiency creates local semantic uncertainty that cannot be eliminated without cross-client se-mantic evidence. Second, recovered semantics may still induce topology-mediated boundary risk once injected into graph propagation. Third, PRISM reduces semantic communication by exchanging cluster-level summaries and sparse prototype values instead of node-level missing-modality features. All proofs are provided in the supplementary materials. 
+
+A. Analysis Setup 
+
+For client k and semantic cluster Cr , let x∗ 
+
+> k,r
+
+∈ Rd denote the unavailable full-modality semantic target, and let Ok,r denote all locally observable information, including the surviving modality and local topology. PRISM retrieves a sparse semantic substitute ˆxk,r from the global modality bank and injects it into local graph propagation with strength γk,r ≥ 0. Let Sk be the normalized propagation operator of client k, and let bk,r 
+
+be the normalized indicator vector of cluster Cr .7
+
+B. Local Semantic Uncertainty 
+
+A modality-deficient client may never observe the target modality locally. Thus, the missing semantic basis cannot always be inferred from the surviving modalities and the local topology alone. 
+
+Theorem 1 (Local Irrecoverability Bound): For any local estimator fk(Ok,r ) that does not access cross-client semantic evidence, 
+
+E
+
+h
+
+x∗ 
+
+> k,r
+
+− fk(Ok,r ) 22
+
+i
+
+≥ E Tr  Cov x∗ 
+
+> k,r
+
+| O k,r 
+
+ .
+
+(20) The bound is positive whenever the absent modality is not conditionally determined by local observations. This does not imply that every missing modality is unrecoverable, but it formalizes a key limitation of client-level modality deficiency: if the missing semantic basis is not locally identifiable, then purely local completion suffers from irreducible uncertainty. This motivates the federation-level retrieval component of PRISM. 
+
+C. Topology-mediated Boundary Risk 
+
+Federation-level retrieval provides a semantic source, but it does not by itself determine how recovered semantics should enter graph propagation. If the retrieved substitute is imperfect, its residual error may spread through the receiving topology. For cluster Cr , define the residual as 
+
+ek,r = ˆ xk,r − x∗ 
+
+> k,r
+
+. (21) After anchor injection with strength γk,r , the residual entering message passing is 
+
+Ek,r = γk,r bk,r e⊤ 
+
+> k,r
+
+. (22) We define the L-step semantic boundary risk as 
+
+R(L) 
+
+> k,r
+
+= SLk Ek,r F . (23) 
+
+Theorem 2 (Semantic Boundary Risk Factorization): The propagated semantic boundary risk satisfies 
+
+R(L) 
+
+> k,r
+
+= γk,r χ(L) 
+
+> k,r
+
+∥ek,r ∥2 , χ(L) 
+
+> k,r
+
+= SLk bk,r 2 . (24) If Sk = UΛU ⊤ is symmetric, then 
+
+
+
+χ(L)
+
+> k,r
+
+2
+
+= X
+
+> i
+
+λ2Li
+
+ u⊤ 
+
+> i
+
+bk,r 
+
+2 . (25) Theorem 2 decomposes boundary risk into semantic residual magnitude, injection strength, and structural exposure. Hence, the same semantic residual may remain localized in one client graph but contaminate a wider neighborhood in another. This result formalizes the graph-specific failure mode behind semantic boundary errors and justifies the need for topology-aware injection. 
+
+D. Sparse Retrieval and Confidence-controlled Injection 
+
+PRISM controls the residual term in Theorem 2 through sparse retrieval from the global modality bank. Let P =[p1, . . . , pJ ]⊤ be the prototype matrix with ∥pj ∥2 ≤ Pmax .Let πk,r (Pk) denote the retrieved sparse distribution under the topology-conditioned metric Pk, where ∥πk,r (Pk)∥0 ≤ s,and 
+
+ˆxk,r = P⊤πk,r (Pk). (26) For support size s, define the best sparse approximation error as 
+
+ϵs(x∗ 
+
+> k,r
+
+) = min  
+
+> π∈∆J−1,∥π∥0≤s
+
+P⊤π − x∗  
+
+> k,r 2
+
+. (27) Let π∗,s k,r be an optimal solution of Eq. (27) . The retrieval mismatch under metric Pk is 
+
+δs(Pk) = 
+
+
+
+πk,r (Pk) − π∗,s k,r 
+
+ 
+
+> Sk,r 2
+
+,
+
+Sk,r = supp ( πk,r (Pk)) ∪ supp 
+
+
+
+π∗,s k,r 
+
+
+
+, |S k,r | ≤ 2s. 
+
+(28) 
+
+Theorem 3 (Sparse Retrieval Boundary-risk Bound): Assume 
+
+∥pj ∥2 ≤ Pmax for all prototypes. Then 
+
+R(L) 
+
+> k,r
+
+≤ γk,r χ(L)
+
+> k,r
+
+h
+
+ϵs(x∗ 
+
+> k,r
+
+) + Pmax 
+
+√2s δ s(Pk)
+
+i
+
+. (29) Theorem 3 shows that boundary risk depends on both bank coverage and retrieval mismatch. The coverage term measures whether the global bank contains a sparse semantic basis for the missing modality, while the mismatch term measures whether the topology-conditioned metric selects suitable prototypes. Both terms are further amplified by structural exposure, indicating that retrieval errors are most harmful in topology-sensitive regions. PRISM also budgets the injection strength according to retrieval confidence. Let ∆Sk,r = Sr, 1 − Sr, 2 be the retrieval margin between the top-1 and top-2 prototypes, and define 
+
+γk,r = g(∆ Sk,r ) = clip ( σ(a(∆ Sk,r − c0)) , 0, γ max ) , (30) where g(·) is nondecreasing. Combining Eq. (30) with Theo-rem 3 yields 
+
+R(L) 
+
+> k,r
+
+≤ g(∆ Sk,r )χ(L)
+
+> k,r
+
+h
+
+ϵs(x∗ 
+
+> k,r
+
+) + Pmax 
+
+√2s δ s(Pk)
+
+i
+
+. (31) Thus, ambiguous retrievals receive a smaller propagation budget, reducing the chance that unreliable semantics dominate local message passing. 
+
+E. Communication-efficient Semantic Exchange 
+
+Finally, we analyze the communication behavior of PRISM. This analysis concerns semantic payload rather than communication-frequency reduction. PRISM keeps the stan-dard federated optimization schedule, but replaces node-level missing-modality transfer with cluster-level summaries and sparse prototype retrieval. Let |Θ| and |Φ| denote the transmitted shared model and structural prompt parameters. For client k, let Ck be the number of semantic clusters, dq the retrieval-key dimension, d the prototype-value dimension, and s the number of retrieved prototypes per cluster. Ignoring scalar metadata, the per-round communication of PRISM is 
+
+CPRISM  
+
+> k
+
+= O (|Θ| + |Φ| + Ck|M k|dq + Ck(s + 1) d) . (32) 
+
+Proposition 4 (Communication-efficient Semantic Exchange): 
+
+Assume that client k uses Ck semantic clusters and retrieves 8
+
+at most s prototypes per cluster. Then the additional semantic communication of PRISM is independent of the number of local nodes nk and edges |E k|. In contrast, node-level missing-modality feature transfer requires 
+
+Cnode  
+
+> k
+
+= Ω  nk| ¯Mk|d . (33) Therefore, if Ck(s + 1) ≪ nk| ¯Mk|, PRISM requires strictly smaller semantic communication than node-level missing-modality transfer. Proposition 4 shows that PRISM communicates semantic information at the cluster and prototype level. Although the server maintains a global bank with J prototypes, each deficient client downloads only the selected prototypes required by sparse retrieval. Thus, the client-side semantic communication depends on Ck and s, rather than on the local graph size. Since PRISM does not skip synchronization rounds, its optimization behavior mainly follows the underlying FGL backbone, while the additional approximation error is governed by the quality of cluster-level retrieval and sparse prototype selection. Together, the above results provide a compact theoretical justification for PRISM. Federation-level retrieval addresses irreducible local semantic uncertainty, topology-aware and confidence-controlled injection limits boundary risk during graph propagation, and cluster-level sparse retrieval reduces semantic communication without requiring node-level missing-modality transfer. VI. E XPERIMENTS 
+
+We evaluate whether PRISM resolves the central challenge of modality-deficient MM-FGL: deficient clients require cross-client semantic evidence to recover the absent modality basis, while the borrowed semantics must be injected without uncontrolled graph propagation. We organize the evaluation around four questions. EQ1: Does PRISM consistently outper-form strong baselines, especially under client-level modality deficiency? EQ2: Which components contribute to the gains, and are topology-aware retrieval and injection necessary? EQ3: 
+
+Is PRISM robust to hyper-parameters, GNN backbones, client scale, and missing-modality severity? EQ4: Does PRISM offer favorable convergence and efficiency? 
+
+A. Experimental Setup 
+
+Datasets, tasks, and metrics. We evaluate PRISM on six multimodal graph benchmarks: Toys and Grocery from recommendation graphs [8], KU and Bili Food from so-cial/recommendation scenarios [24], and QB and Cartoon 
+
+from e-commerce graphs [24]. These datasets contain paired text/image attributes and graph structures. We consider node classification, modality matching, and cross-modal retrieval, measured by Accuracy, AUC, and Recall@5, respectively. 
+
+Federated setting and modality deficiency. Each global graph is partitioned into K disjoint client subgraphs using Louvain community detection [25], preserving local coherence while inducing label, feature, and topology heterogeneity. We report two modality settings: Full , where all clients observe all modalities, and Miss , where clients are split into full-modal, image-only, and text-only groups with a ratio of 40%:30%:30% .The latter directly simulates client-level modality deficiency rather than random entry-wise masking. 
+
+Baselines and implementation. We compare PRISM with six groups of baselines: (1) General FL: FedAvg [26]; (2) MM-GNN: Fed-MGNet [14] and Fed-MHGAT [13]; (3) (MM)-FGL: FedLap [22], S2FGL [23], and FedProto [15]; (4) Missing-modality FL: FedMVP [17], FedMAC [16], and MH-pFLID [18]. (5) Federated graph augmentation methods: FedSage [19], FedDEP [20], and FedC4 [21]; and (6) Topology-aware FGL methods: FedSPA [27] and FedIIH [28]. All meth-ods use the same CLIP-ViT-Large-Patch14 initialization [29], [30], partition protocol, and downstream heads. Unless other-wise specified, PRISM adopts a two-layer GCN [31], B = 16 
+
+prompt bases, J = 64 prototypes, top-s = 4 retrieval, and 
+
+Tw = 30 warm-up rounds. 
+
+B. Performance Comparison (EQ1) 
+
+To answer EQ1 , we compare PRISM with representative baselines across three downstream tasks under both complete-modality and modality-deficient settings. 
+
+Overall Performance. Table I reports performance across three tasks and both modality settings. PRISM achieves the best result in all columns, with its advantage most evident under Miss . Across the six missing-modality columns, PRISM improves over the strongest baseline by an average of +4.48 
+
+points, confirming its effectiveness for modality-deficient clients. The gains are especially pronounced on modality-centric tasks. PRISM improves QB retrieval Recall@5 from 
+
+66.54% to 77.25% , and Cartoon retrieval from 69.37% to 
+
+76.25% . It also yields substantial improvements on KU and Bili Food modality matching. These results support the retrieve globally component of PRISM: deficient clients benefit from a federation-level semantic basis rather than relying solely on locally incomplete observations. Moreover, missing-modality FL baselines such as FedMVP and FedMAC remain weaker than PRISM on graph-based tasks, indicating that cross-client semantic transfer alone is insufficient. 
+
+C. Ablation Study (EQ2) 
+
+To answer EQ2 , we ablate the key components of PRISM and further compare it with diagnostic variants that replace topology-aware retrieval or structural injection with simpler alternatives. 
+
+Module Ablation. Table II evaluates the contribution of each component. Removing proactive retrieval causes the largest degradation, especially on missing-modality clients, confirming that an absent modality basis cannot be recovered through local graph learning alone. Removing the low-rank prompt basis or topology-conditioned projection Pk also consistently weakens performance, showing that retrieval must adapt to the receiving graph rather than rely on a fixed global metric. Disabling confidence-aware gating further harms robustness, validating the need to regulate ambiguous semantics before message passing. 
+
+Comparison with Injection Variants. The diagnostic alternatives lead to the same conclusion. Shuffled structural prompts, topology-agnostic anchors, and direct retrieval-plus-feature-concatenation all underperform the full model. 9
+
+TABLE I OVERALL PERFORMANCE (M EAN ± STD (%)). BOLD INDICATES THE BEST PERFORMANCE , WHILE UNDERLINE INDICATES THE SECOND BEST .
+
+Category Method Node Classification (Acc ↑) Modality Matching (AUC ↑) Modality Retrieval (R@5 ↑)Toys Grocery KU Bili Food QB Cartoon 
+
+Full Miss Full Miss Full Miss Full Miss Full Miss Full Miss 
+
+FL FedAvg 75.36 ±0.4 51.68 ±0.8 74.25 ±0.5 53.54 ±0.9 63.52 ±0.6 42.26 ±1.1 60.85 ±0.7 35.25 ±1.3 73.25 ±0.4 56.85 ±0.8 71.58 ±0.6 54.25 ±0.9 
+
+Fed-MGNet 77.56 ±0.3 58.25 ±0.6 75.62 ±0.4 60.32 ±0.7 68.62 ±0.5 52.68 ±0.9 65.23 ±0.6 46.85 ±1.0 78.64 ±0.3 62.15 ±0.7 76.25 ±0.5 60.25 ±0.8 
+
+MM-GNN Fed-MHGAT 80.25 ±0.2 59.15 ±0.5 79.62 ±0.3 61.85 ±0.7 69.51 ±0.4 53.26 ±0.8 68.25 ±0.5 48.57 ±0.9 81.75 ±0.3 65.84 ±0.6 79.85 ±0.4 63.85 ±0.7 
+
+FedLap 77.56 ±0.4 54.55 ±0.7 76.55 ±0.5 55.48 ±0.8 65.88 ±0.6 56.51 ±0.5 62.85 ±0.7 54.17 ±0.6 74.65 ±0.5 54.55 ±0.9 72.95 ±0.6 52.97 ±1.0 
+
+S2FGL 79.58 ±0.3 56.28 ±0.6 78.56 ±0.4 58.58 ±0.7 66.87 ±0.9 46.85 ±0.9 63.75 ±1.2 44.67 ±1.2 76.87 ±0.4 56.85 ±0.8 74.96 ±0.5 54.37 ±0.9 (MM)-FGL 
+
+FedProto 79.62 ±0.2 65.24 ±0.5 79.23 ±0.3 68.32 ±0.6 71.15 ±0.4 58.52 ±0.8 68.15 ±0.5 53.54 ±0.9 79.64 ±0.4 62.68 ±0.3 71.89 ±0.8 69.37 ±0.5 
+
+FedMVP 78.95 ±0.4 67.65 ±0.3 74.85 ±0.8 65.25 ±0.7 66.81 ±0.7 56.51 ±0.7 64.37 ±0.8 44.58 ±0.8 81.97 ±0.3 66.54 ±0.6 79.68 ±0.4 64.35 ±0.8 
+
+FedMAC 77.85 ±0.4 55.98 ±0.7 76.58 ±0.5 57.85 ±0.8 70.34 ±0.5 47.68 ±1.0 68.35 ±0.6 44.68 ±1.1 80.95 ±0.4 63.59 ±0.7 78.68 ±0.5 61.97 ±0.9 Miss-Modality 
+
+MH-pFLID 78.52 ±0.4 54.85 ±0.8 77.52 ±0.5 56.25 ±0.8 71.35 ±0.4 53.24 ±0.9 69.35 ±0.5 50.17 ±1.1 79.65 ±0.4 65.12 ±0.7 77.24 ±0.6 63.32 ±0.8 
+
+FedSage 76.12 ±0.5 57.85 ±0.8 75.30 ±0.6 59.45 ±0.7 67.42 ±0.6 50.15 ±1.0 64.12 ±0.7 45.32 ±1.1 77.50 ±0.5 59.65 ±0.8 75.40 ±0.6 60.15 ±0.9 
+
+FedDEP 77.85 ±0.4 61.25 ±0.6 76.85 ±0.5 62.15 ±0.7 68.95 ±0.5 54.65 ±0.9 66.50 ±0.6 49.85 ±1.0 78.65 ±0.4 62.45 ±0.7 76.85 ±0.5 64.30 ±0.8 Graph Aug. 
+
+FedC4 79.15 ±0.3 68.45 ±0.5 78.45 ±0.4 69.15 ±0.6 70.85 ±0.4 60.25 ±0.7 68.75 ±0.5 56.85 ±0.8 80.50 ±0.4 68.50 ±0.6 78.95 ±0.5 71.45 ±0.7 
+
+FedSPA 79.82 ±0.3 67.92 ±0.5 78.95 ±0.4 68.55 ±0.6 72.15 ±0.4 59.35 ±0.7 68.92 ±0.6 55.42 ±0.8 81.50 ±0.4 67.25 ±0.6 79.12 ±0.5 70.25 ±0.7 
+
+Topo-FGL FedIIH 80.12 ±0.2 68.95 ±0.4 79.35 ±0.3 69.85 ±0.5 72.85 ±0.4 61.42 ±0.6 70.15 ±0.5 58.25 ±0.7 82.45 ±0.3 70.15 ±0.5 81.25 ±0.4 72.85 ±0.6 
+
+Ours PRISM 80.65 ±0.2 70.28 ±0.4 79.64 ±0.3 71.58 ±0.5 74.94 ±0.3 66.51 ±0.5 72.59 ±0.4 63.14 ±0.6 87.26 ±0.2 77.25 ±0.4 85.46 ±0.3 76.25 ±0.5 
+
+TABLE II ABLATION STUDY OF PRISM ON THREE DATASETS . W E REPORT THE MEAN AND STANDARD DEVIATION OVER 5 INDEPENDENT RUNS .
+
+Variant Dataset: Toys (Acc ↑) Dataset: KU (AUC ↑) Dataset: QB (Recall@5 ↑)Full Miss Full Miss Full Miss Full PRISM (Ours) 80.65 ±0.2 70.28 ±0.4 74.94 ±0.3 66.51 ±0.5 87.26 ±0.3 77.25 ±0.4 
+
+w/o Low-Rank Prompt Basis 76.82 ±0.5 65.57 ±0.8 69.85 ±0.6 63.40 ±0.9 82.35 ±0.5 72.50 ±0.7 w/o Topology-Conditioned Projection ( Pk ) 77.40 ±0.4 64.51 ±0.7 70.30 ±0.5 62.15 ±0.8 83.10 ±0.4 71.20 ±0.6 w/o Confidence-Aware Gating ( γr ) 78.95 ±0.3 62.90 ±0.9 71.50 ±0.4 60.20 ±0.9 84.20 ±0.3 69.80 ±0.8 w/o Proactive Retrieval 74.36 ±0.6 55.24 ±1.1 66.40 ±0.7 55.30 ±1.2 80.50 ±0.6 62.40 ±0.9 w/ Shuffled Structural Prior ( zk ) 78.12 ±0.4 63.86 ±0.8 71.08 ±0.5 61.42 ±0.8 83.74 ±0.4 70.63 ±0.7 w/ Topology-Agnostic Injection 77.85 ±0.5 63.18 ±0.9 70.76 ±0.6 60.95 ±0.9 83.26 ±0.5 70.11 ±0.8 Retrieval + Feature Concatenation 77.22 ±0.5 62.74 ±0.9 70.21 ±0.6 60.48 ±1.0 82.91 ±0.5 69.56 ±0.8 
+
+(a) Sensitivity of warmup steps ( Tw )10 20 30 40 50 
+
+Warmup Steps ( Tw) 
+
+> 77
+> 78
+> 79
+> 80
+> 81
+> 82
+> Classification Acc (%)
+> Toys (Class.)
+> Grocery (Class.)
+> QB (Ret.)
+> Cartoon (Ret.)
+> 83
+> 84
+> 85
+> 86
+> 87
+> 88
+> Retrieval Recall@5 (%)
+
+(b) Interaction of B and J on Grocery 32 64 128 256 
+
+Nproto              
+
+> 816 32 64
+> M
+> 78.50 78.82 79.11 78.95
+> 79.02 79.64 79.43 79.20
+> 78.75 79.31 79.10 78.82
+> 78.42 78.91 78.63 78.25 78.4
+> 78.6
+> 78.8
+> 79.0
+> 79.2
+> 79.4
+> 79.6
+> Accuracy (%)
+
+Fig. 6. Hyper-parameter sensitivity analysis of PRISM. In (a), the left y-axis denotes Node Classification Accuracy (%), and the right y-axis represents Modal Retrieval Recall@5 (%). (b) displays the interaction between the number of prompt basis elements B and prototypes J.TABLE III 
+
+PERFORMANCE COMPARISON ACROSS DIFFERENT GNN B ACKBONES .
+
+WE REPORT THE NODE CLASSIFICATION ACCURACY (%) ON THE TOYS AND GROCERY DATASETS UNDER THE Missing SETTING .
+
+Backbone Dataset FedAvg Fed-MGNet FedProto FedMVP Ours Gain ( ∆)GCN Toys 51.68 ±0.8 58.25 ±0.6 65.24 ±0.5 67.65 ±0.3 70.28 ±0.4 +2.63 Grocery 53.54 ±0.9 60.32 ±0.7 68.32 ±0.6 65.25 ±0.7 71.58 ±0.5 +2.16 
+
+GAT Toys 52.45 ±0.7 59.18 ±0.5 66.15 ±0.4 68.52 ±0.3 71.12 ±0.3 +2.60 Grocery 54.12 ±0.8 61.35 ±0.6 69.05 ±0.5 70.18 ±0.4 72.35 ±0.4 +2.17 
+
+SAGE Toys 50.92 ±0.9 57.85 ±0.8 64.88 ±0.6 67.12 ±0.5 69.85 ±0.5 +2.73 Grocery 52.88 ±1.0 59.94 ±0.9 67.50 ±0.7 68.85 ±0.6 70.94 ±0.6 +2.09 
+
+GIN Toys 49.75 ±1.1 56.32 ±0.9 63.20 ±0.8 65.85 ±0.7 68.42 ±0.7 +2.57 Grocery 51.36 ±1.2 58.75 ±1.0 66.12 ±0.9 67.28 ±0.8 69.55 ±0.8 +2.27 
+
+D. Robustness Analysis (EQ3) 
+
+To answer EQ3 , we evaluate PRISM under varying hyper-parameters, GNN backbones, client scales, modality-deficiency severities, and asynchronous update scenarios. 
+
+Hyperparameter Sensitivity. Fig. 6 shows that PRISM remains stable across a broad range of warm-up lengths, prompt-basis sizes, and prototype-bank sizes. The setting Tw = 30 ,
+
+(a) Node Classification (Toys) K=3 K=5 K=7      
+
+> 76
+> 77
+> 78
+> 79
+> 80
+> 81
+> 82
+> 83
+> Task Performance (%)
+> 78.50
+> 80.65
+> 80.10 020 40 60 80 100
+
+Modality Missing Ratio (%)  
+
+> 55
+> 60
+> 65
+> 70
+> 75
+> 80
+> Task Performance (%)
+> FedMAG (Ours)
+> FedProto
+> FedLap
+> Fed-MHGAT
+> FedAvg
+
+(b) Modality Matching (KU) K=3 K=5 K=7      
+
+> 70
+> 71
+> 72
+> 73
+> 74
+> 75
+> 76
+> 77
+> Task Performance (%)
+> 72.15
+> 74.94
+> 73.80 020 40 60 80 100
+
+Modality Missing Ratio (%)  
+
+> 50
+> 60
+> 70
+> Task Performance (%)
+> FedMAG (Ours)
+> FedProto
+> FedLap
+> Fed-MHGAT
+> FedAvg
+
+(c) Modal Retrieval (QB) K=3 K=5 K=7      
+
+> 82
+> 84
+> 86
+> 88
+> 90
+> Task Performance (%)
+> 84.60
+> 87.26
+> 86.15 020 40 60 80 100
+
+Modality Missing Ratio (%) 
+
+> 60
+> 70
+> 80
+> Task Performance (%)
+> FedMAG (Ours)
+> FedProto
+> FedLap
+> Fed-MHGAT
+> FedAvg
+
+Fig. 7. Resilience to Modality Incompleteness. The top row shows performance as the number of clients K increases from 3 to 7. The bottom row shows performance under modality missing rates from 0% to 100% .0 500 1000 1500 2000 2500 3000 3500 4000 
+
+> Communication Rounds
+> 0
+> 10
+> 20
+> 30
+> 40
+> 50
+> 60
+> 70
+> 80
+> Test Accuracy (%)
+
+(a) Toys (Node Classification)         
+
+> PRISM_ordered
+> PRISM_random_order
+> 0500 1000 1500 2000 2500 3000 3500 4000
+> Communication Rounds
+> 0
+> 10
+> 20
+> 30
+> 40
+> 50
+> 60
+> 70
+> 80
+> 90
+> Recall@5 (%)
+
+(b) QB (Modal Retrieval) 
+
+> PRISM_ordered
+> PRISM_random_order
+
+Fig. 8. Resilience to Asynchronous Client Updates. Comparison of model accuracy under ordered versus randomly ordered client updates on (a) Toys (Node Classification) and (b) QB (Modal Retrieval) under the Missing setting. 
+
+B = 16 , and J = 64 provides a favorable balance between semantic coverage and retrieval ambiguity. 
+
+GNN Backbones. Table III further evaluates PRISM with GCN [31], GAT [32], GraphSAGE [33], and GIN [34] backbones. PRISM consistently achieves the best performance across all settings, with gains of +2.09 to +2.73 points over the strongest baseline. This confirms that the improvement stems from the retrieval-and-injection mechanism rather than a specific graph encoder. 
+
+Fragmentation and Deficiency. Finally, Fig. 7 examines client scale and missing-modality severity. PRISM maintains a clear lead as the number of clients increases from K = 3 to 
+
+K = 7 , and it degrades more slowly than competing methods as the missing-modality ratio rises from 0% to 100% . These 10 
+
+TABLE IV THEORETICAL TIME , SPACE , AND COMMUNICATION COMPLEXITY COMPARISON OF DIFFERENT METHODS .
+
+Method Time Complexity Space Complexity Comm. Complexity 
+
+FedAvg O(REd (n + e)) O(nd + e + |Θ|) O(RN C |Θ|)
+
+Fed-MHGAT O(REd (n + e)) O(nd + e + |Θ|) O(RN C |Θ|)
+
+FedProto O(REd (n + e)) O(nd + e + |Θ| + |Y| d) O(RN C |Y| d)
+
+FedMAC O(RE [d(n + e) + M 2dnb ]) O(nd + e + |Θ| + M 2b2 + M bd ) O(RN C |Θ|)
+
+FedC4 O(Tcond d(n + e) + R(E + TGR )dk 2) O(nd + e + |Θ| + kd + k2) O(N 2
+
+C kd + R(NC |Θ| + NC log NC kd )) 
+
+FedSPA O(REd (n + e)) O(nd + e + |Θ|) O(RN C |Θ|)
+
+PRISM (Ours) O(REd (n + e)) O(nd + e + |Θ| + Jbd + Bprompt dq ) O(RN C (|Θ| + Jr d + Bprompt dq )) 
+
+Note : R is the number of communication rounds, E is the number of local epochs per round, and Nc is the number of clients. n and e denote the numbers of nodes and edges in a local client graph, respectively. d represents the feature dimension, and |Θ| is the GNN backbone parameter size. |Y| is the number of classes. For FedMAC, M is the number of modalities, b is the contrastive-learning batch size. For FedC4, 
+
+k denotes the number of condensed synthetic nodes per client (k ≪ n), while Tcond and TGR denote the numbers of graph condensation and graph rebuilding optimization steps, respectively. For PRISM, dq is the query dimension for retrieval, Jb is the size of the global prototype bank, Jr is the number of retrieved sparse prototypes per client per round, and Bprompt is the number of low-rank meta-prompt basis vectors. 
+
+(a) Node Classification (Toys) 0 25 50 75 100  
+
+> Communication Rounds
+> 30
+> 40
+> 50
+> 60
+> 70
+> 80
+> Task Performance (%)
+> Warmup End
+> Node Classification (Toys)
+> PRISM (Ours)
+> FedProto
+> FedMVP
+> FedAvg
+
+(b) Modality Matching (KU) 0 25 50 75 100  
+
+> Communication Rounds
+> 30
+> 40
+> 50
+> 60
+> 70
+> Task Performance (%)
+> Warmup End
+> Modal Matching (KU)
+> PRISM (Ours)
+> FedProto
+> FedMVP
+> FedAvg
+
+(c) Modal Retrieval (QB) 0 25 50 75 100 
+
+> Communication Rounds
+> 40
+> 60
+> 80
+> Task Performance (%)
+> Warmup End
+> Modal Retrieval (QB)
+> PRISM (Ours)
+> FedProto
+> FedMVP
+> FedAvg
+
+Fig. 9. Convergence Analysis. Solid lines and shaded areas denote mean and standard deviation over 5 trials. 
+
+(a) Node Classification (Toys) FedAvg FedProto FedMVP PRISM  
+
+> 10 1
+> 10 2
+> 10 3
+> 10 4
+> Runtime (s)
+> 62
+> 115
+> 420
+> 88
+
+(b) Modality Matching (KU) FedAvg FedProto FedMVP PRISM  
+
+> 10 1
+> 10 2
+> 10 3
+> 10 4
+> Runtime (s)
+> 58
+> 108
+> 385
+> 82
+
+(c) Modal Retrieval (QB) FedAvg FedProto FedMVP PRISM 
+
+> 10 1
+> 10 2
+> 10 3
+> 10 4
+> Runtime (s)
+> 65
+> 122
+> 450
+> 95
+
+Fig. 10. Efficiency Evaluation of PRISM. These results compare PRISM’s accuracy-efficiency trade-off with representative baselines. 
+
+results demonstrate strong robustness under both federation fragmentation and severe modality deficiency. 
+
+Resilience to Asynchronous Client Updates. To validate the effectiveness of PRISM in practical asynchronous federated environments, we compare model performance under ordered versus randomly ordered client updates. As shown in Fig. 8, the resulting convergence trajectories and final task performances are nearly identical on both the Toys and QB datasets under the Missing setting. This confirms that PRISM can reliably aggregate cross-client multimodal evidence asynchronously, mitigating the straggler effect and maximizing training effi-ciency without sacrificing semantic recovery accuracy. 
+
+E. Efficiency and Convergence Analysis (EQ4) 
+
+To answer EQ4 , we examine the convergence behavior and accuracy–efficiency trade-off of PRISM against representative baselines. 
+
+Performance–communication trade-off. We first evaluate the cumulative communication load required to reach target performance on Toys and QB. As shown in Fig. 11, PRISM achieves stronger performance with lower communication cost than representative FL, FGL, and missing-modality baselines. This advantage shows that sparse semantic retrieval offers a more efficient accuracy–communication trade-off than dense feature transfer or generic prototype aggregation, especially on QB where cross-modal retrieval depends more heavily on missing-modality semantics. 0 200 400 600 800 1000 1200 1400        
+
+> Cumulative communication load (MB)
+> 0.1
+> 0.2
+> 0.3
+> 0.4
+> 0.5
+> 0.6
+> 0.7
+> Accuracy
+> Toys
+> FedAvg
+> FedProto
+> FedMVP
+> FedMAC
+> FedIIH
+> PRISM
+> 0200 400 600 800 1000 1200 1400
+> Cumulative communication load (MB)
+> 0.1
+> 0.2
+> 0.3
+> 0.4
+> 0.5
+> 0.6
+> 0.7
+> 0.8
+> 0.9
+> Recall@5
+> QB
+
+Fig. 11. Performance–communication trade-off under client-level modality deficiency. We compare task performance as a function of cumulative communication load on Toys and QB. 0 50 100 150 200 250 300           
+
+> Cumulative system latency (s)
+> 0.1
+> 0.2
+> 0.3
+> 0.4
+> 0.5
+> 0.6
+> 0.7
+> Accuracy
+> GROCERY (severe)
+> 050 100 150 200 250 300
+> Cumulative system latency (s)
+> 0.40
+> 0.45
+> 0.50
+> 0.55
+> 0.60
+> 0.65
+> AUC
+> KU (severe)
+> FedAvg
+> FedProto
+> FedMVP
+> FedMAC
+> FedIIH
+> PRISM
+> Mild Moderate Severe
+> 0
+> 100
+> 200
+> 300
+> 400
+> Latency-to-target (s)
+> Timeout
+> Timeout
+> Timeout
+> 66.5
+> 88.8
+> 271.9
+> Timeout
+> Timeout
+> Timeout
+> Timeout
+> Timeout
+> Timeout
+> 70.0
+> 120.0
+> 230.0
+> 31.4
+> 46.8
+> 106.0
+> GROCERY latency-to-target
+> Mild Moderate Severe
+> 0
+> 100
+> 200
+> 300
+> 400
+> Latency-to-target (s)
+> 55.9
+> 107.0
+> 267.3
+> 57.6
+> 148.3
+> 261.8
+> 70.7
+> 121.9
+> 289.0
+> 148.5
+> 259.6
+> 380.0
+> 33.0
+> 53.5
+> 143.8
+> 10.6
+> 18.4
+> 44.5
+> KU latency-to-target
+> FedAvg
+> FedProto
+> FedMVP
+> FedMAC
+> FedIIH
+> PRISM
+
+Fig. 12. Evaluation of system latency under heterogeneous wireless networks. (Top) Task performance evolution (Accuracy on Grocery, AUC on KU) with respect to cumulative system latency under the severe bandwidth heterogeneity setting. (Bottom) The total system latency required to reach the target performance across mild, moderate, and severe network heterogeneity levels. Bars reaching the upper limit indicate the method failed to reach the target performance within the allocated budget. 
+
+Training Convergence. Fig. 9 compares training trajectories on three representative tasks. PRISM reaches higher steady-state performance and separates more clearly from baselines af-ter the warm-up stage, when proactive retrieval is activated. This 11 
+
+suggests that a stabilized prototype bank provides modality-deficient clients with more informative semantic anchors and improves optimization stability. 
+
+Complexity Analysis. Table IV compares representative methods from different federated and multimodal graph learn-ing paradigms. Most graph-based methods share the dominant GNN training cost O(REd (n + e)) . PRISM maintains this order by using Proactive Cross-Modal Retrieval and Virtual Anchor Injection, without introducing high-order graph-size dependence. Compared with contrastive multimodal FL meth-ods (e.g., FedMAC), PRISM avoids the O(M 2dnb ) batch-level contrastive cost; compared with graph condensation methods (e.g., FedC4), it avoids the extra condensation and graph rebuilding costs. Its additional overhead is limited to the Global Modality Bank, retrieved sparse prototypes, and Low-rank meta-prompt basis, leading to controllable space and communication costs. 
+
+Efficiency Analysis. Empirically, Fig. 10 compares the accuracy and runtime trade-offs. Although PRISM introduces moderate computational overhead from sparse proactive re-trieval and virtual anchor injection—which explains its slightly longer runtime compared to the vanilla FedAvg baseline (which only performs standard backbone training and parameter ag-gregation)—it consistently achieves a vastly superior accuracy-efficiency balance than other representative baselines. By avoiding dense cross-client feature transfer, O(n2) attention computations, or expensive generative completion, PRISM remains highly practical and scalable for real-world multimodal federated graph learning. 
+
+Communication Efficiency under Mobile Constraints. 
+
+Empirically, Fig. 11 and Fig. 12 compare the communica-tion costs and system latency trade-offs under bandwidth-limited and heterogeneous wireless conditions. Although PRISM transmits additional structural prompts and retrieved semantic values—which explains its slightly larger per-round payload compared to the vanilla FedAvg baseline (which only performs parameter aggregation)—it consistently achieves a vastly superior performance-communication balance than other representative baselines. By avoiding dense node-level missing-modality transfer, full prototype set synchronization, or heavy cross-modal alignment statistics, PRISM effectively mitigates the straggler bottlenecks induced by bandwidth-limited clients, remaining highly communication-efficient and practical for real-world mobile environments. VII. C ONCLUSION 
+
+This paper studied multimodal federated graph learning under client-level modality deficiency, where a graph client may never observe one modality locally. We identify this deficiency as a graph-propagated semantic boundary error: the client starts message passing from an incomplete modality basis, and the resulting error is filtered by its topology. Motivated by this view, we proposed PRISM, a retrieve-globally-and-inject-structurally framework for federated cross-modal imputation. PRISM retrieves sparse multimodal prototypes from a server-side modality bank, instantiates them as virtual anchors, and uses structural meta-prompting to control their retrieval and injection according to the receiving graph. Diagnostic studies show that the same missing-modality error spreads differently across topologies and that topology-conditioned gating reduces ambiguous semantic contamination. Experiments across six multimodal graph benchmarks show consistent improvements on node classification, modality matching, and cross-modal retrieval, with clear gains under severe modality missingness. These results suggest that robust MM-FGL should treat missing modalities as a federated and topology-conditioned imputation problem rather than a purely local reconstruction problem. REFERENCES [1] Anna-Kaisa Pietiläinen, Earl Oliver, Jason LeBrun, George Varghese, and Christophe Diot. Mobiclique: Middleware for mobile social networking. In Proceedings of the 2nd ACM Workshop on Online Social Networks ,pages 49–54, 2009. [2] Emiliano Miluzzo, Nicholas D. Lane, Kristóf Fodor, Ronald Peterson, Hong Lu, Mirco Musolesi, Shane B. Eisenman, Xiao Zheng, and Andrew T. Campbell. Sensing meets mobile social networks: The design, implementation and evaluation of the cenceme application. In Proceedings of the 6th ACM Conference on Embedded Networked Sensor Systems ,pages 337–350, 2008. [3] Guimin Dong, Mingyue Tang, Zhiyuan Wang, Jiechao Gao, Sikun Guo, Lihua Cai, Robert Gutierrez, Bradford Campbell, Laura E. Barnes, and Mehdi Boukhechba. Graph neural networks in iot: A survey. ACM Transactions on Sensor Networks , 19(2):1–50, 2023. [4] Yaguang Li, Rose Yu, Cyrus Shahabi, and Yan Liu. Diffusion convolutional recurrent neural network: Data-driven traffic forecasting. In International Conference on Learning Representations , 2018. [5] Runsheng Xu, Hao Xiang, Zhengzhong Tu, Xin Xia, Ming-Hsuan Yang, and Jiaqi Ma. V2x-vit: Vehicle-to-everything cooperative perception with vision transformer. In European Conference on Computer Vision , pages 107–124, 2022. [6] Yue Hu, Shaoheng Fang, Zixing Lei, Yiqi Zhong, and Siheng Chen. Where2comm: Communication-efficient collaborative perception via spatial confidence maps. In Advances in Neural Information Processing Systems , 2022. [7] Yan Wang, Xin Wang, Hongmei Yang, et al. Mhagnn: A novel framework for wearable sensor-based human activity recognition combining multi-head attention and graph neural networks. IEEE Transactions on Instrumentation and Measurement , 72:1–14, 2023. [8] Hao Yan, Chaozhuo Li, Jun Yin, Zhigang Yu, Weihao Han, Mingzheng Li, Zhengxin Zeng, Hao Sun, and Senzhang Wang. When graph meets multimodal: benchmarking and meditating on multimodal attributed graph learning. In Proceedings of the 31st ACM SIGKDD Conference on Knowledge Discovery and Data Mining V. 2 , pages 5842–5853, 2025. [9] Xunkai Li, Yuming Ai, Yinlin Zhu, Haodong Lu, Yi Zhang, Guohao Fu, Bowen Fan, Qiangqiang Dai, Rong-Hua Li, and Guoren Wang. Mm-openfgl: A comprehensive benchmark for multimodal federated graph learning. arXiv preprint arXiv:2601.22416 , 2026. [10] Chaoyang He, Keshav Balasubramanian, Emir Ceyani, Carl Yang, Han Xie, Lichao Sun, Lifang He, Liangwei Yang, Philip S Yu, Yu Rong, et al. Fedgraphnn: A federated learning system and benchmark for graph neural networks. arXiv preprint arXiv:2104.07145 , 2021. [11] Xunkai Li, Yinlin Zhu, Boyang Pang, Guochen Yan, Yeyu Yan, Zening Li, Zhengyu Wu, Wentao Zhang, Rong-Hua Li, and Guoren Wang. Openfgl: A comprehensive benchmark for federated graph learning. arXiv preprint arXiv:2408.16288 , 2024. [12] Zhenyu Hou, Xiao Liu, Yukuo Cen, Yuxiao Dong, Hongxia Yang, Chunjie Wang, and Jie Tang. Graphmae: Self-supervised masked graph autoencoders. In Proceedings of the 28th ACM SIGKDD Conference on Knowledge Discovery and Data Mining , pages 594–604, 2022. [13] Xiangen Jia, Min Jiang, Yihong Dong, Feng Zhu, Haocai Lin, Yu Xin, and Huahui Chen. Multimodal heterogeneous graph attention network.      
+
+> Neural Computing and Applications , 35(4):3357–3372, 2023. [14] Dai Luanyuan, Xiaoyu Du, Hanwang Zhang, and Jinhui Tang. Mgnet: Learning correspondences via multiple graphs. In Proceedings of the AAAI conference on Artificial Intelligence , volume 38, pages 3945–3953, 2024. [15] Yue Tan, Guodong Long, Lu Liu, Tianyi Zhou, Qinghua Lu, Jing Jiang, and Chengqi Zhang. Fedproto: Federated prototype learning across heterogeneous clients. In Proceedings of the AAAI conference on artificial intelligence , volume 36, pages 8432–8440, 2022. 12
+
+[16] Manh Duong Nguyen, Trung Thanh Nguyen, Huy Hieu Pham, Trong Nghia Hoang, Phi Le Nguyen, and Thanh Trung Huynh. Fedmac: Tackling partial-modality missing in federated learning with cross-modal aggregation and contrastive regularization. In 2024 22nd International Symposium on Network Computing and Applications (NCA) , pages 278– 285. IEEE, 2024. [17] Mainak Singha, Subhankar Roy, Sarthak Mehrotra, Ankit Jha, Moloud Abdar, Biplab Banerjee, and Elisa Ricci. Fedmvp: Federated multimodal visual prompt tuning for vision-language models. In Proceedings of the IEEE/CVF International Conference on Computer Vision , pages 17869–17878, 2025. [18] Luyuan Xie, Manqing Lin, ChenMing Xu, Tianyu Luan, Zhipeng Zeng, Wenjun Qian, Cong Li, Yuejian Fang, Qingni Shen, and Zhonghai Wu. Mh-pflgb: Model heterogeneous personalized federated learning via global bypass for medical image analysis. In International Conference on Medical Image Computing and Computer-Assisted Intervention , pages 534–545. Springer, 2024. [19] Ke Zhang, Carl Yang, Xiaoxiao Li, Lichao Sun, and Siu Ming Yiu. Subgraph federated learning with missing neighbor generation. In 
+
+Advances in Neural Information Processing Systems , volume 34, pages 6671–6682, 2021. [20] Ke Zhang, Lichao Sun, Bolin Ding, Siu Ming Yiu, and Carl Yang. Deep efficient private neighbor generation for subgraph federated learning. 
+
+arXiv preprint arXiv:2401.04336 , 2024. [21] Zekai Chen, Xunkai Li, Yinlin Zhu, Rong-Hua Li, and Guoren Wang. Rethinking client-oriented federated graph learning. In Proceedings of the 34th ACM International Conference on Information and Knowledge Management , pages 393–402, 2025. [22] Javad Aliakbari, Johan Östman, Ashkan Panahi, et al. Subgraph federated learning via spectral methods. arXiv preprint arXiv:2510.25657 , 2025. [23] Zihan Tan, Suyuan Huang, Guancheng Wan, Wenke Huang, He Li, and Mang Ye. S2fgl: Spatial spectral federated graph learning. arXiv preprint arXiv:2507.02409 , 2025. [24] Jiaqi Zhang, Yu Cheng, Yongxin Ni, Yunzhu Pan, Zheng Yuan, Junchen Fu, Youhua Li, Jie Wang, and Fajie Yuan. Ninerec: A benchmark dataset suite for evaluating transferable recommendation. IEEE Transactions on Pattern Analysis and Machine Intelligence , 2024. [25] Vincent D Blondel, Jean-Loup Guillaume, Renaud Lambiotte, and Etienne Lefebvre. Fast unfolding of communities in large networks. Journal of statistical mechanics: theory and experiment , 2008(10):P10008, 2008. [26] Brendan McMahan, Eider Moore, Daniel Ramage, Seth Hampson, and Blaise Aguera y Arcas. Communication-efficient learning of deep networks from decentralized data. In Artificial intelligence and statistics ,pages 1273–1282. Pmlr, 2017. [27] Zihan Tan, Guancheng Wan, Wenke Huang, He Li, Guibin Zhang, Carl Yang, and Mang Ye. Fedspa: Generalizable federated graph learning under homophily heterogeneity. In Proceedings of the Computer Vision and Pattern Recognition Conference , pages 15464–15475, 2025. [28] Wentao Yu, Shuo Chen, Yongxin Tong, Tianlong Gu, and Chen Gong. Modeling inter-intra heterogeneity for graph federated learning. In 
+
+Proceedings of the AAAI Conference on Artificial Intelligence , volume 39, pages 22236–22244, 2025. [29] Alec Radford, Jong Wook Kim, Chris Hallacy, Aditya Ramesh, Gabriel Goh, Sandhini Agarwal, Girish Sastry, Amanda Askell, Pamela Mishkin, Jack Clark, et al. Learning transferable visual models from natural language supervision. In International conference on machine learning ,pages 8748–8763. PmLR, 2021. [30] Alexey Dosovitskiy, Lucas Beyer, Alexander Kolesnikov, Dirk Weis-senborn, Xiaohua Zhai, Thomas Unterthiner, Mostafa Dehghani, Matthias Minderer, Georg Heigold, Sylvain Gelly, et al. An image is worth 16x16 words: Transformers for image recognition at scale. arXiv preprint arXiv:2010.11929 , 2020. [31] Thomas N Kipf and Max Welling. Semi-supervised classification with graph convolutional networks. arXiv preprint arXiv:1609.02907 , 2016. [32] Petar Veliˇ ckovi´ c, Guillem Cucurull, Arantxa Casanova, Adriana Romero, Pietro Lio, and Yoshua Bengio. Graph attention networks. arXiv preprint arXiv:1710.10903 , 2017. [33] Will Hamilton, Zhitao Ying, and Jure Leskovec. Inductive representation learning on large graphs. Advances in neural information processing systems , 30, 2017. [34] Keyulu Xu, Weihua Hu, Jure Leskovec, and Stefanie Jegelka. How powerful are graph neural networks? arXiv preprint arXiv:1810.00826 ,2018. 
+
+Zekai Chen is currently pursuing his Master’s degree in Computer Science at Beijing Institute of Technology under the supervision of Professor Rong-Hua Li. He obtained his Bachelor degree in Computer Science from the same institution in 2024. His research focuses on Graph Machine Learning and AI for Science (AI4Science). 
+
+Miao Zhang is currently pursuing the B.S. degree in Data Science and Big Data Technology at the School of Computer Science, Beijing Institute of Technology, Beijing, China. His research interests include Graph Machine Learning. 
+
+Jiayang Xing is currently pursuing the B.S. degree in Computer Science and Technology at the School of Computer Science, Beijing Institute of Technology, Beijing, China. His research interests include Graph Machine Learning. 
+
+Xunkai Li is currently pursuing the PhD degree in Beijing Institute of Technology, advised by Prof. Rong-Hua Li. He received the BS degree from Shandong University in 2022. His research interest lies in Data-centric Graph Intelligence (Data-centric AI, Graph Machine Learning, and AI4Science). He has published 10+ papers in top ML/DB/DM/AI conferences such as ICML, VLDB, WWW, AAAI. 
+
+Xun Wu is currently pursuing the B.S. degree in data science and big data technology with the School of Computer Science, Beijing Institute of Technology, Beijing, China. Her research interest lies in Graph Machine Learning. 
+
+Rong-Hua Li received the PhD degree from the Chinese University of Hong Kong, in 2013. He is currently a professor with the Beijing Institute of Technology (BIT), Beijing, China. His research interests include graph data management and mining, social network analysis, graph computational systems, and graph-based machine learning. 
+
+Guoren Wang received the BS, MS, and PhD degrees from the Department of Computer Science, Northeastern University, China, in 1988, 1991, and 1996, respectively. Currently, he is a professor with the Beijing Institute of Technology (BIT), Beijing, China. His research interests include graph data management, graph mining, and graph computational systems.
