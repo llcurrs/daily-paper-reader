@@ -6,42 +6,42 @@
 </div>
 
 ## 每次日报
-- 最新运行日期：2026-06-09
-- 运行时间：2026-06-09 20:38:30 UTC
+- 最新运行日期：2026-06-10
+- 运行时间：2026-06-10 22:24:26 UTC
 - 运行状态：成功
 - 本次总论文数：6
-- 精读区：3
-- 速读区：3
+- 精读区：1
+- 速读区：5
 
 ### 今日简报（AI）
-今日精选两篇高分论文：多光谱点云分类与SAR-光学融合去云。
+今日研读6篇论文，精读高分遥感多模态大模型扩展工作，速读跨视角定位与低光增强各一篇。
 
-多光谱点云分类框架强化了几何-光谱联合学习；IB-HFN通过信息瓶颈实现高保真云去除，值得重点关注。
+最值得关注的是精读论文《Earth-OneVision》将遥感大语言模型推广到更多传感器模态与任务，高分9.0；速读中的跨视角图像检索与位姿联合框架也具实用价值。
 
-建议读者关注遥感多模态融合方向，尤其是点云与SAR-光学数据的创新方法。
-- 详情：[/202606/09/README](/202606/09/README)
+普通读者建议优先精读《Earth-OneVision》了解遥感多模态前沿扩展，有定位或视频增强需求可再选读相应速读论文。
+- 详情：[/202606/10/README](/202606/10/README)
 
 ### 精读区论文标签
-1. [An Enhanced Geometric-Spectral Feature Learning Framework for Airborne Multispectral Point Cloud Classification](/202606/09/2606.09123v1-an-enhanced-geometric-spectral-feature-learning-framework-for-airborne-multispectral-point-cloud-classification)  
+1. [Earth-OneVision: Extending Remote Sensing Multimodal Large Language Models to More Sensor Modalities and Tasks](/202606/10/2606.10819v1-earth-onevision-extending-remote-sensing-multimodal-large-language-models-to-more-sensor-modalities-and-tasks)  
    标签：评分：9.0/10、query:multi-modal
-   evidence：机载多光谱点云分类中的几何-光谱特征融合
-2. [IB-HFN: Information Bottleneck-Driven SAR-Optical Fusion Network for High-Fidelity Cloud Removal](/202606/09/2606.09347v1-ib-hfn-information-bottleneck-driven-sar-optical-fusion-network-for-high-fidelity-cloud-removal)  
-   标签：评分：9.0/10、query:multi-modal
-   evidence：提出SAR-光学融合进行云去除，处理遥感中的缺失模态
-3. [FMRFusion: Frequency-Aware Multi-View Representation Learning for Heterogeneous Image Fusion](/202606/09/2606.07985v1-fmrfusion-frequency-aware-multi-view-representation-learning-for-heterogeneous-image-fusion)  
-   标签：评分：8.0/10、query:multi-modal
-   evidence：红外与可见光异构图像融合
+   evidence：统一了六种传感器模态（光学、SAR、红外、多光谱、时序、视频）并进行跨传感器融合。
 
 ### 速读区论文标签
-1. [TRACE: A Temporal Conditional Estimation for Multimodal Time Series Foundation Models](/202606/09/2606.06285v1-trace-a-temporal-conditional-estimation-for-multimodal-time-series-foundation-models)  
+1. [CIPER: A Unified Framework for Cross-view Image-retrieval and Pose-estimation](/202606/10/2606.05011v1-ciper-a-unified-framework-for-cross-view-image-retrieval-and-pose-estimation)  
    标签：评分：7.0/10、query:multi-modal
-   evidence：明确处理多模态时间序列中的模态缺失，可应用于遥感数据
-2. [CAMF-Det: Closure-Aware Multimodal Fusion for LiDAR-Camera 3D Object Detection on UAV Platforms](/202606/09/2606.09143v1-camf-det-closure-aware-multimodal-fusion-for-lidar-camera-3d-object-detection-on-uav-platforms)  
+   evidence：融合地面和航空图像进行地理定位
+2. [Fusing Satellite Imagery and Planimetric Maps for Cross-View Localization](/202606/10/2606.10166v1-fusing-satellite-imagery-and-planimetric-maps-for-cross-view-localization)  
    标签：评分：7.0/10、query:multi-modal
-   evidence：无人机遥感中LiDAR与相机的多模态融合
-3. [PRISM: Topology-Aware Cross-Modal Imputation for Modality-Deficient Federated Graph Learning](/202606/09/2606.09301v1-prism-topology-aware-cross-modal-imputation-for-modality-deficient-federated-graph-learning)  
+   evidence：融合卫星图像和规划图进行跨视角定位，结合两种互补模态。
+3. [AnyMod-LLVE: Low-Light Video Enhancement with Modality-Agnostic Inference](/202606/10/2606.11186v1-anymod-llve-low-light-video-enhancement-with-modality-agnostic-inference)  
    标签：评分：7.0/10、query:multi-modal
-   evidence：面向模态缺失联邦学习的跨模态补全
+   evidence：处理低光视频增强中辅助模态缺失的问题
+4. [Neural Field Tokenizations with Hierarchy and Spatial Locality Priors](/202606/10/2606.08204v1-neural-field-tokenizations-with-hierarchy-and-spatial-locality-priors)  
+   标签：评分：6.0/10、query:multi-modal
+   evidence：通用神经场标记化方法，跨模态，可应用于多模态遥感
+5. [LongMoE: Longitudinal Multimodal Learning via Trajectory-Aware Mixture-of-Experts](/202606/10/2606.09907v1-longmoe-longitudinal-multimodal-learning-via-trajectory-aware-mixture-of-experts)  
+   标签：评分：6.0/10、query:multi-modal
+   evidence：直接通过MoE解决模态缺失学习问题
 
 
 <div class="dpr-home-promo-card">
