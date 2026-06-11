@@ -6,42 +6,32 @@
 </div>
 
 ## 每次日报
-- 最新运行日期：2026-06-10
-- 运行时间：2026-06-10 22:24:26 UTC
+- 最新运行日期：2026-06-11
+- 运行时间：2026-06-11 21:34:51 UTC
 - 运行状态：成功
-- 本次总论文数：6
+- 本次总论文数：4
 - 精读区：1
-- 速读区：5
+- 速读区：3
 
 ### 今日简报（AI）
-今日研读6篇论文，精读高分遥感多模态大模型扩展工作，速读跨视角定位与低光增强各一篇。
-
-最值得关注的是精读论文《Earth-OneVision》将遥感大语言模型推广到更多传感器模态与任务，高分9.0；速读中的跨视角图像检索与位姿联合框架也具实用价值。
-
-普通读者建议优先精读《Earth-OneVision》了解遥感多模态前沿扩展，有定位或视频增强需求可再选读相应速读论文。
-- 详情：[/202606/10/README](/202606/10/README)
+今日聚焦多模态缺失模态学习与高光谱遥感，精读1篇提出潜在世界恢复方法（8分），速读3篇覆盖目标跟踪、分类与变化检测。最值得关注方向：缺失模态下的多模态学习恢复策略，以及高光谱跟踪中语义融合与上下文模板更新技术。下一步可深入研究如何将潜在世界恢复框架推广至遥感多模态数据，并探索语义引导的模板更新对跟踪鲁棒性的提升。
+- 详情：[/202606/11/README](/202606/11/README)
 
 ### 精读区论文标签
-1. [Earth-OneVision: Extending Remote Sensing Multimodal Large Language Models to More Sensor Modalities and Tasks](/202606/10/2606.10819v1-earth-onevision-extending-remote-sensing-multimodal-large-language-models-to-more-sensor-modalities-and-tasks)  
-   标签：评分：9.0/10、query:multi-modal
-   evidence：统一了六种传感器模态（光学、SAR、红外、多光谱、时序、视频）并进行跨传感器融合。
+1. [Latent World Recovery for Multimodal Learning with Missing Modalities](/202606/11/2606.12362v1-latent-world-recovery-for-multimodal-learning-with-missing-modalities)  
+   标签：评分：8.0/10、query:multi-modal
+   evidence：面向缺失模态的学习方法，直接相关
 
 ### 速读区论文标签
-1. [CIPER: A Unified Framework for Cross-view Image-retrieval and Pose-estimation](/202606/10/2606.05011v1-ciper-a-unified-framework-for-cross-view-image-retrieval-and-pose-estimation)  
+1. [Vision-Language Guided Hyperspectral Object Tracking via Semantics Fusion and Contextual Template Updating](/202606/11/2606.09167v1-vision-language-guided-hyperspectral-object-tracking-via-semantics-fusion-and-contextual-template-updating)  
    标签：评分：7.0/10、query:multi-modal
-   evidence：融合地面和航空图像进行地理定位
-2. [Fusing Satellite Imagery and Planimetric Maps for Cross-View Localization](/202606/10/2606.10166v1-fusing-satellite-imagery-and-planimetric-maps-for-cross-view-localization)  
-   标签：评分：7.0/10、query:multi-modal
-   evidence：融合卫星图像和规划图进行跨视角定位，结合两种互补模态。
-3. [AnyMod-LLVE: Low-Light Video Enhancement with Modality-Agnostic Inference](/202606/10/2606.11186v1-anymod-llve-low-light-video-enhancement-with-modality-agnostic-inference)  
-   标签：评分：7.0/10、query:multi-modal
-   evidence：处理低光视频增强中辅助模态缺失的问题
-4. [Neural Field Tokenizations with Hierarchy and Spatial Locality Priors](/202606/10/2606.08204v1-neural-field-tokenizations-with-hierarchy-and-spatial-locality-priors)  
+   evidence：融合视觉和语言模态进行高光谱跟踪
+2. [Data Efficient Complex Feature Fusion Network For Hyperspectral Image Classification](/202606/11/2606.04710v1-data-efficient-complex-feature-fusion-network-for-hyperspectral-image-classification)  
    标签：评分：6.0/10、query:multi-modal
-   evidence：通用神经场标记化方法，跨模态，可应用于多模态遥感
-5. [LongMoE: Longitudinal Multimodal Learning via Trajectory-Aware Mixture-of-Experts](/202606/10/2606.09907v1-longmoe-longitudinal-multimodal-learning-via-trajectory-aware-mixture-of-experts)  
+   evidence：复特征融合用于高光谱图像分类
+3. [Content-Induced Spatial-Spectral Aggregation Network for Change Detection in Remote Sensing Images](/202606/11/2606.10328v1-content-induced-spatial-spectral-aggregation-network-for-change-detection-in-remote-sensing-images)  
    标签：评分：6.0/10、query:multi-modal
-   evidence：直接通过MoE解决模态缺失学习问题
+   evidence：空间和光谱特征融合用于变化检测
 
 
 <div class="dpr-home-promo-card">
