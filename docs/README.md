@@ -6,29 +6,35 @@
 </div>
 
 ## 每次日报
-- 最新运行日期：2026-06-12
-- 运行时间：2026-06-12 21:48:53 UTC
+- 最新运行日期：2026-06-13
+- 运行时间：2026-06-13 21:15:45 UTC
 - 运行状态：成功
-- 本次总论文数：3
-- 精读区：1
-- 速读区：2
+- 本次总论文数：4
+- 精读区：0
+- 速读区：4
 
 ### 今日简报（AI）
-今日精读一篇高保真SAR-光学融合去云模型（9.0分），速读两项遥感与生成式AI研究（均6.0分）。最值得关注的是信息瓶颈驱动的跨模态融合机制，能显著提升云遮挡区域的图像重建质量。建议优先精读IB-HFN论文，并留意其方法在时序遥感或弱监督场景下的迁移潜力。
-- 详情：[/202606/12/README](/202606/12/README)
+今日速读4篇论文，聚焦空间生物学数据填补、药物扰动转录组形态响应生成及医学图像四维动态融合三个方向。  
+最值得关注的是《A systematic imputation framework for sparse, multimodal space biology datasets: application to retinal imaging and omics from the RR9 mission》（7.0/10），为多模态稀疏数据填补提供了可迁移框架。  
+建议后续重点关注数据填补方法的通用性，以及生成式模型在药物响应预测中的落地潜力。
+- 详情：[/202606/13/README](/202606/13/README)
 
 ### 精读区论文标签
-1. [IB-HFN: Information Bottleneck-Driven SAR-Optical Fusion Network for High-Fidelity Cloud Removal](/202606/12/2606.09347v2-ib-hfn-information-bottleneck-driven-sar-optical-fusion-network-for-high-fidelity-cloud-removal)  
-   标签：评分：9.0/10、query:multi-modal
-   evidence：SAR-光学融合进行云去除：不同传感器多模态遥感数据融合
+- 本次无精读推荐。
 
 ### 速读区论文标签
-1. [Reconstructing Multi-Decadal Forest Disturbances: A Spatio-Temporal Transformer Approach](/202606/12/2606.07249v1-reconstructing-multi-decadal-forest-disturbances-a-spatio-temporal-transformer-approach)  
+1. [A systematic imputation framework for sparse, multimodal space biology datasets: application to retinal imaging and omics from the RR9 mission](/202606/13/biorxiv-10-64898-2026-06-09-730965-v1-a-systematic-imputation-framework-for-sparse-multimodal-space-biology-datasets-application-to-retinal-imaging-and-omics-from-the-rr9-mission)  
+   标签：评分：7.0/10、query:multi-modal
+   evidence：系统性多模态缺失数据插补框架
+2. [Generating Joint Transcriptomic and Morphological Responses to Drug Perturbations via Rectified Flow](/202606/13/biorxiv-10-64898-2026-02-02-703189-v3-generating-joint-transcriptomic-and-morphological-responses-to-drug-perturbations-via-rectified-flow)  
    标签：评分：6.0/10、query:multi-modal
-   evidence：融合多卫星传感器数据用于森林干扰制图
-2. [Beyond Raw Signals: Undecoded Generative Latents as Privileged Synthetic Data](/202606/12/2606.08336v1-beyond-raw-signals-undecoded-generative-latents-as-privileged-synthetic-data)  
+   evidence：联合预测转录组和形态学双模态
+3. [TetraFuse: A Synergistic Four-Dimensional Dynamic Fusion Framework for Efficient and Robust Medical Image Classification](/202606/13/biorxiv-10-64898-2026-06-02-729722-v1-tetrafuse-a-synergistic-four-dimensional-dynamic-fusion-framework-for-efficient-and-robust-medical-image-classification)  
    标签：评分：6.0/10、query:multi-modal
-   evidence：通过生成潜在处理缺失模态
+   evidence：四域动态融合框架
+4. [MIDFA: Scalable Bayesian Factor Analysis for Mixed and Incomplete Data](/202606/13/biorxiv-10-64898-2026-06-10-731315-v1-midfa-scalable-bayesian-factor-analysis-for-mixed-and-incomplete-data)  
+   标签：评分：6.0/10、query:multi-modal
+   evidence：面向混合和不完整数据的贝叶斯因子分析
 
 
 <div class="dpr-home-promo-card">
