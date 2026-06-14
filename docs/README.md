@@ -6,35 +6,26 @@
 </div>
 
 ## 每次日报
-- 最新运行日期：2026-06-13
-- 运行时间：2026-06-13 21:15:45 UTC
+- 最新运行日期：2026-06-14
+- 运行时间：2026-06-14 21:02:42 UTC
 - 运行状态：成功
-- 本次总论文数：4
-- 精读区：0
-- 速读区：4
+- 本次总论文数：2
+- 精读区：1
+- 速读区：1
 
 ### 今日简报（AI）
-今日速读4篇论文，聚焦空间生物学数据填补、药物扰动转录组形态响应生成及医学图像四维动态融合三个方向。  
-最值得关注的是《A systematic imputation framework for sparse, multimodal space biology datasets: application to retinal imaging and omics from the RR9 mission》（7.0/10），为多模态稀疏数据填补提供了可迁移框架。  
-建议后续重点关注数据填补方法的通用性，以及生成式模型在药物响应预测中的落地潜力。
-- 详情：[/202606/13/README](/202606/13/README)
+今日推荐2篇论文，精读一篇9分地理空间多模态基础模型灵活设计研究，速读一篇7分红外目标检测知识蒸馏方法。最值得关注的是高分论文中提出的面向地理空间数据的新型灵活架构，以及速读论文中频域解耦的跨模态蒸馏策略。建议优先精读高分论文以把握多模态基础模型的前沿设计思路。
+- 详情：[/202606/14/README](/202606/14/README)
 
 ### 精读区论文标签
-- 本次无精读推荐。
+1. [Emerging Flexible Designs for Geospatial Multimodal Foundation Models](/202606/14/2606.12595v1-emerging-flexible-designs-for-geospatial-multimodal-foundation-models)  
+   标签：评分：9.0/10、query:multi-modal
+   evidence：地理空间多模态基础模型用于遥感分类
 
 ### 速读区论文标签
-1. [A systematic imputation framework for sparse, multimodal space biology datasets: application to retinal imaging and omics from the RR9 mission](/202606/13/biorxiv-10-64898-2026-06-09-730965-v1-a-systematic-imputation-framework-for-sparse-multimodal-space-biology-datasets-application-to-retinal-imaging-and-omics-from-the-rr9-mission)  
+1. [FreqKD: Frequency-Decoupled Cross-Modal Knowledge Distillation for Infrared Object Detection](/202606/14/2606.11572v1-freqkd-frequency-decoupled-cross-modal-knowledge-distillation-for-infrared-object-detection)  
    标签：评分：7.0/10、query:multi-modal
-   evidence：系统性多模态缺失数据插补框架
-2. [Generating Joint Transcriptomic and Morphological Responses to Drug Perturbations via Rectified Flow](/202606/13/biorxiv-10-64898-2026-02-02-703189-v3-generating-joint-transcriptomic-and-morphological-responses-to-drug-perturbations-via-rectified-flow)  
-   标签：评分：6.0/10、query:multi-modal
-   evidence：联合预测转录组和形态学双模态
-3. [TetraFuse: A Synergistic Four-Dimensional Dynamic Fusion Framework for Efficient and Robust Medical Image Classification](/202606/13/biorxiv-10-64898-2026-06-02-729722-v1-tetrafuse-a-synergistic-four-dimensional-dynamic-fusion-framework-for-efficient-and-robust-medical-image-classification)  
-   标签：评分：6.0/10、query:multi-modal
-   evidence：四域动态融合框架
-4. [MIDFA: Scalable Bayesian Factor Analysis for Mixed and Incomplete Data](/202606/13/biorxiv-10-64898-2026-06-10-731315-v1-midfa-scalable-bayesian-factor-analysis-for-mixed-and-incomplete-data)  
-   标签：评分：6.0/10、query:multi-modal
-   evidence：面向混合和不完整数据的贝叶斯因子分析
+   evidence：从RGB到红外的跨模态知识蒸馏用于目标检测
 
 
 <div class="dpr-home-promo-card">
