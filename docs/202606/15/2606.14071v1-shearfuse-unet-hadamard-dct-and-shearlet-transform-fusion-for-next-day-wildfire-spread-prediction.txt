@@ -1,0 +1,419 @@
+Title: ShearFuse-UNet: Hadamard, DCT, and Shearlet Transform Fusion for Next-Day Wildfire Spread Prediction
+
+URL Source: https://arxiv.org/pdf/2606.14071v1
+
+Published Time: Mon, 15 Jun 2026 00:26:45 GMT
+
+Number of Pages: 8
+
+Markdown Content:
+> IEEE TRANSACTIONS ON GEOSCIENCE AND REMOTE SENSING 1
+
+# ShearFuse-UNet: Hadamard, DCT, and Shearlet Transform Fusion for Next-Day Wildfire Spread Prediction 
+
+Ene Meco, 1 Yingyi Luo, 1 Emadeldeen Hamdan, 1 Adam Watts, 2 and Ahmet Enis Cetin 1
+
+Abstract —We propose ShearFuse-UNet, a lightweight and com-putationally efficient deep learning model for next-day wildfire spread prediction from multi-modal satellite data. The model integrates three complementary transform-domain branches in-side each encoder block of a U-Net backbone: a 2D Fast Walsh–Hadamard Transform (WHT) branch, a 2D Discrete Cosine Transform (DCT) branch, and a cone-adapted digital Shearlet residual branch. The WHT and DCT branches establish orthogonal latent spaces with learnable spectral scaling and fixed soft-thresholding, while the Shearlet branch provides anisotropic, multi-directional feature decomposition that explicitly encodes the elongated edge structures characteristic of fire fronts. A learned SpectralFusion gate adaptively combines the WHT and DCT responses, and the Shearlet reconstruction is added as a residual. This three-branch design bears a loose structural anal-ogy to transformer self-attention: the WHT and DCT branches provide complementary spectral representations that are adap-tively fused, while the Shearlet branch contributes directional content through a residual pathway. Unlike self-attention, the proposed design relies on fixed mathematical transforms rather than learned projection operators, reducing parameter count and computational cost. Evaluated on the WildfireSpreadTS dataset, ShearFuse-UNet achieves an F1 score of 0.596 with only 267k parameters, outperforming a ResNet18-based U-Net (14M parameters, F1 = 0.589) and demonstrating a highly favourable accuracy–efficiency trade-off. Results on the Google Next-Day Wildfire Spread dataset [1] further validate these findings across a different benchmark. 
+
+Index Terms —Wildfire prediction, Hadamard transform, dis-crete cosine transform, shearlet transform, U-Net, spectral atten-tion, satellite data. 
+
+I. I NTRODUCTION 
+
+# WILDFIRES are among the most devastating natural hazards, causing great economic losses and casualties. In 2024, the United States experienced more than 64,000 wildfires burning over 8.9 million acres [2]. In January 2025, catastrophic wildfires in Southern California burned over 50,000 acres, destroyed more than 16,000 structures, and caused at least 29 deaths [3]. Economic losses grew from $8.6 billion (2012–2016) to over $81.6 billion (2017–2021) [4]. With the frequency and severity of wildfires continuing to rise due to climate change, there is an urgent need for 
+
+This work was supported by the National Science Foundation under Award No. 2531376. 
+
+> 1
+
+E. Meco, Y. Luo, E. Hamdan and A. E. Cetin are with the Department of Electrical and Computer Engineering, University of Illinois Chicago, Chicago, IL 60607 USA (e-mail: emeco@uic.edu; yluo52@uic.edu; ehamda3@uic.edu; aecyy@uic.edu). 
+
+> 2
+
+A. Watts is with the US Forest Service, Pacific Wildland Fire Science Laboratory, Seattle, WA 98103 USA (e-mail: adam.watts@usda.gov). 
+
+novel prediction methods for effective mitigation and disaster response [5], [6], [7]. Next-day fire spread prediction, which estimates the areas likely to burn within the following 24 hours, provides critical information for optimal resource allo-cation and rapid emergency response. Traditional simulators range from empirical to deterministic models [8], relying on statistical analysis of historical data [9], [10], [11] or physics-based numerical simulations [12]. These methods of-ten struggle with the complex, nonlinear interactions among environmental variables. Deep learning provides opportunities for data-driven approaches capable of learning spatiotemporal patterns directly from multi-modal observations [13], and has been applied to wildfire problems across a range of modalities, from signal and image processing approaches to fire detection [14], [15] to satellite-based next-day spread prediction, the focus of this work. Earlier CNN-based studies [16], [17] predicted fire occur-rence from GIS-based remote sensing data but faced chal-lenges of high computational cost and limited data availability [18]. More recent work has employed CNN autoencoders [1], [19], [20] and U-Net variants [21], [22], [23] for segmentation-based fire spread prediction, but most efforts have prioritised dataset collection over architectural efficiency. Transform-domain methods offer a principled alternative. Orthogonal transforms such as the Hadamard Transform (HT) and DCT establish latent spaces with decorrelated coefficients, enabling compact and efficient feature learning, particularly beneficial when training data are limited [24], [25]. However, these isotropic transforms do not explicitly encode directional structures. Wildfire spread fronts are strongly anisotropic: they propagate along directional boundaries shaped by wind, terrain, and vegetation. Shearlet transforms [26] address this limitation by providing an optimally sparse, directionally sen-sitive multi-scale decomposition. We propose ShearFuse-UNet , a single unified model that fuses all three transforms inside a lightweight U-Net encoder. Our contributions are:  
+
+> •
+
+A novel triple-branch encoder block combining WHT, DCT, and a cone-adapted digital Shearlet residual, with a learned SpectralFusion gate, a design loosely inspired by the separation of representation and content aggregation used in self-attention, but implemented entirely through fixed transform-domain operators rather than learned to-ken projections.  
+
+> •
+
+A pure-PyTorch implementation of the cone-adapted dig-ital Shearlet transform using FFT-based circular convolu-  
+
+> arXiv:2606.14071v1 [cs.CV] 12 Jun 2026 IEEE TRANSACTIONS ON GEOSCIENCE AND REMOTE SENSING 2
+> Fig. 1. Overview of ShearFuse-UNet. Each encoder block contains parallel WHT, DCT, and optional Shearlet branches. WHT and DCT responses are combined through SpectralFusion gating, while the Shearlet reconstruction is injected as a residual pathway. Decoder blocks follow a standard U-Net design with skip connections.
+
+tion, requiring no external libraries.  
+
+> •
+
+State-of-the-art lightweight performance on Wildfire-SpreadTS: F1 = 0.596 (IoU = 0.424) with only 267k pa-rameters, outperforming a 14M-parameter ResNet18-based U-Net. II. S HEAR FUSE -UN ET 
+
+A. Overall Architecture 
+
+ShearFuse-UNet follows a standard U-Net topology with four encoder stages (each a MaxPool followed by a Dou-bleConvWHT block), a bottleneck DoubleConvWHT block, four symmetric decoder stages (bilinear upsampling, skip-connection concatenation, double convolution), and a 1×1
+
+output convolution. The base channel width is set to c1 = 8 ,giving channel progression 8 → 16 → 32 → 64 → 128 
+
+through the encoder. What distinguishes each DoubleConvWHT encoder block from a standard double convolution is the insertion of three complementary transform-domain branches before the spatial convolutions, as illustrated in Fig. 1. These branches operate on the input feature map x ∈ RB×C×H×W and produce a spectrally filtered output that replaces the first convolution’s input. All transform sizes are derived automatically from the spatial resolution at each encoder stage: (H, W ), (H/ 2, W/ 2) ,
+
+(H/ 4, W/ 4) , (H/ 8, W/ 8) , (H/ 16 , W/ 16) .
+
+B. Walsh–Hadamard Transform Branch 
+
+The WHT branch applies a 2D Fast Walsh–Hadamard Transform along both spatial dimensions using a butterfly algorithm. Let HN be the (unnormalized) Hadamard matrix of order N , satisfying HN H⊤ 
+
+> N
+
+= N I. For each channel 
+
+c = 1 , . . . , C the 2D WHT is 
+
+bXc = HH Xc HW , (1)  
+
+> Fig. 2. Soft-thresholding nonlinearity used in all three spectral branches.
+
+where HH and HW are the Hadamard matrices of the re-spective spatial dimensions, optionally reordered into Walsh (sequency) ordering [25]. A learnable spectral scaling matrix 
+
+VWHT ∈ RH×W is applied element-wise: 
+
+Ec(i, j ) = VWHT (i, j ) bXc(i, j ), (2) followed by soft-thresholding [27] with fixed per-coefficient thresholds TWHT ∈ RH×W 
+
+> ≥0
+
+, illustrated in Fig. 2, initialized from U(0 , 0.01) :
+
+ST (e) = sgn( e) max( |e| − T, 0) . (3) Reconstruction uses the inverse WHT: 
+
+YWHT  
+
+> c
+
+= 1
+
+HW HH ZWHT  
+
+> c
+
+HW . (4) 
+
+C. Discrete Cosine Transform Branch 
+
+The DCT branch applies a 2D orthonormal DCT-II to each channel. The basis matrix DN ∈ RN ×N satisfies DN D⊤ 
+
+> N
+
+= I
+
+and is constructed as 
+
+DN (k, n ) = αk cos 
+
+ π(n + 12 )kN
+
+
+
+, (5) where α0 = 1 /√N and αk = p2/N for k > 0. The 2D forward transform is 
+
+eXc = DH Xc D⊤ 
+
+> W
+
+. (6) IEEE TRANSACTIONS ON GEOSCIENCE AND REMOTE SENSING 3
+
+An optional spectral compression retains only the top-r frac-tion of low-frequency coefficients, where r ∈ (0 , 1] is the compression ratio. A learnable scaling matrix VDCT and fixed soft-threshold TDCT , illustrated in Fig. 2, initialized from 
+
+U(0 , 0.01) , are applied to the retained coefficients. The inverse DCT-II reconstructs the spatial features: 
+
+YDCT  
+
+> c
+
+= D⊤ 
+
+> H
+
+ZDCT  
+
+> c
+
+DW . (7) 
+
+D. Shearlet Transform: Background and Motivation 
+
+Classical wavelet transforms provide a powerful framework for multi-scale signal analysis, but they suffer from a fun-damental limitation when applied to two-dimensional data: isotropy. A separable 2D wavelet basis decomposes an image into subbands at multiple scales but treats all spatial directions identically, offering only a coarse {0◦, 45 ◦, 90 ◦} directional vocabulary inherited from the tensor-product construction. This is adequate for isotropic textures but poorly suited to signals dominated by elongated, directionally coherent structures, precisely the geometry of wildfire spread fronts, which propagate along anisotropic boundaries shaped by wind vectors, terrain slope, and vegetation corridors. The Shearlet transform [26] was developed to overcome this limitation. It belongs to the broader class of affine-like systems 
+
+that generate a frame for L2(R2) from a single generating function ψ ∈ L2(R2) through a structured family of geometric transformations. The key innovation is the replacement of the rotation group, which acts on a circle and is incompatible with the Cartesian lattice of digital images, with the shearing group ,whose action is expressed by integer-valued shearing matrices and is therefore natively compatible with discrete rectangular grids. Concretely, a shearlet system is generated by composing three operations on the generator ψ: 
+
+> •
+
+Anisotropic dilation by the parabolic scaling matrix 
+
+Aa = diag( a, a 1/2) for scale parameter a > 0, which stretches the support parabolically rather than isotropi-cally. This implements the parabolic scaling law width ∼
+
+length 2, the hallmark of anisotropic singularities such as curve discontinuities and sharp edges.  
+
+> •
+
+Shearing by the matrix Sk =  1 k
+
+> 0 1
+
+ for shear index k ∈
+
+Z, which tilts the support of ψ to a prescribed orientation without distorting area, producing directional selectivity at each angle.  
+
+> •
+
+Translation by t ∈ R2, which localises the resulting element in the spatial domain. The continuous shearlet system is then the collection 
+
+{ψa,k,t } defined in the frequency domain as 
+
+ˆψa,k,t (ξ) = a3/4 ˆψ A−1 
+
+> a
+
+S−⊤  
+
+> k
+
+ξ e−2πiξ ·t, (8) where the a3/4 normalisation ensures that {ψa,k,t } forms a tight frame, a stable, redundant system that guarantees perfect reconstruction and preserves inner-product norms up to a global constant [26]. The fundamental theoretical virtue of the Shearlet trans-form is its optimal sparsity for cartoon-like images, i.e., piecewise-smooth functions f ∈ L2(R2) with discontinuities along C2 curves.This property is directly relevant to wildfire spread prediction: the next-day fire masks used in this work are binary segmentation maps whose boundaries trace the fire-front perimeter, a geometry that closely resembles the cartoon-image model of piecewise-smooth regions separated by smooth curves. The Shearlet transform is therefore aprincipled and application-motivated choice for encoding fire-front structure. Under this model, the n-term nonlinear ap-proximation error of the Shearlet expansion satisfies 
+
+∥f − fn∥2 
+
+> L2
+
+= O n−2(log n)3 , n → ∞ , (9) which matches the information-theoretic optimum achievable by any representation system [26] and strictly outperforms the 
+
+O(n−1) rate of separable wavelets. For the binary fire masks used in this work, where f = 1B and the approximation error depends solely on the C2 regularity of the fire-front perimeter 
+
+∂B , this rate specialises to 
+
+∥1B − (1B )n∥2 
+
+> L2
+
+= O n−2(log n)3 , n → ∞ , (10) where the implicit constant depends only on the curvature of ∂B and not on interior image content. Intuitively, this is because parabolic dilation aligns the long axis of each shearlet element with the local tangent of the discontinuity curve, allowing a single large coefficient to represent a long, smooth segment of an edge rather than requiring many isotropic atoms to approximate it. For digital implementation, the continuous construction must be discretised and made compatible with finite rectangu-lar grids. The cone-adapted discrete Shearlet transform [26] partitions the 2D frequency plane ˆR2 into two cones, 
+
+Ch = (ξ1, ξ 2) : |ξ2/ξ 1| ≤ 1 , (11) 
+
+Cv = (ξ1, ξ 2) : |ξ1/ξ 2| < 1 , (12) plus a low-frequency region near the origin. Separate shearlet filter banks are constructed within each cone, ensuring that all directions in [0 ◦, 180 ◦) receive uniform directional coverage without the boundary artefacts that arise when a single direc-tional system is applied naively to the full frequency plane. This is the construction adopted in Section II-G, implemented entirely in PyTorch via FFT-based circular convolution without external libraries. The practical consequence for wildfire spread prediction is twofold. First, the Shearlet subbands at each scale s and shear index k respond selectively to edges and boundaries oriented in the direction encoded by k, providing an explicit geometric representation of fire-front structure that isotropic transforms, including both the WHT and DCT branches described below, are intrinsically unable to capture. Second, because the Shear-let frame is redundant rather than orthonormal, reconstruc-tion is stable even when individual subband coefficients are suppressed by soft-thresholding or learnable gating, making the transform a natural substrate for the residual refinement pathway introduced in Section II-G. IEEE TRANSACTIONS ON GEOSCIENCE AND REMOTE SENSING 4
+
+E. SpectralFusion Gate 
+
+The WHT and DCT outputs YWHT and YDCT are com-bined by a channel-wise SpectralFusion module. Global aver-age pooling extracts per-channel statistics: 
+
+g1 = GAP( YWHT ), g2 = GAP( YDCT ), (13) which are concatenated and passed through a two-layer MLP with ReLU and sigmoid activations to produce a channel gate 
+
+w ∈ (0 , 1) C :
+
+Ffused = w ⊙ YWHT + (1 − w) ⊙ YDCT , (14) where ⊙ denotes broadcast element-wise multiplication. The hidden dimension of the MLP is max(4 , C/r ) with reduction ratio r = 8 .
+
+F. Relationship to transformer Self-Attention 
+
+The critical distinction of ShearFuse-UNet from transformer-based architectures is the replacement of the three learned projection matrices WQ, WK , WV
+
+with mathematically fixed operators, the Hadamard matrix 
+
+HN , the DCT-II basis DN , and the Shearlet filter bank 
+
+{ψs,k }. This substitution reduces the model to 267k parameters while encoding inductive biases analytically that a transformer must discover from data: global spatial mixing, frequency selectivity, and directional sensitivity. Only the per-coefficient scaling weights and subband gains are learned. We present the QKV correspondence below as a motivational framework for understanding how the three branches divide their computational roles, not as a claim of mathematical equivalence. In canonical self-attention, given an input sequence the Query ( Q) and Key ( K) projections interact to produce a soft attention map over the input, while the Value ( V ) projection carries the content that is modulated by that map: 
+
+Attention( Q, K, V ) = softmax 
+
+ QK ⊤
+
+√d
+
+
+
+V. (15) where the softmax normalization is defined as 
+
+softmax( z)i = ezi
+
+P 
+
+> j
+
+ezj , (16) The role of Q and K is to determine which content is relevant; the role of V is to provide what that content actually is. In ShearFuse-UNet, the same functional decomposition emerges from the structure of the three branches:  
+
+> •
+
+WHT ↔ Query. The Hadamard transform projects the feature map into a flat, globally mixed sequency domain where every output coefficient depends on every spatial input. The learnable scaling VWHT and thresholding act as a structured, sparse mask over sequency coefficients, determining which global mixing patterns are retained and amplified. Like a query projection, HN is a fixed orthogonal operator, it selects which representations are relevant without itself carrying content.  
+
+> •
+
+DCT ↔ Key. The DCT projects the same input into an energy-compacted frequency domain where low-frequency coefficients capture smooth, slowly varying spatial patterns and high-frequency coefficients encode fine detail. Like a key projection, it provides a comple-mentary decomposition of the same input against which the WHT representation is compared. The SpectralFusion gate compares the two spectral representations channel-by-channel via global average pooling and an MLP, producing a soft weighting w:
+
+w = σ(MLP([ g1; g2])) . (17) This gate is functionally analogous to the attention map softmax( QK ⊤/√d) in that both produce a data-dependent channel weighting from two complementary representations, though it operates on global pooled statistics rather than spatial token interactions and pro-duces independent per-channel sigmoid weights rather than a competitive softmax.  
+
+> •
+
+Shearlet ↔ Value. The Shearlet branch most closely parallels the Value stream. It does not participate in the gating computation at all; instead it independently de-composes the input into directional, anisotropic subbands and reconstructs a filtered version ˆxsh that is injected as a residual after the WHT/DCT fusion. Like the Value projection, the Shearlet branch provides what to return 
+
+rather than determining where to look : it contributes directionally selective edge responses along fire-front boundaries that the isotropic WHT and DCT representa-tions intrinsically cannot encode. Unlike the Value stream in standard attention, however, the Shearlet output is not modulated by the gate w, it enters as an additive residual rather than as a content stream weighted by the attention map. This is a deliberate design choice: the residual formulation allows the Shearlet branch to contribute independently of the spectral gating, and its learnable subband gains {vi} can decay toward zero if the directional signal provides no benefit, without disturbing the WHT/DCT fusion pathway. Table I summarises this correspondence; we stress that it is functional rather than mathematical. The critical distinction from standard transformer attention is that ShearFuse-UNet replaces the three d × d learned projection matrices WQ, WK , WV with mathematically fixed orthogonal and frame-theoretic operators: the Hadamard matrix, the DCT-II basis, and the Shearlet filter bank. This substitution has profound practical consequences. First, the projection operators are parameter-free by construction (only the per-coefficient scaling weights and thresholds are learned), reducing the model to 267k parameters versus tens of millions in a comparable Vision transformer. Second, the bases are analytically optimal for their respective tasks: the WHT max-imises global mixing with ±1 arithmetic, the DCT minimises energy compaction error for natural signals [28], and the Shearlet achieves provably optimal sparsity for anisotropic singularities [26]. Third, the block is spatially equivariant and does not require positional encodings, since the transforms operate on fixed spatial grids at each resolution. This is particularly advantageous in the low-data regime of wildfire spread prediction, where the training set is too small IEEE TRANSACTIONS ON GEOSCIENCE AND REMOTE SENSING 5                           
+
+> TABLE I CONCEPTUAL CORRESPONDENCE BETWEEN SELF -ATTENTION AND THE PROPOSED ENCODER BLOCK . T HE MAPPING IS FUNCTIONAL RATHER THAN MATHEMATICAL .Transformer ShearFuse-UNet Key difference Query QWHT branch Fixed orthogonal operator vs. learned projection Key KDCT branch Fixed cosine basis vs. learned projection
+> QK ⊤SpectralFusion MLP Channel statistics, not spatial token interactions Softmax attention Sigmoid gate wIndependent gating vs. competitive normalisation Value VShearlet branch Additive residual, not modulated by gate Learned WQ, W K, W VFixed HN,DN, ψ s,k Parameter-free by construction
+
+to reliably learn full-rank attention projections but sufficient to learn the lightweight spectral gating weights. 
+
+G. Cone-Adapted Digital Shearlet Residual Branch 1) Filter Construction: We build a bank of real-valued shearlet filters entirely in PyTorch, without external libraries. A Meyer-type smooth window ν : [0 , 1] → [0 , 1] with C1
+
+regularity is defined as 
+
+ν(x) = x2(3 − 2x). (18) For each scale s ∈ {1, . . . , J } with anisotropic dilation 
+
+a = 2 −s and shear index k ∈ {−⌊ K/ 2⌋, . . . , ⌊K/ 2⌋ − 1},the shearlet filter is constructed in the frequency domain as 
+
+ˆψs,k (ξ, η ) = ψr
+
+ |ξ|
+
+a2
+
+
+
+· ψa
+
+ η/ |ξ| − k
+
+1
+
+
+
+, (19) where the radial window ψr selects an annular frequency support and the angular window ψa enforces directional se-lectivity. A low-pass residual filter 
+
+ˆϕ(ξ, η ) = ν 1 −
+
+pξ2 + η2
+
+0.25 
+
+!
+
+(20) captures the coarse-scale component. Spatial filters are ob-tained via the inverse FFT, yielding nf = J ·K +1 real-valued spatial filters. 
+
+2) Analysis and Synthesis: Analysis is performed via FFT-based circular convolution: 
+
+SH (x)s,k = F−1 F(x) · F (ψs,k ). (21) Synthesis sums responses convolved with spatially-flipped analysis filters: 
+
+ˆxsh = 1
+
+nf
+
+X
+
+> s,k
+
+F−1 F(SH (x)s,k ) · F (ψs,k ). (22) 
+
+3) Learnable Spectral Gating and Residual Integration: 
+
+Each shearlet subband is modulated by a learnable per-subband gain vi ∈ R and a fixed soft threshold Ti ≥ 0,initialized from U(0 , 0.01) :
+
+gSH i = STi
+
+ vi · SH (x)i
+
+. (23) The reconstructed shearlet output is added to the fused WHT/DCT response as a residual: 
+
+F = Ffused + ˆ xsh . (24) This residual formulation ensures that the Shearlet branch acts as a modular refinement pathway: if it provides no beneficial directional signal, its learnable gains can naturally decay toward zero without affecting the WHT/DCT-based representation. The Shearlet filters are stored as non-trainable buffers (constructed lazily during the first forward pass), while only the subband gains {vi} and thresholds {Ti} are learnable. We further study how frequently the Shearlet residual should be injected across encoder stages. In an ablation comparing full-stage activation with a sparser configuration (applying the Shearlet branch at every second encoder stage), we observe that overly frequent injection slightly degrades performance, reducing the validation F1 score by approximately 0.5% . This indicates that dense directional augmentation may introduce redundancy with the isotropic WHT/DCT spectral representa-tions. Based on this trade-off, we adopt a sparse activation strategy in which the Shearlet residual is applied only at the down2 
+
+(H/ 4 × W/ 4) and down4 (H/ 16 × W/ 16 ) encoder stages, where mid- and fine-scale directional structures are most informative for fire-front delineation. The remaining stages rely solely on the WHT + DCT Spectral Fusion, which helps maintain a low parameter count while preserving expressive power. 
+
+H. Decoder and Output 
+
+The decoder mirrors the encoder with four upsampling stages. Each Up block bilinearly upsamples the lower-resolution feature map by 2×, pads it to match the encoder skip-connection dimensions, concatenates along the channel axis, and applies a standard DoubleConv (two 3×3 convolu-tions, each followed by BatchNorm and ReLU). The output is produced by a 1×1 convolution mapping to the desired number of classes. III. E XPERIMENTAL RESULTS 
+
+A. Datasets 
+
+WildfireSpreadTS [21] provides multi-temporal satellite observations at 128 × 128 spatial resolution with 40 input channels, representing a challenging and realistic benchmark for next-day fire spread prediction. To further validate the generalisability of ShearFuse-UNet, we evaluate it on the Next-Day Wildfire Spread dataset re-leased by Google Research [1] in 2023, a benchmark intro-duced concurrently with the WildfireSpreadTS dataset. Each sample consists of 64 × 64 patches with 12 input channels derived from satellite imagery and weather data, split into training, validation, and test sets at an 8:1:1 ratio. IEEE TRANSACTIONS ON GEOSCIENCE AND REMOTE SENSING 6
+
+B. Implementation Details 
+
+ShearFuse-UNet is implemented in PyTorch with base chan-nel width c1 = 8 , Walsh-ordered WHT, DCT compression ratio r = 0 .7, J = 2 shearlet scales, K = 4 shear directions per scale ( nf = 9 filters), and soft thresholding through-out. The shearlet configuration was selected empirically by evaluating multiple scale–direction combinations. Specifically, configurations (J, K ) ∈ { (2 , 4) , (3 , 8) } were compared, where 
+
+J denotes the number of scales and K the number of shear directions per scale. The configuration J = 2, K = 4
+
+achieved a slightly higher validation F1 score ( +0 .1% ) while also reducing the number of directional subbands and com-putational overhead. Performance is stable across shearlet configurations, suggesting the benefit derives from the direc-tional decomposition principle rather than specific filter bank geometry. J = 2 , K = 4 was therefore selected for its lower computational overhead while matching the performance of the denser J = 3 , K = 8 configuration. The DCT compression ratio was selected through an empir-ical ablation study on the WHT+DCT fusion baseline. Com-pression ratios of r ∈ { 0.60 , 0.65 , 0.70 , 0.75 } were evaluated, where r denotes the fraction of low-frequency coefficients retained after the DCT transform. Among the tested settings, 
+
+r = 0 .70 achieved the highest validation F1 score and was therefore adopted for all subsequent experiments. All spec-tral scaling weights are initialized to one. Soft-thresholding is applied with fixed thresholds initialized from U(0 , 0.01) ;an ablation study found that making the thresholds learn-able degraded validation F1, so thresholds are held constant throughout training. The model totals 267k parameters .Training uses the AdamW optimizer with an initial learning rate of 1 × 10 −3, linear warmup over 2 epochs, and cosine annealing decay over the remaining epochs, for a total of 200 epochs. The composite loss is 
+
+L = λBCE LBCE + λDice LDice + λFocal LFocal , (25) with λBCE = 0 .4, λDice = 0 .3, λFocal = 0 .3. The loss weights were selected via a partial ablation over a representative subset of configurations; exhaustive search was not performed due to the substantial training time required per run. For the Google dataset experiments, we adopt the cus-tomised preprocessing pipeline introduced in [29]: uncertain (missing) pixels encoded as −1 are remapped to 0, background pixels are perturbed by values sampled from U(0 .01 , 0.03) ,and fire pixels are replaced by values from U(0 .80 , 0.99) . A Gaussian-mixture softening step then blurs the pre-fire mask and wind-speed channel with standard deviations {σk} =
+
+{0.4, 0.8} and averages the resulting maps to produce a soft probability input, attenuating the sparsity of fire pixels and improving boundary generalisation. 
+
+C. Results 
+
+Fig. 3 shows a representative qualitative result, where ShearFuse-UNet predicts the overall fire-spread pattern for the following day. Table III shows that ShearFuse-UNet achieves the best F1 score of 0.596 among all lightweight models. It surpasses both Swin-UNet variants while requiring up to 370 ×                                                  
+
+> TABLE II EFFECT OF DCT COMPRESSION RATIO ON WHT+DCT FUSION BASELINE PERFORMANCE .
+> Compression Ratio Precision Recall F1
+> 0.60 0.523 0.675 0.590 0.65 0.557 0.637 0.594
+> 0.70 0.573 0.619 0.595
+> 0.75 0.540 0.645 0.588 TABLE III RESULTS ON THE WILDFIRE SPREAD TS DATASET [21]. A LL MODELS PREDICT NEXT -DAY FIRE SPREAD .
+> Model Parameters Precision Recall F1
+> Baseline (ResNet18) [21] 14M 0.536 0.654 0.589 Base Swin-UNet 99M 0.564 0.623 0.592 Tiny Swin-UNet 34M 0.550 0.640 0.591 HT-UNet 169k 0.510 0.646 0.570 Fusion-UNet 267k 0.573 0.619 0.595
+> ShearFuse-UNet 267k 0.564 0.632 0.596
+
+fewer parameters, and outperforms the ResNet18 baseline with a 52 × reduction in parameter count. Compared with the WHT+DCT Fusion-UNet baseline under the same parameter budget (267k parameters), the addition of the Shearlet residual branch shifts performance toward higher sensitivity, increasing recall from 0.619 to 0.632 while reducing precision from 0.573 to 0.564 and maintaining nearly identical F1 perfor-mance (0.595 vs. 0.596). In wildfire emergency response, missed fire detections carry substantially greater cost than false alarms [30]. The precision–recall profile of ShearFuse-UNet is therefore not merely a side effect of the Shearlet branch but reflects a deliberate and application-appropriate design outcome: the directional sensitivity of the Shearlet filters preferentially recovers elongated fire-front boundaries that isotropic WHT and DCT representations fail to detect.  
+
+> Fig. 3. Qualitative inference results on three representative WildfireSpreadTS samples. Each column shows (a) the previous-day fire mask, (b) the next-day spread prediction, and (c) the ground-truth. IEEE TRANSACTIONS ON GEOSCIENCE AND REMOTE SENSING 7
+
+TABLE IV COMPUTATIONAL EFFICIENCY COMPARISON . I NFERENCE TIME MEASURED ON A SINGLE GPU SAMPLE (128 ×128 INPUT ). 
+
+Model GFLOPs ms/sample 
+
+Base Swin-UNet 6.63 8.31 
+
+ShearFuse-UNet 1.35 3.03 
+
+TABLE V RESULTS USING SHEAR FUSE -UN ET WITH VARYING NUMBERS OF INPUT DAYS .
+
+Input Days Parameters Precision Recall F1 
+
+1 267k 0.564 0.632 0.596 
+
+2 269k 0.570 0.634 0.600 
+
+Table IV reports computational cost and inference latency. ShearFuse-UNet requires only 1.35 GFLOPs and 3.03 ms per sample, compared to 6.63 GFLOPs and 8.31 ms for the Swin-B UNet, while achieving a higher F1 (0.596 vs. 0.592) at one-370th the parameter count. Table V further investigates the effect of temporal context on model performance. Extending the input from a single observation day to two consecutive days yields a consistent improvement across all metrics, with F1 increasing from 0.596 to 0.600 and precision from 0.564 to 0.570, at a negligible parameter cost of only 2k additional weights. Table VI reports results on this dataset. Consistent with its behaviour on WildfireSpreadTS, ShearFuse-UNet outperforms the corresponding TD-FusionUNet baseline at both capacity points, confirming that the Shearlet residual branch provides a reliable and dataset-agnostic improvement. Fig. 4 shows representative qualitative results on the Google dataset. Note that parameter counts in this table reflect total parameters (including non-trainable Shearlet filter buffers), whereas [29] reports trainable parameters only; the two figures therefore differ slightly from those in the reference. IV. C ONCLUSIONS 
+
+We proposed ShearFuse-UNet, a lightweight U-Net that implements a structured spectral attention mechanism inside each encoder block. The three branches: WHT (Query), DCT (Key), and cone-adapted Shearlet (Value), are functionally inspired by the division of roles in transformer self-attention, while replacing learned projections with analytically fixed transforms. The SpectralFusion gate plays the role of the atten-tion map, producing a data-dependent channel weighting from the interaction of the two isotropic spectral representations; the Shearlet residual then injects directionally selective content that neither the WHT nor the DCT can provide. This design is particularly well-suited to wildfire spread prediction: the WHT captures global spatial mixing patterns correlated with broad environmental drivers, the DCT encodes smoothly varying meteorological and topographic features, and the Shearlet captures the anisotropic edge geometry of fire fronts shaped by wind direction and terrain. On WildfireSpreadTS, ShearFuse-UNet achieves F1 = 0.596 with only 267k parameters, surpassing a 14M-parameter ResNet18-based U-Net and confirming that structured spectral attention 
+
+TABLE VI RESULTS ON THE GOOGLE NEXT -D AY WILDFIRE SPREAD DATASET [1]  
+
+> USING CUSTOMISED PREPROCESSING
+
+[29]. P ARAMETER COUNTS ARE total 
+
+> PARAMETERS
+
+, UNLIKE [29] WHICH REPORTS TRAINABLE PARAMETERS ONLY .
+
+Model Params Precision Recall F1 
+
+TD-FusionUNet ∗ [29] 103k 0.876 0.586 0.702 
+
+ShearFuse-UNet ∗ 67k 0.876 0.593 0.707 
+
+TD-FusionUNet ∗∗ [29] 313k 0.862 0.595 0.704 
+
+ShearFuse-UNet ∗∗ 185k 0.867 0.600 0.709  
+
+> ∗
+
+convolution base = 4; ∗∗ convolution base = 8. 
+
+Fig. 4. Qualitative inference results on two representative Google Next-Day Wildfire Spread samples. Each row shows (a) the previous-day fire mask, (b) the next-day spread prediction, and (c) the ground-truth. 
+
+is a principled and highly efficient inductive bias for geospatial fire spread segmentation. Results on the Google Next-Day Wildfire Spread dataset [1] further confirm the dataset-agnostic effectiveness of ShearFuse-UNet. Future work will explore end-to-end trainable Shearlet filter banks, explicit multi-head spectral attention with more than three transform branches, extension to multi-day time-series prediction, and deployment on edge hardware platforms. REFERENCES [1] F. Huot, R. L. Hu, N. Goyal, T. Sankar, M. Ihme, and Y.-F. Chen, “Next day wildfire spread: A machine learning dataset to predict wildfire spreading from remote-sensing data,” IEEE Transactions on Geoscience and Remote Sensing , vol. 60, pp. 1–13, 2022. [2] National Interagency Coordination Center, “Wildland fire summary and statistics annual report 2024,” U.S. Department of the Interior, Boise National Interagency Fire Center, Tech. Rep., 2024, retrieved 2025-09-20. [3] California Department of Forestry and Fire Protection (CAL FIRE), “CALFIRE: Current Emergency Incidents,” https://www.fire.ca.gov/ incidents, 2025, archived from the original on Jan. 30, 2025. Retrieved Feb. 2, 2025. [4] V. Iglesias, J. K. Balch, and W. R. Travis, “U.s. fires became larger, more frequent, and more widespread in the 2000s,” Science Advances ,vol. 8, no. 12, 2022. [5] S. M. Ostoja, A. R. Crimmins, R. G. Byron, A. E. East, M. M´ endez, S. M. O’Neill, D. L. Peterson, J. R. Pierce, C. Raymond, A. Tripati, and A. Vaidyanathan, “Focus on western wildfires,” in Fifth National Climate Assessment . USGCRP, 2023. [Online]. Available: https://doi.org/10.7930/NCA5.2023.F2 IEEE TRANSACTIONS ON GEOSCIENCE AND REMOTE SENSING 8
+
+[6] O. Gunay, B. U. Toreyin, K. Kose, and A. E. Cetin, “Entropy-functional-based online adaptive decision fusion framework with application to wildfire detection in video,” IEEE Transactions on Image Processing ,vol. 21, no. 5, pp. 2853–2865, 2012. [7] H. Pan, D. Badawi, C. Chen, A. Watts, E. Koyuncu, and A. E. Cetin, “Deep neural network with walsh-hadamard transform layer for ember detection during a wildfire,” in Proceedings of the IEEE/CVF CVPR ,2022, pp. 257–266. [8] H. Singh, L.-M. Ang, D. Paudyal, M. Acuna, P. K. Srivastava, and S. K. Srivastava, “A comprehensive review of empirical and dynamic wildfire simulators and machine learning techniques used for the prediction of wildfire in australia,” Technology, Knowledge and Learning , pp. 1–34, 2025. [9] H. Singh and A. C. Pandey, “Land deformation monitoring using optical remote sensing and PSInSAR technique nearby gangotri glacier in higher himalayas,” Modeling Earth Systems and Environment , vol. 7, no. 1, pp. 221–233, 2021. [10] T. J. Duff and T. D. Penman, “Determining the likelihood of asset destruction during wildfires: Modelling house destruction with fire simulator outputs and local-scale landscape properties,” Safety Science ,vol. 139, p. 105196, 2021. [11] J. M. Eden, F. Krikken, and I. Drobyshev, “An empirical prediction approach for seasonal fire risk in the boreal forests,” International Journal of Climatology , vol. 40, no. 5, pp. 2732–2744, 2020. [12] S. Rahman, H.-C. Chang, C. Magill, K. Tomkins, and W. Hehir, “Forest fire occurrence and modeling in southeastern australia,” in Forest Fire .InTech, 2018. [Online]. Available: https://doi.org/10.5772/intechopen. 76072 [13] F. Di Giuseppe, J. McNorton, A. Lombardi et al. , “Global data-driven prediction of fire activity,” Nature Communications , vol. 16, p. 2918, 2025. [14] A. E. Cetin, B. Merci, O. G¨ unay, B. U. T¨ oreyin, and S. Verstockt, 
+
+Methods and techniques for fire detection: signal, image and video processing perspectives . Academic Press, 2016. [15] Z. Hong, E. Hamdan, Y. Zhao, T. Ye, H. Pan, and A. E. Cetin, “Wildfire detection via transfer learning: a survey,” Signal, Image and Video Processing , vol. 18, no. 1, pp. 207–214, 2024. [16] J. L. Hodges and B. Y. Lattimer, “Wildland fire spread modeling using convolutional neural networks,” Fire Technology , vol. 55, pp. 2115– 2142, 2019. [17] O. Kantarcioglu, S. Kocaman, and K. Schindler, “Artificial neural networks for assessing forest fire susceptibility in T¨ urkiye,” Ecological Informatics , vol. 75, p. 102034, 2023. [18] D. Radke, A. Hessler, and D. Ellsworth, “Firecast: Leveraging deep learning to predict wildfire spread,” in Int. Joint Conf. Artificial Intelligence , 2019. [Online]. Available: https://api.semanticscholar.org/ CorpusID:199466194 [19] D. Shadrin, S. Illarionova, F. Gubanov et al. , “Wildfire spreading prediction using multimodal data and deep neural network approach,” 
+
+Scientific Reports , vol. 14, p. 2606, 2024. [20] J. Dong, X.-J. Mao, C. Shen, and Y.-B. Yang, “Learning deep rep-resentations using convolutional auto-encoders with symmetric skip connections,” 2017, arXiv:1611.09119. [21] S. Gerard, Y. Zhao, and J. Sullivan, “Wildfirespreadts: A dataset of multi-modal time series for wildfire spread prediction,” Advances in Neural Information Processing Systems , vol. 36, pp. 74 515–74 529, 2023. [22] O. Ronneberger, P. Fischer, and T. Brox, “U-net: Convolutional networks for biomedical image segmentation,” 2015, arXiv:1505.04597. [23] Z. Zhou, M. M. R. Siddiquee, N. Tajbakhsh, and J. Liang, “Unet++: A nested u-net architecture for medical image segmentation,” 2018, arXiv:1807.10165. [24] X. Zhu, H. Pan, Y. Velichko, A. B. Murphy, A. Ross, B. Turkbey, A. E. Cetin, and U. Bagci, “A probabilistic hadamard u-net for mri bias field correction,” accepted for publication, Medical Image Analysis , 2025, arXiv:2403.05024. [25] S. S. Agaian, Hadamard matrices and their applications . Springer, 2006, vol. 1168. [26] G. Kutyniok and D. Labate, Shearlets: Multiscale Analysis for Multi-variate Data . Birkh¨ auser Boston, 2012. [27] D. L. Donoho, “De-noising by soft-thresholding,” IEEE Transactions on Information Theory , vol. 41, no. 3, pp. 613–627, 1995. [28] N. Ahmed, T. Natarajan, and K. R. Rao, “Discrete cosine transform,” 
+
+IEEE Transactions on Computers , vol. C-23, no. 1, pp. 90–93, 1974. [29] Y. Luo, S. Rong, A. Watts, and A. E. Cetin, “U-net with hadamard transform and DCT latent spaces for next-day wildfire spread predic-tion,” arXiv preprint arXiv:2602.11672 , 2025. [30] B. Dayan, “Conformal risk control for safety-critical wildfire evacuation mapping: A comparative study of tabular, spatial, and graph-based models,” arXiv preprint arXiv:2603.22331 , 2025. [Online]. Available: https://arxiv.org/abs/2603.22331
