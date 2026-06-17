@@ -6,38 +6,41 @@
 </div>
 
 ## 每次日报
-- 最新运行日期：2026-06-16
-- 运行时间：2026-06-16 22:06:10 UTC
+- 最新运行日期：2026-06-17
+- 运行时间：2026-06-17 22:09:51 UTC
 - 运行状态：成功
-- 本次总论文数：6
+- 本次总论文数：7
 - 精读区：2
-- 速读区：4
+- 速读区：5
 
 ### 今日简报（AI）
-今日聚焦多模态学习中的缺失模态处理与遥感双模态基础模型。二篇高分论文分别提出无监督缺失模态学习方法和FusionRS RGB-红外数据集，值得精读。建议优先关注无监督缺失模态学习，并探索FusionRS在视觉-语言模型中的应用。
-- 详情：[/202606/16/README](/202606/16/README)
+今日阅读7篇遥感论文，精读2篇高分工作：云污染下异质SAR-光学融合土地制图框架与连续高斯基元任意尺度全色锐化模型。最值得关注的方向是遥感多模态融合与高效表征学习。建议深入探索这些方法的公开数据集与代码，为实际遥感分析任务提供新工具。
+- 详情：[/202606/17/README](/202606/17/README)
 
 ### 精读区论文标签
-1. [Unsupervised Learning for Missing Modalities in Multimodal Learning](/202606/16/2606.15743v1-unsupervised-learning-for-missing-modalities-in-multimodal-learning)  
+1. [Heterogeneous SAR-optical fusion for near-real-time land use and land cover mapping under cloud contamination: A novel framework and global benchmark dataset](/202606/17/2606.17713v1-heterogeneous-sar-optical-fusion-for-near-real-time-land-use-and-land-cover-mapping-under-cloud-contamination-a-novel-framework-and-global-benchmark-dataset)  
    标签：评分：9.0/10、query:multi-modal
-   evidence：提出了用于多模态学习中缺失模态的无监督学习框架，直接满足需求
-2. [FusionRS: A Large-Scale RGB-Infrared Remote Sensing Dataset for Dual-Modal Vision-Language Foundation Models](/202606/16/2606.17020v1-fusionrs-a-large-scale-rgb-infrared-remote-sensing-dataset-for-dual-modal-vision-language-foundation-models)  
-   标签：评分：8.0/10、query:multi-modal
-   evidence：大规模RGB-红外双模态遥感数据集
+   evidence：在云污染下进行SAR-光学融合，处理光学模态缺失
+2. [GSPan: A Continuous Gaussian Primitive Representation for Arbitrary-Scale Pansharpening](/202606/17/2606.17722v1-gspan-a-continuous-gaussian-primitive-representation-for-arbitrary-scale-pansharpening)  
+   标签：评分：9.0/10、query:multi-modal
+   evidence：多光谱与全色图像的全色锐化融合
 
 ### 速读区论文标签
-1. [Augmentation techniques for video surveillance in the visible and thermal spectral range](/202606/16/2606.13042v1-augmentation-techniques-for-video-surveillance-in-the-visible-and-thermal-spectral-range)  
+1. [How do Self-Supervised Remote Sensing Vision Models Transfer to Downstream Tasks?](/202606/17/2606.13896v1-how-do-self-supervised-remote-sensing-vision-models-transfer-to-downstream-tasks)  
    标签：评分：7.0/10、query:multi-modal
-   evidence：结合可见光和热红外的多光谱CNN检测，可应用于遥感
-2. [An Attention-based Model for Robust Forecasting with Missing Modality](/202606/16/2606.13970v1-an-attention-based-model-for-robust-forecasting-with-missing-modality)  
+   evidence：研究多模态预训练遥感模型及其迁移性能
+2. [Clay-CNN Hybrids: Leveraging Geospatial Foundation Models as Auxiliary Context for Landslide Detection](/202606/17/2606.14081v3-clay-cnn-hybrids-leveraging-geospatial-foundation-models-as-auxiliary-context-for-landslide-detection)  
    标签：评分：7.0/10、query:multi-modal
-   evidence：提出了一种处理缺失模态的注意力模型
-3. [Text-Driven Fusion for Infrared and Visible Images: Achieving Image Scene Adaptation on Hyperbolic Space](/202606/16/2606.15104v1-text-driven-fusion-for-infrared-and-visible-images-achieving-image-scene-adaptation-on-hyperbolic-space)  
+   evidence：利用Sentinel-2和地形数据的多模态遥感融合
+3. [Multi-Modal Attention for Automated Disaster Damage Assessment Using Remote Sensing Imagery and Deep Learning](/202606/17/2606.14963v1-multi-modal-attention-for-automated-disaster-damage-assessment-using-remote-sensing-imagery-and-deep-learning)  
    标签：评分：7.0/10、query:multi-modal
-   evidence：红外-可见光融合方法可应用于遥感多传感器数据
-4. [Heterogeneous LiDAR Early Fusion and Learned Re-Ranking Strategy for Robust Long-Term Place Recognition in Unstructured Environments](/202606/16/2606.13503v1-heterogeneous-lidar-early-fusion-and-learned-re-ranking-strategy-for-robust-long-term-place-recognition-in-unstructured-environments)  
+   evidence：多模态注意力融合双时相遥感图像用于灾害分类
+4. [HLS-GPT: A Generative Pretrained Transformer (GPT) for Continental-Scale NASA Harmonized Landsat and Sentinel-2 (HLS) Reflectance Reconstruction Across All Bands on Arbitrary Dates](/202606/17/2606.18115v1-hls-gpt-a-generative-pretrained-transformer-gpt-for-continental-scale-nasa-harmonized-landsat-and-sentinel-2-hls-reflectance-reconstruction-across-all-bands-on-arbitrary-dates)  
+   标签：评分：7.0/10、query:multi-modal
+   evidence：用于多模态遥感中缺失模态重建的深度学习方法
+5. [Clay-CNN Hybrids: Leveraging Geospatial Foundation Models as Auxiliary Context for Landslide Detection](/202606/17/2606.14081v2-clay-cnn-hybrids-leveraging-geospatial-foundation-models-as-auxiliary-context-for-landslide-detection)  
    标签：评分：6.0/10、query:multi-modal
-   evidence：异构LiDAR传感器早期融合用于位置识别
+   evidence：融合哨兵-2光谱与地形波段用于滑坡检测
 
 
 <div class="dpr-home-promo-card">
