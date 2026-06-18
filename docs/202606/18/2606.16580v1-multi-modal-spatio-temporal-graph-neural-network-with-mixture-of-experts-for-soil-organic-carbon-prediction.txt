@@ -1,0 +1,1159 @@
+Title: Multi-Modal Spatio-Temporal Graph Neural Network with Mixture of Experts for Soil Organic Carbon Prediction
+
+URL Source: https://arxiv.org/pdf/2606.16580v1
+
+Published Time: Tue, 16 Jun 2026 02:41:33 GMT
+
+Number of Pages: 27
+
+Markdown Content:
+# Multi-Modal Spatio-Temporal Graph Neural Network with Mixture of Experts for Soil Organic Carbon Prediction 
+
+Daniele Mos Felipe Drummond Anton Bossenbroek Soufiane el Khinifri 
+
+Spatialise B.V. 
+
+{daniele, felipe, anton, souf}@spatiali.se 
+
+Abstract 
+
+Top-soil organic carbon (SOC) prediction for agricultural land is fundamental to advancing agricultural sustainability, informing land use policy and improving fertilization plans. Existing approaches face two main limitations: first , they em-ploy hand-crafted environmental covariates paired with classical machine learn-ing or single-modal deep learning models that do not capture rich spectral and temporal information, and second grid-based architectures ignore the irregular spatial structure of field measurements. We introduce SpTGNN, a multi-modal spatio-temporal graph neural network that addresses both limitations. SpT-GNN represents soil measurements as nodes in a heterogeneous graph with three edge types, encoding spatial proximity, spectral similarity and elevation similar-ity. The model applies relational graph attention to learn separate patterns per relation. A fine-tuned TerraMind [Jakubik et al., 2025] encoder extracts node features from remote sensing signals collected by the Sentinel-2 and Sentinel-1 ESA missions and Digital Elevation Models, which SpTGNN combines with per-sample environmental covariates (climate, terrain, soil texture, land-use variables) and learned positional and temporal embeddings. A sparse Mixture-of-Experts 
+
+module fuses the four feature streams (imagery, environmental, positional and temporal) via top-k routing. The framework captures predictive uncertainty by pairing heteroscedastic regression for aleatoric noise with deep ensembles for epistemic variance. In addition, Moran’s I penalty further acts as a spatial reg-ularizer, ensuring spatial autocorrelation consistency. We evaluate SpTGNN on a global SOC corpus split into three regional instances ( ∼49 k samples globally, Africa ∼26 k and Europe ∼14 k). Our headline 5-member deep ensemble SpT-GNN reports R2 = 0 .762 , RMSE = 3 .51 ± 0.48 g kg −1 and MAPE = 22 .9 % 
+
+on the Africa test split, a substantial improvement over a tabular XGBoost base-line. The best single-model checkpoint reaches a validation R2 = 0 .864 and MAPE = 13 .7 % . Ablations confirm that the heterogeneous graph, the MoE fu-sion layer and the fine-tuned backbone each contribute substantively to the output and the deep-ensemble UQ stack achieves post-calibration ECE of 0.031 (hybrid) and 0.026 (β-NLL). To the best of our knowledge, this work introduces a novel framework that unifies foundation-model feature extraction, heterogeneous graph attention and decom-posed uncertainty quantification for robust SOC estimation. 
+
+1 Introduction 
+
+Soil organic carbon SOC contains the largest terrestrial carbon pool, storing approximately 1 500 Gt of carbon in the upper metre of soil, exceeding the combined carbon stocks of the atmo-
+
+Preprint. Under review. 
+
+> arXiv:2606.16580v1 [cs.LG] 15 Jun 2026
+
+sphere and vegetation, stated by [Batjes, 1996]. This motivates the need for granular, accurate SOC predictions for national greenhouse gas inventories, land use planning and carbon credit markets. Conventional digital soil mapping follows the scorpan framework [McBratney et al., 2003], which trains tree-based ensembles on hand crafted environmental covariates such as spectral indices, ter-rain characteristics and climate variables [Hengl et al., 2017]. These pipelines suffer from the fol-lowing limitations: hand crafted features discard most of the high-dimensional spectral and temporal information available in current satellite technologies and standard regressors treat each sample in isolation, ignoring the fact that nearby soils are correlated (spatial autocorrelation). Recent developments in machine learning help us address these limitations. Convolutional neural networks (CNNs) learn image based representations and patterns [Padarian et al., 2019] from satellite sensors, but they use a grid based representation, which is not able to accommodate the uneven and irregular patterns that we get from soil surveys. This is where graph neural networks (GNNs) shine, representing each sample as a node in the graph and associating samples by geographic location (proximity). Klemmer et al. [2023], Zhao and Efremova [2023] propose graph neural networks for geospatial regression , which account for the sample spatial structure. More recently, Earth-observation foundation models , pretrained on large-scale multi-sensor imagery have emerged as a useful way of extracting high level information for remote sensing tasks. One such model is 
+
+TerraMind [Jakubik et al., 2025], an any-to-any generative multi-modal foundation model pre-trained on nine satellite modalities. In addition, deep ensembles with heteroscedastic likelihoods [Lakshminarayanan et al., 2017, Seitzer et al., 2022] allow for calibrated, decomposable uncertainty estimates rather than point predictions. We propose SpTGNN , a multi-modal spatio-temporal heterogeneous graph neural network for SOC prediction, which combines fine-tuned TerraMind satellite image embeddings, environmental co-variates, spatial and temporal encodings into a unified framework. Given these very different streams of data, we use a cross-gated Mixture-of-Experts (MoE) module to fuse the modalities, which then get fed into a heterogeneous relational graph-attention network that propagates information across multiple edge types capturing geographic, spectral and elevation similarity. Calibrated, decomposed uncertainty is obtained through a deep ensemble with post-hoc temperature scaling. 
+
+Contributions Our specific contributions are: • A heterogeneous graph construction, using three edge relations (geographic adjacency, NDVI spectral similarity and elevation), enhancing the GNN’s capability to capture soil specific relationships. Previous literature SOC GNNs use a single spatial edge type, which in our experiments, dropping the NDVI and elevation relations costs ∼0.39 in R2 on Africa set (Section 5.5), confirming that the three relations carry meaningful signal • A cross-gated Mixture-of-Experts fusion layer that integrates per-region fine-tuned Ter-raMind embeddings with tabular, positional and temporal features, regularized by a load-balancing auxiliary loss. Replacing it with a concatenation MLP fusion costs ∼0.29 in R2
+
+on the same ablation benchmark • An end-to-end multi-task objective that combines a target regression loss, a Moran’s-I
+
+auxiliary loss for spatial autocorrelation (after Klemmer et al. 2023) and an optional het-eroscedastic Gaussian NLL with β-NLL (after Seitzer et al. 2022) for aleatoric uncertainty estimation • A deep ensemble UQ stack , built on [Lakshminarayanan et al., 2017], that decomposes total predictive uncertainty into aleatoric and epistemic uncertainty, with post-hoc temper-ature scaling for calibration (Section 5.3) Evaluation across three regional datasets from a diverse global multi-source SOC corpus ( ∼49 k samples), with the best performing Africa instance used as the focus of a detailed accuracy, ablation and uncertainty analysis against a tabular gradient-boosting baseline. There, the deep-ensemble SpTGNN reaches R2 = 0 .762 and MAPE = 22 .9 % on the test split and the best single-model checkpoint reaches a validation R2 = 0 .864 and MAPE = 13 .7 % .The remainder of the paper is organized as follows, starting with Section 2 which positions SpTGNN in the literature on SOC prediction, EO foundation models, geospatial graph learning, multi-modal fusion techniques and uncertainty quantification. Section 3 details the SpTGNN architecture, the 2per-region ViT fine-tune, the heterogeneous graph construction and the multi-task training objective. Section 4 breaks down the global SOC corpus and the remote sensing data pipeline. Section 5 reports accuracy results, trained regional models, architecture ablations and uncertainty calibration on our 
+
+Africa model. Section 6 discusses limitations and future directions. 
+
+2 Related Work 
+
+This section positions our proposed model within the landscape of geospatial machine learning. We first trace the progression of SOC prediction methods from classical covariates to graph-based architectures (2.1), then review Earth observation foundation models as feature extractors (2.2), discuss graph neural network architectures for spatial modeling (2.3) and, at the end cover techniques for multi-modal fusion and uncertainty quantification (2.4). 
+
+2.1 Soil Organic Carbon Prediction: From Covariates to Graphs 
+
+Mapping SOC on a regional and global scale sits at the core of carbon accounting, land management policy and climate change mitigation, given that soil carbon sequestration has the potential to offset 5–15% of global fossil fuel emissions [Lal, 2004]. The scorpan-SSPFe (soil spatial prediction function with spatially autocorrelated errors) framework [McBratney et al., 2003] formalized the prediction of soil properties from environmental covariates. Ensemble tree methods, specifically 
+
+Random Forests and Gradient Boosting became the dominant approach for large scale applications such as SoilGrids250m [Hengl et al., 2017]. Deep learning has since entered the field, with convolutional neural network (CNN) architectures, which improve prediction accuracy by taking advantage of the spatial context from neighboring pixels [Padarian et al., 2019]. However, this network architecture requires regular grids and cannot account for the unstructured geometry of sparse field collected samples. In contrast, Graph neural networks (GNNs) can model relationships between irregularly placed samples. Zhao and Efremova [2023] and Flores et al. [2026] apply GNNs to SOC prediction, proving that graph-based approaches can capture spatial dependencies more effectively than conventional methods, although both works rely on homogeneous graphs. 
+
+2.2 Feature Extraction via Earth Observation Foundation Models 
+
+Extracting features from satellite sensor data, specifically images, was traditionally constrained to task specific neural networks or spectral indices. To overcome these limitations, self-supervised pre-training has produced several Earth observation foundation models, including Prithvi-EO-2.0 [Szwarcman et al., 2026] and AlphaEarth [Brown et al., 2025], among which we adopt TerraMind 
+
+[Jakubik et al., 2025], an any-to-any generative multimodal foundation model for EO. The model was pre-trained on nine modalities via dual-scale early fusion. This fusion strategy produces two complementary representation types, tokens that capture cross modal correlations and pixel level embeddings that take into account fine-grained spatial detail. Together, these representations allow TerraMind to generalize effectively across a wide range of downstream EO tasks. In this work, the frozen encoder is used to extract embeddings for each given sample. However, these models treat each patch independently and do not capture spatial dependencies between sample pairs. Combining their embeddings with graph-based spatial reasoning remains unexplored for SOC estimation. 
+
+2.3 Graph Neural Networks for Spatial Modeling 
+
+Modeling spatial relationships between geographic sites is one of the core challenges in geospatial analysis, as conventional architectures generally assume independent and identically distributed in-puts, lacking the capacity to encode pairwise relationships across arbitrary locations. Graph neural networks (GNNs) address this by representing measurement sites as nodes and their relationships as edges, with foundational operators such as Graph Convolutional Networks (GCN) [Kipf and Welling, 2017] and Graph Attention Networks (GAT) [Veliˇ ckovi´ c et al., 2018] aggregating infor-mation across node neighbourhoods. 3In the context of estimating soil properties, Zhao and Efremova [2023] proved the utility of this ap-proach for the prediction of SOC, using the Positional Encoder GNN (PE-GNN) framework [Klem-mer et al., 2023], solving spatial coherence through a Moran’s I [Moran, 1950] regularization term. Their results show that PE-SAGE and PE-Transformer outperform PE-GCN and PE-GAT . However, the framework is limited to a homogeneous graph with a single edge type and attention head and relies on hand crafted covariates rather than learned representations. To overcome the limitations of homogeneous graphs, Busbridge et al. [2019] proposed the Rela-tional Graph Attention Network (RGAT), which assigns each edge type its own projection ma-trices and attention vectors, so that structurally different relationships receive independent attention weights. To date, such relational graph architectures have not been explored for soil property esti-mation. 
+
+2.4 Multi-modal Fusion and Uncertainty Quantification 
+
+Integrating multiple data sources effectively requires both preserving their individual structure and enabling cross-modal interaction. Standard early fusion based on simple concatenation tends to ig-nore the underlying structure, whereas late fusion restricts cross modal interactions and limits the learning of joint representations. Sparse Mixture-of-Experts (MoE) layers [Shazeer et al., 2017] route individual samples to specialised experts via a learned gating mechanism, combining hetero-geneous inputs without a proportional increase in computation. While effective in vision [Riquelme et al., 2021] and language settings, their application to multimodal remote sensing data remains limited. Predictive models require both accurate outputs and reliable uncertainty estimates . Deep ensem-bles [Lakshminarayanan et al., 2017] provide epistemic uncertainty , which captures the model’s uncertainty due to limited knowledge from training data, without requiring explicit Bayesian pos-teriors. Aleatoric uncertainty accounts for the randomness in the data and is usually modeled using a heteroscedastic Gaussian negative log-likelihood. To stabilize the gradients in this standard formulation, Seitzer et al. [2022] introduced β-NLL. To the best of our knowledge, no existing framework jointly integrates EO foundation model em-beddings, heterogeneous graph attention, multi-modal fusion, and decomposed uncertainty quantifi-cation for soil property estimation. 
+
+3 Method 
+
+3.1 Problem Formulation 
+
+We structure the prediction of SOC as a graph based regression task, outlined in Figure 1. We define the set N of soil samples {(xi, Ii, pi, t i, y i)}Ni=1 . As the figure depicts, each sample encapsu-lates multi-modal inputs: xi ∈ Rd are tabular covariates, Ii represents satellite imagery (Sentinel-2 optical, Sentinel-1 SAR and a digital elevation model DEM), pi = ( lon , lat ) for the geographic coordinates, ti is the integer corresponding to the sampling year and yi ∈ R is the corresponding ground truth SOC measurement. We represent these samples as nodes within a heterogeneous graph G = ( V, Es, Ev , Ee), with three edge types that encode: relative position ( Es), vegetation similarity ( Ev ) and relative elevation ( Ee). Each of these edge types are expanded in Section 3.5. We train the model on a single graph whose topology is shared across data splits, masking the 
+
+validation and test targets. By doing this, we allow the message passing to propagate through unlabeled nodes. At inference time, predictions for unseen locations are obtained by constructing a local subgraph from the target point’s nearest neighbors in the training graph (Section 3.5). Our model produces three outputs for a given node, a point prediction ˆyi, a spatial-autocorrelation auxiliary ˆιi and optionally a log-variance estimate si = log σ2 
+
+> i
+
+for predictive uncertainty. This formulation builds on the observation that SOC varies with geographic location, vegetation cover and elevation. Temporal context is captured through encodings of the sampling year. 4vi  
+
+> v1
+> v2
+> v3
+> v4
+> Positional Elevation Vegetation (NDVI)
+
+Heterogeneous sub-graph Tabular covariates   
+
+> Raster imagery
+> S-2 S-1 DEM
+> Spatio-temporal context
+> (lat, lon, year)
+
+Per-node inputs x vi 
+
+> features of vi
+
+Figure 1: Heterogeneous graph structure. Nodes fuse multi-modal data, while relational edges [Busbridge et al., 2019] capture geographic proximity, vegetation similarity and elevation similarity between samples. 
+
+3.2 Model Overview 
+
+The design principle that sits at the core of SpTGNN is the separation of what a sample looks like 
+
+from how it relates to its neighbours . As a result, the encoding of each node feature and the relational graph are handled sequentially. The forward pass consists of four stages (Figure 2; pseudo-code in Algorithm 1): 1. Multi-modal Encoding (Section 3.3): Each node’s input is processed independently. Satellite imagery is passed through a pretrained vision transformer (TerraMind), geographic coordinates and sampling year are mapped to continuous embeddings using sinusoidal en-coders and tabular covariates are ingested after pre-processing. 2. Sparse Fusion (Section 3.4): A sparse mixture-of-experts (MoE) layer fuses the input streams into a single node representation, routing each sample to the most relevant expert network. 3. Relational Reasoning (Sections 3.5 and 3.6): A stack of relational graph attention (RGAT) layers propagates information from the heterogeneous graph, performing message passing over spatial, vegetation and elevation edges. 4. Multi-task Prediction (Sections 3.7 and 3.8): Three linear heads map the final node em-beddings to the main SOC prediction , a spatial autocorrelation auxiliary term and an 
+
+optional log-variance for uncertainty estimation. 
+
+3.3 Multi-Modal Feature Encoding 
+
+Each node’s information is encoded by separate branches that operate independently before fusion: 
+
+Satellite imagery As mentioned previously, we use TerraMind foundation model by [Jakubik et al., 2025], which is pre-trained on multi-modal Earth observation data. Before integrating TerraMind into our pipeline, we first fine-tune the foundation model backbone on our SOC dataset as a regression task in order to adapt its representations for our domain and target. Then we use the resulting frozen weights as a feature extractor , part of our SpTGNN model. For each node, Sentinel-2 (optical), Sentinel-1 (SAR) and DEM patches centered on the sample location are encoded independently by the frozen backbone. This generates a patch embedding sequence for each modality. We merge these sequences with a per-region element-wise reduction across the modalities (mean for the Africa and Europe instances, maximum for the Global instance, 5spatial (φ, λ )             
+
+> temporal year t
+> 11
+> S2L2A
+> 2
+> S1GRD
+> 1
+> DEM
+> 768
+> TerraMind ViT (frozen)
+> 768
+> CLS-merge
+> d
+> Tabular
+> 16
+> Spatial enc.
+> 8
+> Temporal enc.
+> 512
+> Cross-gated fusion
+> 256
+> Pre-MLP
+> 512
+> 256
+> 128
+> 64
+> RGAT ×4
+> 128
+> Post-MLP
+> 1
+> SOC pred.
+> 1
+> Moran’s I
+> (B, 768)
+> (B, d tab )
+> (B, 16)
+> (B, 8)
+> (B, 512) (B, 256) (B, 64) (B, 128)
+
+Figure 2: SpTGNN architecture . Multi-modal inputs (S2L2A, S1GRD, DEM, tabular, (φ, λ ), t)are embedded by modality-specific encoders, a frozen, per-region fine-tuned TerraMind ViT with CLS merge for imagery and MLPs for the rest, fused by a cross-gated 8-expert MoE layer and prop-agated through a four-layer heterogeneous RGAT stack over three edge types (geographic, NDVI, elevation). Two dense heads output the SOC prediction and a training only Moran’s-I auxiliary. see Table 6). We then apply max-pooling over the patch dimension to produce a single vector 
+
+hvit  
+
+> i
+
+∈ Rdvit .
+
+Geographic position Using raw lat/lon coordinates fails to represent true spatial relationships on a spherical shape and lack a consistent scale (small changes in latitude or longitude can correspond to large physical distances). We encode each coordinate pair via multi-scale sinusoidal features, followed by a two layer percep-tron: 
+
+epos  
+
+> i
+
+= MLP 
+
+sin( pi/σ k), cos( pi/σ k)Kk=1 
+
+
+
+, (1) where {σk}Kk=1 are logarithmic scales K that span [σmin , σ max ].This allows the network to interpret exact geographic locations across both narrow and wide scales. We adopt the deterministic sinusoidal encoding strategy of Mildenhall et al. [2020], which Tancik et al. [2020] proved to be necessary to overcome the limitation that standard neural networks struggle to learn complex spatial patterns directly from simple lat/lon coordinates. 
+
+Temporal context The sampling year ti is normalized to [0 , 1] and encoded with Fourier features 
+
+at log-spaced frequencies: 
+
+etime  
+
+> i
+
+= MLP 
+
+sin(¯ ti · fj ), cos(¯ ti · fj )Jj=1 
+
+
+
+, (2) where ¯ti = ( ti − tmin )/(tmax − tmin ).This allows the model to track changes over time without dividing the years into separate time bins. 6Algorithm 1: SpTGNN Forward Pass 
+
+Input: Heterogeneous graph G = ( V, {E r }r∈R ); per-node features {xi, Ii, pi, t i}i∈V 
+
+Output: Predictions {ˆyi, ˆιi, σ 2 
+
+> i
+
+}i∈V 
+
+/* Per-node encoding */ 
+
+for each node i ∈ V do 
+
+hvit  
+
+> i
+
+← ViTEncode( Ii) ; // frozen TerraMind + CLS-merge 
+
+epos  
+
+> i
+
+← PosEncode( pi) ; // Eq. (1) 
+
+etime  
+
+> i
+
+← TimeEncode( ti) ; // Eq. (2) 
+
+zi ← [hvit  
+
+> i
+
+; xi; epos  
+
+> i
+
+; etime  
+
+> i
+
+];
+
+end 
+
+/* Sparse Mixture-of-Experts fusion */ 
+
+for each node i ∈ V do 
+
+ℓi ← Wg LN( zi) + bg ; // gating logits 
+
+Ti ← Top k(ℓi);
+
+gi,e ← softmax( ℓi, Ti )e for e ∈ T i;
+
+ui ← P 
+
+> e∈T i
+
+gi,e fe(zi);
+
+h(0)  
+
+> i
+
+← PreMLP( ui);
+
+end 
+
+/* Relational GAT stack */ 
+
+for ℓ = 1 to L do for each node i ∈ V do 
+
+h′ 
+
+> i
+
+← RGAT  h(ℓ−1)  
+
+> i
+
+, {h(ℓ−1)  
+
+> j
+
+: j ∈ N r (i), r ∈ R} ;
+
+h(ℓ) 
+
+> i
+
+← LN  Skip( h(ℓ−1)  
+
+> i
+
+) + h′
+
+> i
+
+;
+
+end end 
+
+/* Post-processing and prediction heads */ 
+
+for each node i ∈ V do 
+
+h⋆i ← PostMLP( h(L) 
+
+> i
+
+);
+
+ˆyi ← Head y (h⋆i );
+
+ˆιi ← Head ι(h⋆i );
+
+si ← smin + ( smax − smin ) · 12
+
+ 1 + tanh  Head σ (h⋆i ) ; // if UQ enabled 
+
+end return {ˆyi, ˆιi, exp( si)}i∈V 
+
+Tabular covariates The tabular data xi requires no learned encoding and is passed directly to the fusion stage. The next subsection explains how we merge these four different data streams into a unified repre-sentation. 
+
+3.4 Sparse Mixture-of-Experts Fusion 
+
+Instead of concatenating the four input streams, which would treat each feature equally, we use a 
+
+sparse mixture-of-experts (MoE) layer that adapts to the input. Because the inputs have different scales (Figure 3), we first apply layer normalization for each input, making sure that no modality dominates the routing. The normalized features are then concatenated and passed to a gating network. Following [Shazeer et al., 2017], the neural network uses dynamic routing to select only the top-k experts for each node, setting the rest of the gates zero. In essence, each expert is a dedicated network that combines the different data streams using learned gates. As a result, the final node embedding is the gate weighted sum of the expert’s outputs. A possible issue that may arise during the process is expert collapse , where the network ends up relying on just one expert and ignores the rest. We include two regularizers in the main training 70 20 40 60 80 100     
+
+> Share of input signal magnitude entering the experts (%)
+> After MoE rebalancing
+> Raw inputs (at init)
+> MoE rebalances modality signal share entering the experts
+> 57.9%
+> 85.1%
+> 24.4%
+> 9.6%
+> 10.5%
+> 3.2%
+> 7.3%
+> 2.1%
+> ViT Covariates Positional Temporal
+
+Figure 3: Share of input signal magnitude entering the experts, before and after MoE rebalancing: ViT dominates the raw inputs (85%), while rebalancing redistributes signal for covariates, positional and temporal modalities Table 1: Edge relations in the heterogeneous graph. Neighbor counts k and scale parameters τ are reported in Table 6 
+
+Relation Neighborhood Edge weight Rationale Spatial Es k-NN in (lon , lat ) Inverse distance Geographic proximity Vegetation Ev k-NN in NDVI space exp( −| ∆NDVI |/τ v ) Similar land cover Elevation Ee Spatial edges, re-weighted exp( −|∇ z|/τ t) Elevation 
+
+loss (Section 3.7), a load balancing term to enforce even expert usage for each batch and an entropy penalty to diversify selections. While MoE models are more common in language processing, applying them to multi-modal geospatial data is, to our knowledge, a novel approach. We compare this with a simple concate-nation fusion method in Section 5.5. 
+
+3.5 Heterogeneous Graph Construction 
+
+After having the node embeddings fused, we define the topology of the graph. Previous works that use GNN models for SOC prediction, [Zhao and Efremova, 2023] implement homogeneous spatial graphs, with one edge type accounting for sample proximity. Building on this work, we encode environmental factors directly into the graph structure as distinct edge types. This results in a heterogeneous graph that models three types of associations (Table 1). Spatial edges ( Es) are set to connect geographically close SOC samples, following Tobler’s first law of geography [Miller, 2004], stating that "everything is related to everything else, but near things are more related than distant things" . Vegetation edges ( Ev ) link samples with similar vegetation indices (NDVI), grouping samples by land cover even if they are physically far apart from each other. Elevation edges ( Ee) share the spatial structure but reduce connection weights when there are considerable elevation changes. Using a single graph would blend these distinct types of similarity. By separating them into typed relations, the downstream relational attention mechanism [Busbridge et al., 2019] can evaluate geo-graphic, ecological and topographic influences independently (we evaluate this choice in Section 5). 
+
+3.6 Relational Graph Attention Network 
+
+The fused node embeddings are processed by a stack of relational graph attention (RGAT) layers [Busbridge et al., 2019]. Through these layers, the model can route information through the graph’s nodes based on the different connection types (Figure 4). 8Message passing First, we combine all edges into a set, labeled by relation type. Then in each layer, nodes aggregate information from their neighbors using multi-head attention . The attention mechanism is relation specific, meaning that a neighbor’s relevance depends on both the node fea-tures and the type of edge connecting them. As the number of parameters increases linearly with the edge relation types and attention heads, we use basis decomposition [Busbridge et al., 2019]. 
+
+Stack design and solving oversmoothing The model processes the graph through L sequential RGAT layers (Figure 4). The forward pass for each layer consists of a relational graph convo-lution , a nonlinear activation , a residual addition and layer normalisation . GNNs are prone to oversmoothing, as stated by [Li et al., 2018], where nodes gradually lose their distinct features. To overcome this, we implement the following mechanisms: • residual skip connections with learned linear projections • layer normalization 
+
+Prediction heads Three linear projections map the final node embedding to outputs: • ˆyi for SOC regression • ˆιi for a spatial autocorrelation auxiliary • si for log-variance when uncertainty estimation is enabled (Section 3.8). The autocorrelation head acts as a structural regularizer , requiring the network to predict a local Moran index [Zhao and Efremova, 2023] alongside the SOC value, by doing this, we push the learned representation to encode spatial context, rather than relying solely on point features. 
+
+3.7 Multi-Task Learning Objective 
+
+The model is trained by minimizing a combined loss :
+
+L = Lmain + λa Lautocorr + LMoE . (3) where the individual terms are defined as follows: • Lmain is Huber loss [Huber, 1992] between the predicted and observed SOC. We use it because of its robustness against outliers. • Lautocorr applies the same Huber loss to predict local Moran’s I values for each node, weighted by λa, pushing the network to learn broad spatial relationships. • LMoE combines the load-balancing and entropy penalties from the MoE layer (Section 3.4). With ¯ue the mean gate weight of expert e over the batch and E the number of experts, the load-balancing term is LLB = 1
+
+> E
+
+P
+
+> e
+
+ ¯ue −1/E 2 and the entropy penalty is Lent = log E +P 
+
+> e
+
+¯ue log ¯ ue, i.e., the entropy gap to uniform usage. We set LMoE = wLB LLB +Lent , where 
+
+wLB is the tuned per-region load-balance weight reported in Table 6 and the entropy penalty enters with unit weight. Standard weight regularization is done through the optimiser’s decoupled weight decay. 
+
+3.8 Predictive Uncertainty Estimation 
+
+Along with point predictions, the model can also estimate uncertainty for a given output, as depicted on the right side of Figure 4. Aleatoric uncertainty is captured by the heteroscedastic variance head introduced in Section 3.6, while epistemic uncertainty is the output of a small deep ensemble. When uncertainty estimation is enabled, Lmain in Eq. (3) is augmented with (or replaced by) a 
+
+Gaussian negative log-likelihood :
+
+LNLL = 12N
+
+> N
+
+X
+
+> i=1
+
+e−si (yi − ˆyi)2 + si
+
+. (4) 9Single RGAT Layer 
+
+h(ℓ)
+
+> i
+
+Es: Spatial Ev : Vegetation Et: Terrain 
+
+Multi-head attention  
+
+> Mheads, basis decomp.
+
+σ(Aggregate) 
+
+h(ℓ+1) 
+
+> i
+
+RGAT Stack ( L layers) 
+
+RGAT Layer 1 
+
+LayerNorm 
+
+RGAT Layer 2 
+
+LayerNorm 
+
+RGAT Layer L
+
+LayerNorm  
+
+> h(0)
+> ifrom MoE
+
+...
+
+> skip
+> skip
+> skip
+
+ˆyi ˆιi si  
+
+> h(L)
+> i
+> SOC Autocorr. Log-var.
+
+Figure 4: Left: A single RGAT layer computes relation aware multi-head attention over three edge types (spatial, vegetation, elevation), then aggregates weighted messages through a nonlinearity. 
+
+Right: The full stack repeats L such layers, each with a residual skip connection and layer nor-malization. Three linear heads map the final embedding h(L) 
+
+> i
+
+to the SOC prediction, a spatial-autocorrelation auxiliary and an optional log-variance. Seitzer et al. [2022] shows that Eq. (4)’s mean prediction gradient is scaled by σ−2 
+
+> i
+
+, meaning that samples with high variance contribute negligibly to learning ˆyi. We adopt their β-NLL re-weighting: 
+
+Lβ-NLL = 12N
+
+> N
+
+X
+
+> i=1
+
+sg σ2βi
+
+  e−si (yi − ˆyi)2 + si
+
+, (5) where sg[ · ] denotes the stop-gradient operator (the bracketed term is treated as a constant during backpropagation, contributing no gradient). We train an ensemble of multiple models following the same architecture, but with different seeds, impacting the weight initialization and batch order. The output predictions are aggregated via the law of total variance from [Lakshminarayanan et al., 2017]: 
+
+ˆyi = 1
+
+M
+
+> M
+
+X
+
+> m=1
+
+ˆy(m) 
+
+> i
+
+, (6) 
+
+σ2
+
+> aleatoric
+
+(i) = 1
+
+M
+
+> M
+
+X
+
+> m=1
+
+es(m) 
+
+> i
+
+,σ2
+
+> epistemic
+
+(i) = 1
+
+M − 1
+
+> M
+
+X
+
+> m=1
+
+ ˆy(m) 
+
+> i
+
+− ˆyi
+
+2,σ2
+
+> total
+
+(i) = σ2
+
+> aleatoric
+
+(i) + σ2
+
+> epistemic
+
+(i).
+
+10 Aleatoric variance is drawn from the mean variance of the predictions per ensemble member. Epis-temic variance is the Bessel-corrected variance of the ensemble predictions, capturing the model disagreement, which should grow in sparse data regions. The total predictive variance is calibrated with a single learned scalar T > 0 (Eq. 7), which is fit on the validation split, minimising Eq. (4) with the calibrated variance. 
+
+˜σi = T σ total (i), (7) Section 5 reports PICP at α = 95% , ECE as the mean absolute coverage gap across 20 confidence levels, CRPS under a Gaussian predictive and the epistemic fraction σ2
+
+> epistemic
+
+/σ 2
+
+> total
+
+.
+
+4 Dataset 
+
+4.1 Soil Organic Carbon Data Sources 
+
+Many existing GNN-based SOC studies, such as the ones mentioned previously [Zhao and Efre-mova, 2023, Flores et al., 2026] focus on specific datasets like LUCAS [Orgiazzi et al., 2018], which limits the geographic context and sample diversity. To build a more diverse and comprehensive model, we assemble a global dataset, aggregating SOC measurements from multiple, well spread sources: AfSIS (2017), LUCAS (2018) [Orgiazzi et al., 2018], the Chilean SOCDB, iSDAsoil, MangrovesDB, SoDaH and SOCPDB. With the exception of our independently surveyed field samples, all sets come from the unified Open Compendium of Soil Datasets [Hengl and Gupta, 2025]. Because these datasets provide broad geographic coverage, different sampling protocols and measuring depths, we apply a harmonization process, following the steps: • Convert all SOC values to g/kg 
+
+• Retain only topsoil measurements, from 0 to 30 cm • Deduplicate overlapping samples • Remove records with missing coordinates, implausible SOC values or incomplete metadata • Reproject all locations to WGS 84 
+
+After the harmonization process, the final dataset contains N = 49 ,044 soil samples spread across six continents. Figure 5 shows the spatial distribution of these sample, with the densest being Eu-rope (LUCAS) and Southeast Africa (AfSIS) , with sparse representation in South America, Aus-tralia and Southeast Asia. 
+
+4.2 Remote Sensing Inputs 
+
+For each sample location, we extract localized satellite image patches from three remote sensing modalities, temporally matched to the corresponding SOC sampling year. 
+
+Sentinel-2 L2A (optical) We use Level-2A Bottom-Of-Atmosphere (BOA) multispectral im-agery from the harmonized Sentinel-2 Earth Engine collection. It consists of 11 spectral bands (Blue, Green, Red, three vegetation red-edge, narrow and broad NIR, water vapor and two SWIR) at 10-20 m resolution. For each sample we build an annual median from all acquisitions in the sampling year with cloud cover below 25%. 
+
+Sentinel-1 GRD (SAR) Ground Range Detected (GRD) images in VV and VH polarisations (COPERNICUS/S1_GRD ) capture weather independent structural information at 10 m resolution. We use the standard pre-processing pipeline of Earth Engine’s GRD collection which consists of the steps: radiometric calibration , thermal noise removal and range-Doppler terrain correction . Just as in the previous paragraph, for each sample, we compute an annual median, which reduces variability. 
+
+Topography (DEM) Elevation data comes from the Copernicus GLO-30 Digital Elevation Model (COPERNICUS/DEM/GLO30 ) at a 30 m spatial resolution. On top of elevation, we calculate local slope, which is used to compute the elevation edge weights within the heterogeneous graph (Section 3.5). 11 Global SOC sample density ( n = 49, 044 )   
+
+> 10 010 110 210 3
+> samples per hex cell (log scale)
+
+(a) Global sample density (hex bins, log scale). 25°E 27.5°E 30°E 32.5°E 35°E 37.5°E 40°E  
+
+> 15°S
+> 10°S
+> 5°S
+> 0°
+> Southeast Africa (43% of global samples)
+> 10 0
+> 10 1
+> 10 2
+> samples per hex cell (log scale)
+
+(b) Southeast Africa inset (43% of sam-ples). 
+
+Figure 5: Spatial distribution of SOC samples. Density is shown as samples per hexagonal cell on a logarithmic colour scale. Table 2: Tabular covariate groups. Percentile features (p10, p50, p90) are annual summaries derived from Sentinel-2 time series via Google Earth Engine. 
+
+Group Examples Features Spectral statistics Blue/Green/Red/NIR/SWIR p10, p50, p90; NDVI p10, p50, p90 21 Phenology Start/end/peak of season, EVI amplitude, cycle count 11 Vegetation structure LAI mean/std, fAPAR mean/std 4Topography Elevation, slope, aspect, TPI, topographic diversity, CHI 6Precipitation climate Mean annual, seasonality, driest/wettest/warmest month/quarter 7Temperature climate Mean annual, diurnal/annual range, seasonality, quarterly means 8Land characteristics Land use, parent material, agro-ecological zone 3Other Fire frequency, bare surface frequency, NPP 3
+
+Total 63 
+
+Patch extraction For every SOC sample, we extract a square patch ( 224 × 224 pixels) centered around the target for all modalities. As this is a costly operation in terms of time, we avoid processing bottlenecks during training by pre-computing all patches and cache to tensors. Figure 6 illustrates the three modalities at both landscape scale (top row, 20 km at 30 m/px) and at the model input scale (bottom row). 
+
+4.3 Tabular Covariates 
+
+Another input type that’s received by each node, is tabular covariates , which have many different un-encoded tabular features (Section 3.3) and can be split into eight thematic groups as per Table 2. Tabular covariates with missing values are filled using k-nearest-neighbour interpolation [Cover and Hart, 1967] with k = 5 . All features go through a standardization process to zero mean and unit variance. Both the imputer and scaler are fitted on training samples only , to prevent data leakage. 
+
+4.4 Dataset Statistics 
+
+Following the harmonization of the global dataset, we end up with a diverse range of soil conditions, as Table 3 reveals a summary of the final set. A thorough understanding of the target variable’s distribution is fundamental to robust model training. Figure 7 illustrates the SOC distribution across the source databases, alongside its log-
+
+12 (a) Sentinel-1 SAR backscatter (b) Sentinel-2 true colour (c) Copernicus GLO-30 DEM         
+
+> (d) Sentinel-1 SAR backscatter
+> false-colour channel assignment
+> R = VV (dB)
+> G = VH (dB)
+> B = VV/VH
+> (e) Sentinel-2 true colour
+> true-colour channel assignment
+> R = B04 (red)
+> G = B03 (green)
+> B = B02 (blue)
+> (f) Copernicus GLO-30 DEM
+> 360 370 380 390
+> elevation (m)
+> Landscape context 20 km @ 30 m/px Model input patch 224×224 px @ 10 m/px = 2.24 km
+
+Multi-modal raster inputs at two spatial scales     
+
+> Centred on (12.60 ∘S, 55.75 ∘W)(Mato Grosso, Brazil, 2023). Red box in top row marks the 2.24\,km model patch.
+
+Figure 6: Multi-modal raster inputs at two spatial scales. Top row (a–c): landscape context at 30 m/px over a 20 km region. Bottom row (d–f): the 224 × 224 pixel model input patch at 10 m/px (2.24 km per side), following ViT’s encoder input format (Section 3.3). The red box in the top row marks the patch extent. Location: Mato Grosso, Brazil. 
+
+transformed equivalent. Because SOC naturally accumulates in specific biomes (such as peat lands ), the raw distribution is heavily right-skewed (skewness = 1.61), featuring a long tail of soils with a high carbon content, extending up to 61 g kg -1 . However, transforming the data into log space returns an approximately normal distribution ( μ = 2 .62 , σ = 0 .62 ). This normalization directly motivates our use of a log-based target scaler during training, as well as the Huber loss (Section 3.7) to main-tain robustness against residual outliers. 
+
+4.5 Data Splitting Strategy 
+
+We split the dataset into training (90%), validation (5%) and test (5%) subsets using stratified random sampling . In order to preserve the characteristics of the target variable distribution, SOC values are partitioned into quantile-based bins and samples are then allocated such that each split maintains a consistent representation of these bins. This process results in approximately 44,140 
+
+training samples, 2,452 validation samples and 2,452 test samples. Under a random split, nearby samples can fall in different partitions, so the held-out metrics are best read as an upper bound on attainable accuracy. The transductive setup (Section 3.1) keeps the same neighbourhood structure available at training and inference time. As detailed in Section 3.1, the global graph structure is built once over the entire sample pool (Figure 8), with train , validation and test masks applied to the node sets. The validation and test labels are 13 Table 3: Dataset summary statistics. SOC values are reported in g kg -1 .
+
+Property Value Total samples 49,044 Source databases 9Geographic extent 6 continents Temporal range 2013–2022 SOC mean ± std 15.67 ± 11.38 SOC median 12.22 SOC range 1.00–61.40 SOC skewness 1.61 Tabular features 63 Sentinel-2 bands 11 Sentinel-1 polarisations 2 (VV, VH) DEM channels 110 20 30 40 50 60 
+
+> SOC (g kg −1 )
+> density
+> SOC distribution by source
+> afsis_2017
+> lucas_2018
+> surveyed samples
+> Chilean_SOCDB
+> sislac
+> MangrovesDB
+> SoDaH
+> SOCPDB
+
+(a) SOC distribution coloured by source database. AfSIS and LUCAS dominate the lower range; the tail extends beyond 60 g kg -1 .1.0 1.5 2.0 2.5 3.0 3.5 4.0      
+
+> log(1 + SOC)
+> 0.0
+> 0.1
+> 0.2
+> 0.3
+> 0.4
+> 0.5
+> 0.6
+> 0.7
+> 0.8
+> density
+> SOC distribution (log scale, n= 49, 044 )
+> empirical
+> (μ= 2.61, σ= 0.62)
+
+(b) Log-transformed SOC with fitted normal (μ=2 .62 , σ=0 .62 ), confirming approximate log-normality. 
+
+Figure 7: Distribution of SOC measurements across the 49,044 samples. hidden from the model during training, so that the GNN’s message passing neighborhoods remain intact across all partitions ( transductive setup ). 
+
+5 Experiments 
+
+5.1 Setup 
+
+Our experiments are carried out using three regional sets derived from the global dataset described in Section 4: Africa (∼26 k labeled samples), Europe (∼14 k samples) and Global (the whole dataset, 
+
+∼49 k samples). We train our models separately on these datasets, where they share the same archi-tectural skeleton (same main components described in Section 3: frozen TerraMind ViT backbone, 
+
+MoE fusion, RGAT stack and prediction heads) but tuned separately. For each region we first fine-tune the ViT model (Figure 9, Table 5) and then we perform a SpTGNN hyperparameter search on top of the resulting frozen backbone, resulting in the three hyperparameter configurations showcased in Table 6. 
+
+Data splits Following the previously described splitting strategy from Section 4.5, for each of the three regions, we split the data into a 90/5/5 ratio, for train, validation and test sets. We stratify across ten quantile bins of log(1 + SOC ) using a fixed random seed. The data graph is being built only once for each region and evaluation labels masked for the model during the training process (Section 3.1). The geographic distribution and density SOC samples for the two regions, along with their logarithmic scale target distribution is represented in Figure 10. 14 Heterogeneous SOC graph ( n = 49, 044 nodes, 3 edge relations) 
+
+> spatial
+> slope
+> NDVI
+
+Figure 8: Global heterogeneous SOC graph projection: sample nodes connected by three relation types (spatial proximity, elevation similarity, NDVI similarity) 224 ×224 patch        
+
+> 11
+> S2L2A
+> 2
+> S1GRD
+> 1
+> DEM
+> 1024
+> TerraMind v1-large
+> 196
+> 196 patch tokens
+> 1024
+> patch
+> aggregation
+> 512
+> MLP
+> 256
+> 128
+> 1
+> ˆy
+> MSE loss vs. log(1 + SOC)
+> (B, 196 ,1024) (B, 1024)
+> warm-up: backbone frozen, then: full backbone fine-tune
+> fine-tuned ViT →SpTGNN (frozen)
+
+Figure 9: Per-region ViT fine-tuning pipeline. Three raster modalities (S2L2A, S1GRD, DEM) feed the TerraMind v1-large backbone, which is fine-tuned with a regression head on log-transformed SOC. The fine-tuned backbone is then frozen and loaded into the downstream SpTGNN model 
+
+Metrics We evaluate our models on multiple key metrics: mean absolute error ( MAE ), root-mean-square error ( RMSE ), mean absolute percentage error ( MAPE ) and coefficient of determination (R2). All metrics are reported in the original SOC target scale, through an inverse transformation process of the log scaler. In our case, MAPE is the primary metric, as it does not depend on scale and it’s therefore easier to compare to other studies in the literature. MAE represents the average magnitude of prediction errors and it is robust to outliers ( ≥ 0 g kg −1, lower is better). RMSE is the square root of the mean squared error, which penalizes large errors more than MAE ( ≥ 0 g kg −1,lower is better). R2 quantifies the proportion of variance in the dependent variable that is predictable from the independent variable ( ≤ 1, higher is better). 15 10°W 0° 10°E 20°E 30°E 40°E 50°E                             
+
+> 30°S
+> 20°S
+> 10°S
+> 0°
+> 10°N
+> 20°N
+> (a) Africa subset ( n= 26, 630 )
+> 10 0
+> 10 1
+> 10 2
+> 10 3
+> samples / hex (log)
+> 1.0 1.5 2.0 2.5 3.0 3.5 4.0
+> log(1 + SOC)
+> 0.0
+> 0.1
+> 0.2
+> 0.3
+> 0.4
+> 0.5
+> 0.6
+> 0.7
+> density
+> (b) Africa: SOC distribution (log scale)
+> empirical
+> (μ= 2.38, σ= 0.52)
+> 10°W 0° 10°E 20°E 30°E
+> 40°N
+> 45°N
+> 50°N
+> 55°N
+> (c) Europe subset ( n= 14, 044 )
+> 10 0
+> 10 1
+> 10 2
+> samples / hex (log)
+> 1.0 1.5 2.0 2.5 3.0 3.5 4.0
+> log(1 + SOC)
+> 0.0
+> 0.1
+> 0.2
+> 0.3
+> 0.4
+> 0.5
+> 0.6
+> 0.7
+> density
+> (d) Europe: SOC distribution (log scale)
+> empirical
+> (μ= 2.92, σ= 0.57)
+> Regional training subsets: geographic coverage and SOC distribution
+
+Figure 10: Regional training subsets (Africa and Europe), sample density maps on the left side and log-SOC distributions on the right side. Table 4: Validation metrics for the three regional SpTGNN instances. Each region was tuned inde-pendently (its own ViT fine-tune followed by its own SpTGNN hyperparameter tuning run). The three configurations share the same architectural skeleton but differ in hyperparameters (Table 6). The Africa instance is selected as the focus of the remaining experiments 
+
+Region ntrain MAE ↓ RMSE ↓ MAPE % ↓ R2 ↑
+
+Africa (selected) ∼ 25 ,200 1.52 2.57 13 .7 0.864 
+
+Europe ∼ 12 ,600 6.58 9.32 37 .1 0.445 
+
+Global ∼ 44 ,100 4.52 7.36 29 .3 0.597 
+
+Metrics are reported on the held-out validation subset, on the inverse-transformed (original) SOC scale (g kg −1), at each region’s best-validation-MAPE checkpoint. These are single-model trainings using the best configuration from the per-region hyperparameter search and are distinct from the 5-member deep-ensemble post-calibration test row in Table 10. 
+
+We explain in detail the metrics used for uncertainty quantification (UQ) in Section 5.3, which in-cludes: expected calibration error, Gaussian negative log-likelihood, continuous ranked probability score, coverage + mean width of the 95% Vysochanskij-Petunin prediction interval and the epistemic fraction ( σ2
+
+epistemic /σ 2
+
+total ). 
+
+Training process We use gradient norm clipping and a ReduceLROnPlateau learning rate sched-uler. The breakdown of the per-region hyperparameter search process results can be found in Table 6. Hyperparameter search process was split on 4 NVIDIA A100 GPUs in parallel through the Ray Tune framework, while individual trials were carried out on a single NVIDIA A100 node each. 
+
+5.2 Cross-Region Baseline 
+
+We benchmark the model performance for the three model regions. Table 4 holds the results of the previously described training and hyperparameter tuning processes, with metrics that reflect the model’s performance on the held-out validation split for each region. We observe the following from the region based model benchmark: 16 Table 5: Per-region TerraMind ViT fine-tuning results. Each region’s best validation checkpoint (selected by val-loss on the log-transformed target) is loaded into the corresponding SpTGNN model with frozen weights. We report MAPE and R2 on the inverse-transformed (original) SOC scale                        
+
+> Region Checkpoint val-loss ↓val-MAPE % ↓val-R2↑
+> Africa ep. 10 0.365 26 .30.676
+> Europe ep. 50 0.163 40 .80.405
+> Global ep. 23 0.173 36 .20.512
+> val-loss is MSE on the log-transformed target (lower is better); val-MAPE and val-R2are computed on the original SOC scale by inverse-transforming the model output through the per-region target scaler
+
+The Africa regional model achieves the highest R2 (0.864 vs. 0.445 for Europe and 0.597 for Global), reflecting the broad African SOC content range and tight spatial autocorrelation per-cluster (Figure 5b). Europe, on the other hand, plateaus at val R2 = 0 .445 and val MAPE = 37 .1 % , the LUCAS SOC distribution is wider than Africa’s, so the limiting factor is not range but heterogeneity. Lastly, the Global model is trained on the union of the Europe and Africa sets, along with samples all across the globe, which manages to reach val-R2 = 0 .597 . Since data distributions vary between sources, we train separate models per region. 
+
+Per-region ViT fine-tuning Before the SpTGNN training process, we fine-tune the TerraMind v1-large backbone on each region separately, framed as a regression task. We attach a multi-layer perceptron (MLP) regression head on top of the tensor exported by the backbone. We feed the same three modalities as the downstream SpTGNN (Sentinel-2 L2A with 11 surface-reflectance bands, Sentinel-1 GRD with V V and V H polarizations and the GLO-30 DEM) into the TerraMind’s backbone, which outputs a size 1024 token sequence , which is mapped to the corresponding log-transformed SOC target through an MLP regression head (Figure 9). We take advantage of a warm up period of Nw epochs, keeping the backbone frozen so that the head can adapt before unfreezing. The ViT fine-tune uses the same per-region 90/5/5 split as the downstream SpTGNN (Section 4.5): the validation and test samples are held out of fine-tuning, checkpoints are selected on the validation split, and no test sample is ever seen during either the fine-tune or the SpTGNN training stage. The configuration of the ViT model trained on the Africa subset uses Mean Squared Error (MSE) 
+
+loss, while the ones trained on Europe and Global use Huber loss. Head depth, warm up length, optimizer configuration and regularization were tuned independently per region. When we load the resulting (frozen) region based fine-tuned ViT backbone into SpTGNN, the regression head is discarded. Table 5 contains the results of the region based ViT fine-tunning process, each entry corresponds to the best performing model for that certain region, evaluated on the validation set, taking into account M AP E and R2 metrics. 
+
+Per-region hyperparameter search As previously stated, the three regional models share the same architectural skeleton, but each was tuned separately on its own validation split, result-ing in different hyperparameter configurations. In Table 6 we can see the most important pa-rameters from a two-step hyperparameter tuning process . The first step tunes the model with wide parameter ranges over the most crucial configuration choices, such as GNN depth and hidden dimensions (e.g., RGAT layer widths in {[256 , 128] , [256 , 384 , 192] , [512 , 256 , 128 , 64] }), learning rate ( 10 −5 − 10 −3), expert type ( cross-gated , concat , additive ), MoE fusion dimension ({256 , 512 , 1024 }), number of experts ( {4, 8, 16 }), attention mechanism, dropout, weight decay and batch size. Each configuration is trained on the regional training splits and ranked by validation MAPE and R2.For the second step we analyze the top quartile of trials from step one and we identify the resulting values that consistently appear in the best performing configurations. We then tighten the search space around the identified hotspots, using more granular choices and pruning categorical choices (e.g., expert type fixed to cross-gated and learning rate restricted to 1×10 −4, 3×10 −4). The Table 6 reveals that the Africa SpTGNN model converges on the deepest GNN configuration, with a within-relation multiplicative attention mode, while the Europe model achieves best perfor-mance using a shallower three layer GNN with additive attention. The Global configuration uses 17 Table 6: Most important hyperparameters for each regional SpTGNN instance, selected from the per-region best configurations. The upper block lists the parameters that differ across regions; the lower block lists settings that are shared by all three. 
+
+Africa Europe Global 
+
+Optimisation 
+
+Learning rate (Adam) 1.95 ×10 −4 2.19 ×10 −4 5.27 ×10 −4
+
+Weight decay 2.79 ×10 −5 1.53 ×10 −4 5.29 ×10 −5
+
+Gradient-clip ∥g∥2 0.5 0.5 1.87 
+
+Epochs (max) 100 100 50 
+
+Early-stop patience 30 800 800 
+
+LR-scheduler patience 10 100 100 
+
+Batch size 32 16 16 
+
+Auxiliary-loss weight λaux 5.3×10 −5 8.8×10 −5 4.9×10 −5
+
+GNN architecture 
+
+RGAT hidden dims [512 , 256 , 128 , 64] [256 , 384 , 192] [256 , 128] 
+
+Number of bases 4 3 —Attention mechanism within-relation within-relation across-relation Attention mode multiplicative additive additive Negative slope (LeakyReLU) 0.106 0.100 0.200 
+
+Dropout 0.286 0.341 0.236 
+
+Mixture-of-Experts fusion 
+
+Number of experts 8 16 8
+
+Expert type cross-gated cross-gated concat Fusion dim 512 1024 1024 
+
+Top-k routing dense 4 4
+
+Load-balance weight 1.95 ×10 −2 3.38 ×10 −3 6.19 ×10 −2
+
+Pre / Post MLPs 
+
+Pre-MLP hidden → output [256 , 128] → 256 [1024 , 512] → 512 [1024] → 1024 
+
+Pre-MLP dropout 0.161 0.176 0.225 
+
+Post-MLP hidden → output [256 , 128] → 128 [512 , 256] → 128 [256 , 128] → 32 
+
+Post-MLP dropout 0.10 0.27 0.27 
+
+Graph construction 
+
+HDBSCAN min cluster size 8 2 2
+
+Adaptive-k neighbours 10 5 5
+
+Encoders (ViT, time, positional) and graph relations 
+
+ViT backbone: TerraMind v1-large (frozen), CLS-token patch-merge transformer. CLS-merge (Tx, layers / heads / ff): Africa 2/4/1024 , Europe 3/8/1024 , Global 2/4/512 .Modality merge: Africa, Europe = mean; Global = max. Time encoder: 4 Fourier frequencies, output dim 8 (all regions). Positional encoder: 10 scales, σ ∈ [0 .1, 10] , output dim 16 (all regions). Spatial / NDVI / elevation graph relations with kspatial =5 , kNDVI =3 ,max distance 2,000 km, slope scale 30 (all regions). 
+
+a two layer GNN with across-relation additive attention. Components that are more common are summarized in the second half the table in order to keep the comparison easy to read. 
+
+Benchmark subset As our Africa region model has the strongest results in our evaluation bench-marks, for the rest of our study (ablations, loss-function comparisons and uncertainty calibration in Sections 5.4-5.3) we evaluate strictly on this subset. This presents a strong signal to noise ratio, so that we can clearly quantify the removal of certain model components. The AfSIS subset, which mostly comprises the Africa training set, being a homogeneous set eliminates the need to account for distribution shifts, meaning that the performance gaps can be strictly attributable to the model design. Being a smaller subset ( ntrain = 25 ,180 , nval = 768 , ntest = 682 ), our experiments take considerably less time to finish, we approximate a mean of 4.5 hours for a training run on an A100 GPU. 18 Table 7: Calibration metrics on the Africa test split before and after post-hoc temperature scaling. Brackets are paired bootstrap 95 % CIs over 1,000 test resamples. Cov@95 / MPIW@95 use dis-tribution free Vysochanskij-Petunin intervals; ECE / NLL / CRPS evaluate the model’s Gaussian predictive 
+
+Production (hybrid) β-NLL ( β=0 .5)Metric Pre-cal Post-cal ( T =0 .92 ) Pre-cal Post-cal ( T =0 .83 )ECE ↓ 0.054 [0.034, 0.077] 0.031 [0.013, 0.054] 0.085 [0.063, 0.105] 0.026 [0.011, 0.048] 
+
+NLL ↓ −0.194 −0.183 −0.189 −0.206 
+
+CRPS ↓ 0.259 0.257 0.273 0.269 
+
+Cov@95 ( → 0.95 ) 0.981 0.981 0.994 0.990 
+
+MPIW@95 ↓ 3.23 2.98 3.48 2.89 0.0 0.2 0.4 0.6 0.8 1.0 
+
+> Expected coverage
+> 0.0
+> 0.2
+> 0.4
+> 0.6
+> 0.8
+> 1.0
+> Observed coverage
+> Perfect calibration
+> Pre-calibration (ECE=0.054)
+> Post temperature scaling (ECE=0.031)
+
+Figure 11: Reliability diagrams (predicted quantile vs. empirical coverage) for the hybrid and β-NLL ensembles on the Africa test split, before and after post-hoc temperature scaling. 
+
+5.3 Uncertainty Quantification 
+
+We set up two 5-member ensembles in order to compute the calibration and uncertainty decom-position of our model, specifically ( MSE + λNLL , λ = 0 .05 , 30 -epoch warm start) and β-NLL 
+
+(β = 0 .5, NLL-as-primary, no warm start ), as previously described in Section 3.8. 
+
+Calibration before and after temperature scaling Both ensemble configurations show uncer-tainty miscalibration. Table 7 reports the Africa test-split calibration results before and after applying 
+
+temperature scaling with a scalar parameter fitted on the validation set. Before calibration, both SpTGNN ensembles over-cover the nominal interval ( ECE = 0 .054 , Cov@95 = 0 .981 ) and the 
+
+β-NLL ensemble over-covers even more strongly ( ECE = 0 .085 , Cov@95 = 0 .994 ). Temperature scaling improves calibration for both models, which reduces ECE by 1.7-3.3× and brings the two ensembles to comparable quality ( ECE post ≈ 0.026 -0.031 ), without affecting the point predictions. Figure 11 shows the corresponding reliability diagram for the SpTGNN ensemble. 
+
+Uncertainty decomposition In Table 8 we split the post calibration prediction variance in 
+
+aleatoric and epistemic uncertainty. The model ensemble determines that 48 % of the total vari-ance is epistemic , compared to 34 % for the β-NLL ensemble, with the gap widening (Figure 12). These results show us that almost half of the predicted uncertainty is attributed to ensemble mem-
+
+19 1 2 3 4 5   
+
+> Ensemble size M
+> 0.0
+> 0.1
+> 0.2
+> 0.3
+> 0.4
+> Epistemic fraction
+> Ensemble (MSE+ \,NLL, = 0.05 )
+> Ensemble ( -NLL, = 0.5 )
+
+Figure 12: Epistemic fraction σ2
+
+> epistemic
+
+/σ 2 
+
+> total
+
+as a function of ensemble size M . Both ensembles are zero at M =1 by construction (single member, no between-member variance). The SpTGNN hybrid keeps growing through M =4 as ensembling rescues the σ-collapse regime, while β-NLL plateaus near 0.23 .Table 8: Uncertainty decomposition on the Africa test split, post-calibration. Brackets are bootstrap 
+
+95 % CIs. 
+
+SpTGNN β-NLL Aleatoric variance (raw) 0.176 0.142 
+
+Epistemic variance (raw) 0.126 [0.112, 0.143] 0.108 [0.095, 0.122] 
+
+Total variance (raw) 0.299 0.249 
+
+Epistemic fraction 0.480 [0.452, 0.505] 0.335 [0.317, 0.353] 
+
+Pearson r(|err |, σ ) 0.292 0.314 
+
+Spearman r(|err |, σ ) 0.262 0.268 
+
+ber disagreement . Whereas the hybrid λNLL ensemble setup encourages the members to produce 
+
+conservative aleatoric uncertainty estimates (warm up and small λ = 0 .05 ). 
+
+Sensitivity to ensemble size We measure the impact of the ensemble size, by iteratively evaluating different subsets formed from the initial 5 members of the ensemble, without the need for re-training (Table 9 and Figure 13). As the ensemble grows in members, the two losses behave differently. When we are using an ensemble of size 1 and the hybrid SpTGNN loss, the model often predicts unrealistically small uncertainty values ( σ → 0) on difficult samples, resulting in poor NLL ( 521 .9)and low coverage (Cov@95 = 0 .55 ). As we add more members, this issue gets resolved because ensemble disagreement adds uncertainty, as per Eq. 6. The gradual increase from 1 to 5 members improves RMSE from 0.70 to 0.48 , while NLL almost stabilizes near its optimum ( ∼ − 0.19 ). 
+
+β-NLL shows the opposite, an ensemble of size 1 is already well-calibrated ( NLL = −0.31 , ECE = 0.020 , Cov@95, = 0 .98 ) and adding more members increases the total predicted uncertainty lowers the RMSE and calibration. 
+
+5.4 Predictive Performance 
+
+In Table 10 we showcase the predictive performance on the held out Africa test subset for the SpT-GNN ensemble , trained using MSE + λNLL ( λ = 0 .05 ) with a 30 -epoch warm-start phase, which is an improvement when compared to the XGBoost baseline. RMSE is reduced by approximately 
+
+8.5 % (3.51 compared to 3.84 ), lowering MAPE from 25 .2 % to 22 .9 % .The β-NLL ensemble is worse than SpTGNN on both point metrics: its RMSE is higher by ∼12 % 
+
+(3.93 vs. 3.51 ) and its MAPE is also higher ( 24 .7 % vs. 22 .9 % ). The β-NLL configuration is 20 Table 9: Calibration and accuracy as a function of ensemble size M , evaluated on the Africa test split with no retraining (post-hoc member subsetting).                                                                     
+
+> M=1 M=2 M=3 M=4 M=5
+> SpTGNN (MSE +λNLL hybrid)
+> RMSE ↓0.704 0.660 0.633 0.530 0.480
+> NLL ↓521 .91.37 1.00 −0.05 −0.19
+> ECE ↓0.147 0.037 0.052 0.015 0.054
+> Cov@95 ( →0.95 )0.553 0.900 0.919 0.978 0.981
+> Epistemic frac. 0.000 0.253 0.345 0.442 0.408
+> β-NLL
+> RMSE ↓0.404 0.438 0.483 0.500 0.516
+> NLL ↓−0.31 −0.32 −0.26 −0.22 −0.19
+> ECE ↓0.020 0.106 0.101 0.090 0.085
+> Cov@95 ( →0.95 )0.984 0.994 0.996 0.994 0.994
+> Epistemic frac. 0.000 0.266 0.243 0.231 0.231
+
+Table 10: Point-prediction performance on the Africa test split ( ntest = 682 , units: g kg −1). Bold marks the best of each column. SpTGNN ensemble error bars are 1,000 -resample bootstrap 95 % 
+
+CIs.                                  
+
+> Method ntest MAE ↓RMSE ↓MAPE % ↓R2↑UQ XGBoost (covariates only) 682 2.52 3.84 25 .20.715 —
+> β-NLL ensemble ( M=5 )682 2.42 3.93 24 .70.700 ✓
+> SpTGNN ensemble (M=5 )682 2.27 3.51 ±0.48 22 .90.762 ✓
+
+retained not for point accuracy but for its uncertainty behaviour, which we break down in depth in Section 5.3. The results of our evaluation can be seen in Figure 14, with predicted vs. true SOC, correspond-ing to all three rows from Table 10. We can see that the SpTGNN ensemble’s residuals are more concentrated around the 1:1 diagonal. 
+
+5.5 Architecture Ablations 
+
+We compare our Africa SpTGNN model to a simple tabular model (XGBoost) and three different SpTGNN architecture ablations: • XGBoost (with only covariates) : gradient-boosted trees [Chen and Guestrin, 2016] trained on the 63 environmental covariates, with no imagery and no graph (nest = 500 ,depth = 8 , η = 0 .05 )• Spatial graph : SpTGNN with the heterogeneous graph collapsed to a single edge type (geographic k-NN only based on lat/lon) • Concatenation based fusion : SpTGNN with the Mixture-of-Experts (MoE) replaced by feature concatenation followed by an MLP • ViT disabled : SpTGNN with the TerraMind ViT embedding stream not joining at the fusion layer, leaving only tabular and positional inputs All of these models are trained on the Africa sub set and evaluated on the same validation split and metrics are reported in the inverse transformed (original) SOC scale. The Africa trained SpTGNN is included in Table 11 as a reference as our best configuration. Dropping the NDVI and elevation relational edges reduces performance, with an R2 loss of nearly 
+
+0.4 on validation (RMSE 5.02 , R2 = 0 .479 , MAPE 28 .2 % ), supporting the use of heterogeneous instead of the positionally encoded homogeneous graph. The replacement of Mixture-of-Experts (MoE) fusion with a simple concatenation decreases R2 by ∼0.29 (RMSE 4.55 , MAPE 26 .1 % ), the gap being smaller than the graph ablation, but reflecting the lack of modality-specific interactions. Lastly, removing TerraMind ViT as input sees a difference in R2 by ∼0.25 (RMSE 4.31 , MAPE 21 1 2 3 4 5                        
+
+> Ensemble size M
+> 0.40
+> 0.45
+> 0.50
+> 0.55
+> 0.60
+> 0.65
+> 0.70
+> RMSE (standardised scale)
+> Ensemble (MSE+ \,NLL, = 0.05 )
+> Ensemble ( -NLL, = 0.5 )12345
+> Ensemble size M
+> 17.5
+> 20.0
+> 22.5
+> 25.0
+> 27.5
+> 30.0
+> 32.5
+> 35.0
+> MAPE (%, original scale)
+> Ensemble (MSE+ \,NLL, = 0.05 )
+> Ensemble ( -NLL, = 0.5 )12345
+> Ensemble size M
+> 10 1
+> 10 0
+> 0
+> 10 0
+> 10 1
+> 10 2
+> Mean NLL (test split)
+> Ensemble (MSE+ \,NLL, = 0.05 )
+> Ensemble ( -NLL, = 0.5 )12345
+> Ensemble size M
+> 0.02
+> 0.04
+> 0.06
+> 0.08
+> 0.10
+> 0.12
+> 0.14
+> ECE (test split)
+> Ensemble (MSE+ \,NLL, = 0.05 )
+> Ensemble ( -NLL, = 0.5 )
+
+Figure 13: Effect of ensemble size M on accuracy (top: RMSE on the standardised scale, MAPE on the original scale) and on calibration (bottom: NLL on a symlog scale, ECE), for the SpTGNN hybrid (dark) and β-NLL (orange) losses on the Africa test split. The two losses produce opposite trends: the SpTGNN hybrid improves monotonically with M , escaping the heteroscedastic single-model σ-collapse, while β-NLL is already calibrated at M =1 and degrades as M grows. Table 11: Architecture ablations on the Africa instance, all trained on the same data split and eval-uated on the validation split, on the inverse-transformed (original) SOC scale (g kg −1). Each row is a single-model checkpoint trained under the shared ablation protocol (same seed, schedule and budget for all four variants), so the SpTGNN (full) row is a controlled re-run of the Africa configu-ration and is slightly below the cherry-picked best-HPO checkpoint in Table 4 ( R2=0 .864 ); the gap reflects HPO selection variance, not a different model. 
+
+Variant MAE ↓ RMSE ↓ MAPE % ↓ R2 ↑
+
+SpTGNN (full) 1.72 2.64 16 .5 0.865 
+
+Spatial-only graph 3.04 5.02 28 .2 0.479 
+
+Concat fusion 2.80 4.55 26 .1 0.571 
+
+ViT disabled 2.84 4.31 28 .4 0.611 
+
+28 .4 % ), losing the local area representation offered by the foundation model. Altogether, the ab-lation study results show that each major architectural component contributes meaningfully to the overall performance of the SpTGNN model on the Africa dataset. 
+
+5.6 Diagnostics Gaussian-Assumption Checks The Gaussian negative log-likelihood objective assumes the tar-gets are conditionally independent and Gaussian, yi | xi ∼ N (ˆ yi, σ 2
+
+i ), with the variance set by the 22 0 10 20 30 40 50                                
+
+> Observed SOC (%)
+> 0
+> 10
+> 20
+> 30
+> 40
+> 50
+> Predicted SOC (%)
+> N = 682
+> MAE = 2.52 %
+> RMSE = 3.84 %
+> MAPE = 25.2 %
+> R2= 0.715
+> XGBoost
+> y=x
+> OLS (R2fit = 0.719 )
+> 010 20 30 40 50
+> Observed SOC (%)
+> N = 682
+> MAE = 2.42 %
+> RMSE = 3.93 %
+> MAPE = 24.7 %
+> R2= 0.700
+> beta-NLL
+> y=x
+> OLS (R2fit = 0.751 )
+> 010 20 30 40 50
+> Observed SOC (%)
+> N = 682
+> MAE = 1.72 %
+> RMSE = 2.64 %
+> MAPE = 16.5 %
+> R2= 0.865
+> SpTGNN
+> y=x
+> OLS (R2fit = 0.869 )
+
+Figure 14: Predicted vs. true SOC on the Africa test split for the three configurations. Diagonal is the 1:1 line; colour encodes point density Table 12: Goodness-of-fit diagnostics on standardised Africa test residuals zi = ( yi − μi)/σ i for the two ensembles. Shapiro-Wilk and Breusch-Pagan test statistics are scale independent under temperature scaling; the moments of z are reported post-calibration. Target values under correct specification: mean( z) = 0 , var( z) = 1 .
+
+Statistic SpTGNN β-NLL ( β=0 .5)Shapiro-Wilk W / p 0.934 / ∼ 10 −16 0.947 / ∼ 10 −15 
+
+Breusch–Pagan z2 ∼ σ / p 9.94 /0.0016 0.26 /0.609 
+
+Breusch–Pagan z2 ∼ μ / p 0.42 /0.516 10 .14 /0.0015 mean( z) −0.139 −0.094 var( z) 1.212 1.083 
+
+predicted heteroscedastic uncertainty σ2 
+
+> i
+
+. We evaluate this, with the report shown in Table 12 for the three tests on the post-calibration residuals for both ensembles. Both ensembles fail the Shapiro-Wilk 
+
+[Shapiro and Wilk, 1965] normality test, which indicates a statistically significant deviations from Gaussianity. The Breusch-Pagan [Breusch and Pagan, 1979] homoscedasticity test, suggests that variance remains correlated with either the predicted uncertainty or the predicted mean, meaning that the heteroscedastic structure is not fully captured by the learned variance head. 
+
+Mean and variance Table 12 shows that the residuals are close to the targets, mean( z) = −0.14 ,
+
+var( z) = 1 .21 and β-NLL −0.09 and 1.08 (targets 0 and 1). Both models slightly over predict, with SpTGNN deviating more from the ground truth. 
+
+Heteroscedasticity of the standardized residuals Breusch-Pagan tests if the variance of the er-ror depends on a regressor. In our SpTGNN, we apply the test to z2 against the standard deviation σ
+
+and predicted mean μ. Under heteroscedastic Gaussian, z2 should be independent of both. For SpT-GNN, z2 depends on σ (p = 0 .0016 ) but not on μ (p = 0 .516 ), the magnitude of the standardized residual varies across uncertainty, meaning the σ head over or under -estimates variance in some regions of its own output range, even though the residual spread is independent of the prediction itself. For β-NLL, the pattern is reversed, z2 is independent of σ (p = 0 .609 ) but depends on μ
+
+(p = 0 .0015 ), so the σ head is well scaled along its range but leaves residual variance that varies with the prediction. The hybrid objective learns a weaker variance head, whereas β-NLL sharpens variance estimation at the cost of mean dependent heteroscedasticity. 
+
+Shape of the predictive distribution Shapiro-Wilk rejects Gaussianity for both ensembles ( p ≈
+
+10 −16 and 10 −15 ). Nevertheless, the post-calibration coverage goes over the intended 95% level (0.981 for SpTGNN and 0.990 for β-NLL), this indicates that the predictive distributions are too conservative , rather than over confident .
+
+Reported metrics Because the Gaussian assumption is mis-satisfied, we report both Gaussian-likelihood metrics (NLL) and the calibration-and-sharpness metrics (CRPS, ECE) computed under 23 our Gaussian predictive, alongside distribution-free coverage metrics (Cov@95, MPIW@95) de-rived from Vysochanskij–Petunin bounds [Priore and Oishi, 2023], which require only finite vari-ance and unimodality. Both provide consistent conclusions for our experiments, see Section 6. 
+
+6 Discussion 
+
+The experiments described in Section 5 support the main claims of this paper. In this section we go through the assumptions, caveats and open problems that limit these results. 
+
+6.1 Limitations Gaussian-likelihood violation The heteroscedastic Gaussian NLL assumes zi = ( yi − μi)/σ i ∼N (0 , 1) . Through the tests performed in Section 5.6 ( Shapiro-Wilk and Breusch-Pagan ), we reject Gaussianity and reveal that the two ensembles show different residual heteroscedasticity patterns. The interval of predictions is slightly wider than needed and we believe that the impact on practical use is small. 
+
+Per-sample independence in the uncertainty model The model ensemble with temperature scaling pipeline only produces the predicted standard deviation for each sample, independently. Whereas, in reality, samples are correlated by proximity and location, leading to correlations in er-rors. When predictions are aggregated over a specific region, the calculated uncertainty should not be the sum of the per-sample uncertainties, but instead, extending SpTGNN’s predictions with a 
+
+Gaussian process residual or a kriged correction fitted on top of the current architecture. 
+
+No explicit out-of-distribution detection (OOD) Epistemic uncertainty generally grows in re-gions of the data space with sparse samples (this is an observation, not a guarantee), which means the model could still be confidently wrong on an out-of-distribution sample. Therefore, SpTGNN would need to be paired with an out-of-distribution (OOD) detection mechanism. 
+
+Frozen TerraMind backbone We keep the ViT backbone frozen during training, as propagating through a foundation model backbone is out of our GPU budget, which caps the model’s ability to correct any modality that the fine-tune might have missed. 
+
+Transductive evaluation protocol As detailed in Section 4.5, the graph topology is built once over the full sample pool, so validation and test node features participate in the message-passing neighbourhoods of training nodes even though their labels are masked. The reported held-out met-rics therefore reflect transductive performance and are best read as an upper bound on the inductive accuracy attainable on samples from previously unseen areas. 
+
+Ablation coverage The ablations in Section 5.5 isolate the heterogeneous graph, the MoE fusion and the ViT stream, but do not separately disable the temporal encoder or the Moran’s-I auxiliary loss. Their individual contributions are left for future work. 
+
+Comparison to prior geospatial GNNs Our headline comparison uses a tuned tabular gradient-boosting baseline. We do not include a direct empirical comparison against the PE-GNN family [Klemmer et al., 2023, Zhao and Efremova, 2023] discussed in Section 2, since the published setups differ in covariates and sampling. Benchmarking these methods on our corpus is a priority for future work. 
+
+7 Conclusion 
+
+In this study we introduced SpTGNN, a multi-modal, spatio-temporal heterogeneous graph neural network for soil organic carbon (SOC) prediction. Our proposed architecture which incorporates multiple types of relations between soil samples such as position, vegetation and elevation, as well as a per-region fine-tuned foundation model TerraMind and fusing the multiple streams of input data (tabular, images, encoded space and time) through a cross-gated Mixture-of-Experts (MoE). We assessed uncertainty using a 5-member deep ensemble coupled with post-hoc temperature scaling. 24 On our Africa sub-dataset, the deep-ensemble SpTGNN reaches R2 = 0 .762 , an RMSE of 3.51 ±
+
+0.48 g kg −1 and a MAPE of 22 .9 % on the test split, while the best single-model checkpoint reaches a validation R2 = 0 .864 and MAPE of 13 .7 % . Ablations confirm that the heterogeneous graph, the MoE fusion layer and the foundation-model backbone contribute meaningfully to the model’s output. At the same time, the evaluations performed on the Europe sub-dataset, as well as Global unified dataset confirm that the architecture transfers, though performance tends to vary with the distribution of the training set, suggesting that source-specific variants are a promising avenue for future work. To our knowledge, SpTGNN is the first framework to combine foundation-model feature extraction, heterogeneous relational graph attention and decomposed uncertainty quantification for soil proper-ties estimation. Trained models and per-region configurations will be released through public model cards to facilitate reproducibility and future research. 
+
+Declaration of generative AI and AI-assisted technologies in the writing process 
+
+During the preparation of this work the authors used Claude (Opus 4.7, Anthropic) in order to improve the readability and language of certain sections of the manuscript. After using this tool, the authors reviewed and edited the content as needed and take full responsibility for the content of the publication. 
+
+References 
+
+Niels Batjes. Total carbon and nitrogen in the soils of the world. European Journal of Soil Science ,47:151–163, 06 1996. doi: 10.1111/j.1365-2389.1996.tb01386.x. T. S. Breusch and A. R. Pagan. A simple test for heteroscedasticity and random coefficient variation. 
+
+Econometrica , 47(5):1287–1294, 1979. ISSN 00129682, 14680262. URL http://www.jstor. org/stable/1911963 .Christopher F. Brown, Michal R. Kazmierski, Valerie J. Pasquarella, William J. Rucklidge, Masha Samsikova, Chenhui Zhang, Evan Shelhamer, Estefania Lahera, Olivia Wiles, Simon Ilyushchenko, Noel Gorelick, Lihui Lydia Zhang, Sophia Alj, Emily Schechter, Sean Askay, Oliver Guinan, Rebecca Moore, Alexis Boukouvalas, and Pushmeet Kohli. AlphaEarth Foun-dations: An embedding field model for accurate and efficient global mapping from sparse label data, September 2025. URL http://arxiv.org/abs/2507.22291 . arXiv:2507.22291 [cs]. Dan Busbridge, Dane Sherburn, Pietro Cavallo, and Nils Y. Hammerla. Relational graph attention networks. arXiv preprint arXiv:1904.05811 , 2019. Tianqi Chen and Carlos Guestrin. XGBoost: A Scalable Tree Boosting System. In Proceedings of the 22nd ACM SIGKDD International Conference on Knowledge Discovery and Data Mining ,pages 785–794, August 2016. doi: 10.1145/2939672.2939785. URL http://arxiv.org/abs/ 1603.02754 . arXiv:1603.02754 [cs]. Thomas M. Cover and Peter E. Hart. Nearest neighbor pattern classification. IEEE Transactions on Information Theory , 13(1):21–27, 1967. doi: 10.1109/TIT.1967.1053964. Miguel Flores, Mateo Soliz, and Ramón A. Mollineda. Graph neural networks for Soil Organic Car-bon Estimation: Data-efficient modeling of multimodal spatial dependencies. Machine Learning with Applications , 24:100878, June 2026. ISSN 2666-8270. doi: 10.1016/j.mlwa.2026.100878. URL https://www.sciencedirect.com/science/article/pii/S2666827026000435 .T. Hengl and S. Gupta. An Open Compendium of Soil Datasets: Soil Observations and Measure-ments, 2025. URL https://doi.org/10.5281/zenodo.4748499 .Tomislav Hengl, Jorge Mendes de Jesus, Gerard B. M. Heuvelink, Maria Ruiperez Gonzalez, Milan Kilibarda, Aleksandar Blagoti´ c, Wei Shangguan, Marvin N. Wright, Xiaoyuan Geng, Bernhard Bauer-Marschallinger, Mario Antonio Guevara, Rodrigo Vargas, Robert A. MacMillan, Niels H. Batjes, Johan G. B. Leenaars, Eloi Ribeiro, Ichsani Wheeler, Stephan Mantel, and Bas Kempen. 25 SoilGrids250m: Global gridded soil information based on machine learning. PLoS ONE , 12(2): e0169748, February 2017. ISSN 1932-6203. doi: 10.1371/journal.pone.0169748. URL https: //pmc.ncbi.nlm.nih.gov/articles/PMC5313206/ .Peter J. Huber. Robust Estimation of a Location Parameter. In Samuel Kotz and Norman L. Johnson, editors, Breakthroughs in Statistics: Methodology and Distribution , pages 492–518. Springer, New York, NY, 1992. ISBN 978-1-4612-4380-9. doi: 10.1007/978-1-4612-4380-9_35. URL 
+
+https://doi.org/10.1007/978-1-4612-4380-9_35 .Johannes Jakubik, Felix Yang, Benedikt Blumenstiel, Erik Scheurer, Rocco Sedona, Stefano Mau-rogiovanni, Jente Bosmans, Nikolaos Dionelis, Valerio Marsocci, Niklas Kopp, et al. Terramind: Large-scale generative multimodality for earth observation. arXiv preprint arXiv:2504.11171 ,2025. Thomas N. Kipf and Max Welling. Semi-Supervised Classification with Graph Convolutional Net-works, February 2017. URL http://arxiv.org/abs/1609.02907 . arXiv:1609.02907 [cs]. Konstantin Klemmer, Nathan S. Safir, and Daniel B. Neill. Positional encoder graph neural networks for geographic data. In International Conference on Artificial Intelligence and Statistics , pages 1379–1389. PMLR, 2023. Balaji Lakshminarayanan, Alexander Pritzel, and Charles Blundell. Simple and scalable predictive uncertainty estimation using deep ensembles. In Advances in Neural Information Processing Systems , volume 30, 2017. R. Lal. Soil carbon sequestration impacts on global climate change and food security. Science , 304 (5677):1623–1627, June 2004. ISSN 1095-9203. doi: 10.1126/science.1097396. Qimai Li, Zhichao Han, and Xiao-Ming Wu. Deeper Insights into Graph Convolutional Networks for Semi-Supervised Learning, January 2018. URL http://arxiv.org/abs/1801.07606 .arXiv:1801.07606 [cs]. A. B McBratney, M. L Mendonça Santos, and B Minasny. On digital soil mapping. Geoderma ,117(1):3–52, November 2003. ISSN 0016-7061. doi: 10.1016/S0016-7061(03)00223-4. URL 
+
+https://www.sciencedirect.com/science/article/pii/S0016706103002234 .Ben Mildenhall, Pratul P. Srinivasan, Matthew Tancik, Jonathan T. Barron, Ravi Ramamoorthi, and Ren Ng. NeRF: Representing Scenes as Neural Radiance Fields for View Synthesis, August 2020. URL http://arxiv.org/abs/2003.08934 . arXiv:2003.08934 [cs]. Harvey J. Miller. Tobler’s first law and spatial analysis. Annals of the Association of American Geographers , 94(2):284–289, 2004. ISSN 00045608, 14678306. URL http://www.jstor. org/stable/3693985 .Patrick A. P. Moran. Notes on continuous stochastic phenomena. Biometrika , 37(1/2):17–23, 1950. A. Orgiazzi, C. Ballabio, P. Panagos, A. Jones, and O. Fernández-Ugalde. LUCAS Soil, the largest expandable soil dataset for Europe: A review. European Journal of Soil Science , 69(1):140–153, 2018. doi: 10.1111/ejss.12499. José Padarian, Budiman Minasny, and Alex B. McBratney. Using deep learning for digital soil mapping. SOIL , 5(1):79–89, February 2019. ISSN 2199-3971. doi: 10.5194/soil-5-79-2019. URL https://soil.copernicus.org/articles/5/79/2019/ .Shawn Priore and Meeko Oishi. Chance constrained stochastic optimal control for arbitrarily disturbed lti systems via the one-sided vysochanskij-petunin inequality, 2023. URL https: //arxiv.org/abs/2303.12295 .Carlos Riquelme, Joan Puigcerver, Basil Mustafa, Maxim Neumann, Rodolphe Jenatton, André Susano Pinto, Daniel Keysers, and Neil Houlsby. Scaling vision with sparse mixture of experts. In Advances in Neural Information Processing Systems , volume 34, pages 8583–8595, 2021. Maximilian Seitzer, Arash Tavakoli, Dimitrije Antic, and Georg Martius. On the pitfalls of het-eroscedastic uncertainty estimation with probabilistic neural networks. In International Confer-ence on Learning Representations , 2022. 26 S. S. Shapiro and M. B. Wilk. An analysis of variance test for normality (complete samples). 
+
+Biometrika , 52(3/4):591–611, 1965. ISSN 00063444, 14643510. URL http://www.jstor. org/stable/2333709 .Noam Shazeer, Azalia Mirhoseini, Krzysztof Mazyarz, Andy Davis, Quoc Le, Geoffrey Hinton, and Jeff Dean. Outrageously large neural networks: The sparsely-gated mixture-of-experts layer. In 
+
+International Conference on Learning Representations , 2017. Daniela Szwarcman, Sujit Roy, Paolo Fraccaro, Þorsteinn Elí Gíslason, Benedikt Blumenstiel, Rinki Ghosal, Pedro Henrique de Oliveira, Joao Lucas de Sousa Almeida, Rocco Sedona, Yanghui Kang, Srija Chakraborty, Sizhe Wang, Carlos Gomes, Ankur Kumar, Myscon Truong, Denys Godwin, Hyunho Lee, Chia-Yu Hsu, Rohit Lal, Ata Akbari Asanjan, Besart Mujeci, Disha Shidham, Trevor Keenan, Paulo Arevalo, Wenwen Li, Hamed Alemohammad, Pontus Olofsson, Christopher Hain, Robert Kennedy, Bianca Zadrozny, David Bell, Gabriele Cavallaro, Campbell Watson, Manil Maskey, Rahul Ramachandran, and Juan Bernabe Moreno. Prithvi-EO-2.0: A Ver-satile Multi-Temporal Foundation Model for Earth Observation Applications, March 2026. URL 
+
+http://arxiv.org/abs/2412.02732 . arXiv:2412.02732 [cs]. Matthew Tancik, Pratul Srinivasan, Ben Mildenhall, Sara Fridovich-Keil, Nithin Raghavan, Utkarsh Singhal, Ravi Ramamoorthi, Jonathan Barron, and Ren Ng. Fourier Features Let Networks Learn High Frequency Functions in Low Dimensional Domains. In Advances in Neural Information Processing Systems , volume 33, pages 7537–7547. Curran Asso-ciates, Inc., 2020. URL https://papers.neurips.cc/paper_files/paper/2020/hash/ 55053683268957697aa39fba6f231c68-Abstract.html .Petar Veliˇ ckovi´ c, Guillem Cucurull, Arantxa Casanova, Adriana Romero, Pietro Liò, and Yoshua Bengio. Graph Attention Networks, February 2018. URL http://arxiv.org/abs/1710. 10903 . arXiv:1710.10903 [stat]. Weiying Zhao and Natalia Efremova. Soil organic carbon estimation from climate-related features with graph neural network. arXiv preprint arXiv:2311.15979 , 2023. 27
