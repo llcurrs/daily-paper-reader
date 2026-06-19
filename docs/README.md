@@ -6,32 +6,28 @@
 </div>
 
 ## 每次日报
-- 最新运行日期：2026-06-18
-- 运行时间：2026-06-18 21:13:39 UTC
+- 最新运行日期：2026-06-19
+- 运行时间：2026-06-19 20:26:08 UTC
 - 运行状态：成功
-- 本次总论文数：4
+- 本次总论文数：2
 - 精读区：1
-- 速读区：3
+- 速读区：1
 
 ### 今日简报（AI）
-今日共收录4篇论文，精读1篇聚焦灾害地理智能的代理基准测试，速读涉及多模态模仿学习与土壤碳预测。最值得关注的是《GeoDisaster》提出的运营化智能代理基准平台，以及强化学习引导的鲁棒性融合方法。建议进一步探索代理型AI在地理情报中的应用，并关注多模态缺失场景下的技术挑战。
-- 详情：[/202606/18/README](/202606/18/README)
+1) 今日精读一篇8分论文，聚焦模态不平衡联邦图学习的数据合成方法，速读一篇6分多模态重识别研究。  
+2) 最值得关注的是联邦图学习中如何用合成数据缓解模态缺失问题，以及频域统一对多模态特征对齐的启发。  
+3) 建议先精读《Towards Modality-imbalanced Federated Graph Learning》掌握核心方案，后续可扩展至实际联邦场景中的模态补齐任务。
+- 详情：[/202606/19/README](/202606/19/README)
 
 ### 精读区论文标签
-1. [GeoDisaster: Benchmarking Orchestrated Agents for Operational Disaster Geo-Intelligence](/202606/18/2606.17246v1-geodisaster-benchmarking-orchestrated-agents-for-operational-disaster-geo-intelligence)  
+1. [Towards Modality-imbalanced Federated Graph Learning: A Data Synthesis-based Approach](/202606/19/2606.20382v1-towards-modality-imbalanced-federated-graph-learning-a-data-synthesis-based-approach)  
    标签：评分：8.0/10、query:multi-modal
-   evidence：多模态遥感基准，整合光学与SAR等数据
+   evidence：通过数据合成解决多模态图学习中的缺失模态问题
 
 ### 速读区论文标签
-1. [Reinforcement Learning-Guided Retrieval with Soft Fusion for Robust Multimodal Imitation Learning under Missing Modalities](/202606/18/2606.15514v1-reinforcement-learning-guided-retrieval-with-soft-fusion-for-robust-multimodal-imitation-learning-under-missing-modalities)  
-   标签：评分：7.0/10、query:multi-modal
-   evidence：基于强化学习引导的检索与软融合，应对缺失模态的鲁棒多模态模仿学习
-2. [Multi-Modal Spatio-Temporal Graph Neural Network with Mixture of Experts for Soil Organic Carbon Prediction](/202606/18/2606.16580v1-multi-modal-spatio-temporal-graph-neural-network-with-mixture-of-experts-for-soil-organic-carbon-prediction)  
-   标签：评分：7.0/10、query:multi-modal
-   evidence：多模态时空融合用于土壤有机碳预测
-3. [Parameter-Efficient Adapter Tuning for Tabular-Image Multimodal Learning](/202606/18/2606.11682v1-parameter-efficient-adapter-tuning-for-tabular-image-multimodal-learning)  
+1. [FUSE: Frequency-domain Unification and Spectral Energy Alignment for Multi-modal Object Re-Identification](/202606/19/2606.20044v1-fuse-frequency-domain-unification-and-spectral-energy-alignment-for-multi-modal-object-re-identification)  
    标签：评分：6.0/10、query:multi-modal
-   evidence：针对表格-图像多模态学习的参数高效适配器微调，一种通用融合方法
+   evidence：频域多模态融合方法用于目标重识别
 
 
 <div class="dpr-home-promo-card">
