@@ -6,28 +6,26 @@
 </div>
 
 ## 每次日报
-- 最新运行日期：2026-06-19
-- 运行时间：2026-06-19 20:26:08 UTC
+- 最新运行日期：2026-06-20
+- 运行时间：2026-06-20 20:35:23 UTC
 - 运行状态：成功
-- 本次总论文数：2
-- 精读区：1
+- 本次总论文数：1
+- 精读区：0
 - 速读区：1
 
 ### 今日简报（AI）
-1) 今日精读一篇8分论文，聚焦模态不平衡联邦图学习的数据合成方法，速读一篇6分多模态重识别研究。  
-2) 最值得关注的是联邦图学习中如何用合成数据缓解模态缺失问题，以及频域统一对多模态特征对齐的启发。  
-3) 建议先精读《Towards Modality-imbalanced Federated Graph Learning》掌握核心方案，后续可扩展至实际联邦场景中的模态补齐任务。
-- 详情：[/202606/19/README](/202606/19/README)
+1）今日速读1篇空-地激光雷达地点识别论文，聚焦补丁级自监督学习与扩展互重排序方法。
+2）最值得关注的方向是跨视角（空中与地面）点云匹配，结论表明自监督预训练结合非对称重排序能显著提升识别鲁棒性。
+3）建议读者若研究点云匹配或自动驾驶定位，可深入阅读此方法对视角差异的适应机制。
+- 详情：[/202606/20/README](/202606/20/README)
 
 ### 精读区论文标签
-1. [Towards Modality-imbalanced Federated Graph Learning: A Data Synthesis-based Approach](/202606/19/2606.20382v1-towards-modality-imbalanced-federated-graph-learning-a-data-synthesis-based-approach)  
-   标签：评分：8.0/10、query:multi-modal
-   evidence：通过数据合成解决多模态图学习中的缺失模态问题
+- 本次无精读推荐。
 
 ### 速读区论文标签
-1. [FUSE: Frequency-domain Unification and Spectral Energy Alignment for Multi-modal Object Re-Identification](/202606/19/2606.20044v1-fuse-frequency-domain-unification-and-spectral-energy-alignment-for-multi-modal-object-re-identification)  
+1. [Aerial-ground LiDAR place recognition with patch-level self-supervised learning and expanded reciprocal re-ranking](/202606/20/2606.18583v1-aerial-ground-lidar-place-recognition-with-patch-level-self-supervised-learning-and-expanded-reciprocal-re-ranking)  
    标签：评分：6.0/10、query:multi-modal
-   evidence：频域多模态融合方法用于目标重识别
+   evidence：利用空地LiDAR点云融合进行位置识别
 
 
 <div class="dpr-home-promo-card">
