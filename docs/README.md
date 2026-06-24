@@ -6,41 +6,26 @@
 </div>
 
 ## 每次日报
-- 最新运行日期：2026-06-23
-- 运行时间：2026-06-23 22:09:36 UTC
+- 最新运行日期：2026-06-24
+- 运行时间：2026-06-24 21:53:57 UTC
 - 运行状态：成功
-- 本次总论文数：7
-- 精读区：3
-- 速读区：4
+- 本次总论文数：2
+- 精读区：1
+- 速读区：1
 
 ### 今日简报（AI）
-今日精读两篇高分论文，聚焦遥感模型迁移与多智能体灾害评估两大方向。最值得关注的是遥感模型适应新卫星的方法以及可复现的灾害损伤评估框架。下一步可重点探索开放词汇变化检测与基础模型嵌入在具体场景中的应用。
-- 详情：[/202606/23/README](/202606/23/README)
+今日精读多光谱目标检测论文，速读精准农业推荐论文。精读文提出渐进式像素邻域可变形交叉注意力，显著提升多光谱特征融合效果；速读文通过跨模态Transformer与可解释多任务学习，实现高精度作物推荐。建议关注多模态特征对齐机制及可解释性技术，并尝试在真实场景中验证其泛化能力。
+- 详情：[/202606/24/README](/202606/24/README)
 
 ### 精读区论文标签
-1. [Changing Modalities: Adapting Remote Sensing Models to New Satellites and Sensors](/202606/23/2606.23356v1-changing-modalities-adapting-remote-sensing-models-to-new-satellites-and-sensors)  
-   标签：评分：9.0/10、query:multi-modal
-   evidence：处理遥感模型中的模态缺失/增加
-2. [RAPID: A Reproducible Multi-Agent Pipeline for Interpretable Disaster Damage Assessment from Satellite and Street-View Imagery](/202606/23/2606.21819v1-rapid-a-reproducible-multi-agent-pipeline-for-interpretable-disaster-damage-assessment-from-satellite-and-street-view-imagery)  
+1. [Progressive Pixel-Neighborhood Deformable Cross-Attention for Multispectral Object Detection](/202606/24/2606.24092v1-progressive-pixel-neighborhood-deformable-cross-attention-for-multispectral-object-detection)  
    标签：评分：8.0/10、query:multi-modal
-   evidence：多模态遥感；卫星与街景图像融合；灾害评估
-3. [UniverSat: Resolution- and Modality-Agnostic Transformers for Earth Observation](/202606/23/2606.23503v1-universat-resolution--and-modality-agnostic-transformers-for-earth-observation)  
-   标签：评分：8.0/10、query:multi-modal
-   evidence：适用于异构遥感数据的模态无关Transformer
+   evidence：多光谱（可见光和热红外）特征融合用于目标检测
 
 ### 速读区论文标签
-1. [ReA-OVCD: Reliability-Aware Open-Vocabulary Change Detection via Semantic and Spatial Refinement](/202606/23/2606.20032v1-rea-ovcd-reliability-aware-open-vocabulary-change-detection-via-semantic-and-spatial-refinement)  
+1. [AgroSense 2.0: Cross-Modal Transformer Fusion with Geospatial Raster Integration and Interpretable Multi-Task Learning for Precision Crop Recommendation](/202606/24/2606.21892v1-agrosense-20-cross-modal-transformer-fusion-with-geospatial-raster-integration-and-interpretable-multi-task-learning-for-precision-crop-recommendation)  
    标签：评分：7.0/10、query:multi-modal
-   evidence：多模态遥感变化检测，结合文本提示
-2. [AEF-Econ: Toward Plug-and-Play Socioeconomic Foundation Embeddings from AlphaEarth for Urban Remote Sensing](/202606/23/2606.20697v1-aef-econ-toward-plug-and-play-socioeconomic-foundation-embeddings-from-alphaearth-for-urban-remote-sensing)  
-   标签：评分：7.0/10、query:multi-modal
-   evidence：多模态自监督学习融合用于遥感社会经济任务
-3. [Neural Conjugate Aggregation: Identifiable Unsupervised Multi-Sensor Regression under Heterogeneous Sensor Bias](/202606/23/2606.22200v1-neural-conjugate-aggregation-identifiable-unsupervised-multi-sensor-regression-under-heterogeneous-sensor-bias)  
-   标签：评分：6.0/10、query:multi-modal
-   evidence：无监督多传感器数据融合
-4. [Hedgementation = Hedgerow Segmentation: A Remote Sensing Benchmark](/202606/23/2606.23615v1-hedgementation--hedgerow-segmentation-a-remote-sensing-benchmark)  
-   标签：评分：6.0/10、query:multi-modal
-   evidence：遥感基准；多源数据融合
+   evidence：用于遥感作物推荐的跨模态Transformer融合
 
 
 <div class="dpr-home-promo-card">
