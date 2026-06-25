@@ -6,26 +6,31 @@
 </div>
 
 ## 每次日报
-- 最新运行日期：2026-06-24
-- 运行时间：2026-06-24 21:53:57 UTC
+- 最新运行日期：2026-06-25
+- 运行时间：2026-06-25 20:49:11 UTC
 - 运行状态：成功
-- 本次总论文数：2
+- 本次总论文数：3
 - 精读区：1
-- 速读区：1
+- 速读区：2
 
 ### 今日简报（AI）
-今日精读多光谱目标检测论文，速读精准农业推荐论文。精读文提出渐进式像素邻域可变形交叉注意力，显著提升多光谱特征融合效果；速读文通过跨模态Transformer与可解释多任务学习，实现高精度作物推荐。建议关注多模态特征对齐机制及可解释性技术，并尝试在真实场景中验证其泛化能力。
-- 详情：[/202606/24/README](/202606/24/README)
+今日聚焦遥感时序数据联合反演与统计建模，精读多模态Transformer融合论文，速读InSAR协方差估计与状态空间模型综述。  
+最值得关注的是基于迭代能量多模态Transformer的Sentinel-1/2联合检索方法，能同时高精度反演土壤湿度、叶面积指数和作物高度。  
+建议普通读者从多模态数据融合切入，关注时序能量建模，并尝试将传统EM算法与深度学习结合以处理缺失数据。
+- 详情：[/202606/25/README](/202606/25/README)
 
 ### 精读区论文标签
-1. [Progressive Pixel-Neighborhood Deformable Cross-Attention for Multispectral Object Detection](/202606/24/2606.24092v1-progressive-pixel-neighborhood-deformable-cross-attention-for-multispectral-object-detection)  
+1. [An iterative energy-based multimodal transformer for joint retrieval of wheat soil moisture, leaf area index, and plant height from Sentinel-1 and Sentinel-2 time series](/202606/25/2606.25174v1-an-iterative-energy-based-multimodal-transformer-for-joint-retrieval-of-wheat-soil-moisture-leaf-area-index-and-plant-height-from-sentinel-1-and-sentinel-2-time-series)  
    标签：评分：8.0/10、query:multi-modal
-   evidence：多光谱（可见光和热红外）特征融合用于目标检测
+   evidence：融合哨兵1号SAR和哨兵2号多光谱数据进行土壤与植被参数联合反演
 
 ### 速读区论文标签
-1. [AgroSense 2.0: Cross-Modal Transformer Fusion with Geospatial Raster Integration and Interpretable Multi-Task Learning for Precision Crop Recommendation](/202606/24/2606.21892v1-agrosense-20-cross-modal-transformer-fusion-with-geospatial-raster-integration-and-interpretable-multi-task-learning-for-precision-crop-recommendation)  
-   标签：评分：7.0/10、query:multi-modal
-   evidence：用于遥感作物推荐的跨模态Transformer融合
+1. [Robust Expectation-Maximization for Covariance Estimation in SIRV Models with Missing Data: Application to InSAR Time Series](/202606/25/2606.22628v1-robust-expectation-maximization-for-covariance-estimation-in-sirv-models-with-missing-data-application-to-insar-time-series)  
+   标签：评分：6.0/10、query:multi-modal
+   evidence：处理InSAR时间序列中的缺失数据，与不完整模态处理相关
+2. [State Space Models Meet Remote Sensing: A Survey](/202606/25/2606.25329v1-state-space-models-meet-remote-sensing-a-survey)  
+   标签：评分：6.0/10、query:multi-modal
+   evidence：综述涵盖状态空间模型在多模态遥感数据中的应用
 
 
 <div class="dpr-home-promo-card">
