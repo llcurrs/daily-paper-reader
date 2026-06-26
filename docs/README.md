@@ -6,31 +6,37 @@
 </div>
 
 ## 每次日报
-- 最新运行日期：2026-06-25
-- 运行时间：2026-06-25 20:49:11 UTC
+- 最新运行日期：2026-06-26
+- 运行时间：2026-06-26 21:44:35 UTC
 - 运行状态：成功
-- 本次总论文数：3
-- 精读区：1
+- 本次总论文数：5
+- 精读区：3
 - 速读区：2
 
 ### 今日简报（AI）
-今日聚焦遥感时序数据联合反演与统计建模，精读多模态Transformer融合论文，速读InSAR协方差估计与状态空间模型综述。  
-最值得关注的是基于迭代能量多模态Transformer的Sentinel-1/2联合检索方法，能同时高精度反演土壤湿度、叶面积指数和作物高度。  
-建议普通读者从多模态数据融合切入，关注时序能量建模，并尝试将传统EM算法与深度学习结合以处理缺失数据。
-- 详情：[/202606/25/README](/202606/25/README)
+今日处理5篇论文，精读2篇高分遥感与状态空间模型文章，速读2篇涉及恶劣天气下图像融合及精神分裂症脑功能连接研究。  
+最值得关注的方向：拓扑神经网络在洪灾检测中的应用（9.0分）以及遥感领域的状态空间模型综述（8.0分）。  
+建议优先精读这两篇高分论文，把握遥感与深度学习前沿交叉方向。
+- 详情：[/202606/26/README](/202606/26/README)
 
 ### 精读区论文标签
-1. [An iterative energy-based multimodal transformer for joint retrieval of wheat soil moisture, leaf area index, and plant height from Sentinel-1 and Sentinel-2 time series](/202606/25/2606.25174v1-an-iterative-energy-based-multimodal-transformer-for-joint-retrieval-of-wheat-soil-moisture-leaf-area-index-and-plant-height-from-sentinel-1-and-sentinel-2-time-series)  
+1. [Topology-Informed Neural Networks for Flood Detection in Optical and Synthetic Aperture Radar Imagery](/202606/26/2606.26204v1-topology-informed-neural-networks-for-flood-detection-in-optical-and-synthetic-aperture-radar-imagery)  
+   标签：评分：9.0/10、query:multi-modal
+   evidence：利用SAR和拓扑感知网络处理云遮挡导致的光学数据缺失
+2. [State Space Models Meet Remote Sensing: A Survey](/202606/26/2606.25329v1-state-space-models-meet-remote-sensing-a-survey)  
    标签：评分：8.0/10、query:multi-modal
-   evidence：融合哨兵1号SAR和哨兵2号多光谱数据进行土壤与植被参数联合反演
+   evidence：关于多模态遥感状态空间模型的全面综述
+3. [Methane-Plume Segmentation From Hyperspectral Satellite Imagery Via Multimodal Deep Learning](/202606/26/2606.26416v1-methane-plume-segmentation-from-hyperspectral-satellite-imagery-via-multimodal-deep-learning)  
+   标签：评分：8.0/10、query:multi-modal
+   evidence：融合高光谱和RGB的多模态深度学习甲烷羽流分割
 
 ### 速读区论文标签
-1. [Robust Expectation-Maximization for Covariance Estimation in SIRV Models with Missing Data: Application to InSAR Time Series](/202606/25/2606.22628v1-robust-expectation-maximization-for-covariance-estimation-in-sirv-models-with-missing-data-application-to-insar-time-series)  
+1. [Multi-modality Image Fusion under Adverse Weather: Mask-Guided Feature Restoration and Interaction](/202606/26/2606.26812v1-multi-modality-image-fusion-under-adverse-weather-mask-guided-feature-restoration-and-interaction)  
+   标签：评分：7.0/10、query:multi-modal
+   evidence：提出掩码引导的多模态图像融合方法，可应用于遥感传感器融合
+2. [aNy-way ICA and its application to estimate cortico-thalamo-cerebellar functional links in schizophrenia](/202606/26/biorxiv-10-1101-2025-06-02-657541-v2-any-way-ica-and-its-application-to-estimate-cortico-thalamo-cerebellar-functional-links-in-schizophrenia)  
    标签：评分：6.0/10、query:multi-modal
-   evidence：处理InSAR时间序列中的缺失数据，与不完整模态处理相关
-2. [State Space Models Meet Remote Sensing: A Survey](/202606/25/2606.25329v1-state-space-models-meet-remote-sensing-a-survey)  
-   标签：评分：6.0/10、query:multi-modal
-   evidence：综述涵盖状态空间模型在多模态遥感数据中的应用
+   evidence：基于独立成分分析的多模态数据融合方法
 
 
 <div class="dpr-home-promo-card">
