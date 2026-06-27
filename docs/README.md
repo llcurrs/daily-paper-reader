@@ -6,37 +6,26 @@
 </div>
 
 ## 每次日报
-- 最新运行日期：2026-06-26
-- 运行时间：2026-06-26 21:44:35 UTC
+- 最新运行日期：2026-06-27
+- 运行时间：2026-06-27 21:24:53 UTC
 - 运行状态：成功
-- 本次总论文数：5
-- 精读区：3
-- 速读区：2
+- 本次总论文数：2
+- 精读区：1
+- 速读区：1
 
 ### 今日简报（AI）
-今日处理5篇论文，精读2篇高分遥感与状态空间模型文章，速读2篇涉及恶劣天气下图像融合及精神分裂症脑功能连接研究。  
-最值得关注的方向：拓扑神经网络在洪灾检测中的应用（9.0分）以及遥感领域的状态空间模型综述（8.0分）。  
-建议优先精读这两篇高分论文，把握遥感与深度学习前沿交叉方向。
-- 详情：[/202606/26/README](/202606/26/README)
+今日精读遥感领域状态空间模型综述，速读百万级遥感目标检测数据集LEVIRDet。最值得关注SSM在遥感中的潜力与LEVIRDet的159类基础模型。建议先看综述理解SSM适用场景，再尝试用LEVIRDet预训练模型做检测。
+- 详情：[/202606/27/README](/202606/27/README)
 
 ### 精读区论文标签
-1. [Topology-Informed Neural Networks for Flood Detection in Optical and Synthetic Aperture Radar Imagery](/202606/26/2606.26204v1-topology-informed-neural-networks-for-flood-detection-in-optical-and-synthetic-aperture-radar-imagery)  
-   标签：评分：9.0/10、query:multi-modal
-   evidence：利用SAR和拓扑感知网络处理云遮挡导致的光学数据缺失
-2. [State Space Models Meet Remote Sensing: A Survey](/202606/26/2606.25329v1-state-space-models-meet-remote-sensing-a-survey)  
+1. [State Space Models Meet Remote Sensing: A Survey](/202606/27/2606.25329v1-state-space-models-meet-remote-sensing-a-survey)  
    标签：评分：8.0/10、query:multi-modal
-   evidence：关于多模态遥感状态空间模型的全面综述
-3. [Methane-Plume Segmentation From Hyperspectral Satellite Imagery Via Multimodal Deep Learning](/202606/26/2606.26416v1-methane-plume-segmentation-from-hyperspectral-satellite-imagery-via-multimodal-deep-learning)  
-   标签：评分：8.0/10、query:multi-modal
-   evidence：融合高光谱和RGB的多模态深度学习甲烷羽流分割
+   evidence：综述涵盖状态空间模型在多模态遥感数据中的应用
 
 ### 速读区论文标签
-1. [Multi-modality Image Fusion under Adverse Weather: Mask-Guided Feature Restoration and Interaction](/202606/26/2606.26812v1-multi-modality-image-fusion-under-adverse-weather-mask-guided-feature-restoration-and-interaction)  
+1. [LEVIRDet: A Million-Scale 159-Category Dataset and Foundation Model for Universal Remote Sensing Object Detection](/202606/27/2606.25312v1-levirdet-a-million-scale-159-category-dataset-and-foundation-model-for-universal-remote-sensing-object-detection)  
    标签：评分：7.0/10、query:multi-modal
-   evidence：提出掩码引导的多模态图像融合方法，可应用于遥感传感器融合
-2. [aNy-way ICA and its application to estimate cortico-thalamo-cerebellar functional links in schizophrenia](/202606/26/biorxiv-10-1101-2025-06-02-657541-v2-any-way-ica-and-its-application-to-estimate-cortico-thalamo-cerebellar-functional-links-in-schizophrenia)  
-   标签：评分：6.0/10、query:multi-modal
-   evidence：基于独立成分分析的多模态数据融合方法
+   evidence：跨传感器遥感目标检测数据集与模型
 
 
 <div class="dpr-home-promo-card">
