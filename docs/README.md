@@ -6,26 +6,26 @@
 </div>
 
 ## 每次日报
-- 最新运行日期：2026-06-27
-- 运行时间：2026-06-27 21:24:53 UTC
+- 最新运行日期：2026-06-28
+- 运行时间：2026-06-28 21:18:30 UTC
 - 运行状态：成功
-- 本次总论文数：2
+- 本次总论文数：1
 - 精读区：1
-- 速读区：1
+- 速读区：0
 
 ### 今日简报（AI）
-今日精读遥感领域状态空间模型综述，速读百万级遥感目标检测数据集LEVIRDet。最值得关注SSM在遥感中的潜力与LEVIRDet的159类基础模型。建议先看综述理解SSM适用场景，再尝试用LEVIRDet预训练模型做检测。
-- 详情：[/202606/27/README](/202606/27/README)
+今日精读1篇高分综述，聚焦状态空间模型与遥感领域的交叉研究，评分9.0/10。  
+该综述系统梳理了状态空间模型在遥感图像处理中的最新进展与应用前景，是入门该方向的首选。  
+建议普通读者优先阅读这篇综述，快速掌握前沿趋势。
+- 详情：[/202606/28/README](/202606/28/README)
 
 ### 精读区论文标签
-1. [State Space Models Meet Remote Sensing: A Survey](/202606/27/2606.25329v1-state-space-models-meet-remote-sensing-a-survey)  
-   标签：评分：8.0/10、query:multi-modal
-   evidence：综述涵盖状态空间模型在多模态遥感数据中的应用
+1. [State Space Models Meet Remote Sensing: A Survey](/202606/28/2606.25329v1-state-space-models-meet-remote-sensing-a-survey)  
+   标签：评分：9.0/10、query:multi-modal
+   evidence：关于状态空间模型在遥感任务中的综述，涵盖多模态数据融合
 
 ### 速读区论文标签
-1. [LEVIRDet: A Million-Scale 159-Category Dataset and Foundation Model for Universal Remote Sensing Object Detection](/202606/27/2606.25312v1-levirdet-a-million-scale-159-category-dataset-and-foundation-model-for-universal-remote-sensing-object-detection)  
-   标签：评分：7.0/10、query:multi-modal
-   evidence：跨传感器遥感目标检测数据集与模型
+- 本次无速读推荐。
 
 
 <div class="dpr-home-promo-card">
