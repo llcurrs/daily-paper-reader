@@ -6,26 +6,26 @@
 </div>
 
 ## 每次日报
-- 最新运行日期：2026-06-28
-- 运行时间：2026-06-28 21:18:30 UTC
+- 最新运行日期：2026-06-29
+- 运行时间：2026-06-29 21:16:18 UTC
 - 运行状态：成功
-- 本次总论文数：1
+- 本次总论文数：2
 - 精读区：1
-- 速读区：0
+- 速读区：1
 
 ### 今日简报（AI）
-今日精读1篇高分综述，聚焦状态空间模型与遥感领域的交叉研究，评分9.0/10。  
-该综述系统梳理了状态空间模型在遥感图像处理中的最新进展与应用前景，是入门该方向的首选。  
-建议普通读者优先阅读这篇综述，快速掌握前沿趋势。
-- 详情：[/202606/28/README](/202606/28/README)
+今日精选2篇论文，精读1篇高分洪水检测研究。最值得关注的是《Topology-Informed Neural Networks for Flood Detection》结合光学与SAR影像的拓扑引导方法，评分高达9.0/10。建议读者重点关注该网络在灾害监测中的优势，或速读多视图不完整数据聚类研究作为补充。
+- 详情：[/202606/29/README](/202606/29/README)
 
 ### 精读区论文标签
-1. [State Space Models Meet Remote Sensing: A Survey](/202606/28/2606.25329v1-state-space-models-meet-remote-sensing-a-survey)  
+1. [Topology-Informed Neural Networks for Flood Detection in Optical and Synthetic Aperture Radar Imagery](/202606/29/2606.26204v2-topology-informed-neural-networks-for-flood-detection-in-optical-and-synthetic-aperture-radar-imagery)  
    标签：评分：9.0/10、query:multi-modal
-   evidence：关于状态空间模型在遥感任务中的综述，涵盖多模态数据融合
+   evidence：利用光学和SAR影像进行洪水检测，应对云遮挡导致的光学模态缺失
 
 ### 速读区论文标签
-- 本次无速读推荐。
+1. [Dual-Learning based Penalized Multi-Align Clustering for Multi-View Incomplete and Disorderly Data](/202606/29/2606.27984v1-dual-learning-based-penalized-multi-align-clustering-for-multi-view-incomplete-and-disorderly-data)  
+   标签：评分：7.0/10、query:multi-modal
+   evidence：处理多视角数据中的缺失模态
 
 
 <div class="dpr-home-promo-card">
