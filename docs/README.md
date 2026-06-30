@@ -6,26 +6,38 @@
 </div>
 
 ## 每次日报
-- 最新运行日期：2026-06-29
-- 运行时间：2026-06-29 21:16:18 UTC
+- 最新运行日期：2026-06-30
+- 运行时间：2026-06-30 22:00:01 UTC
 - 运行状态：成功
-- 本次总论文数：2
-- 精读区：1
-- 速读区：1
+- 本次总论文数：6
+- 精读区：3
+- 速读区：3
 
 ### 今日简报（AI）
-今日精选2篇论文，精读1篇高分洪水检测研究。最值得关注的是《Topology-Informed Neural Networks for Flood Detection》结合光学与SAR影像的拓扑引导方法，评分高达9.0/10。建议读者重点关注该网络在灾害监测中的优势，或速读多视图不完整数据聚类研究作为补充。
-- 详情：[/202606/29/README](/202606/29/README)
+今日精读聚焦跨传感器与生成模型的高分辨率洪水制图及SAR数据生成，两篇高分论文分别提出错位鲁棒学习与扩散模型特征迁移方法。最值得关注的方向是错位鲁棒跨传感器学习用于洪水制图（9.0分）以及扩散模型生成SAR数据（8.0分），均能显著提升遥感应用精度。建议下一步可关注这些生成方法如何与多模态大模型结合，实现更智能的遥感变化描述。
+- 详情：[/202606/30/README](/202606/30/README)
 
 ### 精读区论文标签
-1. [Topology-Informed Neural Networks for Flood Detection in Optical and Synthetic Aperture Radar Imagery](/202606/29/2606.26204v2-topology-informed-neural-networks-for-flood-detection-in-optical-and-synthetic-aperture-radar-imagery)  
+1. [High-Resolution Flood Mapping With Sentinel-1 and Sentinel-2 via Misalignment-Robust Cross-Sensor Learning and Generative Despeckling](/202606/30/2606.30511v1-high-resolution-flood-mapping-with-sentinel-1-and-sentinel-2-via-misalignment-robust-cross-sensor-learning-and-generative-despeckling)  
    标签：评分：9.0/10、query:multi-modal
-   evidence：利用光学和SAR影像进行洪水检测，应对云遮挡导致的光学模态缺失
+   evidence：利用跨传感器融合Sentinel-1和Sentinel-2进行洪水制图，具备鲁棒对齐学习
+2. [Cross-Sensor SAR Data Generation Using Diffusion Models and Feature Migration](/202606/30/2606.28922v1-cross-sensor-sar-data-generation-using-diffusion-models-and-feature-migration)  
+   标签：评分：8.0/10、query:multi-modal
+   evidence：使用扩散模型和LoRA进行跨传感器SAR数据生成，通过生成新传感器数据解决缺失模态问题
+3. [Efficient RGB-T Object Detection via Sparse Cross-Modality Fusion](/202606/30/2606.30215v1-efficient-rgb-t-object-detection-via-sparse-cross-modality-fusion)  
+   标签：评分：8.0/10、query:multi-modal
+   evidence：稀疏跨模态融合用于RGB-T目标检测，高效多模态融合
 
 ### 速读区论文标签
-1. [Dual-Learning based Penalized Multi-Align Clustering for Multi-View Incomplete and Disorderly Data](/202606/29/2606.27984v1-dual-learning-based-penalized-multi-align-clustering-for-multi-view-incomplete-and-disorderly-data)  
+1. [RSICCLLM: A Multimodal Large Language Model for Remote Sensing Image Change Captioning](/202606/30/2606.28266v1-rsiccllm-a-multimodal-large-language-model-for-remote-sensing-image-change-captioning)  
    标签：评分：7.0/10、query:multi-modal
-   evidence：处理多视角数据中的缺失模态
+   evidence：用于遥感图像变化描述的 multimodal 大语言模型
+2. [Mind the Gap: Quantifying the Domain Gap in Cross-Sensor Diffusion Super-Resolution](/202606/30/2606.28039v1-mind-the-gap-quantifying-the-domain-gap-in-cross-sensor-diffusion-super-resolution)  
+   标签：评分：6.0/10、query:multi-modal
+   evidence：系统研究跨传感器卫星超分辨率的域差距，与传感器融合方法相关
+3. [Residual-Guided Expert Specialization for Incomplete Multimodal Learning](/202606/30/2606.30355v1-residual-guided-expert-specialization-for-incomplete-multimodal-learning)  
+   标签：评分：6.0/10、query:multi-modal
+   evidence：缺失模态下的不完整多模态学习
 
 
 <div class="dpr-home-promo-card">
