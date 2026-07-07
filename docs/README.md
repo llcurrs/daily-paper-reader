@@ -6,36 +6,34 @@
 </div>
 
 ## 每次日报
-- 最新运行日期：2026-07-06
-- 运行时间：2026-07-06 20:31:33 UTC
+- 最新运行日期：2026-07-07
+- 运行时间：2026-07-07 22:04:37 UTC
 - 运行状态：成功
 - 本次总论文数：4
-- 精读区：1
-- 速读区：3
+- 精读区：3
+- 速读区：1
 
 ### 今日简报（AI）
-今日精选4篇遥感与感知论文，涵盖去云、跨视角定位、路侧协同感知及视觉定位。
-
-最值得关注的是精读论文《Interpretation-Oriented Cloud Removal》，通过观测锚定残差流与地理上下文对齐实现高质量去云；速读中《Beyond 2D Matching》提出的统一框架也值得留意。
-
-建议普通读者优先精读去云论文以理解其创新方法，并可结合《RESOLVE》多模态数据集拓展对路侧感知的理解。
-- 详情：[/202607/06/README](/202607/06/README)
+1) 今日精读月球遥感多模态基础模型与热带森林生物量估计两篇高分论文，速读多模态新视角合成一篇。
+2) 最值得关注：《Moonstone》为月球遥感提供首个多模态基础模型与基准，潜力巨大；《Phase-Preserving Trimodal Transformer》利用光学与极化干涉SAR实现热带森林生物量高精度估算。
+3) 建议普通读者优先阅读前两篇精读论文，关注其数据集与模型设计思路，可快速切入遥感多模态前沿。
+- 详情：[/202607/07/README](/202607/07/README)
 
 ### 精读区论文标签
-1. [Interpretation-Oriented Cloud Removal via Observation-Anchored Residual Flow with Geo-Contextual Alignment](/202607/06/2607.02471v1-interpretation-oriented-cloud-removal-via-observation-anchored-residual-flow-with-geo-contextual-alignment)  
+1. [Moonstone: A Multimodal Foundation Model and Benchmark for Lunar Remote Sensing](/202607/07/2607.03644v1-moonstone-a-multimodal-foundation-model-and-benchmark-for-lunar-remote-sensing)  
+   标签：评分：9.0/10、query:multi-modal
+   evidence：多模态遥感基础模型，包含缺失模态处理
+2. [Phase-Preserving Trimodal Transformer for Tropical Forest Biomass Estimation Using Optical and PolInSAR Data](/202607/07/2607.03663v1-phase-preserving-trimodal-transformer-for-tropical-forest-biomass-estimation-using-optical-and-polinsar-data)  
    标签：评分：8.0/10、query:multi-modal
-   evidence：遥感光学影像缺失模态（云遮挡）的去除方法
+   evidence：多模态遥感融合（光学与PolInSAR）用于生物量估计
+3. [Fully Rotation-Equivariant Spectral-Spatial Learning for Multispectral Object Detection](/202607/07/2607.05148v1-fully-rotation-equivariant-spectral-spatial-learning-for-multispectral-object-detection)  
+   标签：评分：8.0/10、query:multi-modal
+   evidence：全旋转等变的频谱-空间融合方法用于多光谱目标检测
 
 ### 速读区论文标签
-1. [Beyond 2D Matching: A Unified Single-Stage Framework for Geometry-Aware Cross-View Object Geo-Localization](/202607/06/2606.30576v1-beyond-2d-matching-a-unified-single-stage-framework-for-geometry-aware-cross-view-object-geo-localization)  
+1. [Learning Spectral and Polarimetric Clues for One-to-Multimodal Novel View Synthesis](/202607/07/2607.02372v1-learning-spectral-and-polarimetric-clues-for-one-to-multimodal-novel-view-synthesis)  
    标签：评分：6.0/10、query:multi-modal
-   evidence：利用地面/卫星多模态数据的跨视角目标地理定位
-2. [RESOLVE: A Multi-Resolution and Multi-Modal Dataset for Roadside Cooperative Perception](/202607/06/2606.31895v1-resolve-a-multi-resolution-and-multi-modal-dataset-for-roadside-cooperative-perception)  
-   标签：评分：6.0/10、query:multi-modal
-   evidence：多分辨率相机-LiDAR融合用于路侧感知，与多传感器数据融合相关
-3. [GeoSearcher: Anchor-Guided Progressive Reasoning for Remote Sensing Visual Grounding with Process Supervision](/202607/06/2607.01050v1-geosearcher-anchor-guided-progressive-reasoning-for-remote-sensing-visual-grounding-with-process-supervision)  
-   标签：评分：6.0/10、query:multi-modal
-   evidence：多模态大语言模型用于遥感视觉定位
+   evidence：利用光谱与偏振线索处理缺失模态的新视角合成
 
 
 <div class="dpr-home-promo-card">
