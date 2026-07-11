@@ -6,30 +6,26 @@
 </div>
 
 ## 每次日报
-- 最新运行日期：2026-07-10
-- 运行时间：2026-07-10 20:45:45 UTC
+- 最新运行日期：2026-07-11
+- 运行时间：2026-07-11 21:05:25 UTC
 - 运行状态：成功
-- 本次总论文数：3
-- 精读区：0
-- 速读区：3
+- 本次总论文数：2
+- 精读区：1
+- 速读区：1
 
 ### 今日简报（AI）
-今日速读3篇论文，聚焦无人机边缘定位、地球观测模型及图像分布建模。最值得看的两篇（均7.0分）：边缘辅助多模态无人机定位的资源高效压缩与鲁棒融合，以及可扩展可信的地球观测基础模型。建议优先精读这两篇，关注边缘协同和可信机制的具体实现。
-- 详情：[/202607/10/README](/202607/10/README)
+今日精读1篇双流CNN跨模态检测论文，速读1篇地球观测基础模型论文。最值得关注的是《LDFE》提出的拉普拉斯解耦特征增强方法，有效提升RGB-IR目标检测性能。建议优先了解该论文中的双流特征融合机制。
+- 详情：[/202607/11/README](/202607/11/README)
 
 ### 精读区论文标签
-- 本次无精读推荐。
+1. [LDFE: Laplacian Decoupled Feature Enhancement Block for Dual-Stream CNN-based RGB-IR Object Detection](/202607/11/2607.08076v1-ldfe-laplacian-decoupled-feature-enhancement-block-for-dual-stream-cnn-based-rgb-ir-object-detection)  
+   标签：评分：8.0/10、query:multi-modal
+   evidence：双流RGB-IR融合，采用拉普拉斯分解
 
 ### 速读区论文标签
-1. [Edge-Assisted Multimodal UAV Localization with Resource-Efficient Compression and Robust Fusion](/202607/10/2607.03111v1-edge-assisted-multimodal-uav-localization-with-resource-efficient-compression-and-robust-fusion)  
+1. [Scalable and Trustworthy Earth Observation Foundation Models](/202607/11/2607.07758v1-scalable-and-trustworthy-earth-observation-foundation-models)  
    标签：评分：7.0/10、query:multi-modal
-   evidence：多传感器融合实现无人机定位
-2. [Scalable and Trustworthy Earth Observation Foundation Models](/202607/10/2607.07758v1-scalable-and-trustworthy-earth-observation-foundation-models)  
-   标签：评分：7.0/10、query:multi-modal
-   evidence：综述了多模态地球观测基础模型的设计原则
-3. [Unpaired Joint Distribution Modeling via Multi-Scale Image Representations](/202607/10/2607.08198v1-unpaired-joint-distribution-modeling-via-multi-scale-image-representations)  
-   标签：评分：6.0/10、query:multi-modal
-   evidence：从边际观测学习联合分布，可适用于不完整多模态数据
+   evidence：地球观测基础模型涉及多模态数据
 
 
 <div class="dpr-home-promo-card">
