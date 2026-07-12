@@ -6,26 +6,26 @@
 </div>
 
 ## 每次日报
-- 最新运行日期：2026-07-11
-- 运行时间：2026-07-11 21:05:25 UTC
+- 最新运行日期：2026-07-12
+- 运行时间：2026-07-12 20:13:52 UTC
 - 运行状态：成功
-- 本次总论文数：2
-- 精读区：1
+- 本次总论文数：1
+- 精读区：0
 - 速读区：1
 
 ### 今日简报（AI）
-今日精读1篇双流CNN跨模态检测论文，速读1篇地球观测基础模型论文。最值得关注的是《LDFE》提出的拉普拉斯解耦特征增强方法，有效提升RGB-IR目标检测性能。建议优先了解该论文中的双流特征融合机制。
-- 详情：[/202607/11/README](/202607/11/README)
+今日速读1篇地球观测基础模型论文，评分7.0，聚焦可扩展性与可信赖性。  
+该文探讨了构建大规模且可信的地球观测AI基础模型的方法论与安全性设计。  
+建议关注遥感数据融合与泛化能力的突破，可深入阅读实验部分。
+- 详情：[/202607/12/README](/202607/12/README)
 
 ### 精读区论文标签
-1. [LDFE: Laplacian Decoupled Feature Enhancement Block for Dual-Stream CNN-based RGB-IR Object Detection](/202607/11/2607.08076v1-ldfe-laplacian-decoupled-feature-enhancement-block-for-dual-stream-cnn-based-rgb-ir-object-detection)  
-   标签：评分：8.0/10、query:multi-modal
-   evidence：双流RGB-IR融合，采用拉普拉斯分解
+- 本次无精读推荐。
 
 ### 速读区论文标签
-1. [Scalable and Trustworthy Earth Observation Foundation Models](/202607/11/2607.07758v1-scalable-and-trustworthy-earth-observation-foundation-models)  
+1. [Scalable and Trustworthy Earth Observation Foundation Models](/202607/12/2607.07758v1-scalable-and-trustworthy-earth-observation-foundation-models)  
    标签：评分：7.0/10、query:multi-modal
-   evidence：地球观测基础模型涉及多模态数据
+   evidence：地球观测基础模型综述，涵盖多模态融合与域自适应
 
 
 <div class="dpr-home-promo-card">
