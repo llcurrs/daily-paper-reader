@@ -6,30 +6,32 @@
 </div>
 
 ## 每次日报
-- 最新运行日期：2026-07-16
-- 运行时间：2026-07-16 21:11:09 UTC
+- 最新运行日期：2026-07-17
+- 运行时间：2026-07-17 20:43:43 UTC
 - 运行状态：成功
 - 本次总论文数：3
 - 精读区：0
 - 速读区：3
 
 ### 今日简报（AI）
-今日速读3篇论文，涵盖地球观测、说话人身份识别及无人机多模态感知。最值得关注是《Scalable and Trustworthy Earth Observation Foundation Models》（7.0分），探讨可扩展可信基础模型。建议普通读者优先了解该方向的最新进展，其余两篇作为补充。
-- 详情：[/202607/16/README](/202607/16/README)
+1) 今日速读3篇遥感与AI论文，涵盖高光谱图像高效微调、自监督多光谱训练及多智能体协作推理。
+2) 最值得看的是MBTI框架（7分）用于高光谱分类的基础模型迁移，以及多智能体协作推理（6分）对城市区域画像的创新方法。
+3) 建议优先了解基础模型在遥感中的微调技巧，并关注多智能体系统如何融合工具证据提升分析能力。
+- 详情：[/202607/17/README](/202607/17/README)
 
 ### 精读区论文标签
 - 本次无精读推荐。
 
 ### 速读区论文标签
-1. [Scalable and Trustworthy Earth Observation Foundation Models](/202607/16/2607.07758v1-scalable-and-trustworthy-earth-observation-foundation-models)  
+1. [MBTI: A Multi-Branch Efficient Fine-Tuning Framework for Hyperspectral Image Classification with Foundation Models](/202607/17/2607.12782v1-mbti-a-multi-branch-efficient-fine-tuning-framework-for-hyperspectral-image-classification-with-foundation-models)  
    标签：评分：7.0/10、query:multi-modal
-   evidence：综述遥感基础模型，涉及多模态地球观测
-2. [Learning Speaker Identity Beyond Language and Modality Constraints: Insights from the POLY-SIM 2026 Challenge](/202607/16/2607.13669v1-learning-speaker-identity-beyond-language-and-modality-constraints-insights-from-the-poly-sim-2026-challenge)  
+   evidence：多分支微调的高光谱图像分类，处理传感器模态差异
+2. [Self-supervised training for high-resolution close-range multispectral remote sensing imagery](/202607/17/2607.11366v1-self-supervised-training-for-high-resolution-close-range-multispectral-remote-sensing-imagery)  
    标签：评分：6.0/10、query:multi-modal
-   evidence：处理说话人识别中音频或视觉模态缺失
-3. [M3F-UAV: A Missing-Modality Multimodal Foundation Model for Low-Altitude Wireless Sensing](/202607/16/2607.13678v1-m3f-uav-a-missing-modality-multimodal-foundation-model-for-low-altitude-wireless-sensing)  
+   evidence：跨传感器多光谱遥感影像
+3. [Multi-Agent Collaborative Reasoning with Tool-Augmented Evidence for Urban Region Profiling](/202607/17/2607.13558v1-multi-agent-collaborative-reasoning-with-tool-augmented-evidence-for-urban-region-profiling)  
    标签：评分：6.0/10、query:multi-modal
-   evidence：提出缺失模态多模态基础模型，可应用于无人机遥感场景
+   evidence：融合卫星影像的多模态方法
 
 
 <div class="dpr-home-promo-card">
