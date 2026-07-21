@@ -6,32 +6,30 @@
 </div>
 
 ## 每次日报
-- 最新运行日期：2026-07-20
-- 运行时间：2026-07-20 21:21:11 UTC
+- 最新运行日期：2026-07-21
+- 运行时间：2026-07-21 21:45:03 UTC
 - 运行状态：成功
-- 本次总论文数：4
-- 精读区：1
+- 本次总论文数：3
+- 精读区：0
 - 速读区：3
 
 ### 今日简报（AI）
-今日聚焦多模态融合与遥感语义分割，精读9.0分高分论文《MSTF-Net》提出稳健、尺度自适应的无人机视频分割方法。最值得关注方向：多光谱视频的模态鲁棒融合与遥感大模型高效训练（如《More with Less》中的简单配方）。下一步建议：优先精读MSTF-Net的融合机制，再结合TabPFN的多模态校准提升实用泛化。
-- 详情：[/202607/20/README](/202607/20/README)
+今日速读3篇论文，涵盖多模态情感分析、跨视角地理定位及地形映射。最值得关注的是7分的多模态缺失模态修复必要性探讨，以及6分的时序观测轨迹感知地理定位。建议重点阅读第一篇中对“缺失模态是否必须修复”的批判性思考，并关注第二篇如何利用时序信息提升定位鲁棒性。
+- 详情：[/202607/21/README](/202607/21/README)
 
 ### 精读区论文标签
-1. [MSTF-Net: A UAV-Oriented Multi-Spectral Video Segmentation Method via Modality-Robust, Scale-Adaptive, and Consistent Fusion](/202607/20/2607.15628v1-mstf-net-a-uav-oriented-multi-spectral-video-segmentation-method-via-modality-robust-scale-adaptive-and-consistent-fusion)  
-   标签：评分：9.0/10、query:multi-modal
-   evidence：面向UAV遥感的多光谱（RGB和热）融合分割
+- 本次无精读推荐。
 
 ### 速读区论文标签
-1. [More with Less: a Large Scale Remote Sensing VLM with a Simple Recipe](/202607/20/2607.15942v1-more-with-less-a-large-scale-remote-sensing-vlm-with-a-simple-recipe)  
+1. [Should Missing Modalities Always Be Necessary to Repair for Multi-modal Sentiment Analysis?](/202607/21/2607.17262v1-should-missing-modalities-always-be-necessary-to-repair-for-multi-modal-sentiment-analysis)  
    标签：评分：7.0/10、query:multi-modal
-   evidence：大规模遥感视觉-语言模型用于多模态融合
-2. [On the modality gap and the contrastive loss in multi-modal representation learning](/202607/20/2607.10698v1-on-the-modality-gap-and-the-contrastive-loss-in-multi-modal-representation-learning)  
+   evidence：缺失模态学习方法，可迁移至遥感领域
+2. [Trajectory-aware Cross-view Geo-localization with Sequential Observations](/202607/21/2607.15491v1-trajectory-aware-cross-view-geo-localization-with-sequential-observations)  
    标签：评分：6.0/10、query:multi-modal
-   evidence：多模态表示学习与模态差距分析
-3. [TabPFN beyond Tabular Data: Calibration and Accuracy on Multimodal Embeddings](/202607/20/2607.11007v1-tabpfn-beyond-tabular-data-calibration-and-accuracy-on-multimodal-embeddings)  
+   evidence：融合视频、文本和卫星图像的多模态跨视图地理定位
+3. [PRISM: Multimodal Terrain Mapping for Rover Navigation in Unstructured Environments](/202607/21/2607.16366v1-prism-multimodal-terrain-mapping-for-rover-navigation-in-unstructured-environments)  
    标签：评分：6.0/10、query:multi-modal
-   evidence：多模态嵌入分类头，可应用于遥感多模态分类
+   evidence：多传感器（RGB-深度-热成像）融合用于地形映射，方法可迁移至遥感
 
 
 <div class="dpr-home-promo-card">
