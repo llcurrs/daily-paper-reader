@@ -6,38 +6,27 @@
 </div>
 
 ## 每次日报
-- 最新运行日期：2026-07-23
-- 运行时间：2026-07-23 21:41:22 UTC
+- 最新运行日期：2026-07-24
+- 运行时间：2026-07-24 21:32:48 UTC
 - 运行状态：成功
-- 本次总论文数：6
-- 精读区：3
-- 速读区：3
+- 本次总论文数：2
+- 精读区：0
+- 速读区：2
 
 ### 今日简报（AI）
-今日推荐6篇论文，聚焦多模态融合与无人机视觉，精读2篇高分工作。最值得关注G-MAD多视角RGB-T目标检测数据生成框架，以及可见光红外预训练中的非均匀采样策略。建议优先精读这两篇，并关注DRGBT-1K基准作为动态跟踪的测试平台。
-- 详情：[/202607/23/README](/202607/23/README)
+今日速读两篇多模态学习论文，聚焦低秩微调解耦与遥感无人机视频理解。最值得关注的是《MultiLoReFT》提出的解耦共享与特定模态子空间方法（7.0分），为高效微调提供新思路。建议下一步可尝试将低秩表示策略应用于更多模态组合任务，验证其泛化性。
+- 详情：[/202607/24/README](/202607/24/README)
 
 ### 精读区论文标签
-1. [G-MAD: A Game-Based Data Generation Framework for Multi-View RGB-T Aerial Object Detection](/202607/23/2607.19942v1-g-mad-a-game-based-data-generation-framework-for-multi-view-rgb-t-aerial-object-detection)  
-   标签：评分：8.0/10、query:multi-modal
-   evidence：RGB-热红外多模态融合用于航空目标检测
-2. [Not All Patches are Equal: Sampling Matters for Visible-Infrared Pre-Training](/202607/23/2607.20238v1-not-all-patches-are-equal-sampling-matters-for-visible-infrared-pre-training)  
-   标签：评分：8.0/10、query:multi-modal
-   evidence：可见光-红外预训练中的重要性采样，用于鲁棒的多传感器融合
-3. [Multimodal Large Language Models for Remote Sensing Image Understanding: Domain-Specific or General-Purpose?](/202607/23/2607.20284v1-multimodal-large-language-models-for-remote-sensing-image-understanding-domain-specific-or-general-purpose)  
-   标签：评分：8.0/10、query:multi-modal
-   evidence：遥感多模态大语言模型综述
+- 本次无精读推荐。
 
 ### 速读区论文标签
-1. [DRGBT-1K: A Large-scale High-quality Benchmark for Dynamic RGBT Tracking](/202607/23/2607.19772v1-drgbt-1k-a-large-scale-high-quality-benchmark-for-dynamic-rgbt-tracking)  
+1. [MultiLoReFT: Decoupling Shared and Modality-Specific Subspaces in Multimodal Learning via Low-Rank Representation Fine-Tuning](/202607/24/2607.16789v1-multiloreft-decoupling-shared-and-modality-specific-subspaces-in-multimodal-learning-via-low-rank-representation-fine-tuning)  
    标签：评分：7.0/10、query:multi-modal
-   evidence：动态多模态跟踪基准，含模态变化
-2. [SkyVLaM: Multimodal Large Language Model for UAV Video Understanding in Remote Sensing](/202607/23/2607.17386v1-skyvlam-multimodal-large-language-model-for-uav-video-understanding-in-remote-sensing)  
+   evidence：多模态低秩微调解耦共享与模态特定子空间
+2. [SkyVLaM: Multimodal Large Language Model for UAV Video Understanding in Remote Sensing](/202607/24/2607.17386v1-skyvlam-multimodal-large-language-model-for-uav-video-understanding-in-remote-sensing)  
    标签：评分：6.0/10、query:multi-modal
-   evidence：用于遥感无人机视频理解的多模态大语言模型
-3. [Toward Reliable RGB-D Semantic Segmentation: Handling Missing Modalities via Condition Dropout](/202607/23/2607.20326v1-toward-reliable-rgb-d-semantic-segmentation-handling-missing-modalities-via-condition-dropout)  
-   标签：评分：6.0/10、query:multi-modal
-   evidence：通过条件dropout处理缺失模态，可迁移至遥感领域
+   evidence：遥感无人机视频多模态大模型
 
 
 <div class="dpr-home-promo-card">
