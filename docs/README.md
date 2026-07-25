@@ -6,27 +6,24 @@
 </div>
 
 ## 每次日报
-- 最新运行日期：2026-07-24
-- 运行时间：2026-07-24 21:32:48 UTC
+- 最新运行日期：2026-07-25
+- 运行时间：2026-07-25 20:54:18 UTC
 - 运行状态：成功
-- 本次总论文数：2
+- 本次总论文数：1
 - 精读区：0
-- 速读区：2
+- 速读区：1
 
 ### 今日简报（AI）
-今日速读两篇多模态学习论文，聚焦低秩微调解耦与遥感无人机视频理解。最值得关注的是《MultiLoReFT》提出的解耦共享与特定模态子空间方法（7.0分），为高效微调提供新思路。建议下一步可尝试将低秩表示策略应用于更多模态组合任务，验证其泛化性。
-- 详情：[/202607/24/README](/202607/24/README)
+今日仅速读1篇论文，聚焦利用可见光扩散先验解耦跨模态差异实现红外超分辨率的方法。值得关注的方向：通过解耦流形差异，有效迁移可见光先验以提升红外图像细节重建。建议对该领域的读者重点了解扩散模型在跨模态超分中的适配与解耦策略。
+- 详情：[/202607/25/README](/202607/25/README)
 
 ### 精读区论文标签
 - 本次无精读推荐。
 
 ### 速读区论文标签
-1. [MultiLoReFT: Decoupling Shared and Modality-Specific Subspaces in Multimodal Learning via Low-Rank Representation Fine-Tuning](/202607/24/2607.16789v1-multiloreft-decoupling-shared-and-modality-specific-subspaces-in-multimodal-learning-via-low-rank-representation-fine-tuning)  
-   标签：评分：7.0/10、query:multi-modal
-   evidence：多模态低秩微调解耦共享与模态特定子空间
-2. [SkyVLaM: Multimodal Large Language Model for UAV Video Understanding in Remote Sensing](/202607/24/2607.17386v1-skyvlam-multimodal-large-language-model-for-uav-video-understanding-in-remote-sensing)  
+1. [Decoupling Cross-Modality Manifold Discrepancy: Leveraging Visible Diffusion Priors for Infrared Super-Resolution](/202607/25/2607.21174v1-decoupling-cross-modality-manifold-discrepancy-leveraging-visible-diffusion-priors-for-infrared-super-resolution)  
    标签：评分：6.0/10、query:multi-modal
-   evidence：遥感无人机视频多模态大模型
+   evidence：利用可见光扩散先验的红外超分辨率，跨模态融合
 
 
 <div class="dpr-home-promo-card">
