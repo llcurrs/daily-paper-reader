@@ -6,24 +6,27 @@
 </div>
 
 ## 每次日报
-- 最新运行日期：2026-07-25
-- 运行时间：2026-07-25 20:54:18 UTC
+- 最新运行日期：2026-07-26
+- 运行时间：2026-07-26 21:09:50 UTC
 - 运行状态：成功
-- 本次总论文数：1
+- 本次总论文数：2
 - 精读区：0
-- 速读区：1
+- 速读区：2
 
 ### 今日简报（AI）
-今日仅速读1篇论文，聚焦利用可见光扩散先验解耦跨模态差异实现红外超分辨率的方法。值得关注的方向：通过解耦流形差异，有效迁移可见光先验以提升红外图像细节重建。建议对该领域的读者重点了解扩散模型在跨模态超分中的适配与解耦策略。
-- 详情：[/202607/25/README](/202607/25/README)
+今日速读2篇论文，涉及可见光-红外行人重识别的模态不完整问题与遥感图像理解的多模态大语言模型。推荐关注“双边缘同质模态相似度”方法在模态自适应匹配中的表现，以及遥感领域对专用与通用大模型的对比分析。建议进一步精读这两篇论文，并关注其在实际场景中的性能验证。
+- 详情：[/202607/26/README](/202607/26/README)
 
 ### 精读区论文标签
 - 本次无精读推荐。
 
 ### 速读区论文标签
-1. [Decoupling Cross-Modality Manifold Discrepancy: Leveraging Visible Diffusion Priors for Infrared Super-Resolution](/202607/25/2607.21174v1-decoupling-cross-modality-manifold-discrepancy-leveraging-visible-diffusion-priors-for-infrared-super-resolution)  
+1. [Dual-Edged Homogeneous-Modality Similarity: Towards Visible-Infrared Modality-Incomplete Person Re-Identification with Modality Adaptive Matching](/202607/26/2607.18688v1-dual-edged-homogeneous-modality-similarity-towards-visible-infrared-modality-incomplete-person-re-identification-with-modality-adaptive-matching)  
    标签：评分：6.0/10、query:multi-modal
-   evidence：利用可见光扩散先验的红外超分辨率，跨模态融合
+   evidence：处理可见光和红外模态不完备的行人重识别
+2. [Multimodal Large Language Models for Remote Sensing Image Understanding: Domain-Specific or General-Purpose?](/202607/26/2607.20284v1-multimodal-large-language-models-for-remote-sensing-image-understanding-domain-specific-or-general-purpose)  
+   标签：评分：6.0/10、query:multi-modal
+   evidence：多模态大语言模型用于遥感图像理解的全面综述
 
 
 <div class="dpr-home-promo-card">
