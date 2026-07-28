@@ -1,0 +1,440 @@
+Title: BeyondFusion: Self-Aligned Latent Diffusion for Calibration-Free Infrared Super-Resolution and Infrared-Visible Fusion
+
+URL Source: https://arxiv.org/pdf/2607.24110v1
+
+Published Time: Tue, 28 Jul 2026 02:04:41 GMT
+
+Number of Pages: 13
+
+Markdown Content:
+> IEEE TRANSACTIONS ON PATTERN ANALYSIS AND MACHINE INTELLIGENCE 1
+
+# BeyondFusion: Self-Aligned Latent Diffusion for Calibration-Free Infrared Super-Resolution and Infrared-Visible Fusion 
+
+Minchong Chen 1,†, Xiaoyun Yuan 1,†,∗, Member, IEEE , Minyu Cao 1, Jianing Zhang 2,Jun Zhang 2, Shuyang Liu 3,∗, Xiaokang Yang 1, Fellow, IEEE 
+
+1MoE Key Lab of Artificial Intelligence, Institute of AI, School of Computer Science, Shanghai Jiao Tong University, Shanghai, China 
+
+2Tsinghua University, Beijing, China 
+
+3Institute of Modern Optics, Nankai University, Tianjin, China Email: yuanxiaoyun@sjtu.edu.cn 
+
+Abstract —Mobile infrared-visible imaging typically pairs acompact infrared sensor with a high-resolution visible camera for complementary perception. While cross-sensor misalignment caused by different optics, viewpoints, fields of view, and ex-posure timings hinders practical deployment. In this paper, we propose BeyondFusion, a unified latent diffusion framework for calibration-free visible-guided infrared super-resolution and infrared-visible fusion tasks. The proposed framework supports both task-specific training and joint training where two tasks are optimized and executed as two readouts of the same generative process. Instead of relying on explicit registration or geometric warping, BeyondFusion introduces a cross-modal self-aligning (CMSA) module into the denoising U-Net. CMSA reorganizes infrared and visible latent tokens into a shared attention space to learn content-adaptive cross-modal correspondence during the denoising process. Together with misalignment augmentation module, the model is facilitated to exploit visible structural and semantic cues while preserving thermal consistency, enabling high-frequency infrared reconstruction and informative fused-image generation under uncalibrated conditions. Extensive ex-periments on public benchmarks and a mobile infrared-visible imaging system show strong performance across aligned inputs, low-resolution infrared observations, synthetic misalignments, and real mobile captures with unsynchronized sensors. Ablation studies, unified training analysis, and downstream pedestrian detection further validate the effectiveness of BeyondFusion for calibration-free multimodal imaging. 
+
+Index Terms —Infrared super-resolution, infrared-visible fu-sion, calibration-free, cross-modal self-aligning. 
+
+I. I NTRODUCTION 
+
+# INFRARED imaging captures thermal radiation emitted by objects, enabling perception beyond the visible spectrum and providing complementary cues for scene understanding. It is particularly valuable in challenging environments such as low illumination, fog, smoke, and nighttime scenes, where conventional visible cameras are often unreliable. Together with visible imaging, which provides rich color, texture, and semantic information, infrared sensing has become an impor-tant component of multimodal perception systems for safety-
+
+† These authors contributed equally to this work. * Corresponding author. 
+
+critical applications, including autonomous driving, robotic navigation, and situational awareness [1], [2], [3], [4], [5], [6]. Recent mobile devices make infrared-visible imaging in-creasingly practical, but they also expose a fundamental hardware bottleneck. Compared with mature visible cameras, compact infrared sensors are constrained by limited aperture size, the long wavelength of infrared radiation, manufacturing cost, and restricted pixel density. As a result, mobile infrared cameras usually produce low-resolution images with blurry structures, weak boundaries, and limited textural detail. This motivates infrared image super-resolution (SR), which aims to recover high-resolution thermal details from low-resolution in-frared observations [7]. However, single-image infrared SR is severely ill-posed because high-frequency details are lost dur-ing low-resolution infrared sensing. This difficulty is further compounded by the scarcity of large-scale infrared datasets, which limits learning-based restoration and generalization. Visible-guided infrared SR therefore becomes an appealing solution: high-resolution visible images can provide structural and semantic cues that are difficult to infer from infrared observations alone [8], [9], [10]. Beyond enhancing infrared resolution, the same mobile infrared-visible sensing setup also calls for a representation that combines the complementary strengths of both modal-ities. When the goal is human inspection or downstream perception rather than infrared restoration alone, a purely infrared output may still miss visible-domain appearance cues such as color, fine object contours, and non-thermal scene structures. Infrared-visible image fusion (IVF), as a represen-tative multimodal image fusion (MMIF) task, addresses this complementary need by preserving thermal saliency while in-corporating visible structural and semantic information. Driven by deep learning, IVF has progressed from CNN- and GAN-based methods to Transformer, hybrid CNN-Transformer, and diffusion-based frameworks [11], [12], [13], [14], [15], [16], [17], [18]. Together, visible-guided infrared SR and IVF represent two output forms of the same mobile dual-sensor imaging problem: one enhances the infrared modality itself, while the other produces a fused representation for perception-arXiv:2607.24110v1 [cs.CV] 27 Jul 2026 IEEE TRANSACTIONS ON PATTERN ANALYSIS AND MACHINE INTELLIGENCE 2
+
+oriented use. This observation suggests that the two tasks need not be formulated as isolated pipelines. Despite their different outputs, these two tasks share the same central obstacle: reliable cross-modal interaction under real hardware conditions. In a mobile imaging system, infrared and visible images are captured by separate sensors with differ-ent optics, fields of view, spatial resolutions, viewpoints, and exposure timings, making their spatial discrepancy device- and scene-dependent. Meanwhile, the two modalities sense largely non-overlapping spectral ranges: infrared imaging captures thermal radiation, whereas visible imaging records reflected visible light. Their observations therefore encode different physical properties, and corresponding regions may exhibit inconsistent structures, textures, or saliency across modalities. As a result, effective cross-modal enhancement and fusion require more than pixel-level registration; the model must also adaptively determine which visible cues are helpful and how they should interact with thermal observations. However, most existing visible-guided infrared restoration and IVF methods still follow a pixel-level fusion paradigm, assuming accurately aligned infrared-visible pairs or introducing explicit regis-tration, geometric warping, deformation fields, or dedicated alignment modules [19], [20], [21]. Although effective in constrained settings, these strategies bind fusion quality to the accuracy of pixel-level correspondence estimation and become fragile when misalignment varies with device layout, scene depth, resolution, or temporal offset. This raises a key question: can heterogeneous visible-infrared observations be organized within one imaging framework to support different low-level objectives without first forcing the two modalities into strict pixel correspondence? Our answer is to move beyond task-specific network de-sign and pixel-level fusion, and to formulate calibration-free visible-infrared imaging as interaction within a shared latent generative workspace. Instead of enforcing one-to-one spatial correspondence, BeyondFusion represents infrared and visible inputs as latent tokens and lets their interaction emerge through shared self-attention during diffusion denoising. This token-level formulation provides a soft, content-adaptive mechanism for cross-modal information exchange, making it less depen-dent on hardware calibration and naturally extensible to other multimodal sensing settings. Based on this principle, we propose BeyondFusion, a unified self-aligned latent diffusion framework for calibration-free visible-guided infrared super-resolution (SR) and infrared-visible fusion (IVF). Its core module, cross-modal self-aligning (CMSA), reorganizes infrared and visible latent to-kens into a shared attention sequence, enabling inter-modal guidance while preserving modality-specific structures. To-gether with misalignment-aware augmentation and one-step latent diffusion [22], BeyondFusion learns robust cross-modal interaction from imperfectly aligned data and produces high-fidelity infrared and fused images under real mobile condi-tions. We validate the proposed framework on public bench-marks and a real mobile infrared-visible imaging system, where extensive experiments demonstrate strong performance in both infrared SR and IVF under aligned inputs, low-resolution infrared observations, uncalibrated acquisition, and downstream perception. A preliminary conference version of this work appeared as 3M-TI [23]. This manuscript substantially extends it by expanding the problem scope from calibration-free mobile in-frared super-resolution to a unified framework for both visible-guided infrared SR and IVF, adapting the cross-modal diffu-sion framework to support super-resolution and fusion within a single framework, and providing new fusion experiments, fusion-specific benchmark evaluations, ablation analyses, and extended real mobile imaging validation for the fusion setting under uncalibrated conditions. The main contributions of BeyondFusion can be summa-rized as follows:  
+
+> •
+
+Unified latent formulation for calibration-free mul-timodal imaging : We formulate visible-guided infrared SR and infrared-visible fusion as two outputs of one latent generative framework, jointly addressing resolution degradation and cross-modal misalignment in mobile infrared-visible imaging.  
+
+> •
+
+Attention-based latent workspace for implicit cross-modal interaction : We propose CMSA to organize vis-ible and infrared tokens in a shared self-attention space, enabling soft cross-modal interaction without explicit registration, geometric warping, or pixel-level correspon-dence estimation.  
+
+> •
+
+Joint training and practical validation : We show that infrared SR and infrared-visible fusion can be optimized and executed jointly with little performance sacrifice, and validate BeyondFusion on public benchmarks, simulated uncalibrated settings, a real mobile imaging system, and downstream pedestrian detection. II. R ELATED WORK 
+
+We review the most relevant literature from three per-spectives: reference-guided image restoration, infrared-visible image fusion, and diffusion-powered image enhancement. 
+
+A. Reference-Guided Image Restoration 
+
+Reference-guided image restoration leverages an auxiliary high-resolution image or modality to recover details that are missing from a degraded target observation. This paradigm has been studied in visible image super-resolution [24], [25], [26], [27], hyperspectral image super-resolution [8], [28], and infrared image enhancement [10], [29]. For infrared restora-tion, visible-guided methods are particularly attractive because visible images provide structural, textural, and semantic cues that are difficult to infer from low-resolution infrared inputs alone. Early approaches such as CoReFusion [9] adopt dual-encoder architectures to extract and fuse cross-modal features, with contrastive constraints introduced to improve modality consistency. Transformer-based methods further strengthen long-range dependency modeling and cross-modal interaction through attention mechanisms [30]. Representative methods include MGNet [31], which mines multi-level visible cues for UAV infrared super-resolution, SwinFuSR [10], which intro-duces a lightweight Swin Transformer backbone, SwinPaste [29], which improves training via data mixing and multi-scale IEEE TRANSACTIONS ON PATTERN ANALYSIS AND MACHINE INTELLIGENCE 3
+
+supervision, and MSFFCT [32], which combines channel-wise Transformers with multi-scale feature aggregation. Despite these advances, most visible-guided infrared restoration methods are still developed for aligned visible-infrared pairs [9], [31], [10], [29], [32]. When visible and infrared images are captured by diverse uncalibrated mobile sensors, device-dependent viewpoint, resolution, and timing discrepancies can lead to substantial and spatially varying misalignment. This motivates an automatic restoration frame-work that directly accepts unaligned infrared-visible inputs and exploits visible guidance without a separate calibration, registration, or warping stage. 
+
+B. Infrared-Visible Image Fusion 
+
+Infrared-visible image fusion aims to generate an infor-mative representation that preserves thermal saliency from infrared images while incorporating structural and seman-tic details from visible images. Existing methods can be roughly grouped into task-driven, semantic-driven, and general-purpose fusion frameworks. Task-driven methods [33], [34], [35] optimize fused representations for downstream perception, while semantic-driven methods [36], [37], [38] introduce object-level or scene-level guidance to improve high-level consistency. General fusion models, such as CDDFuse [15] and SwinFusion [14], combine CNNs, Transformers, or attention mechanisms to model complementary information across modalities. However, many fusion methods are designed for well-registered infrared-visible pairs, and unregistered inputs can lead to duplicated edges, structural distortions, or weak-ened thermal-visible correspondence. Recent methods address this issue by explicitly modeling cross-modal correspondence within the fusion process. MulFS-CAP [19] constructs an alignment perception matrix to reorganize local features, while C-OPDR [20] estimates deformation fields before fusion. In contrast, our goal is to let cross-modal interaction emerge automatically through latent self-attention in diffusion, without estimating an alignment matrix, deformation field, or geomet-ric warp. 
+
+C. Diffusion-Powered Image Enhancement 
+
+Diffusion models have shown strong generative priors for image restoration, super-resolution, and image enhancement, especially in recovering realistic structures and high-frequency details [39], [40], [41]. Latent diffusion methods perform denoising in the compact latent space of a variational autoen-coder and have been widely adopted in perceptual restoration and super-resolution [42], [43], [44], [45]. One-step diffusion models further simplify the sampling process by generating restored images with a single denoising step [22]. These advances have also been introduced into infrared enhancement and image fusion. For example, DifIISR [46] incorporates gradient-based priors and infrared spectrum distribution regu-larization to model infrared-specific frequency characteristics, while Mask-DiFuser [16] reformulates unsupervised fusion as reconstruction from dual-masked inputs. More recently, DS2D [47] introduces a state-space diffusion framework for infrared-visible image fusion, decoupling feature guidance to better preserve modality-specific information and enhance cross-modal complementary representation. ReCoFuse [48] further explores restorative multi-modal diffusion with recip-rocal coupling, where modality-specific restoration branches and time-aware cross-modal integration modules are jointly optimized to improve fusion robustness under complex degra-dations. The conference version of this work, 3M-TI [23], explored calibration-free visible guidance for mobile infrared super-resolution within this diffusion-powered enhancement line. This extension broadens that setting from infrared super-resolution alone to a unified framework for both visible-guided infrared super-resolution and infrared-visible fusion. Beyond-Fusion focuses on how heterogeneous visible-infrared obser-vations can be organized within a shared latent workspace and decoded for different imaging objectives. III. M ETHODOLOGY 
+
+BeyondFusion instantiates a unified latent generative for-mulation for calibration-free visible-infrared imaging. Given a visible-infrared pair captured without geometric calibration or hardware synchronization, it organizes the two observations into a shared latent workspace in which visible structures and infrared thermal responses can interact. The resulting latent representation is decoded into infrared super-resolution and infrared-visible fusion outputs within one framework. 
+
+A. BeyondFusion: A Unified Latent-Space Formulation 
+
+BeyondFusion treats the pretrained diffusion model as a shared latent workspace for heterogeneous observations, rather than as a task-specific restoration or fusion network. Given an infrared image Iir and a visible image Ivis , the VAE encoder 
+
+E first maps them into latent features and directly folds the modality dimension into the batch dimension: 
+
+z0 = fold  stack( E(Ivis ), E (Iir ))  ∈ R(BM )×C×H×W , (1) where B is the batch size, M = 2 denotes the visible and infrared modalities, and C, H, and W are the channel and spatial dimensions. This folded representation has the standard input shape expected by the pretrained diffusion U-Net, so the original network layers can be reused without changing their dimensions. The folded latent z0 is then processed by the one-step denoising U-Net adapted from SD-Turbo [22]. In most layers, the visible and infrared latents are processed as independent samples in the folded batch, without cross-modal information exchange. At the self-attention layers, CMSA reshapes the latent tokens from the two modalities into a shared attention sequence, allowing the visible and infrared latent images to exchange information. This design turns the original denoising process into a cross-modal latent workspace without a separate registration network and without redesigning the U-Net back-bone. In practice, low-rank adaptation (LoRA) [49] is applied to the U-Net and VAE decoder for efficient adaptation. After denoising, the VAE decoder maps the refined la-tent representation to the task output. This provides a high-resolution infrared image for SR and a fused RGB image for IEEE TRANSACTIONS ON PATTERN ANALYSIS AND MACHINE INTELLIGENCE 4concatenation 
+
+> Trainable
+> Frozen
+
+(a) Framework Overview of BeyondFusion 
+
+(b) Cross-Modal Self-Aligning Module (CMSA) 
+
+ℝ(𝐵𝐵 ×𝑀𝑀 )× 𝐶𝐶 ×𝐻𝐻 ×𝑊𝑊 
+
+𝑧𝑧 𝑚𝑚𝑚 𝑘𝑘 , 𝑧𝑧 𝑚𝑚𝑚 𝑘𝑘 
+
+Rearrangement 
+
+ℝ𝐵𝐵 ×( 𝑀𝑀 ×𝐻𝐻 ×𝑊𝑊 )× 𝐶𝐶 
+
+Rearrangement 
+
+Q
+
+K
+
+V
+
+𝑧𝑧 𝑚𝑚𝑚 𝑘𝑘+ 𝑚 , 𝑧𝑧 𝑚𝑚𝑚 𝑘𝑘+ 𝑚 
+
+ℝ(𝐵𝐵 ×𝑀𝑀 )× 𝐶𝐶 ×𝐻𝐻 ×𝑊𝑊 
+
+> LoRA
+
+Attention layer 
+
+(c) Misalignment Augmentation Module (MA) 
+
+Shift 
+
+Rotate 
+
+Project 
+
+Scale 
+
+Augmentation 
+
+Enc 
+
+Enc 
+
+Shared weights  C
+
+𝑧𝑧 𝑚𝑚𝑚 0
+
+𝑧𝑧 𝑚𝑚𝑚 0
+
+ℝ𝐶𝐶 ×𝐻𝐻 ×𝑊𝑊 
+
+ℝ𝑀𝑀 ×𝐶𝐶 ×𝐻𝐻 ×𝑊𝑊 
+
+Dec 
+
+Zero Conv 
+
+LoRA  LoRA 
+
+> CM SA
+> CM SA
+> CM SA
+> CMSA
+> CMSA
+> CMSA
+
+𝑧𝑧 𝑚𝑚𝑚 0 , 𝑧𝑧 𝑚𝑚𝑚 0̂𝑧𝑧 𝑚 
+
+> 𝑡𝑡
+
+̂𝑧𝑧 𝑚 
+
+> 𝑡𝑡
+
+UNet 
+
+𝐼𝐼 𝑚𝑚𝑚 Visible 
+
+𝐼𝐼 𝑚𝑚𝑚 Infrared 
+
+Dec 
+
+Shared weights 
+
+> MA
+> MA
+
+Project 
+
+Shift & Scale  Project Aligned ̂𝐼𝐼 𝑓𝑓𝑓𝑓𝑓𝑓𝑓𝑓𝑓𝑓𝑓𝑓 Fusion ̂𝐼𝐼 𝑓𝑓 𝑠𝑠 Infrared SR 
+
+Rotate 
+
+Visible 
+
+Infrared 
+
+S 
+
+> split
+> Fig. 1. Overview of the BeyondFusion architecture. BeyondFusion encodes visible and infrared inputs into a latent diffusion space, reshapes their latent representations through the cross-modal self-aligning module (CMSA), and decodes the refined latents for either SR or IVF. LoRA fine-tuning is applied to both the UNet and the VAE decoder. (b) CMSA. Two reshape operations are applied before and after the original self-attention layers, allowing visible and infrared tokens to interact in a shared attention sequence without predicting explicit alignment fields. (c) Misalignment Augmentation Module (MA). Controlled geometric perturbations are applied to improve robustness against camera parallax and temporal mismatch.
+
+IVF, treating the two tasks as different readouts of the same latent cross-modal generative process, as shown in Fig. 1(a). 
+
+B. Cross-Modal Self-Aligning Module 
+
+CMSA introduces cross-modal interaction into the existing self-attention (SA) layers of the pretrained U-Net, as shown in Fig. 1(b). For the l-th SA layer, let zl ∈ R(BM )×Cl×Hl×Wl
+
+denote the folded latent feature. CMSA restores the modality dimension and flattens visible and infrared spatial tokens into one joint sequence: 
+
+zseq  
+
+> l
+
+= reshape( zl) ∈ RB×(M H lWl)×Cl ,
+
+¯zseq  
+
+> l
+
+= SA( zseq  
+
+> l
+
+),
+
+¯zl = reshape(¯ zseq  
+
+> l
+
+) ∈ R(BM )×Cl×Hl×Wl .
+
+(2) Here, SA is the original self-attention operation: the query, key, value, and output projections are the same projections already present in the U-Net, with LoRA updates used during fine-tuning. After SA, the output is reshaped back to the folded latent layout, so the following U-Net layers can operate as usual. Thus, CMSA turns existing SA layers into cross-modal workspace interaction layers without adding learnable projections, attention heads, or alignment modules. The main advantage is that cross-modal correspondence is represented implicitly through attention, rather than as an explicit geometric transform. Alignment-based methods often predict an alignment matrix, deformation field, or warp [19], [20], [21]; inaccurate estimates can propagate into the output as ghosting, duplicated edges, or distorted structures. CMSA does not impose any predicted alignment on the two modal-ities; instead, visible and infrared tokens interact through soft attention inside the diffusion denoising process. This lets the pretrained generative backbone integrate complementary cross-modal cues within the shared latent workspace while reducing artifacts caused by inaccurate explicit alignment. 
+
+C. Decoding for Super-Resolution and Image Fusion 
+
+The denoising U-Net outputs a folded latent tensor z⋆ ∈
+
+R(BM )×C×H×W , which has the same layout as the input latent 
+
+z0. Before decoding, this tensor is split into two output streams under task-specific supervision: 
+
+(z⋆
+
+> sr
+
+, z ⋆
+
+> fusion
+
+) = unfold( z⋆). (3) Although the input folding is organized by modality, the denoised latent entries are decoded as task-specific streams, where z⋆ 
+
+> sr
+
+is used for infrared super-resolution and z⋆ 
+
+> fusion
+
+is used for image fusion. The two streams share the same VAE decoder D, with output-specific skip features: 
+
+ˆIsr = D(z⋆
+
+> sr
+
+; fir ),
+
+ˆIfusion = D(z⋆
+
+> fusion
+
+; fvis ), (4) where fir denotes infrared feature maps extracted from the infrared input for super-resolution, and fvis denotes visible fea-ture maps used to preserve structural and color fidelity in the IEEE TRANSACTIONS ON PATTERN ANALYSIS AND MACHINE INTELLIGENCE 5
+
+fusion output. The infrared response required for image fusion is incorporated through the cross-modal latent stream z⋆
+
+> fusion
+
+.Following [50], feature maps from four encoder downsampling blocks are passed through zero-initialized 1 × 1 convolutions and added to the corresponding decoder upsampling blocks. This design enables BeyondFusion to obtain infrared super-resolution and image fusion outputs from a shared cross-modal diffusion process and a shared VAE decoder, without introducing task-specific decoding branches. 
+
+D. Misalignment-Aware Training 
+
+Infrared-visible image pairs are acquired by physically distinct sensors, so their raw observations are generally af-fected by camera parallax, different fields of view, resolution mismatch, and exposure-time differences. Public datasets often reduce these discrepancies through careful calibration, rectifi-cation, cropping, or registration, making the data convenient for training and evaluation but also creating a gap between benchmark pairs and raw sensor observations. Methods trained under such assumptions can therefore become difficult to deploy across diverse visible-infrared imaging systems. To expose BeyondFusion to such conditions, we apply controlled geometric perturbations to the input modalities during training, including translation, scaling, rotation, and perspective warp-ing, as shown in Fig. 1(c). These perturbations are not intended to reproduce the exact distribution of real sensor misalignment. Rather, since CMSA models cross-modal correspondence im-plicitly through latent attention and does not require pixel-level registration, synthetic perturbations are sufficient to discourage overfitting to fixed pixel neighbors and to encourage robust cross-modal interaction under spatial discrepancies. 
+
+E. Mobile Infrared-Visible Imaging System 
+
+To validate BeyondFusion under practical mobile imaging conditions, we build a portable infrared-visible acquisition sys-tem by attaching a compact infrared camera to a commercial smartphone, as shown in Fig. 2. The visible and infrared images are captured by two independent sensors without geometric calibration or hardware synchronization. As a result, the paired observations naturally differ in viewpoint, field of view, spatial resolution, and capture timing. The infrared module provides a native resolution of 96 ×96 ,which is resized to 64 × 64 in this work for a standardized experimental setting, with a 50 ◦ ×50 ◦ field of view (FOV) and a pixel pitch of 12 μm. For visible image collection, we use the primary camera of a Xiaomi 15 smartphone, which is equipped with an OV50H sensor and captures images at a resolution of 
+
+4096 ×4096 . This visible camera has an equivalent focal length of 23 mm and a FOV of 74 ◦ × 59 ◦, which is wider than that of the infrared module. IV. E XPERIMENTS 
+
+We design the experiments to validate BeyondFusion as a unified framework for calibration-free visible-infrared imag-ing. Specifically, we examine whether the same latent gen-erative formulation can support infrared super-resolution and Calibration-free  
+
+> Synchronization-free
+> 64 ×64
+> 512 ×512
+> Mobile Infrared-Visible Imaging System
+> Visible Camera
+> Infrared Camera
+> Fig. 2. Mobile infrared-visible imaging system.
+
+infrared-visible image fusion, whether the latent interaction remains robust to resolution gaps and uncalibrated inputs, and whether the fused outputs benefit downstream perception. 
+
+A. Experimental Setup 1) Datasets and Preprocessing: For infrared super-resolution, we use IRVI [51], LLVIP [52], M 3FD [53], and the PBVS 2025 TISR Challenge Track 2 [54], yielding 10,922 training pairs and 1,176 test pairs. Official splits are followed when available, and M3FD is partitioned with a disjoint sampling protocol. For infrared-visible image fusion, we use MSRS [55], M 3FD, LLVIP, and M3SVD [56], yielding 10,366 training pairs and 1,409 test pairs. Since the SD-Turbo backbone and VAE are operated with 
+
+512 ×512 three-channel inputs, all visible and infrared images are first center-cropped to a square region and mapped to this canonical input size before latent encoding. For super-resolution, the visible image is resized to 512 × 512 and used as the guidance input. The low-resolution infrared condition is generated by downsampling the infrared image to 64 × 64 ,adding Gaussian noise to approximate compact infrared sen-sors, and resizing it back to 512 × 512 for network input; the corresponding high-resolution infrared image is used as the reconstruction target. For image fusion, infrared inputs are prepared at 512 × 512 , 128 × 128 , and 64 × 64 and then resized to 512 ×512 , allowing us to evaluate fusion robustness under different source infrared resolutions while keeping the diffusion input size fixed. Single-channel infrared images are duplicated into three channels to match the VAE input format. The misalignment perturbations described in Section III-D are applied during training and are also used to construct synthetic uncalibrated test settings when evaluating robustness to spatial offsets and scale variations. 
+
+2) Mobile Dataset: We further collect 200 image pairs from 80 scenes using the mobile infrared-visible imaging system described in Section III-E. Most scenes are captured outdoors at night and are used to evaluate real uncalibrated mobile acquisition. For these captures, visible images are center-cropped and resized to 512 ×512 , while native 96 ×96 infrared images are directly resized to 64 × 64 .IEEE TRANSACTIONS ON PATTERN ANALYSIS AND MACHINE INTELLIGENCE 6
+
+3) Implementation Details: BeyondFusion can be trained as a single unified model that predicts ˆIsr and ˆIfusion in one forward pass. For infrared super-resolution, the high-resolution infrared image Ihr ir is used as the reconstruction target, and the loss function is defined as 
+
+Lsr = λsr L2 L2 + LLPIPS . (5) Here, L2 and LLPIPS are computed between ˆIsr and Ihr ir .For image fusion, let Ifusion denote the fused supervision generated by Mask-Difuser [16], ˆIfusion denote the predicted fused image, and Ivis denote the input visible image. The loss function is defined as 
+
+Lfusion = Lint + Lcolor + λf u L2 L2 + LLPIPS ,
+
+Lint = Y ( ˆIfusion ) − Y (Ifusion ) 1
+
+,
+
+Lcolor = C( ˆIfusion ) − C(Ivis ) 1
+
+,
+
+(6) where Lint , L2, and LLPIPS are computed between ˆIfusion 
+
+and Ifusion , Y (·) extracts the intensity channel of YUV space; 
+
+Lcolor is calculated between ˆIfusion and Ivis , C(·) extracts the color channels. We set λsr L2 = 10 , λf u L2 = 2 , and the remaining weights each to 1. The total objective for joint training is 
+
+Ltotal = Lsr + Lfusion . (7) We further use classifier-free guidance ( CFG ) [57] in the unified denoising process. Following the common CFG prac-tice, BeyondFusion trains positive and negative denoising branches and combines their predictions at inference. For the positive branch, the model is supervised by the aforementioned targets. For the negative branch, Lint and Lcolor in Eq. (6) are removed. Besides, we replace Ihr ir with the low-resolution infrared input Ilr ir in Eq. (5) and replace Ifusion with the visible image Ivis in Eq. (6). These two replacements correspond to non-super-resolved and non-fused targets, respectively. Posi-tive and negative samples are drawn at a ratio of 7:3. During inference, the guided prediction is 
+
+˜ϵ = ϵneg + ω · (ϵpos − ϵneg ) , (8) where ϵpos and ϵneg are the positive and negative predictions of the unified model, and ω is the guidance scale. The combination in Eq. (8) is performed in the latent image space before VAE decoding, and the guided latent is decoded into 
+
+ˆIsr and ˆIfusion jointly. We apply ω = 1 .1 in all inferences. All our models are trained with the Adam optimizer [58], using a learning rate of 2 × 10 −5 and a batch size of 4 on a single NVIDIA A800 (80 GB) GPU. LoRA is applied with rank 16 for the U-Net and rank 4 for the VAE decoder. 
+
+4) Comparative Methods: For infrared super-resolution, we compare BeyondFusion with CoReFusion [9], CoRPLE [59], SwinFuSR [10], SwinPaste [29], SeeSR [43], OSEDiff [45], and DifIISR [46], covering visible-guided, infrared-specific, and diffusion-based restoration baselines. For infrared-visible image fusion, we compare with CDDFuse [15], Mask-Difuser [16], and C-OPDR [20]. All baselines are retrained on our datasets using their released implementations. 
+
+5) Evaluation Metrics: For infrared super-resolution, we report PSNR and SSIM [60] for reconstruction fidelity, LPIPS [61] for perceptual similarity, and MUSIQ and MANIQA [62] for no-reference quality assessment. For infrared-visible image fusion, we report entropy (EN), stan-dard deviation (SD), spatial frequency (SF), structural content difference (SCD), and average gradient (AG), following the common definitions in [2]. Unless otherwise specified, BeyondFusion is compared with baselines using a task-specific training pipeline, where Eq. (5) supervises infrared super-resolution and Eq. (6) trains infrared-visible image fusion. Each model is with the CFG strategy introduced. The impact of the training pipeline is further analyzed in Section IV-D. 
+
+B. Infrared Image Super-Resolution 
+
+Table I compares BeyondFusion with visible-guided, infrared-specific, and diffusion-based super-resolution meth-ods on public infrared-visible benchmarks. BeyondFusion achieves the best LPIPS score and the second-best rest scores and keeps PSNR and SSIM close to the strongest fidelity-oriented baseline, CoRPLE. Compared with visible-guided baselines such as SwinFuSR and SwinPaste, BeyondFusion reduces LPIPS by about 0.14 and improves MANIQA by about 0.18, showing a clear perceptual advantage. Compared with diffusion restorers OSEDiff and DifIISR, BeyondFusion gives substantially higher fidelity, improving PSNR by 2.33 dB and 2.10 dB, respectively. These results indicate BeyondFusion’s superiority in balancing perceptual quality and structural fi-delity. The effect of misalignment-aware augmentation is also reflected in Table I. With the same augmentation protocol, BeyondFusion effectively improves the results in terms of all metrics. By contrast, the same augmentation brings fewer improvements to other visible-guided baselines.                                                          
+
+> TABLE I QUANTITATIVE COMPARISON ON INFRARED IMAGE SUPER -RESOLUTION .GRAY CELLS INDICATE THE BEST RESULT ,AND LIGHT GRAY CELLS INDICATE THE SECOND -BEST RESULT FOR EACH METRIC .Methods Metrics PSNR ↑SSIM ↑LPIPS ↓MANIQA ↑MUSIQ ↑
+> CoReFusion [9] 30.11 0.8588 0.3214 0.2771 28.35 CoReFusion w/ Augment 30.30 0.8634 0.3174 0.2748 28.95 CoRPLE [59] 30.47 0.8642 0.3206 0.2833 30.46 SwinFuSR [10] 29.85 0.8549 0.3085 0.2740 29.86 SwinFuSR w/ Augment 29.98 0.8581 0.3134 0.2753 30.33 SwinPaste [29] 29.83 0.8545 0.3075 0.2719 29.63 SwinPaste w/ Augment 29.91 0.8575 0.3084 0.2745 30.66 SeeSR [43] 29.41 0.8495 0.1828 0.4278 35.22 OSEDiff [45] 28.05 0.8422 0.2113 0.4014 36.30 DifIISR [46] 28.28 0.8207 0.2754 0.5629 47.87
+> BeyondFusion w/o Augment 30.31 0.8632 0.1820 0.4154 35.40 BeyondFusion w/ Augment 30.38 0.8638 0.1658 0.4536 37.48
+
+The qualitative comparison in Fig. 3 further illustrates this behavior. Non-diffusion methods often produce smooth infrared reconstructions with weakened high-frequency struc-tures, while diffusion-based methods may synthesize sharp but structurally inconsistent details. In Row 1, the steel frame of the building is blurred by CoReFusion, SwinFuSR, and IEEE TRANSACTIONS ON PATTERN ANALYSIS AND MACHINE INTELLIGENCE 7Input Infrared  Ref Visible  CoReFusion  SwinFuSR  SwinPaste  SeeSR  Ours  GT OSEDiff  
+
+> Fig. 3. Qualitative comparison for infrared image super-resolution on the test set. BeyondFusion reconstructs sharper structures and more faithful infrared patterns, with details that are visually plausible and better aligned with the ground truth.
+
+SwinPaste, while SeeSR and OSEDiff recover sharper but inconsistent local patterns; BeyondFusion reconstructs clearer floor lines and vertical supports that are closer to the ground truth. In Row 2, the road arrow remains weak or distorted in most baselines, whereas BeyondFusion restores a more recognizable arrow shape. The utility pole and palm tree in the last row show a similar trend: BeyondFusion preserves object contours and thin structures with fewer hallucinated details than SeeSR and OSEDiff. These examples support the quantitative observation that the method improves perceptual realism without drifting away from the target content. We further evaluate generalization on the uncalibrated real mobile dataset in Fig. 4 and Table II. Similarly, conventional visible-guided baselines tend to produce blurry outputs, and diffusion restorers introduce visible artifacts in some regions. BeyondFusion reconstructs sharper and more coherent infrared structures when the visible reference is spatially misaligned or degraded by light flare. For instance, the wheel spokes in Row 2 and the bicycle structure in Row 3 are more dis-tinguishable in BeyondFusion, while several baselines either blur the circular shape or introduce fragmented high-frequency artifacts. In the last row, BeyondFusion also recovers clearer window grids from a strongly degraded nighttime capture. The no-reference scores in Table II are consistent with these observations, where BeyondFusion obtains the highest MUSIQ and MANIQA values on the mobile dataset.             
+
+> TABLE II NO-REFERENCE IMAGE QUALITY COMPARISON ON THE REAL -WORLD MOBILE INFRARED DATASET . G RAY CELLS INDICATE THE BEST RESULTS .
+> Metrics Methods CoReFusion SwinFuSR SwinPaste SeeSR OSEDiff BeyondFusion MUSIQ ↑25.74 25.99 26.17 30.15 29.85 30.84
+> MANIQA ↑0.2701 0.2754 0.2749 0.3454 0.3285 0.3562
+
+C. Infrared-Visible Image Fusion 
+
+We evaluate image fusion in three settings that separate alignment, resolution gap, and data realism. 1) Simulated aligned setting: registered inputs with controllable infrared-visible resolution gaps, compared with fusion baselines that assume pixel-level alignment (CDDFuse [15] and Mask-Difuser [16]). 2) Simulated misaligned setting: unregistered inputs with controllable infrared-visible resolution gaps, com-pared with fusion baselines designed for unregistered inputs (C-OPDR [20]). 3) Real mobile setting: used to assess practi-cal generalization. We first evaluate the simulated aligned setting, with quanti-tative results reported in Table III. When both modalities are IEEE TRANSACTIONS ON PATTERN ANALYSIS AND MACHINE INTELLIGENCE 8Input Infrared  Ref Visible  CoReFusion  SwinFuSR  SwinPaste  SeeSR  Ours OSEDiff  
+
+> Fig. 4. Qualitative infrared super-resolution comparison on the real-world mobile dataset. BeyondFusion shows strong generalization to uncalibrated captures, producing sharper and more faithful infrared details from imperfect visible references.
+
+aligned and available at 512 × 512 , BeyondFusion performs comparably to the aligned fusion baselines. Its advantage becomes clearer as the infrared input is downsampled: at 
+
+128 × 128 and 64 × 64 , BeyondFusion achieves the best scores on all reported metrics except SCD. This trend suggests that BeyondFusion is less sensitive to enlarged infrared-visible resolution gaps, benefiting from visible structural guidance and the latent diffusion backbone to recover details absent from low-resolution infrared observations. The qualitative compar-ison in Fig. 5 provides a more direct assessment. Rows 1– 3 and Rows 4–6 show two representative scenes under full-resolution aligned, low-resolution aligned, and low-resolution misaligned infrared inputs. As shown in the enlarged person regions in Rows 1–3, the fused human regions produced by BeyondFusion remain visually consistent when the infrared input changes from 512 ×512 to 64 ×64 . In contrast, CDDFuse and Mask-Difuser lose fine infrared details under 64 × 64 
+
+infrared inputs, leading to noticeably blurred human regions. The degradation becomes more pronounced when low infrared resolution is coupled with misalignment: CDDFuse and Mask-Difuser produce shifted or ghosted responses around the human region, whereas BeyondFusion still maintains coherent fusion results. Rows 4–6 further support this observation, where BeyondFusion better preserves human boundaries and clothing textures under both resolution degradation and spatial misalignment. These observations indicate that BeyondFusion is more robust to degraded infrared details and cross-modal misalignment. Table IV further evaluates the simulated uncalibrated set-ting. Compared with C-OPDR, which estimates deforma-tion fields for explicit cross-modal registration, BeyondFusion significantly improves all metrics under 512 × 512 infrared inputs. We also test BeyondFusion under the joint challenge of modality misalignment and reduced infrared resolution, with infrared inputs downsampled to 128 × 128 and 64 × 64 . The scores of BeyondFusion decrease only mildly as the infrared resolution is reduced, showing that BeyondFusion maintains stable fusion performance under simultaneous misalignment and infrared detail degradation. The visual comparison in Fig. 6 further demonstrates the ro-IEEE TRANSACTIONS ON PATTERN ANALYSIS AND MACHINE INTELLIGENCE 9
+
+TABLE III PERFORMANCE COMPARISON OF DIFFERENT METHODS ON ALIGNED INFRARED -RGB IMAGE FUSION . G RAY CELLS INDICATE THE BEST RESULT .Methods Resolution Metrics EN ↑ SD ↑ SF ↑ SCD ↑ AG ↑
+
+CDDFuse 512 ×512 7.067 49.480 16.892 1.661 4.792 Mask-Difuser 7.284 60.048 18.715 1.848 5.749 
+
+Ours 7.358 61.776 17.464 1.782 5.464 CDDFuse 128 ×128 7.065 49.177 15.763 1.617 4.425 Mask-Difuser 7.288 60.591 16.514 1.811 5.124 Ours 7.367 61.600 16.848 1.766 5.266 
+
+CDDFuse 64 ×64 7.058 48.688 15.422 1.561 4.186 Mask-Difuser 7.291 60.927 15.714 1.760 4.723 Ours 7.337 61.301 15.905 1.744 4.850 Infrared  Visible  CDDFuse  Mask-Difuser  Ours 
+
+> IR: 512 ×512 Aligned
+> IR: 64 ×64 Aligned
+> IR: 64 ×64 Misaligned
+> IR: 512 ×512 Aligned
+> IR: 64 ×64 Aligned
+> IR: 64 ×64 Misaligned
+
+Fig. 5. Qualitative comparison on our test set (zoom in for details). BeyondFusion maintains sharp edges and clear texture details even with downsampled infrared inputs. 
+
+bustness of BeyondFusion. Despite the spatial offsets between modalities, BeyondFusion integrates infrared details into the corresponding visible pedestrian regions in the fused image. The fused pedestrians keep sharp body contours and clear local contrast without obvious shifted or duplicated artifacts. By contrast, C-OPDR has difficulty maintaining consistent cross-modal correspondence under the challenging misalignment, so 
+
+TABLE IV PERFORMANCE COMPARISON OF DIFFERENT METHODS ON MISALIGNED INFRARED -RGB IMAGE FUSION . G RAY CELLS INDICATE THE BEST RESULT .Methods Resolution Metrics EN ↑ SD ↑ SF ↑ SCD ↑ AG ↑
+
+C-OPDR 512 ×512 6.888 46.127 9.900 1.335 3.322 Ours 7.316 60.089 16.673 1.659 5.099 
+
+Ours 128 ×128 7.321 59.797 16.258 1.653 4.992 Ours 64 ×64 7.301 59.444 15.673 1.640 4.751 
+
+the fused pedestrian regions are shifted or partially detached from the visible human regions. When the infrared input is further reduced to 64 ×64 , the fused pedestrian region becomes more blurred, while BeyondFusion still maintains clear pedes-trian contours and well-localized infrared details. These results indicate that BeyondFusion can maintain effective cross-modal interaction without explicit registration, making it more toler-ant to spatial offsets and infrared resolution degradation. Visible  C-OPDR  Ours Infrared 
+
+> IR: 512 ×512 Misaligned
+> IR: 64 ×64 Misaligned
+> IR: 512 ×512 Misaligned
+> IR: 64 ×64 Misaligned
+
+Fig. 6. Qualitative comparison under simulated unregistered inputs (zoom in for details). BeyondFusion better preserves thermal saliency and visible structures under both spatial misalignment and infrared resolution degradation. 
+
+Finally, Fig. 7 evaluates fusion on the real mobile dataset. The captured pairs include low-resolution infrared observa-tions and high-resolution visible images. Because the two mobile cameras have different viewpoints, camera parallax introduces natural spatial offsets between modalities, directly testing whether a fusion method can handle practical mobile acquisition. CDDFuse and Mask-Difuser do not explicitly handle misalignment, and their outputs often behave like pixel-position fusion of mismatched infrared and visible contents. C-OPDR introduces explicit registration, but still has diffi-culty handling such challenging real captures. By contrast, BeyondFusion produces more coherent fused images: visible structures remain clear, and infrared details are incorporated into the corresponding object regions rather than being over-laid at mismatched pixel positions. This advantage can be observed from the wheel hub, the sitting person, the Luckin Coffee logo, and the window railing in the building scene, where BeyondFusion better aligns infrared details with visible structures while suppressing obvious ghosting and misplaced highlights. 
+
+D. Unified Training Analysis 
+
+BeyondFusion treats infrared super-resolution and infrared-visible fusion as two outputs of the same latent interaction pro-cess. Before evaluating downstream perception, we examine whether this unified training strategy introduces a performance IEEE TRANSACTIONS ON PATTERN ANALYSIS AND MACHINE INTELLIGENCE 10 Infrared  Visible  CDDFuse  Mask-Difuser  Ours C-OPDR  
+
+> Fig. 7. Qualitative infrared-visible image fusion comparison on our real-world smartphone dataset (zoom in for details). BeyondFusion shows strong generalization and robustness under misaligned infrared images.
+
+tradeoff compared with training two task-specific models sep-arately. Table V compares the two training strategies. The performance gap between separate and joint training is small. Separate training results in slightly higher scores than joint training for both tasks. These results indicate that sharing the latent denoising backbone does not introduce a substantial optimization conflict between the two outputs. They also support the central premise of BeyondFusion: the two imaging objectives are compatible within the same latent generative process and can be optimized and executed together with acceptable performance sacrifice. This makes a unified framework preferable to maintaining two isolated task-specific pipelines in this setting.                                   
+
+> TABLE V COMPARISON BETWEEN SEPARATELY TRAINED TASK -SPECIFIC MODELS AND A JOINTLY TRAINED UNIFIED MODEL FOR INFRARED SUPER -RESOLUTION AND INFRARED -VISIBLE FUSION .Task Metrics PSNR ↑SSIM ↑LPIPS ↓MANIQA ↑MUSIQ ↑
+> Infrared SR Separate 30.38 0.8638 0.1658 0.4536 37.48 Joint 29.88 0.8570 0.1884 0.4230 36.28 Task Metrics EN ↑SD ↑SF ↑SCD ↑AG ↑
+> IVF Separate 7.301 59.444 15.673 1.640 4.751 Joint 7.320 59.092 15.321 1.615 4.625
+
+E. Downstream Applications 
+
+Beyond low-level image quality, whether the fused images benefit downstream perception is an important question for vision systems. We therefore evaluate pedestrian detection on infrared-visible fusion results using the pretrained Grounded-SAM model [63] in a zero-shot setting. All methods are evaluated with the same text prompt, person , and the same detection pipeline. Following the input assumptions of the compared fusion methods, CDDFuse and Mask-Difuser are evaluated on pixel-level aligned visible-infrared pairs with the infrared image downsampled to 64 × 64 , while C-OPDR is evaluated on misaligned visible-infrared pairs with the infrared image also downsampled to 64 × 64 .Table VI reports the detection accuracy, and Fig. 8 pro-vides the corresponding precision-recall curves. BeyondFu-sion consistently improves pedestrian detection across all IoU thresholds. Compared with CDDFuse and Mask-Difuser in the aligned setting, BeyondFusion improves mAP by 0.053–0.108. Compared with C-OPDR in the uncalibrated low-resolution setting, it improves mAP by 0.049–0.082. The precision-recall curves show the same trend, with BeyondFusion maintaining higher precision over a wider recall range. These improve-ments suggest that fewer fusion artifacts and clearer pedestrian structures in BeyondFusion outputs make them more suitable for downstream detection.                           
+
+> TABLE VI PEDESTRIAN DETECTION COMPARISON WITH IOUTHRESHOLDS OF 0.3, 0.5, AND 0.7. Methods Metrics mAP@0.3 mAP@0.5 mAP@0.7 CDDFuse 0.7161 0.6577 0.5129 Mask-Difuser 0.6990 0.6387 0.4904 Ours 0.8071 0.7391 0.5659
+> C-OPDR 0.8029 0.7260 0.5065 Ours 0.8523 0.8075 0.5886 mAP@0.3 mAP@0.5 mAP@0.7
+> Fig. 8. Precision-recall curve comparison for pedestrian detection with IoU thresholds of 0.3, 0.5, and 0.7.
+
+Fig. 9 further explains why the detection scores differ. The lower detection performance of CDDFuse and Mask-Difuser is mainly caused by weakened pedestrian cues in their fused outputs. In this figure, the ground-truth (GT) bounding IEEE TRANSACTIONS ON PATTERN ANALYSIS AND MACHINE INTELLIGENCE 11 
+
+boxes of pedestrians are overlaid on both input infrared and visible images for reference. As shown in Rows 1–3, blurred pedestrian boundaries and weakened infrared saliency lead to missed or false detections in the baseline results. In contrast, the fused images produced by BeyondFusion preserve clearer pedestrian semantics, enabling more accurate and reliable detection results. IR (bbox GT)  Vis (bbox GT)  CDDFuse  Mask-Difuser  Ours  
+
+> Fig. 9. Visualization of comparison against CDDFuse and Mask-Difuser, where green bounding boxes indicate correct detections and red bounding boxes indicate incorrect detections.
+
+The comparison against C-OPDR is shown in Fig. 10. Since the input infrared images are spatially misaligned with the visible modality, the GT bounding boxes are overlaid only on the visible images for reference. In Row 1, C-OPDR severely compresses the cyclist’s body shape, making the detector fail to locate the true pedestrian region. In Row 2, C-OPDR introduces a ghosting artifact around the reconstructed pedestrian in the upper-left region. In contrast, BeyondFusion preserves a more coherent human posture and clearer pedes-trian boundaries, enabling successful detection. Vis (bbox GT)  C-OPDR  Ours IR 
+
+> Fig. 10. Visualization of comparison against C-OPDR, where green bounding boxes indicate correct detections and red bounding boxes indicate incorrect detections.
+
+Overall, these results show that BeyondFusion remains robust to degraded or misaligned infrared inputs and generates semantically meaningful fused representations for downstream pedestrian detection, demonstrating its practical value beyond perceptual image quality. 
+
+F. Ablation Study 
+
+Table VII and Table VIII each reports two groups of ablations with the joint training pipeline: removing the mis-alignment augmentation module (MA) from the full model and replacing CMSA with simpler interaction variants. Removing MA degrades all metrics on infrared super-resolution and seriously deteriorates SCD score on infrared-visible image fusion, confirming the necessity of augmentation for uncal-ibrated visible-infrared inputs. Replacing CMSA with the original self-attention (intra-modal attention only) or feature concatenation (without attention mechanism) also leads to weaker results on both tasks, indicating that simple intra-modal processing or static feature mixing does not provide the same latent workspace organization for robust cross-modal interac-tion. With all components enabled, BeyondFusion achieves the best overall performance, supporting the effectiveness of the proposed unified design.                                                     
+
+> TABLE VII ABLATION STUDY OF BEYOND FUSION COMPONENTS AND INTERACTION VARIANTS ON INFRARED IMAGE SUPER -RESOLUTION .Methods Metrics PSNR ↑SSIM ↑LPIPS ↓MANIQA ↑MUSIQ ↑
+> w/o MA 29.80 0.8537 0.2062 0.3788 32.85 w/ Self-Attention 29.99 0.8565 0.1960 0.4030 34.13 w/ Feature Concat 29.50 0.8444 0.2386 0.3334 29.22 w/ MA (CMSA) 29.88 0.8570 0.1884 0.4230 36.28 TABLE VIII ABLATION STUDY OF BEYOND FUSION COMPONENTS AND INTERACTION VARIANTS ON INFRARED -VISIBLE IMAGE FUSION .Methods Metrics EN ↑SD ↑SF ↑SCD ↑AG ↑
+> w/o MA 7.363 61.219 15.794 1.269 4.949 w/ Self-Attention 7.179 51.931 15.061 1.112 4.379 w/ Feature Concat 7.317 54.542 15.192 1.406 4.453 w/ MA (CMSA) 7.320 59.092 15.321 1.615 4.625
+
+V. D ISCUSSION AND CONCLUSION 
+
+BeyondFusion reflects a broader architectural direction for low-level vision: multimodal imaging can be approached as the organization of heterogeneous observations inside a shared generative computation, rather than as isolated network design for each degradation, modality, or output form. In this work, infrared super-resolution and infrared-visible fusion are treated not as two independent pipelines, but as two readouts of one latent cross-modal process. The same design principle can potentially support broader imaging problems that require joint use of multiple modalities, resolutions, frames, or degradation levels. This flexibility is enabled by latent-token interaction. By reorganizing self-attention tokens, BeyondFusion lets het-erogeneous inputs exchange information inside the generative process without imposing fixed pixel-level alignment. This is particularly useful for practical imaging systems, where observations often differ in modality, resolution, viewpoint, timing, and calibration state. Such a framework provides a natural basis for future low-level vision systems that must operate under realistic acquisition constraints. IEEE TRANSACTIONS ON PATTERN ANALYSIS AND MACHINE INTELLIGENCE 12 
+
+In conclusion, we presented BeyondFusion, a self-aligned latent diffusion framework for calibration-free infrared super-resolution and infrared-visible image fusion. By reorganizing visible and infrared latent tokens within the self-attention layers of a pretrained diffusion model, BeyondFusion enables implicit cross-modal interaction without explicit registration. Experiments on public benchmarks and a real mobile visible-infrared imaging system demonstrate its effectiveness un-der aligned, misaligned, low-resolution, and practical mobile settings, as well as its benefit for downstream pedestrian detection. REFERENCES [1] J. Liu, B. Zhang, Q. Mei, X. Li, Y. Zou, Z. Jiang, L. Ma, R. Liu, and X. Fan, “Dcevo: Discriminative cross-dimensional evolutionary learning for infrared and visible image fusion,” in Proceedings of the Computer Vision and Pattern Recognition Conference , 2025, pp. 2226–2235. [2] J. Ma, Y. Ma, and C. Li, “Infrared and visible image fusion methods and applications: A survey,” Information fusion , vol. 45, pp. 153–178, 2019. [3] L. Tang, X. Xiang, H. Zhang, M. Gong, and J. Ma, “Divfusion: Darkness-free infrared and visible image fusion,” Information Fusion ,vol. 91, pp. 477–493, 2023. [4] U. Shin, J. Park, and I. S. Kweon, “Deep depth estimation from thermal image,” in Proceedings of the IEEE/CVF Conference on Computer Vision and Pattern Recognition , 2023, pp. 1043–1053. [5] Z. Tang, W. Ye, W.-C. Ma, and H. Zhao, “What happened 3 seconds ago? inferring the past with thermal imaging,” in Proceedings of the IEEE/CVF Conference on Computer Vision and Pattern Recognition ,2023, pp. 17 111–17 120. [6] M. Sheinin, A. C. Sankaranarayanan, and S. G. Narasimhan, “Projecting trackable thermal patterns for dynamic computer vision,” in Proceedings of the IEEE/CVF Conference on Computer Vision and Pattern Recogni-tion , 2024, pp. 25 223–25 232. [7] Z. Wang, J. Chen, and S. C. Hoi, “Deep learning for image super-resolution: A survey,” IEEE transactions on pattern analysis and ma-chine intelligence , vol. 43, no. 10, pp. 3365–3387, 2020. [8] Y. Fu, T. Zhang, Y. Zheng, D. Zhang, and H. Huang, “Hyperspectral image super-resolution with optimized rgb guidance,” in Proceedings of the IEEE/CVF conference on computer vision and pattern recognition ,2019, pp. 11 661–11 670. [9] A. Kasliwal, P. Seth, S. Rallabandi, and S. Singhal, “Corefusion: Contrastive regularized fusion for guided thermal super-resolution,” in 
+
+Proceedings of the IEEE/CVF Conference on Computer Vision and Pattern Recognition , 2023, pp. 507–514. [10] C. Arnold, P. Jouvet, and L. Seoud, “Swinfusr: an image fusion-inspired model for rgb-guided thermal image super-resolution,” in Proceedings of the IEEE/CVF Conference on Computer Vision and Pattern Recognition ,2024, pp. 3027–3036. [11] Y. Zhang, Y. Liu, P. Sun, H. Yan, X. Zhao, and L. Zhang, “Ifcnn: A general image fusion framework based on convolutional neural network,” 
+
+Information Fusion , vol. 54, pp. 99–118, 2020. [12] H. Xu, J. Ma, J. Jiang, X. Guo, and H. Ling, “U2fusion: A unified unsupervised image fusion network,” IEEE transactions on pattern analysis and machine intelligence , vol. 44, no. 1, pp. 502–518, 2020. [13] J. Ma, W. Yu, P. Liang, C. Li, and J. Jiang, “Fusiongan: A generative adversarial network for infrared and visible image fusion,” Information fusion , vol. 48, pp. 11–26, 2019. [14] J. Ma, L. Tang, F. Fan, J. Huang, X. Mei, and Y. Ma, “Swinfusion: Cross-domain long-range learning for general image fusion via swin transformer,” IEEE/CAA Journal of Automatica Sinica , vol. 9, no. 7, pp. 1200–1217, 2022. [15] Z. Zhao, H. Bai, J. Zhang, Y. Zhang, S. Xu, Z. Lin, R. Timofte, and L. Van Gool, “Cddfuse: Correlation-driven dual-branch feature decomposition for multi-modality image fusion,” in Proceedings of the IEEE/CVF conference on computer vision and pattern recognition , 2023, pp. 5906–5916. [16] L. Tang, C. Li, and J. Ma, “Mask-difuser: A masked diffusion model for unified unsupervised image fusion,” IEEE Transactions on Pattern Analysis and Machine Intelligence , 2025. [17] J. Yue, L. Fang, S. Xia, Y. Deng, and J. Ma, “Dif-fusion: Toward high color fidelity in infrared and visible image fusion with diffusion models,” 
+
+IEEE Transactions on Image Processing , vol. 32, pp. 5705–5720, 2023. [18] J. Li, C. Jiang, J. Jiang, P. Liang, J. Ma, and L. Nie, “Towards unified semantic and controllable image fusion: A diffusion transformer approach,” IEEE transactions on pattern analysis and machine intelli-gence , 2025. [19] H. Li, Z. Yang, Y. Zhang, W. Jia, Z. Yu, and Y. Liu, “Mulfs-cap: Multimodal fusion-supervised cross-modality alignment perception for unregistered infrared-visible image fusion,” IEEE Transactions on Pat-tern Analysis and Machine Intelligence , vol. 47, no. 5, pp. 3673–3690, 2025. [20] D. Wang, J. Liu, L. Ma, R. Liu, and X. Fan, “Improving misaligned multi-modality image fusion with one-stage progressive dense registra-tion,” IEEE Transactions on Circuits and Systems for Video Technology ,vol. 34, no. 11, pp. 10 944–10 958, 2024. [21] D. Wang, J. Liu, X. Fan, and R. Liu, “Unsupervised misaligned infrared and visible image fusion via cross-modality image generation and registration,” arXiv preprint arXiv:2205.11876 , 2022. [22] A. Sauer, D. Lorenz, A. Blattmann, and R. Rombach, “Adversarial diffusion distillation,” in European Conference on Computer Vision .Springer, 2024, pp. 87–103. [23] M. Chen, X. Yuan, J. Wan, J. Zhang, and J. Zhang, “3m-ti: High-quality mobile thermal imaging via calibration-free multi-camera cross-modal diffusion,” in Proceedings of the IEEE/CVF Conference on Computer Vision and Pattern Recognition , 2026, pp. 5659–5669. [24] H. Zheng, M. Ji, H. Wang, Y. Liu, and L. Fang, “Crossnet: An end-to-end reference-based super resolution network using cross-scale warping,” in 
+
+Proceedings of the European conference on computer vision (ECCV) ,2018, pp. 88–104. [25] Y. Tan, H. Zheng, Y. Zhu, X. Yuan, X. Lin, D. Brady, and L. Fang, “Crossnet++: Cross-scale large-parallax warping for reference-based super-resolution,” IEEE Transactions on Pattern Analysis and Machine Intelligence , vol. 43, no. 12, pp. 4291–4305, 2020. [26] Z. Zhang, Z. Wang, Z. Lin, and H. Qi, “Image super-resolution by neural texture transfer,” in Proceedings of the IEEE/CVF conference on computer vision and pattern recognition , 2019, pp. 7982–7991. [27] L. Fang, M. Ji, X. Yuan, J. He, J. Zhang, Y. Zhu, T. Zheng, L. Liu, B. Wang, and Q. Dai, “Engram-driven videography,” Engineering ,vol. 25, pp. 101–109, 2023. [28] Y. Zhang, Z. Lai, T. Zhang, Y. Fu, and C. Zhou, “Unaligned rgb guided hyperspectral image super-resolution with spatial-spectral concordance: Y. zhang et al.” International Journal of Computer Vision , pp. 1–21, 2025. [29] H. Zhong, Y. Wang, and S. Zhao, “Swinpaste: A swin transformer-based framework for rgb-guided thermal image super-resolution,” in Proceed-ings of the Computer Vision and Pattern Recognition Conference , 2025, pp. 4589–4594. [30] A. Vaswani, N. Shazeer, N. Parmar, J. Uszkoreit, L. Jones, A. N. Gomez, Ł. Kaiser, and I. Polosukhin, “Attention is all you need,” Advances in neural information processing systems , vol. 30, 2017. [31] Z. Zhao, Y. Zhang, C. Li, Y. Xiao, and J. Tang, “Thermal uav image super-resolution guided by multiple visible cues,” IEEE Transactions on Geoscience and Remote Sensing , vol. 61, pp. 1–14, 2023. [32] R. S. Puttagunta, B. Kathariya, Z. Li, and G. York, “Multi-scale feature fusion using channel transformers for guided thermal image super resolution,” in Proceedings of the IEEE/CVF Conference on Computer Vision and Pattern Recognition , 2024, pp. 3086–3095. [33] Z. Wang, J. Zhang, H. Song, M. Ge, J. Wang, and H. Duan, “Highlight what you want: Weakly-supervised instance-level controllable infrared-visible image fusion,” in Proceedings of the IEEE/CVF International Conference on Computer Vision , 2025, pp. 12 637–12 647. [34] W. Zhao, W. Wang, H. Wang, Y. He, and H. Lu, “Cdtfusion: Crossing domain and task for infrared and visible image fusion,” IEEE Transac-tions on Pattern Analysis and Machine Intelligence , 2025. [35] W. Zhao, H. Cui, H. Wang, Y. He, and H. Lu, “Freefusion: Infrared and visible image fusion via cross reconstruction learning,” IEEE Transactions on Pattern Analysis and Machine Intelligence , 2025. [36] X. Liu, H. Huo, H. Cao, R. Wang, X. Dong, S. Pang, and J. Li, “A fine-grained semantic-driven pedestrian identity-aware method for visible and infrared image fusion,” Information Fusion , p. 104453, 2026. [37] M. Wang, Y. Pan, Z. Zhao, Z. Li, and S. Yao, “Mddpfuse: Multi-driven dynamic perception network for infrared and visible image fusion via data guidance and semantic injection,” Knowledge-Based Systems , p. 114027, 2025. [38] Q. Xiao, H. Jin, H. Su, Y. Zhang, Z. Xiao, and B. Wang, “Spdfusion: A semantic prior knowledge-driven method for infrared and visible image fusion,” IEEE Transactions on Multimedia , vol. 27, pp. 1691–1705, 2024. IEEE TRANSACTIONS ON PATTERN ANALYSIS AND MACHINE INTELLIGENCE 13 
+
+[39] J. Ho, A. Jain, and P. Abbeel, “Denoising diffusion probabilistic models,” 
+
+Advances in neural information processing systems , vol. 33, pp. 6840– 6851, 2020. [40] T. Ma, Z. Dai, Y. Diao, G. An, L. Ma, J. Liu, and R. Liu, “Taming generative diffusion model for task-oriented infrared imaging,” in Pro-ceedings of the IEEE/CVF Conference on Computer Vision and Pattern Recognition , 2026, pp. 30 843–30 853. [41] Q. Dong, H. Dong, M. Chen, R. Zhang, and Y. Wang, “Dreamsr: Towards ultra-high-resolution image super-resolution via a receptive-field enhanced diffusion transformer,” in Proceedings of the IEEE/CVF Conference on Computer Vision and Pattern Recognition , 2026, pp. 38 258–38 269. [42] J. Zhang, J. Zhu, F. Ji, X. Yang, and X. Yuan, “Degradation-modeled multipath diffusion for tunable metalens photography,” arXiv preprint arXiv:2506.22753 , 2025. [43] R. Wu, T. Yang, L. Sun, Z. Zhang, S. Li, and L. Zhang, “Seesr: Towards semantics-aware real-world image super-resolution,” in Proceedings of the IEEE/CVF conference on computer vision and pattern recognition ,2024, pp. 25 456–25 467. [44] Y. Wang, W. Yang, X. Chen, Y. Wang, L. Guo, L.-P. Chau, Z. Liu, Y. Qiao, A. C. Kot, and B. Wen, “Sinsr: diffusion-based image super-resolution in a single step,” in Proceedings of the IEEE/CVF conference on computer vision and pattern recognition , 2024, pp. 25 796–25 805. [45] R. Wu, L. Sun, Z. Ma, and L. Zhang, “One-step effective diffusion network for real-world image super-resolution,” Advances in Neural Information Processing Systems , vol. 37, pp. 92 529–92 553, 2024. [46] X. Li, Z. Wang, Y. Zou, Z. Chen, J. Ma, Z. Jiang, L. Ma, and J. Liu, “Difiisr: A diffusion model with gradient guidance for infrared image super-resolution,” in Proceedings of the Computer Vision and Pattern Recognition Conference , 2025, pp. 7534–7544. [47] Z. Wu, X. Liu, Z. Li, S. Wang, P. Fan, F. Wu, and G. Xiao, “Ds2d: Decoupling feature guidance with state-space diffusion for infrared-visible image fusion,” Pattern Recognition , p. 114011, 2026. [48] H. Zhang, S. Yang, L. Tang, X. Yi, and J. Ma, “Recofuse: Ultra-robust image fusion via restorative multi-modal diffusion reciprocal coupling,” in Proceedings of the IEEE/CVF Conference on Computer Vision and Pattern Recognition , 2026, pp. 33 838–33 847. [49] E. J. Hu, Y. Shen, P. Wallis, Z. Allen-Zhu, Y. Li, S. Wang, L. Wang, W. Chen et al. , “Lora: Low-rank adaptation of large language models.” 
+
+ICLR , vol. 1, no. 2, p. 3, 2022. [50] G. Parmar, T. Park, S. Narasimhan, and J.-Y. Zhu, “One-step image translation with text-to-image models,” arXiv preprint arXiv:2403.12036 , 2024. [51] S. Li, B. Han, Z. Yu, C. H. Liu, K. Chen, and S. Wang, “I2v-gan: Unpaired infrared-to-visible video translation,” in Proceedings of the 29th ACM international conference on multimedia , 2021, pp. 3061– 3069. [52] X. Jia, C. Zhu, M. Li, W. Tang, and W. Zhou, “Llvip: A visible-infrared paired dataset for low-light vision,” in Proceedings of the IEEE/CVF international conference on computer vision , 2021, pp. 3496–3504. [53] J. Liu, X. Fan, Z. Huang, G. Wu, R. Liu, W. Zhong, and Z. Luo, “Target-aware dual adversarial learning and a multi-scenario multi-modality benchmark to fuse infrared and visible for object detection,” in Proceedings of the IEEE/CVF conference on computer vision and pattern recognition , 2022, pp. 5802–5811. [54] R. E. Rivadeneira, A. D. Sappa, R. Hammoud, J. Rao, H. Zhong, Y. Wang, S. Zhao, Z. Zhong, Y.-H. Li, S. Wang, Q. Shen, H. Wang, and X. Zhang, “Thermal image super-resolution challenge results-pbvs 2025,” in Proceedings of the IEEE/CVF conference on computer vision and pattern recognition , 2025, pp. 4630–4639. [55] L. Tang, J. Yuan, H. Zhang, X. Jiang, and J. Ma, “Msrs: Multi-spectral road scenarios for practical infrared and visible image fusion,” 2022. [56] L. Tang, Y. Wang, M. Gong, Z. Li, Y. Deng, X. Yi, C. Li, H. Zhang, H. Xu, and J. Ma, “Videofusion: A spatio-temporal collaborative net-work for multi-modal video fusion and restoration,” in Proceedings of the IEEE/CVF Conference on Computer Vision and Pattern Recognition (CVPR) , 2026. [57] J. Ho and T. Salimans, “Classifier-free diffusion guidance,” arXiv preprint arXiv:2207.12598 , 2022. [58] D. P. Kingma, “Adam: A method for stochastic optimization,” arXiv preprint arXiv:1412.6980 , 2014. [59] X. Li, J. Liu, Z. Chen, Y. Zou, L. Ma, X. Fan, and R. Liu, “Contourlet residual for prompt learning enhanced infrared image super-resolution,” in European Conference on Computer Vision . Springer, 2024, pp. 270– 288. [60] Z. Wang, A. C. Bovik, H. R. Sheikh, and E. P. Simoncelli, “Image quality assessment: from error visibility to structural similarity,” IEEE transactions on image processing , vol. 13, no. 4, pp. 600–612, 2004. [61] R. Zhang, P. Isola, A. A. Efros, E. Shechtman, and O. Wang, “The unreasonable effectiveness of deep features as a perceptual metric,” in 
+
+Proceedings of the IEEE conference on computer vision and pattern recognition , 2018, pp. 586–595. [62] C. Chen, J. Mo, J. Hou, H. Wu, L. Liao, W. Sun, Q. Yan, and W. Lin, “Topiq: A top-down approach from semantics to distortions for image quality assessment,” IEEE Transactions on Image Processing , vol. 33, pp. 2404–2418, 2024. [63] T. Ren, S. Liu, A. Zeng, J. Lin, K. Li, H. Cao, J. Chen, X. Huang, Y. Chen, F. Yan et al. , “Grounded sam: Assembling open-world models for diverse visual tasks,” arXiv preprint arXiv:2401.14159 , 2024.

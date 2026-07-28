@@ -6,26 +6,50 @@
 </div>
 
 ## 每次日报
-- 最新运行日期：2026-07-27
-- 运行时间：2026-07-27 21:08:48 UTC
+- 最新运行日期：2026-07-28
+- 运行时间：2026-07-28 21:08:06 UTC
 - 运行状态：成功
-- 本次总论文数：2
+- 本次总论文数：10
 - 精读区：1
-- 速读区：1
+- 速读区：9
 
 ### 今日简报（AI）
-今日精读与速读共2篇遥感多模态大模型研究，重点关注领域专用与通用模型的权衡及能力差距驱动后训练。精读论文指出专用模型在遥感任务中表现更优，但通用模型具备迁移潜力；速读论文提出后训练方法可有效填补场景专业化模型的能力空白。建议优先精读《Multimodal Large Language Models for Remote Sensing Image Understanding》以理解领域选择逻辑，并关注后训练方法在定制化遥感任务中的应用。
-- 详情：[/202607/27/README](/202607/27/README)
+今日精读1篇、速读9篇论文，重点关注多模态分类与融合方向。最值得看的是《Co-Learning for Missing Arbitrary Modalities》中的缺失模态协同学习框架，以及《ConFusion》中的连续融合空间学习方案。建议读者后续关注多模态缺失场景下的鲁棒性建模与跨域融合迁移方法。
+- 详情：[/202607/28/README](/202607/28/README)
 
 ### 精读区论文标签
-1. [Multimodal Large Language Models for Remote Sensing Image Understanding: Domain-Specific or General-Purpose?](/202607/27/2607.20284v1-multimodal-large-language-models-for-remote-sensing-image-understanding-domain-specific-or-general-purpose)  
+1. [Co-Learning for Missing Arbitrary Modalities in Multi-modal Classification](/202607/28/2607.24683v1-co-learning-for-missing-arbitrary-modalities-in-multi-modal-classification)  
    标签：评分：8.0/10、query:multi-modal
-   evidence：多模态大语言模型在遥感图像理解中的全面综述与评估
+   evidence：多模态分类中任意缺失模态的共学习框架
 
 ### 速读区论文标签
-1. [Filling Before Advancing: Capability-Gap-Driven Post-Training for Scenario-Specialized Remote Sensing MLLMs](/202607/27/2607.22205v1-filling-before-advancing-capability-gap-driven-post-training-for-scenario-specialized-remote-sensing-mllms)  
+1. [RIM: A Retrieval-In-Matching Framework for Cross-Domain Global Visual Localization of UAVs](/202607/28/2607.20116v1-rim-a-retrieval-in-matching-framework-for-cross-domain-global-visual-localization-of-uavs)  
    标签：评分：7.0/10、query:multi-modal
-   evidence：遥感多模态大模型后训练实现场景专业化，处理能力不完整问题
+   evidence：无人机与遥感参考图的跨域融合
+2. [FedTaste: Topology-Aware Structural Transfer for Multimodal Federated Learning with Missing Modalities](/202607/28/2607.23245v1-fedtaste-topology-aware-structural-transfer-for-multimodal-federated-learning-with-missing-modalities)  
+   标签：评分：7.0/10、query:multi-modal
+   evidence：通过结构迁移处理多模态联邦学习中的缺失模态
+3. [ConFusion: Continuous Fusion Space Learning for Fine-Grained Controllable Infrared and Visible Image Fusion](/202607/28/2607.23600v1-confusion-continuous-fusion-space-learning-for-fine-grained-controllable-infrared-and-visible-image-fusion)  
+   标签：评分：7.0/10、query:multi-modal
+   evidence：红外-可见光连续融合空间学习
+4. [Contrastive Parameter Disentanglement for Multi-modal Remote Sensing Image Generation](/202607/28/2607.23673v1-contrastive-parameter-disentanglement-for-multi-modal-remote-sensing-image-generation)  
+   标签：评分：7.0/10、query:multi-modal
+   evidence：利用对比参数解耦在多模态遥感图像生成中融合光学、红外和SAR模态
+5. [BeyondFusion: Self-Aligned Latent Diffusion for Calibration-Free Infrared Super-Resolution and Infrared-Visible Fusion](/202607/28/2607.24110v1-beyondfusion-self-aligned-latent-diffusion-for-calibration-free-infrared-super-resolution-and-infrared-visible-fusion)  
+   标签：评分：7.0/10、query:multi-modal
+   evidence：红外-可见光融合方法可应用于遥感
+6. [Calibrated Tree-Neural Fusion for Fine-Grained Vegetation Community Classification](/202607/28/2607.24160v1-calibrated-tree-neural-fusion-for-fine-grained-vegetation-community-classification)  
+   标签：评分：7.0/10、query:multi-modal
+   evidence：利用树模型与神经网络融合的植被分类遥感方法
+7. [HyperImageNet: A Large-Scale High-Spatial Resolution Hyperspectral Imagery Classification Benchmark](/202607/28/2607.21050v2-hyperimagenet-a-large-scale-high-spatial-resolution-hyperspectral-imagery-classification-benchmark)  
+   标签：评分：6.0/10、query:multi-modal
+   evidence：用于遥感分类的大规模高光谱基准
+8. [Filling Before Advancing: Capability-Gap-Driven Post-Training for Scenario-Specialized Remote Sensing MLLMs](/202607/28/2607.22205v1-filling-before-advancing-capability-gap-driven-post-training-for-scenario-specialized-remote-sensing-mllms)  
+   标签：评分：6.0/10、query:multi-modal
+   evidence：遥感多模态大模型场景专业化后训练
+9. [Spatio-Temporal Conditional Denoising Transformer for Modality-Missing RGBT Tracking](/202607/28/2607.24701v1-spatio-temporal-conditional-denoising-transformer-for-modality-missing-rgbt-tracking)  
+   标签：评分：6.0/10、query:multi-modal
+   evidence：处理RGBT跟踪中的缺失模态，可迁移至遥感缺失模态学习
 
 
 <div class="dpr-home-promo-card">
