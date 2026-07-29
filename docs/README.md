@@ -6,50 +6,27 @@
 </div>
 
 ## 每次日报
-- 最新运行日期：2026-07-28
-- 运行时间：2026-07-28 21:08:06 UTC
+- 最新运行日期：2026-07-29
+- 运行时间：2026-07-29 21:26:52 UTC
 - 运行状态：成功
-- 本次总论文数：10
-- 精读区：1
-- 速读区：9
+- 本次总论文数：2
+- 精读区：0
+- 速读区：2
 
 ### 今日简报（AI）
-今日精读1篇、速读9篇论文，重点关注多模态分类与融合方向。最值得看的是《Co-Learning for Missing Arbitrary Modalities》中的缺失模态协同学习框架，以及《ConFusion》中的连续融合空间学习方案。建议读者后续关注多模态缺失场景下的鲁棒性建模与跨域融合迁移方法。
-- 详情：[/202607/28/README](/202607/28/README)
+今天精读2篇论文，聚焦遥感图像重建与无人机视角地理定位。最值得关注的是Fast Fourier Convolutional GAN实现30米无间隙地表温度重建，以及昼夜无人机地理定位的统一基准与模态自适应网络。建议优先阅读FFC-GAN论文，适合遥感与计算机视觉交叉领域研究者。
+- 详情：[/202607/29/README](/202607/29/README)
 
 ### 精读区论文标签
-1. [Co-Learning for Missing Arbitrary Modalities in Multi-modal Classification](/202607/28/2607.24683v1-co-learning-for-missing-arbitrary-modalities-in-multi-modal-classification)  
-   标签：评分：8.0/10、query:multi-modal
-   evidence：多模态分类中任意缺失模态的共学习框架
+- 本次无精读推荐。
 
 ### 速读区论文标签
-1. [RIM: A Retrieval-In-Matching Framework for Cross-Domain Global Visual Localization of UAVs](/202607/28/2607.20116v1-rim-a-retrieval-in-matching-framework-for-cross-domain-global-visual-localization-of-uavs)  
+1. [Fast Fourier Convolutional GAN for 30 m Clear-Sky Land Surface Temperature Gap-Free Reconstruction](/202607/29/2607.22734v1-fast-fourier-convolutional-gan-for-30-m-clear-sky-land-surface-temperature-gap-free-reconstruction)  
    标签：评分：7.0/10、query:multi-modal
-   evidence：无人机与遥感参考图的跨域融合
-2. [FedTaste: Topology-Aware Structural Transfer for Multimodal Federated Learning with Missing Modalities](/202607/28/2607.23245v1-fedtaste-topology-aware-structural-transfer-for-multimodal-federated-learning-with-missing-modalities)  
-   标签：评分：7.0/10、query:multi-modal
-   evidence：通过结构迁移处理多模态联邦学习中的缺失模态
-3. [ConFusion: Continuous Fusion Space Learning for Fine-Grained Controllable Infrared and Visible Image Fusion](/202607/28/2607.23600v1-confusion-continuous-fusion-space-learning-for-fine-grained-controllable-infrared-and-visible-image-fusion)  
-   标签：评分：7.0/10、query:multi-modal
-   evidence：红外-可见光连续融合空间学习
-4. [Contrastive Parameter Disentanglement for Multi-modal Remote Sensing Image Generation](/202607/28/2607.23673v1-contrastive-parameter-disentanglement-for-multi-modal-remote-sensing-image-generation)  
-   标签：评分：7.0/10、query:multi-modal
-   evidence：利用对比参数解耦在多模态遥感图像生成中融合光学、红外和SAR模态
-5. [BeyondFusion: Self-Aligned Latent Diffusion for Calibration-Free Infrared Super-Resolution and Infrared-Visible Fusion](/202607/28/2607.24110v1-beyondfusion-self-aligned-latent-diffusion-for-calibration-free-infrared-super-resolution-and-infrared-visible-fusion)  
-   标签：评分：7.0/10、query:multi-modal
-   evidence：红外-可见光融合方法可应用于遥感
-6. [Calibrated Tree-Neural Fusion for Fine-Grained Vegetation Community Classification](/202607/28/2607.24160v1-calibrated-tree-neural-fusion-for-fine-grained-vegetation-community-classification)  
-   标签：评分：7.0/10、query:multi-modal
-   evidence：利用树模型与神经网络融合的植被分类遥感方法
-7. [HyperImageNet: A Large-Scale High-Spatial Resolution Hyperspectral Imagery Classification Benchmark](/202607/28/2607.21050v2-hyperimagenet-a-large-scale-high-spatial-resolution-hyperspectral-imagery-classification-benchmark)  
+   evidence：用于云污染缺失数据重建的多模态GAN
+2. [A Unified Benchmark and Modality-Adaptive Network for Day-and-Night Drone-View Geo-Localization](/202607/29/2607.25778v1-a-unified-benchmark-and-modality-adaptive-network-for-day-and-night-drone-view-geo-localization)  
    标签：评分：6.0/10、query:multi-modal
-   evidence：用于遥感分类的大规模高光谱基准
-8. [Filling Before Advancing: Capability-Gap-Driven Post-Training for Scenario-Specialized Remote Sensing MLLMs](/202607/28/2607.22205v1-filling-before-advancing-capability-gap-driven-post-training-for-scenario-specialized-remote-sensing-mllms)  
-   标签：评分：6.0/10、query:multi-modal
-   evidence：遥感多模态大模型场景专业化后训练
-9. [Spatio-Temporal Conditional Denoising Transformer for Modality-Missing RGBT Tracking](/202607/28/2607.24701v1-spatio-temporal-conditional-denoising-transformer-for-modality-missing-rgbt-tracking)  
-   标签：评分：6.0/10、query:multi-modal
-   evidence：处理RGBT跟踪中的缺失模态，可迁移至遥感缺失模态学习
+   evidence：基于可见光和红外图像的昼夜无人机地理定位模态自适应网络
 
 
 <div class="dpr-home-promo-card">
