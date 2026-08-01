@@ -6,29 +6,34 @@
 </div>
 
 ## 每次日报
-- 最新运行日期：2026-07-31
-- 运行时间：2026-07-31 20:51:35 UTC
+- 最新运行日期：2026-08-01
+- 运行时间：2026-08-01 20:48:54 UTC
 - 运行状态：成功
-- 本次总论文数：3
-- 精读区：2
-- 速读区：1
+- 本次总论文数：4
+- 精读区：1
+- 速读区：3
 
 ### 今日简报（AI）
-今日精读两篇高分论文：高光谱-多光谱融合在树莓派上的嵌入式优化，以及街景+卫星影像的农业监测数据集；另速读一篇医学影像跨模态迁移。最推荐前者：在低算力设备实现高精度融合，适合边缘端遥感应用；农业数据集则提供多源融合新思路。若想上手，可从树莓派上的融合算法复现开始，再探索农业监测场景。
-- 详情：[/202607/31/README](/202607/31/README)
+今日精读1篇、速读3篇，聚焦卫星成像与多视图聚类、伪装检测等AI视觉方法。  
+最值得关注的是精读论文《Meteosat Third Generation imagery improves CNN-based SSI retrieval》（9.0分），表明第三代气象卫星影像可有效提升CNN反演太阳短波辐射的精度。  
+建议普通读者优先了解该卫星图像改进方向，其余速读论文可作为聚类与视觉任务背景参考。
+- 详情：[/202608/01/README](/202608/01/README)
 
 ### 精读区论文标签
-1. [Optimized Embedded Implementation of Hyperspectral-Multispectral Image Fusion on Raspberry Pi](/202607/31/2607.23136v1-optimized-embedded-implementation-of-hyperspectral-multispectral-image-fusion-on-raspberry-pi)  
+1. [Meteosat Third Generation imagery improves CNN-based SSI retrieval](/202608/01/2607.28093v1-meteosat-third-generation-imagery-improves-cnn-based-ssi-retrieval)  
    标签：评分：9.0/10、query:multi-modal
-   evidence：在嵌入式平台上进行高光谱-多光谱图像融合；融合来自不同传感器的多模态遥感数据
-2. [Space2Ground 2.0: A Multi-Source Dataset and Framework for Agricultural Monitoring through Fusion of Street-Level and Satellite Imagery](/202607/31/2607.28247v1-space2ground-20-a-multi-source-dataset-and-framework-for-agricultural-monitoring-through-fusion-of-street-level-and-satellite-imagery)  
-   标签：评分：8.0/10、query:multi-modal
-   evidence：融合Sentinel-1 SAR、Sentinel-2多光谱与街景影像，属于多源遥感数据融合
+   evidence：融合MSG与MTG不同传感器卫星影像的多成像器多分辨率CNN用于地表太阳辐照度反演
 
 ### 速读区论文标签
-1. [UnDA: Unpaired Domain Alignment for Cross-Modal Knowledge Transfer in Medical Imaging](/202607/31/2607.21546v1-unda-unpaired-domain-alignment-for-cross-modal-knowledge-transfer-in-medical-imaging)  
+1. [DAS-PMVC: A Framework for Partial Multi-View Clustering via Dual Alignment and Structure Enhancement](/202608/01/2607.27761v1-das-pmvc-a-framework-for-partial-multi-view-clustering-via-dual-alignment-and-structure-enhancement)  
+   标签：评分：7.0/10、query:multi-modal
+   evidence：部分多视图聚类框架通过双重对齐与结构增强处理缺失视图（模态）
+2. [FILLER: Feature Imputation via Latent Location Exploration and Retrieval](/202608/01/2607.23295v1-filler-feature-imputation-via-latent-location-exploration-and-retrieval)  
    标签：评分：6.0/10、query:multi-modal
-   evidence：面向无配对跨模态蒸馏的缺失模态学习方法，可迁移至多模态缺失场景
+   evidence：针对缺失值的特征插补方法；可迁移到不完整模态处理
+3. [VCP-DCN: Beyond Visual Concealed Property via Depth Collaborative Network for Camouflaged Object Detection](/202608/01/2607.27843v1-vcp-dcn-beyond-visual-concealed-property-via-depth-collaborative-network-for-camouflaged-object-detection)  
+   标签：评分：6.0/10、query:multi-modal
+   evidence：RGB-D多模态对齐与融合
 
 
 <div class="dpr-home-promo-card">
