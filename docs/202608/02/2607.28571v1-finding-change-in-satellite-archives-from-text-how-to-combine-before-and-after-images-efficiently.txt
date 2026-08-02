@@ -1,0 +1,222 @@
+Title: Finding Change in Satellite Archives from Text: How to Combine Before-and-After Images Efficiently
+
+URL Source: https://arxiv.org/pdf/2607.28571v1
+
+Published Time: Fri, 31 Jul 2026 01:28:38 GMT
+
+Number of Pages: 10
+
+Markdown Content:
+# Finding Change in Satellite Archives from Text: How to Combine Before-and-After Images Efficiently 
+
+Simon Roy, Haechan Mark Bong, and Giovanni Beltrame 
+
+Polytechnique Montréal, Montréal, QC, Canada 
+
+{simon-7.roy,haechan.bong,giovanni.beltrame}@polymtl.ca 
+
+Abstract. Operational Earth observation increasingly calls for answer-ing queries such as “find the image pairs where a new building appeared.” This means searching an archive of before-and-after (bi-temporal) satel-lite image pairs and ranking each pair by how well it matches a natural-language description of the change. The component that performs this match, the fusion module that combines the “before” and “after” views, must be run at query time across many candidate pairs, so its speed largely sets the cost of every search. We present a controlled compar-ison of how to build that module. Using one fixed image encoder (a frozen CLIP model) and one training recipe for all variants, we evaluate eight designs drawn from three families: attention, state-space models (Mamba), and learned compression (our Temporal Bottleneck Fusion, TBF). Each design is tested on two benchmarks (LEVIR-CC and Dubai-CC) with ten random seeds, so the reported differences are statistically grounded. We outline three findings: first, a training-free two-stage search (a cheap difference model that shortlists candidates, followed by atten-tion fusion that re-ranks them) matches or exceeds full-fusion recall on LEVIR-CC while cutting query cost 10 -15 ×, with comparable R@1/R@5 on Dubai-CC; second, the linear-time scan of Mamba, attractive on pa-per, gives no speed benefit at the patch counts typical of vision trans-formers ( L=196 ): the scan is limited by memory bandwidth, whereas attention maps cleanly onto parallel hardware; and third, compressing the fused representation (TBF) reduces parameters by 2.3× and latency by 1.6× for a change-only BLEU-1 cost of 0.007 , although more aggres-sive compression quietly discards change-relevant detail that aggregate metrics fail to reveal. 
+
+Keywords: Earth observation · Change retrieval · Vision–language mod-els · Efficient architectures · State space models. 
+
+1 Introduction 
+
+Earth observation (EO) archives are growing at a pace that rules out manual analysis, and many of the most valuable insights are not visible in any single arXiv:2607.28571v1 [cs.CV] 30 Jul 2026 2 S. Roy et al.      
+
+> Fig. 1. Cascaded change retrieval (LEVIR-CC, G=1929 ,N=25 ). Frames are CLIP-encoded offline; a subtraction filter ranks all candidate pairs, then TBF re-ranks the top-Nshortlist, cutting fusion latency from 907 to 89 ms per query while matching or exceeding full-fusion recall.
+
+image. Assessing storm damage or auditing urban expansion requires comparing two acquisitions, e.g., finding every tile where “a building appears along the road”. Text-based change retrieval answers such queries directly, given a natural-language description of a change, it returns the bi-temporal image pairs that exhibit it, replacing the manual screening of thousands of candidates. Vision-language models such as CLIP [12] embed images and text in a shared latent space and have been adapted to remote sensing [10]. Text-ITSR [7] extends the paradigm to bi-temporal retrieval by fusing the features of the two acquisi-tions with a Transformer module before matching against the text embedding. In a realistic deployment, the expensive vision backbone runs once per frame at ingestion, while the fusion module runs at query time over every candidate pair formed by the requested region and time interval (Fig. 1, Sect. 3.4): fusion latency and memory govern interactive query cost, especially on constrained platforms. Two separate factors drive the cost of Transformer-based fusion. The first is the number of image patches L that the model attends over: self-attention com-pares every patch with every other, so its cost grows with L2. The second is the feature width D, the length of the vector used to describe each patch. Stitching the “before” and “after” views together doubles this width, and because the cost of the model’s linear and feed-forward layers grows with D2, doubling D roughly quadruples their cost. The two factors are independent: one is set by image res-olution, the other by how the two views are combined. At standard ViT patch counts ( L = 196 ), the width factor dominates the parameter budget. The two factors call for different remedies: state space models (SSMs) such as Mamba [6] Bi-Temporal Fusion for Text-Based Change Retrieval 3
+
+attack the sequence-length term with linear-time selective scans, whereas com-pression schemes attack the width term by reducing D before interaction. Rather than proposing another fusion architecture, we ask which fusion fam-ily offers the best efficiency-accuracy trade-off for text-based change retrieval, and whether theoretical complexity advantages show up in wall-clock bench-marks. We compare eight fusion designs spanning attention-based (concatenation Transformer, cross-attention transformer feature fusion (TFF)[7]), SSM-based (three Mamba variants), and compression-based (Temporal Bottleneck Fusion, TBF, applying the classical concat-then-reduce pattern before self-attention) families, plus two simple baselines, under identical backbone, data, and training conditions on LEVIR-CC and Dubai-CC. Our contributions are: 
+
+– a training-free retrieval cascade that yields 10 -15 × query-cost reductions while preserving full-fusion recall. 
+
+– to our knowledge the first controlled comparison of attention, bottleneck, and SSM-based bi-temporal fusion for text-based change retrieval, eight designs under one backbone and training recipe with statistical reporting over ten seeds. 
+
+– a practical analysis showing that Mamba’s linear-time advantage does not translate into latency benefits at standard ViT sequence lengths ( L=196 ), where its memory-bound scan trails parallel attention. 
+
+– the identification of TBF as a favorable efficiency-quality operating point, cutting parameters 2.3× and latency 1.6× for 0.007 change-only BLEU-1. 
+
+2 Related Work 
+
+Cross-Modal Retrieval and Change Understanding in EO. Text-based retrieval projects images and language into a shared latent space via contrastive frame-works such as CLIP [12]. Remote-sensing models such as RemoteCLIP [10] excel at single-image tasks but lack bi-temporal mechanisms. Change detection has evolved from Siamese networks [4] to Transformers such as BIT [1], and change captioning [9] extends supervision to natural language. Text-based change re-trieval itself is nascent, Ferrod et al. [5] first aligned bi-temporal change embed-dings with text queries on LEVIR-CC, and Text-ITSR [7] combines a Siamese encoder with a Transformer fusion stage. Both treat temporal interaction as a generic sequence problem, computational trade-offs of the fusion stage are not evaluated in this literature. 
+
+State Space Models. To address the quadratic complexity of attention, SSMs such as Mamba [6] offer linear-time alternatives with promising results in dense remote sensing prediction such as ChangeMamba [2]. Most SSM evidence comes from dense long-sequence tasks ( L > 1024 ); vision-language adoption remains recent [17]. 4 S. Roy et al. 
+
+Bottleneck and Early-Fusion Strategies. Concat-then-reduce is an established de-sign pattern: FC-Siam-conc [4] fuses concatenated encoder features with learned convolutions, BIT [1] projects fused features into a compact token space, and the Multimodal Bottleneck Transformer [11] restricts information flow for efficient multimodal fusion. The Temporal Bottleneck Fusion (TBF) module evaluated here transfers this concat-then-reduce principle to cross-modal change retrieval. 
+
+3 Study Design 
+
+3.1 Task Definition and Retrieval Protocol 
+
+Let (I1, I2) be co-registered images at times t1, t 2 and T a natural-language description, the goal is an alignment score S(I1, I2, T ) ranking correct pairs higher. Every model uses the same frozen CLIP ViT-B/16 encoder to extract patch features X1, X 2 ∈ RL×Din (L = 196 , Din = 768 ), projected to width 
+
+D = 320 before fusion. Similarity between fused visual embedding vi and text embedding tj is the cosine score 
+
+sij = v⊤ 
+
+> i
+
+tj
+
+∥vi∥2 ∥tj ∥2
+
+, (1) and all models are trained with the standard symmetric InfoNCE objective over 
+
+sij .
+
+Ground Truth and Matching. Each pair carries five captions. A query is a single caption whose unique ground truth is the pair it annotates (captions are not clustered across pairs). Recall@ K therefore measures strict instance-level suc-cess. Because archives contain many similar scenes undergoing similar changes, strict instance matching underestimates practical utility. We therefore comple-ment Recall@ K with semantic metrics comparing the query caption against the reference captions of the top-1 retrieved pair (BLEU-1/4, METEOR, ROUGE-L [13]), a retrieval returning a different pair with the same change still scores well. 
+
+3.2 Datasets LEVIR-CC [9] contains high-resolution (0.5 m/px) RGB pairs over Texas in 
+
+256 × 256 patches, focused on urbanization, five captions per pair, our split holds 3,918/1,333/1,929 pairs (train/val/test, 70/30 change ratio pooled; test is balanced, 964 change pairs). Following [7], the split is retrieval-oriented (more change pairs than the standard captioning split) and applies identically to all compared models. Dubai-CC [8] provides similar annotations on 50 ×50 Land-sat 7 tiles at ∼30 m/px, standard split (300/50/150, 65/35 change ratio). 
+
+3.3 Fusion Architectures Under Study 
+
+All fusion modules consume the projected features and produce a single visual embedding, everything else is held fixed. Bi-Temporal Fusion for Text-Based Change Retrieval 5
+
+Simple Baselines. Subtraction computes the element-wise difference X2 −X1 fol-lowed by a linear projection. MLP Fusion concatenates the two streams channel-wise and applies a two-layer MLP, i.e., channel mixing without token interaction. 
+
+Attention-Based. The Concatenation Transformer concatenates features along the channel axis ( L × 2D) and processes them with a standard Transformer en-coder, the doubled width inflates every linear projection and feed-forward block, yielding 13.05M parameters. TFF, the fusion stage of Text-ITSR [7], applies cross-attention between difference features and the original bi-temporal features. 
+
+Compression-Based: Temporal Bottleneck Fusion (TBF). TBF applies the concat-then-reduce pattern before attention: (i) compression: an MLP (Linear 2D→D,ReLU, Linear D→D, LayerNorm) projects the concatenated features back to width D, (ii) interaction: a standard Transformer encoder operates at width 
+
+D instead of 2D. Since the cost of projections and feed-forward blocks scales quadratically with width, operating at D rather than 2D reduces their parame-ters and computation by roughly 4×, while preserving global self-attention across all patches. 
+
+SSM-Based. We evaluate three Mamba [6] variants inspired by recent change-detection work [2]. Concatenation Mamba replaces the Transformer of the con-catenation baseline with Mamba blocks at width 2D. Bottleneck Mamba uses the same compression MLP as TBF followed by Mamba blocks at width D. In-terleaved Mamba interleaves temporal tokens into a single sequence of length 
+
+2L.
+
+3.4 Deployment Setting and Implementation 
+
+Offline , each frame is encoded once at ingestion and stored with metadata; pairs are not precomputed. Online , a text query with region/time constraints is matched live against satellite or drone imagery. The number of scanned pairs scales with archive size, while backbone cost is amortized at ingestion, so query latency is governed by the fusion module. Models are implemented in PyTorch ( mamba_ssm [6]) and trained on one RTX 4070. Optimization uses AdamW (learning rate 8 × 10 −5, weight decay 
+
+5 × 10 −4), cosine annealing to 10 −6, batch size 32, dropout 0.25, and 30 epochs. All fusion modules use 3 layers with dmodel = 320 , attention-based models use 16 heads, SSM-based models use state dimension 16, convolution width 4, and expansion factor 2. Results are mean ± std over 10 training runs un-less stated otherwise. Code and split indices: https://github.com/SimonR99/ bitemporal-fusion-benchmark .
+
+4 Results 
+
+4.1 Efficiency and Complexity 
+
+Table 1 compares parameters, FLOPs, and measured latency. Latency is wall-clock under CUDA synchronization (1,000 passes after 50 warm-ups, RTX 4070), 6 S. Roy et al.                               
+
+> Table 1. Efficiency of fusion mechanisms at L= 196 . Latency is a single fused forward pass (batch 1), averaged over 1,000 runs on an RTX 4070. Bold = best among the six learned modules.
+> Model Params (M) FLOPs (G) Latency (ms)
+> Subtraction 0.35 0.14 0.04 MLP Fusion 2.71 1.06 0.20 Concat. Transformer 13.05 5.42 0.76 TFF (Text-ITSR) 8.02 2.65 1.90 TBF 5.73 2.41 0.47
+> Concat. Mamba 8.14 3.28 0.58 Bottleneck Mamba 2.58 1.06 0.62 Interleaved Mamba 2.27 1.77 0.60
+
+FLOPs are computed with fvcore , Mamba FLOPs analytically via the selective-scan formula [6]. 
+
+Bottleneck Compression. TBF uses 2.3× fewer parameters than the Concate-nation Transformer (5.73M vs. 13.05M) and is 1.6× faster (0.47 vs. 0.76 ms): halving the width before attention removes most of the concatenation cost. A width sweep confirms this 2× bottleneck ( b=320 ) matches the uncompressed width within noise, while more aggressive compression degrades change-only quality before full-set quality. 
+
+SSM Latency. Although Interleaved Mamba has the fewest parameters (2.27M) and low FLOPs (1.77G), its latency (0.60 ms) is 28% higher than TBF and only 21% lower than the much larger Concatenation Transformer: theoretical linear complexity does not translate into wall-clock gains (hardware causes: Sect. 5). Figure 2a plots Recall@1 against latency: the Pareto front contains only the simple baselines, TBF, and the Concatenation Transformer. 
+
+4.2 Semantic Retrieval Quality 
+
+Table 2 reports caption-similarity metrics on the complete test sets and on the change-only subsets, which isolate the matching of actual state transitions rather than background priors. On LEVIR-CC the Concatenation Transformer is consistently best, with TBF the closest competitor at 2.3× fewer parameters and 1.6× lower latency. Welch tests ( n=10 , change-only BLEU-1) separate CT from six of the seven mod-ules ( p≤0.0002 ). TBF is the exception: its gap of 0.007 is 1.6× smaller than the next closest and sits at the edge of detectability, significant unpaired ( p=0 .04 )but not paired per seed ( p=0 .08 ). On Dubai-CC the modules cluster within noise (change-only BLEU-1 within 0.02 ), with 300 training pairs, higher-capacity fu-sion cannot be exploited (Sect. 5). Bi-Temporal Fusion for Text-Based Change Retrieval 7
+
+(a) (b) 
+
+Fig. 2. (a) Recall@1 vs. fusion latency on LEVIR-CC change queries (CT = Concate-nation Transformer; dashed = Pareto front). (b) TBF top-3 retrievals; the correct pair (green) ranks first (top) and third (bottom), and the distractors (brown) are semanti-cally plausible. 
+
+Table 2. Caption-similarity metrics on the full test sets and change-only subsets (mean 
+
+± std over 10 runs). B-1/B-4 = BLEU-1/4, MET = METEOR, R-L = ROUGE-L. Best per dataset and regime in bold; scores average both retrieval directions. 
+
+LEVIR-CC Dubai-CC Model B-1 B-4 MET R-L B-1 B-4 MET R-L 
+
+Full set 
+
+Subtraction 0.631 ± 0.007 0.326 ± 0.004 0.294 ± 0.004 0.573 ± 0.008 0.575 ± 0.011 0.270 ± 0.014 0.274 ± 0.008 0.514 ± 0.011 
+
+MLP Fusion 0.658 ± 0.020 0.352 ± 0.023 0.307 ± 0.012 0.610 ± 0.026 0.576 ± 0.010 0.268 ± 0.010 0.266 ± 0.009 0.500 ± 0.015 
+
+Concat. Transformer 0.684 ± 0.017 0.377 ± 0.018 0.323 ± 0.012 0.638 ± 0.027 0.581 ± 0.012 0.279 ± 0.010 0.276 ± 0.009 0.512 ± 0.017 
+
+TFF (Text-ITSR) 0.662 ± 0.025 0.353 ± 0.029 0.310 ± 0.024 0.617 ± 0.040 0.581 ± 0.024 0.276 ± 0.022 0.271 ± 0.015 0.508 ± 0.030 
+
+TBF 0.662 ± 0.030 0.357 ± 0.030 0.308 ± 0.018 0.610 ± 0.043 0.573 ± 0.011 0.268 ± 0.010 0.270 ± 0.009 0.507 ± 0.015 
+
+Concat. Mamba 0.661 ± 0.017 0.355 ± 0.017 0.309 ± 0.013 0.612 ± 0.028 0.585 ± 0.018 0.280 ± 0.017 0.277 ± 0.011 0.518 ± 0.020 
+
+Bottleneck Mamba 0.656 ± 0.014 0.354 ± 0.012 0.308 ± 0.006 0.607 ± 0.018 0.573 ± 0.012 0.274 ± 0.011 0.270 ± 0.009 0.505 ± 0.014 
+
+Interleaved Mamba 0.648 ± 0.014 0.344 ± 0.013 0.305 ± 0.008 0.602 ± 0.019 0.579 ± 0.011 0.273 ± 0.016 0.275 ± 0.010 0.514 ± 0.014 
+
+Change-only subset 
+
+Subtraction 0.640 ± 0.003 0.249 ± 0.002 0.251 ± 0.002 0.452 ± 0.003 0.574 ± 0.013 0.254 ± 0.014 0.259 ± 0.009 0.471 ± 0.017 
+
+MLP Fusion 0.640 ± 0.009 0.250 ± 0.012 0.249 ± 0.006 0.449 ± 0.009 0.584 ± 0.011 0.261 ± 0.013 0.254 ± 0.007 0.472 ± 0.014 
+
+Concat. Transformer 0.655 ± 0.004 0.267 ± 0.003 0.259 ± 0.002 0.464 ± 0.004 0.585 ± 0.015 0.270 ± 0.015 0.263 ± 0.007 0.483 ± 0.016 
+
+TFF (Text-ITSR) 0.640 ± 0.007 0.255 ± 0.006 0.254 ± 0.003 0.452 ± 0.004 0.580 ± 0.022 0.263 ± 0.020 0.258 ± 0.010 0.469 ± 0.023 
+
+TBF 0.648 ± 0.009 0.259 ± 0.010 0.255 ± 0.005 0.459 ± 0.010 0.576 ± 0.010 0.257 ± 0.009 0.256 ± 0.006 0.469 ± 0.009 
+
+Concat. Mamba 0.645 ± 0.003 0.255 ± 0.006 0.251 ± 0.003 0.453 ± 0.003 0.592 ± 0.013 0.272 ± 0.017 0.263 ± 0.011 0.484 ± 0.014 
+
+Bottleneck Mamba 0.643 ± 0.003 0.255 ± 0.004 0.252 ± 0.003 0.452 ± 0.004 0.577 ± 0.014 0.263 ± 0.014 0.256 ± 0.008 0.467 ± 0.012 
+
+Interleaved Mamba 0.639 ± 0.005 0.253 ± 0.006 0.252 ± 0.003 0.453 ± 0.005 0.586 ± 0.013 0.262 ± 0.022 0.260 ± 0.011 0.475 ± 0.016 
+
+4.3 Instance-Level Retrieval Accuracy 
+
+Table 3 reports strict Recall@ K for change-caption queries ranked against the 
+
+full test gallery (the random baseline reflects the gallery size); no-change queries are excluded as uninformative for instance ranking. The Concatenation Transformer leads on LEVIR-CC, with TBF competitive (8.29 /14 .41 at R@5/R@10 vs. 8.91 /15 .27 ; Welch p≥0.13 ). On the much smaller Dubai-CC the modules are noise-dominated (R@1 spans 4.2–5.3, std ∼1; Sub-traction lowest): the nominal Dubai leader (Concat. Mamba) is near-bottom on LEVIR, so no module separates significantly. LEVIR-CC values are low because several pairs satisfy the same change description; as Fig. 2b shows, incorrect 8 S. Roy et al. 
+
+Table 3. Strict instance-level retrieval accuracy (Recall@ K, %) for change-caption queries over the full test gallery (deduplicated to unique image pairs; mean ± std over 10 runs). Best per dataset in bold.                                                                                                                                                              
+
+> LEVIR-CC (Change Queries) Dubai-CC (Change Queries) Model R@1 R@5 R@10 R@1 R@5 R@10
+> Random 0.05 0.26 0.52 0.67 3.33 6.67
+> Subtraction 1.88 ±0.17 7.93 ±0.25 13 .66 ±0.39 3.11 ±0.82 14 .70 ±2.38 26 .33 ±2.79
+> MLP Fusion 1.93 ±0.26 7.85 ±0.69 13 .66 ±1.23 4.82 ±1.05 19 .51 ±1.97 33 .38 ±2.21
+> Concat. Transformer 2.28 ±0.26 8.91 ±0.81 15 .27 ±1.15 5.20 ±1.02 21 .01 ±1.70 35 .81 ±2.20
+> TFF (Text-ITSR) 2.08 ±0.22 8.00 ±0.40 13 .77 ±0.58 4.21 ±0.70 18 .97 ±2.56 33 .44 ±3.38
+> TBF 2.06 ±0.42 8.29 ±0.94 14 .41 ±1.39 4.82 ±1.17 19 .73 ±1.63 33 .63 ±1.74
+> Concat. Mamba 1.90 ±0.23 7.80 ±0.43 13 .38 ±0.69 5.32 ±1.61 22 .10 ±2.09 36 .33 ±2.02
+> Bottleneck Mamba 2.05 ±0.15 8.32 ±0.27 14 .33 ±0.40 4.97 ±0.55 19 .20 ±2.05 33 .07 ±2.27
+> Interleaved Mamba 2.05 ±0.27 8.07 ±0.55 13 .75 ±0.74 4.58 ±1.16 19 .63 ±1.64 32 .54 ±1.33
+
+Table 4. Cascaded retrieval on LEVIR-CC (change queries, full gallery G=1929 , mean 
+
+± std over 10 seeds). Per-query cost is the single-stream fusion cost G t sub + N t fuse 
+
+from Table 1.                                                       
+
+> Re-ranker NR@1 R@5 R@10 ms/query speedup
+> TBF 25 2.33 ±0.34 8.91 ±0.58 15 .17 ±0.67 89 10.2 ×
+> TBF full 2.06 ±0.42 8.29 ±0.94 14 .41 ±1.39 907 1.0 ×
+> Concat. Transf. 25 2.43 ±0.31 9.33 ±0.53 15 .53 ±0.53 96 15.2 ×
+> Concat. Transf. full 2.28 ±0.26 8.91 ±0.81 15 .27 ±1.15 1466 1.0 ×
+
+retrievals are typically semantically plausible, so strict Recall@ K understates practical retrieval quality. 
+
+4.4 Cascaded Retrieval: Exploiting the Trade-Off 
+
+Multi-stage ranking is classical in information retrieval [15] and standard in vision-language retrieval. Since deployment pays the fusion cost for every can-didate pair (Sect. 3.4), we test it for change retrieval (Fig. 1): stage 1 ranks the full gallery with Subtraction (0.04 ms/pair), stage 2 re-ranks the top-N with an attention module, reusing the trained models of Table 1 without retraining. Table 4 reports N =25 against full fusion on LEVIR-CC (deduplicated gallery). On LEVIR-CC the cascade is a strict improvement: all evaluated N from 25 to 500 match or exceed full fusion, so no budget tuning is required. In paired per-seed tests at N =25 , the cascade beats full fusion on all ten seeds for TBF at R@1/R@5 ( p=10 −4, 0.002 ) and on 8 of 10 for the Concatenation Transformer (p≤0.03 , R@10 not significant). A plausible explanation is an implicit ensemble effect: a candidate must score well under both the difference signal and full fusion, so the prefilter discards distractors that fusion alone ranks highly. On Dubai-CC (retrained from scratch, 10 seeds, G=150 ) the gain does not replicate but quality parity does: at N =50 the cascade matches full fusion on R@1/R@5 with about one point lower R@10, at 2.6× lower cost. Because stage 1 is 12 -
+
+19 × cheaper per pair, the cascade speedup grows with gallery size toward this per-pair ceiling: 10 -15 × at G=1929 and 12 -19 × at G=10 5.Bi-Temporal Fusion for Text-Based Change Retrieval 9
+
+4.5 Backbone Robustness 
+
+To rule out a CLIP-specific artifact, we repeat the full eight-module comparison with two alternative frozen encoders, GeoRSCLIP [16], a remote-sensing ViT-B/32, and SigLIP 2 [14], a general ViT-B/16 at 256 px. The fusion ranking is broadly preserved (Spearman ρ=0 .69 and 0.74 against the CLIP ordering on change-only BLEU-1). Subtraction stays weakest, the attention modules and TBF strongest, and no SSM variant overtakes attention. CLIP ViT-B/16 and SigLIP 2 lead in absolute terms (change-only BLEU-1 0.655 and 0.652 vs. 0.581 ), but the relative conclusions do not depend on the backbone. 
+
+5 Discussion 
+
+Why Mamba Does Not Pay Off at L = 196 . The bottleneck is hardware utiliza-tion, the selective scan is sequential and memory-bound while self-attention maps onto highly parallel tensor-core matrix multiplications, consistent with the anal-ysis that motivated Mamba-2 [3]. A sequence-length sweep confirms this, Mamba overtakes attention only beyond L≈400 (two frames) and would be 10 × faster by L=6272 , so SSMs pay off for long multi-temporal stacks, not at standard tile sizes. 
+
+What Bottleneck Compression Buys, and What It Costs. TBF never numerically beats the Concatenation Transformer, and the residual change-only gap is small (0.007 BLEU-1; Sect. 4), while the efficiency savings are deterministic and com-pound with the number of scanned pairs (Sect. 3.4). We hypothesize the gap stays small because bi-temporal scenes are mostly unchanged, so compression loses little [11]. 
+
+Cross-Dataset Differences and the Low-Data Regime. Captioning scores are lower on Dubai-CC while Recall@ K is higher (small retrieval pool), with only 300 training pairs, rankings compress and variance is high, so we treat its accuracy as indicative and use it to confirm the efficiency ranking transfers. 
+
+Limitations. (i) Our retrieval-oriented LEVIR-CC split prevents comparison with published change-captioning numbers. (ii) The n-gram metrics penalize valid paraphrases and only proxy retrieval utility. (iii) Latency is measured on one desktop GPU. 
+
+6 Conclusion 
+
+Our controlled study yields three guidelines for text-based change retrieval: at standard patch counts, linear-complexity SSM fusion gives no wall-clock benefit, so optimized attention should remain the default, bottleneck compression before attention (TBF) cuts parameters 2.3× and latency 1.6× for 0.007 change-only BLEU-1 and fusion need not run on every pair, since a subtraction-prefiltered cascade preserves or improves recall at 10 -15 × lower query cost. 10 S. Roy et al. 
+
+References 
+
+1. Chen, H., Qi, Z., Shi, Z.: Remote sensing image change detection with trans-formers. IEEE Transactions on Geoscience and Remote Sensing 60 , 1–14 (2022). https://doi.org/10.1109/TGRS.2021.3095166 2. Chen, H., Song, J., Han, C., Xia, J., Yokoya, N.: Changemamba: Remote sensing change detection with spatiotemporal state space model. IEEE Transactions on Geoscience and Remote Sensing 62 , 1–20 (2024) 3. Dao, T., Gu, A.: Transformers are SSMs: Generalized models and efficient al-gorithms through structured state space duality. In: International Conference on Machine Learning (ICML) (2024) 4. Daudt, R.C., Le Saux, B., Boulch, A.: Fully convolutional siamese networks for change detection. In: 2018 25th IEEE International Conference on Image Process-ing (ICIP). pp. 4063–4067. IEEE (2018) 5. Ferrod, R., Caro, L.D., Ienco, D.: Towards a multimodal framework for remote sensing image change retrieval and captioning (2024), arXiv:2406.13424 6. Gu, A., Dao, T.: Mamba: Linear-time sequence modeling with selective state spaces (2024), arXiv:2312.00752 7. Hoxha, G., Angyal, O., Demir, B.: Self-supervised cross-modal text-image time series retrieval in remote sensing (2025), arXiv:2501.19043 8. Hoxha, G., Chouaf, S., Melgani, F., Smara, Y.: Change captioning: A new paradigm for multitemporal remote sensing image analysis. IEEE Transactions on Geoscience and Remote Sensing 60 , 1–14 (2022). https://doi.org/10.1109/TGRS.2022.3195692 9. Liu, C., Zhao, R., Chen, H., Zou, Z., Shi, Z.: Remote sensing image change captioning with dual-branch transformers: A new method and a large scale dataset. IEEE Transactions on Geoscience and Remote Sensing 60 , 1–20 (2022). https://doi.org/10.1109/TGRS.2022.3218921 10. Liu, F., Chen, D., Guan, Z., Zhou, X., Zhu, J., Ye, Q., Fu, L., Zhou, J.: Remoteclip: A vision language foundation model for remote sensing (2024), arXiv:2306.11029 11. Nagrani, A., Yang, S., Arnab, A., Jansen, A., Schmid, C., Sun, C.: Attention bottlenecks for multimodal fusion (2022), arXiv:2107.00135 12. Radford, A., Kim, J.W., Hallacy, C., Ramesh, A., Goh, G., Agarwal, S., Sastry, G., Askell, A., Mishkin, P., Clark, J., Krueger, G., Sutskever, I.: Learning transferable visual models from natural language supervision (2021) 13. Sharma, S., El Asri, L., Schulz, H., Zumer, J.: Relevance of unsupervised met-rics in task-oriented dialogue for evaluating natural language generation (2017), arXiv:1706.09799 14. Tschannen, M., Gritsenko, A., Wang, X., Naeem, M.F., Alabdulmohsin, I., et al.: SigLIP 2: Multilingual vision-language encoders with improved semantic under-standing, localization, and dense features (2025) 15. Wang, L., Lin, J., Metzler, D.: A cascade ranking model for efficient ranked re-trieval. In: Proc. ACM SIGIR. pp. 105–114 (2011) 16. Zhang, Z., Zhao, T., Guo, Y., Yin, J.: Rs5m and GeoRSCLIP: A large-scale vision-language dataset and a large vision-language model for remote sensing. IEEE Transactions on Geoscience and Remote Sensing 62 , 1–23 (2024) 17. Zhao, H., Zhang, M., Zhao, W., Ding, P., Huang, S., Wang, D.: Cobra: Extend-ing mamba to multi-modal large language model for efficient inference (2025), arXiv:2403.14520

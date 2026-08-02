@@ -6,34 +6,26 @@
 </div>
 
 ## 每次日报
-- 最新运行日期：2026-08-01
-- 运行时间：2026-08-01 20:48:54 UTC
+- 最新运行日期：2026-08-02
+- 运行时间：2026-08-02 20:43:40 UTC
 - 运行状态：成功
-- 本次总论文数：4
-- 精读区：1
-- 速读区：3
+- 本次总论文数：1
+- 精读区：0
+- 速读区：1
 
 ### 今日简报（AI）
-今日精读1篇、速读3篇，聚焦卫星成像与多视图聚类、伪装检测等AI视觉方法。  
-最值得关注的是精读论文《Meteosat Third Generation imagery improves CNN-based SSI retrieval》（9.0分），表明第三代气象卫星影像可有效提升CNN反演太阳短波辐射的精度。  
-建议普通读者优先了解该卫星图像改进方向，其余速读论文可作为聚类与视觉任务背景参考。
-- 详情：[/202608/01/README](/202608/01/README)
+今日仅有1篇速读，聚焦卫星影像与文本结合的档案检索。  
+值得关注的方向：利用前后图像对比与文本查询，高效定位卫星档案中的变化。  
+建议后续可多关注多模态检索与变化检测的交叉应用。
+- 详情：[/202608/02/README](/202608/02/README)
 
 ### 精读区论文标签
-1. [Meteosat Third Generation imagery improves CNN-based SSI retrieval](/202608/01/2607.28093v1-meteosat-third-generation-imagery-improves-cnn-based-ssi-retrieval)  
-   标签：评分：9.0/10、query:multi-modal
-   evidence：融合MSG与MTG不同传感器卫星影像的多成像器多分辨率CNN用于地表太阳辐照度反演
+- 本次无精读推荐。
 
 ### 速读区论文标签
-1. [DAS-PMVC: A Framework for Partial Multi-View Clustering via Dual Alignment and Structure Enhancement](/202608/01/2607.27761v1-das-pmvc-a-framework-for-partial-multi-view-clustering-via-dual-alignment-and-structure-enhancement)  
-   标签：评分：7.0/10、query:multi-modal
-   evidence：部分多视图聚类框架通过双重对齐与结构增强处理缺失视图（模态）
-2. [FILLER: Feature Imputation via Latent Location Exploration and Retrieval](/202608/01/2607.23295v1-filler-feature-imputation-via-latent-location-exploration-and-retrieval)  
+1. [Finding Change in Satellite Archives from Text: How to Combine Before-and-After Images Efficiently](/202608/02/2607.28571v1-finding-change-in-satellite-archives-from-text-how-to-combine-before-and-after-images-efficiently)  
    标签：评分：6.0/10、query:multi-modal
-   evidence：针对缺失值的特征插补方法；可迁移到不完整模态处理
-3. [VCP-DCN: Beyond Visual Concealed Property via Depth Collaborative Network for Camouflaged Object Detection](/202608/01/2607.27843v1-vcp-dcn-beyond-visual-concealed-property-via-depth-collaborative-network-for-camouflaged-object-detection)  
-   标签：评分：6.0/10、query:multi-modal
-   evidence：RGB-D多模态对齐与融合
+   evidence：面向文本引导变化检索，高效融合前后卫星影像对
 
 
 <div class="dpr-home-promo-card">
