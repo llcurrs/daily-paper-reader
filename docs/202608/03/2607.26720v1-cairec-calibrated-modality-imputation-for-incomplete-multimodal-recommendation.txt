@@ -1,0 +1,1316 @@
+Title: CaIRec: Calibrated Modality Imputation for Incomplete Multimodal Recommendation
+
+URL Source: https://arxiv.org/pdf/2607.26720v1
+
+Published Time: Thu, 30 Jul 2026 00:43:15 GMT
+
+Number of Pages: 15
+
+Markdown Content:
+# CaIRec: Calibrated Modality Imputation for Incomplete Multimodal Recommendation 
+
+# Ruiyu Liu ∗
+
+Southern University of Science and Technology Shenzhen, China 12310410@mail.sustech.edu.cn 
+
+# Xiaohao Liu 
+
+National University of Singapore Singapore, Singapore xiaohao.liu@u.nus.edu 
+
+# Miaomiao Cai †
+
+National University of Singapore Singapore, Singapore miaomiao.cai@nus.edu.sg 
+
+# Yunshan Ma 
+
+Singapore Management University Singapore, Singapore ysma@smu.edu.sg 
+
+# See-Kiong Ng 
+
+National University of Singapore Singapore, Singapore seekiong@nus.edu.sg 
+
+## Abstract 
+
+Real-world multimodal recommender systems frequently suffer from incomplete modality observations, where items lack images, text, or other important content features. Such incompleteness weakens item representations and can substantially degrade rec-ommendation performance. Existing modality imputation methods estimate missing representations from the available item content, but two key challenges remain. First, these methods mainly op-timize the recovered representation itself, without explicitly con-sidering how it should relate to the other modalities of the same item. The completed modalities may therefore form inconsistent cross-modal relations, causing Cross-modal Structural Distor-tion . Second, even when the completed modalities are structurally coherent, the recovered information may still be ineffective for personalized ranking. Recovered representations receive limited ranking-oriented guidance, while modality missingness also dis-rupts the item neighborhoods required for preference propagation, resulting in a Preference Adaptation Gap .To address these challenges, we propose Ca librated I mputation for Incomplete Multimodal Rec ommendation ( CaIRec ), a two-stage framework for incomplete multimodal recommendation. In the first stage, Structural Imputation Calibration (SIC) esti-mates missing-modality representations from shared information inferred from the available modalities and calibrates their cross-modal organization through structural regularization and corre-spondence supervision from genuinely observed modality pairs. In the second stage, Preference-oriented Representation Cali-bration (PRC) performs recommendation-specific adaptation at both the representation and relation levels. It constructs pseudo-missing instances to align recovered representations with their observed counterparts shaped by ranking supervision in the recom-mendation space. It further builds completion-aware item graphs by integrating completed content relations with collaborative evi-dence. Extensive experiments on three real-world datasets under different modality-missing settings demonstrate the effectiveness and robustness of CaIRec .1
+
+> ∗This work was completed while Ruiyu Liu was a research intern at the National University of Singapore.
+> †Corresponding author.
+> 1https://anonymous.4open.science/r/CaIRec-153A
+
+## 1 Introduction 
+
+Multimodal recommendation improves item understanding by us-ing different types of content information, such as images and text [ 4, 10 , 16 , 40 , 44 , 46 ]. Different modalities describe an item from different views and provide useful information beyond user interactions [ 21 , 25 , 26 , 43 , 52 , 54 ]. Such information is especially important when interactions are sparse [ 15 , 46 ]. However, most existing methods assume that all items have complete modality information [ 17 , 29 , 42 ]. This assumption often does not hold in real-world applications, where some items may lack images, text descriptions, or other content features [ 7 , 24 ]. Previous studies have shown that such modality incompleteness can substantially reduce the performance of multimodal recommendation models [ 7, 31 , 42 ]. Therefore, incomplete multimodal recommendation aims to learn reliable item representations and user preferences from partial modality observations for accurate recommendation. Existing studies mainly address incomplete multimodal recom-mendation through robust representation learning and modality im-putation. Robust methods, such as MILK [ 2] and 𝐼 3MRec [ 3], reduce the sensitivity of recommendation models to different missing pat-terns by extracting stable preference signals or modality-invariant information from the available modalities. However, their content evidence remains limited to the observed modalities, since they do not explicitly estimate the unavailable modality representations. In contrast, modality imputation directly estimates unavailable fea-tures or representations [ 20 , 24 , 30 ]. For example, MoDiCF [ 19 ]generates missing modality features through a diffusion process, while DGMRec [ 17 ] integrates shared semantics, modality-specific information, and user preferences for representation recovery. By estimating unavailable modality representations, they improve in-complete item representations and recommendation performance. Despite these advances, existing imputation methods mainly recover representations from the available content of each item, while paying less attention to their cross-modal organization and effectiveness for personalized ranking. As illustrated in Figure 1, this limitation gives rise to two key challenges. First, Cross-modal Structural Distortion arises because a missing modality is com-monly estimated from the observed modalities of the same item. Although such item-wise recovery can capture predictable informa-tion, the recovered representation is not explicitly constrained by its relations with the other modalities. It may therefore deviate from arXiv:2607.26720v1 [cs.IR] 29 Jul 2026 Conference’17, July 2017, Washington, DC, USA Ruiyu Liu, Xiaohao Liu, Miaomiao Cai, Yunshan Ma, and See-Kiong Ng 
+
+Figure 1: The two challenges in incomplete multimodal rec-ommendation, Cross-modal Structural Distortion and the 
+
+Preference Adaptation Gap .
+
+the cross-modal relation patterns exhibited by genuinely observed modality pairs, resulting in a distorted organization of the com-pleted modalities. Second, the Preference Adaptation Gap arises because structurally reliable completion does not directly ensure effectiveness for recommendation. Existing imputation methods mainly optimize content recovery [ 17 , 19 , 20 ], while personalized ranking requires additional adaptation under interaction-based su-pervision. At the representation level, recovered modalities follow a different generation pathway from genuine content and may de-viate from their ranking-supervised observed counterparts in the recommendation space. At the relation level, modality missingness removes content-derived item connections, while item-wise recov-ery does not necessarily reconstruct the neighborhoods required for preference propagation. These representation- and relation-level mismatches form the Preference Adaptation Gap. Together, these challenges require structurally calibrated modality completion fol-lowed by recommendation-oriented adaptation. To address these challenges, we propose Ca librated I mputation for Incomplete Multimodal Rec ommendation ( CaIRec ), a two-stage framework for incomplete multimodal recommendation. Build-ing on recent advances in multimodal completion [ 20 , 28 ], CaIRec first employs Structural Imputation Calibration (SIC) to establish a structurally calibrated completion foundation and then applies 
+
+Preference-oriented Representation Calibration (PRC) to adapt completed representations and item relations to personalized rank-ing. Specifically, SIC estimates missing-modality representations from available item content and calibrates their cross-modal orga-nization. Its structural calibration regularizes within-item modal-ity relations, while correspondence calibration anchors the com-pletion space to cross-modal correspondence learned from gen-uinely observed modality pairs. More importantly, PRC performs recommendation-specific adaptation at both representation and relation levels. At the representation level, it constructs pseudo-missing instances to align recovered representations with ranking-supervised observed counterparts in the recommendation space. At the relation level, it combines completed content relations with col-laborative evidence to supplement item neighborhoods disrupted by modality missingness. Through these two stages, CaIRec first improves the structural reliability of modality completion and then transforms completed information into recommendation-effective signals. Extensive experiments on three datasets under different modality-missing settings demonstrate the effectiveness and ro-bustness of CaIRec . The main contributions of this work are sum-marized as follows: 
+
+• We identify two successive challenges in incomplete multimodal recommendation. Cross-modal Structural Distortion concerns the cross-modal organization of recovered modalities, while the Preference Adaptation Gap concerns their suitability for personalized ranking. 
+
+• We propose Ca librated I mputation for Incomplete Multimodal 
+
+Rec ommendation ( CaIRec ), a two-stage framework connect-ing modality completion with recommendation. SIC calibrates the within-item cross-modal structure, while PRC adapts recov-ered representations and item relations to preference learning. 
+
+• Extensive experiments on three real-world datasets under di-verse modality-missing settings demonstrate the effectiveness and robustness of CaIRec .
+
+## 2 Preliminaries 
+
+Let U = {1, . . . , 𝑁 𝑢 } and I = {1, . . . , 𝑁 𝑖 } denote the user and item sets, respectively. The training interactions are represented by 
+
+R ∈ { 0, 1}𝑁 𝑢 ×𝑁 𝑖 , where 𝑅 𝑢𝑖 = 1 indicates an observed interaction and 𝑅 𝑢𝑖 = 0 denotes an unobserved interaction rather than an explicit negative preference [ 13 , 37 ]. Multimodal recommendation further incorporates heterogeneous item content, such as visual and textual features, which may be incomplete in practice [ 10 , 42 ]. Let 
+
+M = {1, . . . , 𝑁 𝑚 } denote the modality set. For each item 𝑖 , O𝑖 ⊆ M 
+
+and Q𝑖 = M \ O 𝑖 denote its observed and missing modality sets, respectively. We assume O𝑖 ≠ ∅. For each 𝑚 ∈ O 𝑖 , item 𝑖 has a pre-trained feature x𝑚 𝑖 ∈ R𝑑 𝑚 . When 𝑚 ∈ Q 𝑖 , the corresponding feature is unavailable and is not replaced by a zero-filled observation. Given R and the partially observed modality features Xobs =
+
+{x𝑚 𝑖 | 𝑖 ∈ I , 𝑚 ∈ O 𝑖 }, incomplete multimodal recommendation aims to learn user and item representations h𝑢 , h𝑖 ∈ R𝑑 . The pref-erence score is computed as [11]: 
+
+ˆ𝑦 𝑢𝑖 = h⊤ 
+
+> 𝑢
+
+h𝑖 . (1) Candidate items are ranked based on ˆ𝑦 𝑢𝑖 . The key challenge is to learn effective user and item representations from partial modality observations for accurate personalized ranking. 
+
+## 3 Method 
+
+As illustrated in Figure 2, we propose Ca librated Imputation for Incomplete Multimodal Rec ommendation ( CaIRec ), a two-stage framework comprising Structural Imputation Calibration (SIC) 
+
+and Preference-oriented Representation Calibration (PRC) . Build-ing on calibrated representation imputation, SIC first estimates missing-modality representations from shared information inferred from the available item content. It then calibrates the cross-modal organization of the completed modalities through structural regular-ization and correspondence supervision from genuinely observed modality pairs. The observed and recovered modality representa-tions are retained as explicit completed item content for subsequent recommendation. PRC further performs recommendation-specific adaptation at both the representation and relation levels. It con-structs pseudo-missing instances to reduce the discrepancy between CaIRec: Calibrated Modality Imputation for Incomplete Multimodal Recommendation Conference’17, July 2017, Washington, DC, USA 
+
+recovered and observed representation pathways in the recommen-dation space, and builds completion-aware item graphs by inte-grating completed content relations with collaborative evidence. Through these two stages, CaIRec first establishes a structurally calibrated completion space and then adapts the completed repre-sentations and item relations to personalized ranking. 
+
+## 3.1 Structural Imputation Calibration 
+
+To address Cross-modal Structural Distortion , SIC follows an impute-then-calibrate strategy. Existing imputation methods focus on recovering individual missing-modality representations from available content, while paying less attention to their relations with the other modalities of the same item. SIC first estimates missing-modality representations through a shared-latent imputation back-bone and then introduces structural and correspondence calibration to reduce the resulting cross-modal relation inconsistency. 
+
+3.1.1 Shared-latent imputation backbone. Since modality features differ in dimensions and distributions, we map them into a common completion space. For each modality 𝑚 , we employ a modality-specific projection 𝑃 𝑚 𝑐 : R𝑑 𝑚 → R𝑑 𝑐 . For observed modality 𝑚 ∈ O 𝑖 ,its projected representation is defined as: 
+
+z𝑚 𝑖 = 𝑃 𝑚 𝑐 (x𝑚 𝑖 )∥𝑃 𝑚 𝑐 (x𝑚 𝑖 )∥ 2 + 𝜖 , 𝑚 ∈ O 𝑖 , (2) where 𝑑 𝑐 denotes completion dimension and 𝜖 > 0 ensures stability. Building on representation imputation and probabilistic latent-variable modeling [ 1 , 8 , 18 , 28 , 41 ], we instantiate an item-specific shared latent model for modality imputation. Each item 𝑖 is asso-ciated with a shared latent variable 𝜷 𝑖 ∈ R𝑑 𝛽 , with prior 𝑝 (𝜷 𝑖 ) =
+
+N ( 0, I). Conditioned on 𝜷 𝑖 , modality 𝑚 is modeled as: 
+
+𝑝 (z𝑚 𝑖 | 𝜷 𝑖 ) = N  W𝑚 𝜷 𝑖 + 𝝁 𝑚 , (𝜎 𝑚 )2I , (3) where W𝑚 and 𝝁 𝑚 map the shared latent information into modality 
+
+𝑚 , and 𝜎 𝑚 models the residual uncertainty. This model combines item-level shared information with modality-specific generation mappings, allowing missing representations to be conditionally estimated in their corresponding modality spaces. To aggregate the information available for item 𝑖 , SIC estimates the posterior of 𝜷 𝑖 conditioned on the observed projected repre-sentations {z𝑚 𝑖 | 𝑚 ∈ O 𝑖 } and the generative parameters Θ𝑔 =
+
+{W𝑚 , 𝝁 𝑚 , 𝜎 𝑚 }𝑚 ∈ M . The posterior combines evidence from all ob-served modalities and has the following closed form [1, 8, 18]: 
+
+𝑞 𝑖 (𝜷 𝑖 ) = 𝑝  𝜷 𝑖 | { z𝑚 𝑖 }𝑚 ∈ O 𝑖 , Θ𝑔 
+
+ = N ( b𝑖 , 𝚺 𝑖 ) , (4) where b𝑖 and 𝚺 𝑖 are the posterior mean and covariance. Because the posterior depends only on the observed modality set O𝑖 , the same inference process applies to different missing patterns. We use b𝑖 for missing-modality estimation and provide the closed-form expressions in Appendix A.1. To learn the shared latent factors and modality-specific gener-ation patterns from the available observations, we optimize the following representation objective [8]:                  
+
+> Lrep =−1
+> | B | ∑︁ 𝑖 ∈B
+> 
+> E𝑞 𝑖 (𝜷 𝑖 )
+> ∑︁ 𝑚 ∈O 𝑖
+> log 𝑝 (z𝑚 𝑖 |𝜷 𝑖 )
+> 
+> −𝐷 KL
+>  𝑞 𝑖 (𝜷 𝑖 ) ∥ 𝑝 (𝜷 𝑖 )
+> ,
+> (5)
+
+where B is the current item batch. The reconstruction term encour-ages the latent variable to explain the observed modality representa-tions, while the KL term regularizes its posterior distribution. Only modalities in O𝑖 participate in the objective, so missing modalities are never treated as zero-valued observations. After estimating the item-specific latent information, we map the posterior mean b𝑖 into each missing modality space through the corresponding generative parameters [ 1, 8 , 18 ]. For each 𝑚 ∈ Q 𝑖 ,the recovered representation is: 
+
+ˆz𝑚 𝑖 = W𝑚 b𝑖 + 𝝁 𝑚 
+
+∥W𝑚 b𝑖 + 𝝁 𝑚 ∥2 + 𝜖 . (6) This representation is a conditional estimate rather than an exact reconstruction of the unavailable content. The posterior mean b𝑖 
+
+summarizes information predictable from the observed modalities, while W𝑚 and 𝝁 𝑚 transfer it into the target modality space through generation patterns learned across items. The imputation backbone therefore estimates only the target information supported by the available observations. Unlike related calibration-based approaches that use imputation to recalibrate the observed modalities, SIC treats the recovered representation as missing-modality content and calibrates its cross-modal organization to mitigate Cross-modal Structural Distortion. For unified notation, we define ˜z𝑚 𝑖 = z𝑚 𝑖 for 
+
+𝑚 ∈ O 𝑖 and ˜z𝑚 𝑖 = ˆz𝑚 𝑖 for 𝑚 ∈ Q 𝑖 .
+
+3.1.2 Cross-modal structural calibration. The shared-latent back-bone estimates each missing representation from the available item content. However, individual recovery does not explicitly constrain how the recovered representation should relate to the other modali-ties of the same item. It may therefore deviate from the cross-modal relation patterns supported by valid modality observations, result-ing in Cross-modal Structural Distortion . To address this issue, we introduce structural and correspondence calibration to regularize the cross-modal organization of the completed modalities. For each item 𝑖 , we stack its completed modality representations as ˜Z𝑖 = [˜z1 
+
+> 𝑖
+
+, . . . , ˜z𝑁 𝑚  
+
+> 𝑖
+
+] ∈ R𝑑 𝑐 ×𝑁 𝑚 and construct the modality-level Gram matrix G𝑖 = ˜Z⊤ 
+
+> 𝑖
+
+˜Z𝑖 . Since all representations are normalized, each entry of G𝑖 measures the similarity between two modalities of the same item. We decompose the Gram matrix as G𝑖 = U𝑖 𝚲 𝑖 U⊤ 
+
+> 𝑖
+
+,where 𝜆 𝑖, 1 ≥ · · · ≥ 𝜆 𝑖,𝑁 𝑚 are the eigenvalues and u𝑖 = [U𝑖 ]:,1 is the principal eigenvector. The leading eigenvalue measures the concen-tration of the within-item modality relations, while the principal eigenvector characterizes the relative contribution of each modality to the principal relation pattern. Based on this spectral characterization [ 27 ], we regularize the completed representations from two perspectives. The leading-eigenvalue term reduces ambiguity in the within-item relation pattern, while the principal-direction term discourages identical structural configurations across items when the modality set admits nontrivial directional variation: 
+
+Lstr = − 1
+
+|B| ∑︁ 𝑖 ∈ B 
+
+"
+
+log exp (𝜆 𝑖, 1/𝜏 )
+
+Í𝑁 𝑚   
+
+> 𝑟 =1
+
+exp (𝜆 𝑖,𝑟 /𝜏 ) + log exp (1/𝜏 )
+
+Í𝑗 ∈ B exp (( u⊤ 
+
+> 𝑖
+
+u𝑗 )2/𝜏 )
+
+#
+
+,
+
+(7) where 𝜏 > 0 is the temperature hyperparameter. The first term increases the relative prominence of the leading eigenvalue and encourages a more concentrated cross-modal organization. The Conference’17, July 2017, Washington, DC, USA Ruiyu Liu, Xiaohao Liu, Miaomiao Cai, Yunshan Ma, and See-Kiong Ng 
+
+Figure 2: Overview of the proposed CaIRec framework. SIC estimates missing-modality representations and calibrates their within-item cross-modal organization. PRC then adapts recovered representations in the recommendation space and supple-ments item relations for preference propagation and personalized ranking. 
+
+second term regularizes structural variation across items, while the squared inner product removes the sign ambiguity of eigenvectors. In the bimodal case, the principal-direction term introduces no additional continuous gradient within a fixed cross-modal similarity sign pattern. The leading-eigenvalue term therefore provides the main structural optimization signal in our setting. We provide a detailed analysis in Appendix A.4. Structural calibration regularizes the overall relation pattern of each completed item, but it does not explicitly determine whether representations from different modalities correspond to the same item [ 5, 6 , 27 ]. To provide more direct cross-modal correspondence supervision, we construct a set PB of observed cross-modal pairs 
+
+𝑝 = (( 𝑖, 𝑚 ), ( 𝑗, 𝑛 )) , where 𝑚 ≠ 𝑛 . A pair is labeled positive when 
+
+𝑖 = 𝑗 and negative otherwise. Positive pairs therefore contain two observed modalities of the same item, while negative pairs preserve the modality combination but replace one representation with that of another item. Based on these pairs, we introduce the following correspondence calibration objective: 
+
+Lcorr = − 1
+
+|P B |∑︁ 𝑝 ∈ P B
+
+𝑦 𝑝 log ˆ 𝑦 𝑝 + ( 1 − 𝑦 𝑝 ) log (1 − ˆ𝑦 𝑝 ) , (8) where 𝑦 𝑝 is the correspondence label and ˆ𝑦 𝑝 = 𝜎 (𝑔 𝑚,𝑛 ([ z𝑚 𝑖 ∥z𝑛 𝑗 ])) is the predicted probability. Only genuinely observed modality pairs are used, which avoids treating uncertain imputed representations as supervision targets. Because the modality projections and gen-erative model share a completion space, this objective provides correspondence supervision from genuinely observed modality pairs and anchors the space to cross-modal correspondence. Finally, we combine the imputation and structural calibration objectives as: 
+
+LSIC = Lrep + 𝜆 str Lstr + 𝜆 corr Lcorr , (9) where 𝜆 str and 𝜆 corr control the two calibration objectives. The representation loss learns the shared-latent imputation backbone. The structural loss regularizes the spectral organization of the completed modalities, while the correspondence loss anchors the completion space to observed cross-modal correspondence. 
+
+## 3.2 Preference-oriented Representation Calibration 
+
+Although SIC produces structurally calibrated representations in the completion space, such representations are not necessarily well suited to personalized ranking. This limitation arises at both the representation and relation levels. At the representation level, re-covered and directly observed representations follow different pro-cessing pathways and may therefore exhibit a pathway-specific discrepancy in the recommendation space. At the relation level, modality missingness removes content-derived item connections, while item-wise completion does not necessarily reconstruct the neighborhoods needed for preference propagation. To address these issues, we introduce Preference-oriented Representation Cali-bration (PRC) as the recommendation-specific stage of CaIRec .PRC adapts the recovery pathway through pseudo-missing in-stances and constructs completion-aware item graphs by integrat-ing collaborative evidence with completed content relations. 
+
+3.2.1 Representation-level adaptation. Although recovered modal-ity representations participate in the final ranking objective, rank-ing supervision alone provides no paired reference for correcting the pathway-specific discrepancy introduced by modality recovery. For the same item and modality, the recovered representation is inferred from the available modalities, whereas its observed coun-terpart is directly extracted from the original content. These differ-ent processing pathways may cause the recovered representation to deviate from its observed counterpart in the recommendation space, leaving it insufficiently adapted to personalized ranking. To provide direct adaptation guidance, we construct pseudo-missing instances from observed modalities. Specifically, we mask an ob-served modality, recover it from the remaining modalities, and pair the resulting pseudo-recovered representation with its observed counterpart in the recommendation space. Since each pair shares the same item and modality, their discrepancy mainly reflects the deviation introduced by the recovery pathway. For modality 𝑚 , we map observed and recovered representa-tions through separate branches. We employ a recommendation CaIRec: Calibrated Modality Imputation for Incomplete Multimodal Recommendation Conference’17, July 2017, Washington, DC, USA 
+
+projection 𝑃 𝑚 𝑟 : R𝑑 𝑐 → R𝑑 for observed representations and an adapter 𝐴 𝑚 : R𝑑 𝑐 → R𝑑 for recovered representations. The recommendation-space representation is defined as: 
+
+s𝑚 𝑖 =
+
+(
+
+𝑃 𝑚 𝑟 (z𝑚 𝑖 ), 𝑚 ∈ O 𝑖 ,𝐴 𝑚 (ˆz𝑚 𝑖 ), 𝑚 ∈ Q 𝑖 . (10) The observed branch is derived from observed modality content and is directly shaped by ranking supervision, making it a suitable reference in the recommendation space. The recovered branch fol-lows the imputation pathway and may exhibit a pathway-specific shift. We therefore use a separate adapter instead of forcing both branches to share the same transformation. A genuinely missing modality has no observed representation that can serve as an alignment reference. We therefore construct pseudo-missing instances from items with at least two observed modalities. The eligible item–modality pairs are: 
+
+Epm = {( 𝑖, 𝑚 ) | 𝑖 ∈ I , 𝑚 ∈ O 𝑖 , |O 𝑖 | ≥ 2} (11) For each (𝑖, 𝑚 ) ∈ E pm , modality 𝑚 is temporarily masked and re-covered from O𝑖 \ { 𝑚 } using the same SIC imputation process. We denote the pseudo-recovered representation by ˆz𝑚, (− 𝑚 ) 
+
+> 𝑖
+
+. Because the masked modality remains available as observed content during training, z𝑚 𝑖 provides a paired observed reference. The correspon-dence and pseudo-missing objectives require a nonempty subset of items with at least two observed modalities. When such paired observations are unavailable, these objectives cannot be directly instantiated, and the framework reduces to the shared-latent impu-tation and relation-level recommendation components. We align the pseudo-recovered and observed representations after mapping them into the recommendation space: 
+
+Lalign = 1
+
+|E pm |∑︁ (𝑖,𝑚 ) ∈ E pm 
+
+h
+
+1 − cos 
+
+
+
+𝐴 𝑚 (ˆz𝑚, (− 𝑚 ) 
+
+> 𝑖
+
+), sg  𝑃 𝑚 𝑟 (z𝑚 𝑖 )i 
+
+,
+
+(12) where sg (·) denotes stop-gradient. Because each pair shares the same item and modality identity, the objective mainly captures the discrepancy introduced by the recovery pathway. Minimizing Lalign 
+
+adapts the pseudo-recovered branch toward the ranking-supervised observed branch. Stop-gradient prevents the alignment loss from changing the observed reference, which remains optimized through personalized ranking. Pseudo-recovered and genuinely missing rep-resentations share the same SIC imputation process and modality-specific adapter. The learned pathway adaptation can therefore be applied to genuinely missing modalities. 
+
+3.2.2 Relation-level reconstruction. Representation-level adapta-tion calibrates recovered modalities for individual items, but recom-mendation also depends on relations among items. When modal-ity 𝑚 is missing, the corresponding content-derived connections cannot be obtained from the original observations. This leaves the modality-specific item neighborhood incomplete and weak-ens the associated preference propagation paths. Moreover, recov-ering an individual representation does not by itself ensure that the resulting content neighborhood is consistent with collabora-tive preference patterns. Motivated by modality-aware item-graph modeling [ 52 ] and graph-based feature propagation under missing modalities [ 30 , 31 ], we construct a completion-aware item graph integrating completed content and collaborative similarities. We model item relations from both interaction patterns and com-pleted modality content. Let 𝑑 𝑖 = Í𝑢 ∈ U 𝑅 𝑢𝑖 denote the interaction degree of item 𝑖 . For two distinct items 𝑖 and 𝑗 , the collaborative and modality-specific content similarities are: 
+
+𝑆 cf  
+
+> 𝑖 𝑗
+
+=
+
+Í𝑢 ∈ U 𝑅 𝑢𝑖 𝑅 𝑢 𝑗 √︁ 
+
+𝑑 𝑖 𝑑 𝑗 + 𝜖 , 𝑆 𝑚 𝑖 𝑗 = max 
+
+
+
+0, cos 
+
+
+
+˜z𝑚 𝑖 , ˜z𝑚 𝑗 
+
+ 
+
+. (13) Collaborative similarity measures normalized overlap between user interaction histories, while content similarity measures item prox-imity under modality 𝑚 . Because ˜z𝑚 𝑖 may be either observed or recovered, all items can participate in modality-specific relation construction. We set 𝑆 cf  
+
+> 𝑖𝑖
+
+= 𝑆 𝑚 𝑖𝑖 = 0 to exclude self-connections. The two relation sources provide complementary evidence. Col-laborative similarity introduces interaction-supported preference proximity but may be unreliable for items with sparse interactions. Completed content similarity supplements modality-specific rela-tions but may contain uncertainty when recovered representations are involved. We therefore fuse them as: 
+
+S𝑚, fuse = (1 − 𝜂 )Scf + 𝜂 S𝑚 , (14) where 𝜂 ∈ [ 0, 1] balances the two relation sources. For each item, we select the Top-𝑘 entries in S𝑚, fuse as its neighbors and construct 
+
+G𝑚 
+
+> item
+
+. The resulting graph combines completed content relations with interaction-supported evidence, supplementing item connec-tions disrupted by modality missingness and providing additional paths for preference propagation. 
+
+3.2.3 Preference propagation and personalized ranking. For each modality 𝑚 , we augment the user–item interaction graph with the completion-aware item graph G𝑚 
+
+> item
+
+. We then perform modality-specific preference propagation following LightGCN [ 11 ] and ex-isting multimodal graph recommendation methods [ 9, 46 , 52 ]. The propagated representations are aggregated across layers and modal-ities to obtain user and item embeddings h𝑢 and h𝑖 . Their preference score is computed according to Equation (1) . The propagation and aggregation equations are provided in Appendix A.3. We optimize the final representations using Bayesian Personal-ized Ranking (BPR) [ 37 ]. Let DBPR = {( 𝑢, 𝑖, 𝑗 ) | 𝑅 𝑢𝑖 = 1, 𝑅 𝑢 𝑗 = 0}
+
+denote the training triplets, where user 𝑢 has interacted with item 
+
+𝑖 but not with item 𝑗 . The recommendation loss is: 
+
+Lrec = − 1
+
+|D BPR |∑︁ (𝑢,𝑖,𝑗 ) ∈ D BPR 
+
+log 𝜎   ˆ𝑦 𝑢𝑖 − ˆ𝑦 𝑢 𝑗 
+
+ . (15) The overall objective of PRC combines personalized ranking, recovery-pathway alignment, and parameter regularization: 
+
+LPRC = Lrec + 𝜆 align Lalign + 𝜆 reg ∥ΘPRC ∥22, (16) where 𝜆 align and 𝜆 reg control alignment and regularization terms. We optimize SIC and PRC sequentially to separate structurally calibrated modality completion from recommendation-oriented adaptation. SIC is first trained with LSIC to learn the imputation backbone and organize the completed modalities in the comple-tion space. We then fix the SIC parameters and optimize PRC with 
+
+LPRC . This stage adapts the recommendation-space mappings and supplements item relations without changing the learned impu-tation process. Accordingly, SIC addresses Cross-modal Structural Conference’17, July 2017, Washington, DC, USA Ruiyu Liu, Xiaohao Liu, Miaomiao Cai, Yunshan Ma, and See-Kiong Ng 
+
+Table 1: Statistics of three datasets. Dataset #Users #Items #Interactions Sparsity Clothing 39,387 23,033 278,677 99.97% 
+
+Sports 35,598 18,357 296,337 99.95% 
+
+Beauty 21,752 11,161 165,325 99.93% 
+
+Distortion by calibrating cross-modal organization of conditionally imputed representations, while PRC addresses the Preference Adap-tation Gap through representation-level pathway adaptation and relation-level neighborhood reconstruction. Further theoretical and empirical analyses of efficiency and scalability are in Appendix A.5. 
+
+## 4 Experiments 4.1 Experimental Settings 
+
+4.1.1 Datasets. We evaluate CaIRec on three Amazon recommen-dation datasets, namely Clothing , Sports , and Beauty [ 32 ]. Each dataset contains user–item ratings together with visual and tex-tual item features. Following prior multimodal recommendation studies [ 54 ], we treat observed ratings as implicit feedback and adopt the same preprocessing and evaluation settings. We use the released 4,096-dimensional CNN visual features [ 32 , 54 ] and 384-dimensional Sentence-Transformer textual features [ 36 , 54 ]. The dataset statistics are reported in Table 1. 
+
+4.1.2 Modality-Missing Settings. Following previous studies on incomplete multimodal recommendation [ 3, 17 , 20 ], we simulate modality incompleteness by randomly selecting 50% of the items as incomplete. For each selected item, either its visual or textual modality is uniformly sampled and removed, while the other modal-ity remains observed. The remaining 50% of the items retain both modalities. The resulting item-level missing mask is fixed across training, validation, and testing, so that each item has the same modality availability throughout an experiment. The removed fea-tures are unavailable to all methods, and all compared methods use the same missing mask for a fair comparison. 
+
+4.1.3 Baselines, Evaluation Protocol and Implementation Details. 
+
+We compare CaIRec with representative methods from three cate-gories. (1) Collaborative Filtering methods rely primarily on user– item interactions for preference modeling, including LightGCN [ 11 ]and SimGCL [ 49 ]. (2) General Multimodal Recommendation meth-ods incorporate visual and textual item content to enhance pref-erence modeling, including VBPR [ 10 ], BM3 [ 54 ], PGL [ 51 ], and MIG-GT [ 12 ]. (3) Incomplete Multimodal Recommendation meth-ods explicitly address modality missingness. Robustness-oriented methods learn stable representations from the available modalities, including 𝐼 3MRec [ 3] and MILK [ 2 ]. Completion-based methods es-timate unavailable modality features or representations, including MoDiCF [ 19 ], DGMRec [ 17 ], and HEAT [ 30 ]. Detailed descriptions of all compared methods are provided in Appendix B.1. We follow the data splitting and full-ranking evaluation pro-tocol of prior multimodal recommendation studies [ 54 ]. Perfor-mance is measured by Recall@ 𝐾 (R@ 𝐾 ) and NDCG@ 𝐾 (N@ 𝐾 ) for 
+
+𝐾 ∈ { 10 , 20 }, with all non-interacted items treated as candidates. Each experiment is repeated five times with different random seeds while keeping the data split and modality-missing mask fixed, and average results are reported. All methods use the same split, mask, and hyperparameter search protocol, with significance assessed by a paired two-sided 𝑡 -test. Detailed implementation settings and search ranges are provided in Appendix B.2. 
+
+## 4.2 Overall Performance 
+
+Table 2 reports the overall results on the three datasets. Across the evaluated datasets and metrics, CaIRec consistently achieves the strongest performance. The results show that CaIRec can effectively use partially observed multimodal content and adapt the completed representations and item relations to personalized ranking. We summarize the main observations as follows: 
+
+• Completion-based methods generally outperform robustness-oriented methods. 𝐼 3MRec and MILK improve robustness by extracting stable or modality-invariant information from the available modalities, but they do not explicitly estimate the un-available modality representations. Their content evidence there-fore remains limited to the observed modalities. In comparison, completion-based methods such as DGMRec and HEAT generally achieve stronger results than the robustness-oriented baselines. This comparison suggests that robustness to missing patterns alone may be insufficient, while explicit completion can provide additional content evidence for recommendation. 
+
+• MIG-GT remains a strong baseline under modality miss-ingness. Although MIG-GT is not specifically designed for in-complete modalities, it models visual, textual, and collaborative signals through separate branches and captures global dependen-cies with a Transformer. When one content modality is missing, its remaining content and collaborative branches can still pro-vide useful recommendation signals. This design helps MIG-GT outperform several missing-aware methods. However, MIG-GT does not explicitly estimate missing-modality representations or perform recommendation-specific adaptation for the recovered pathway, and it therefore remains behind CaIRec .
+
+• CaIRec achieves the strongest overall performance. Across all dataset–metric combinations, CaIRec yields an average rela-tive improvement of 3.77% over the strongest competing baseline. It also consistently surpasses leading completion-based meth-ods, including DGMRec and HEAT. These results suggest that modality completion alone may not fully address incomplete multimodal recommendation. Individually recovered representa-tions may still form distorted cross-modal relations and remain insufficiently adapted to personalized ranking. By combining Structural Imputation Calibration with Preference-oriented Rep-resentation Calibration, CaIRec more effectively transforms completed modality information into recommendation-oriented representations and item relations. 
+
+## 4.3 Ablation Study 
+
+To analyze the contribution of the components in SIC and PRC, we construct six variants of CaIRec . For SIC, w/o StrCal and w/o CorrCal remove the structural and correspondence calibration ob-jectives, respectively, while w/o SIC removes the entire SIC stage and represents each missing modality with a zero vector. For PRC, 
+
+w/o ItemGraph removes the completion-aware item graph, w/o PMA CaIRec: Calibrated Modality Imputation for Incomplete Multimodal Recommendation Conference’17, July 2017, Washington, DC, USA 
+
+Table 2: Performance comparison under a 50% modality-missing rate. Results are averaged over five runs. The best and second-best results are highlighted in bold and underlined, respectively. ∗ indicates a statistically significant improvement over the strongest baseline under a paired two-sided 𝑡 -test with 𝑝 < 0.005 .Methods Clothing Sports Beauty 
+
+R@10 N@10 R@20 N@20 R@10 N@10 R@20 N@20 R@10 N@10 R@20 N@20 LightGCN 0.0301 0.0163 0.0453 0.0201 0.0526 0.0290 0.0814 0.0364 0.0440 0.0216 0.0696 0.0280 SimGCL 0.0402 0.0219 0.0604 0.0270 0.0639 0.0351 0.0974 0.0439 0.0477 0.0245 0.0764 0.0320 VBPR 0.0332 0.0184 0.0491 0.0224 0.0550 0.0298 0.0840 0.0373 0.0478 0.0233 0.0776 0.0308 BM3 0.0405 0.0220 0.0602 0.0270 0.0634 0.0346 0.0959 0.0430 0.0475 0.0237 0.0747 0.0305 PGL 0.0413 0.0222 0.0615 0.0273 0.0571 0.0306 0.0895 0.0390 0.0422 0.0211 0.0675 0.0275 MIG-GT 0.0524 0.0286 0.0776 0.0350 0.0664 0.0366 0.1011 0.0455 0.0520 0.0254 0.0804 0.0325 I3-MRec 0.0416 0.0224 0.0647 0.0283 0.0620 0.0337 0.0951 0.0423 0.0474 0.0235 0.0768 0.0309 MILK 0.0284 0.0150 0.0433 0.0188 0.0298 0.0158 0.0475 0.0203 0.0340 0.0170 0.0543 0.0221 MoDiCF 0.0474 0.0266 0.0712 0.0329 0.0613 0.0346 0.0935 0.0432 0.0477 0.0237 0.0759 0.0308 DGMRec 0.0505 0.0273 0.0762 0.0339 0.0662 0.0361 0.1007 0.0450 0.0508 0.0247 0.0810 0.0323 HEAT 0.0504 0.0273 0.0767 0.0340 0.0655 0.0358 0.0982 0.0443 0.0500 0.0248 0.0788 0.0320 
+
+CaIRec (Ours) 0.0537* 0.0291* 0.0814* 0.0361* 0.0709* 0.0383* 0.1058* 0.0474* 0.0529* 0.0261* 0.0842* 0.0339* Improv. 2.48% 1.75% 4.90% 3.14% 6.78% 4.64% 4.65% 4.18% 1.73% 2.76% 3.95% 4.31% 
+
+Table 3: Ablation study on three datasets, with relative drops from the full model shown in parentheses. Variant Clothing Sports Beauty 
+
+R@20 N@20 R@20 N@20 R@20 N@20 
+
+CaIRec 0.0814 0.0361 0.1058 0.0474 0.0842 0.0339 w/o StrCal 0.0772 
+
+> (−5.16%)
+
+0.0345 
+
+> (−4.43%)
+
+0.1049 
+
+> (−0.85%)
+
+0.0470 
+
+> (−0.84%)
+
+0.0819 
+
+> (−2.73%)
+
+0.0331 
+
+> (−2.36%)
+
+w/o CorrCal 0.0803 
+
+> (−1.35%)
+
+0.0358 
+
+> (−0.83%)
+
+0.1050 
+
+> (−0.76%)
+
+0.0470 
+
+> (−0.84%)
+
+0.0833 
+
+> (−1.07%)
+
+0.0334 
+
+> (−1.47%)
+
+w/o SIC 0.0756 
+
+> (−7.13%)
+
+0.0339 
+
+> (−6.09%)
+
+0.1032 
+
+> (−2.46%)
+
+0.0468 
+
+> (−1.27%)
+
+0.0797 
+
+> (−5.34%)
+
+0.0323 
+
+> (−4.72%)
+
+w/o PMA 0.0792 
+
+> (−2.70%)
+
+0.0354 
+
+> (−1.94%)
+
+0.1044 
+
+> (−1.32%)
+
+0.0467 
+
+> (−1.48%)
+
+0.0828 
+
+> (−1.66%)
+
+0.0331 
+
+> (−2.36%)
+
+w/o ItemGraph 0.0752 
+
+> (−7.62%)
+
+0.0334 
+
+> (−7.48%)
+
+0.1017 
+
+> (−3.88%)
+
+0.0450 
+
+> (−5.06%)
+
+0.0802 
+
+> (−4.75%)
+
+0.0322 
+
+> (−5.01%)
+
+w/o PRC 0.0729 
+
+> (−10.44%)
+
+0.0326 
+
+> (−9.70%)
+
+0.1002 
+
+> (−5.29%)
+
+0.0444 
+
+> (−6.33%)
+
+0.0788 
+
+> (−6.41%)
+
+0.0314 
+
+> (−7.37%)
+
+removes pseudo-missing alignment, and w/o PRC directly uses SIC outputs for recommendation without representation-level pathway adaptation or relation-level neighborhood reconstruction. Table 3 reports the results under a 50% modality-missing rate. Removing any component degrades performance, showing that the proposed designs provide complementary benefits. Within SIC , removing structural calibration causes a larger decrease than removing correspondence calibration, showing the importance of regularizing within-item cross-modal organization for reducing 
+
+Cross-modal Structural Distortion . Correspondence calibration pro-vides gains by anchoring the completion space to cross-modal cor-respondence learned from genuinely observed modality pairs. 
+
+Within PRC , removing the entire stage causes the largest degra-dation among the major module-level variants, confirming that structurally calibrated modality completion alone is insufficient for personalized ranking. Removing pseudo-missing alignment weak-ens representation-level adaptation of the recovered pathway, while Incomplete Complete Overall     
+
+> (a) Clothing
+> 0.0600
+> 0.0700
+> 0.0800
+> 0.0900
+> Recall@20
+> Incomplete Complete Overall
+> (b) Sports
+> 0.0850
+> 0.0900
+> 0.0950
+> 0.1000
+> 0.1050
+> 0.1100
+> 0.1150
+> Recall@20
+> MIG-GT DGMRec Ours
+
+Figure 3: Performance across item groups. 
+
+removing the completion-aware item graph reduces connections available for preference propagation. These results support the representation- and relation-level design of PRC. The ablation re-sults validate the sequential design of CaIRec , where SIC calibrates the within-item cross-modal organization and PRC adapts repre-sentations and item neighborhoods to personalized ranking. 
+
+## 4.4 Performance on Incomplete Items 
+
+To directly evaluate the effectiveness of CaIRec on modality-incomplete items, we divide test items into modality-incomplete and modality-complete groups according to the fixed item-level missing mask and evaluate them separately under the same ranking protocol. We compare CaIRec with MIG-GT and DGMRec, the strongest general multimodal and missing-aware baselines, respec-tively. Figure 3 reveals two main findings. (1) CaIRec achieves substantially larger improvements on modality-incomplete items and consistently outperforms both baselines across datasets. On modality-complete items, the competing methods remain competi-tive, and CaIRec is slightly weaker in some settings. Nevertheless, its gains on incomplete items outweigh these differences and yield the strongest overall performance, showing that the improvement Conference’17, July 2017, Washington, DC, USA Ruiyu Liu, Xiaohao Liu, Miaomiao Cai, Yunshan Ma, and See-Kiong Ng 10% 30% 50% 70% 90%        
+
+> Missing Rate
+> 0.0775
+> 0.0800
+> 0.0825
+> 0.0850
+> Recall@20
+> (a) Beauty
+> 10% 30% 50% 70% 90%
+> Missing Rate
+> 0.0950
+> 0.1000
+> 0.1050
+> 0.1100
+> Recall@20
+> (b) Sports
+> MIG-GT DGMRec HEAT Ours
+
+Figure 4: Performance under varying modality-missing rates. 
+
+of CaIRec is primarily concentrated on items directly affected by modality missingness. (2) The substantially larger gap over DGM-Rec on modality-incomplete items suggests that modality comple-tion alone does not necessarily produce recommendation-effective representations. By calibrating the cross-modal organization of completed modalities and further adapting the recovered pathway and item neighborhoods to personalized ranking, CaIRec provides more effective recommendation for incomplete items, supporting the need for recommendation-oriented adaptation after completion. 
+
+## 4.5 Robustness under Varying Missing Rates 
+
+To evaluate robustness under different degrees of modality incom-pleteness, we vary the proportion of modality-incomplete items from 10% to 90% and compare CaIRec with MIG-GT, DGMRec, and HEAT. Figure 4 reports two main findings. (1) Completion-based methods degrade more slowly as the missing rate increases. MIG-GT performs strongly under mild missingness but declines rapidly as more items lose one modality, whereas DGMRec, HEAT, and CaIRec show flatter trends. This suggests that estimating un-available modality representations can partially compensate for lost content signals. (2) CaIRec achieves the strongest performance among completion-based methods, especially under moderate-to-severe missingness. Its advantage grows with the missing rate, in-dicating lower sensitivity to severe modality incompleteness. This is consistent with the group-wise analysis, where its gains mainly arise from modality-incomplete items. The results support cali-brating the cross-modal organization of completed modalities and adapting recovered representations and item relations to person-alized ranking. Additional image-only and text-only missingness results in Appendix C.1 further demonstrate robustness across missing-modality types. 
+
+## 4.6 Hyperparameter Sensitivity 
+
+Figure 5 examines the objective weights in SIC and PRC. For SIC, moderate values of 𝜆 str and 𝜆 corr generally yield stronger perfor-mance. A weak structural constraint provides limited cross-modal regularization, whereas an excessively large value may over-constrain the completion space. The effect of correspondence calibration also depends on structural calibration, suggesting that relation-pattern regularization and observed-pair supervision provide complemen-tary signals. A similar pattern appears for PRC. A small 𝜆 align pro-vides limited guidance for adapting the recovered pathway, while 0.01 0.05 0.1 0.5                            
+
+> λcorr
+> 0.05
+> 0.25
+> 1.0
+> 5.0
+> λstr
+> 0.0788 0.0775 0.0783 0.0783
+> 0.0795 0.0797 0.0797 0.0796
+> 0.0801 0.0802 0.0814 0.0804
+> 0.0801 0.0809 0.0795 0.0796
+> 0.078
+> 0.079
+> 0.080
+> 0.081
+> 0.001 0.005 0.01 0.02
+> λreg
+> 0.00125
+> 0.005
+> 0.02
+> 0.1
+> λalign
+> 0.0769 0.0804 0.0812 0.0786
+> 0.0783 0.0812 0.0798 0.0777
+> 0.0785 0.0810 0.0814 0.0790
+> 0.0779 0.0803 0.0806 0.0784
+> 0.077
+> 0.078
+> 0.079
+> 0.080
+> 0.081
+
+Figure 5: Hyperparameter sensitivity of CaIRec .
+
+a large value may overemphasize matching the observed branch. The regularization weight must balance model capacity and over-fitting. Overall, the results highlight the need to balance structural calibration and recommendation-oriented adaptation. Additional hyperparameter analyses are provided in Appendix C.5. 
+
+## 5 Related Work 5.1 Multimodal Recommendation 
+
+Multimodal recommendation incorporates item content such as images, text, and videos into collaborative preference modeling [ 10 ,34 , 46 ]. Early methods directly integrate modality features into recommendation objectives. VBPR [ 10 ] extends pairwise ranking with visual factors, while BM3 [ 54 ] and SLMRec [ 39 ] introduce self-supervised learning across interaction and content views. Other methods construct modality-aware item graphs or propagate mul-timodal and collaborative signals, including LATTICE [ 52 ], MI-CRO [ 48 ], FREEDOM [ 53 ], PGL [ 51 ], MMGCN [ 46 ], GRCN [ 45 ], MGCN [ 50 ], and LGMRec [ 9]. Recent studies further improve modal-ity fusion and global dependency modeling [12, 22, 23, 35, 47]. These studies demonstrate the value of multimodal content be-yond interaction-only recommenders such as LightGCN [ 11 ] and SimGCL [ 49 ]. However, most assume that all items have complete modality features [ 17 , 29 , 42 ]. Missing content weakens semantic evidence and disrupts modality-derived item relations, motivating incomplete multimodal recommendation. 
+
+## 5.2 Incomplete Multimodal Recommendation 
+
+Existing methods mainly address modality incompleteness through robust representation learning or explicit completion [ 2, 3 , 19 ]. Robust methods learn stable representations from available modali-ties. SiBraR [ 7] maps different modality combinations into a shared space, MILK [ 2] combines cross-modal alignment with invariant learning, and I 3-MRec [ 3] employs invariant risk minimization and an information bottleneck. However, their content evidence remains limited to observed modalities. Completion-based methods estimate unavailable modality repre-sentations [ 33 , 38 ]. LRMM [ 42 ] combines modality dropout with a multimodal autoencoder, while CI 2MG [ 24 ] models intra-modality relations and inter-modality generation. Recent methods use condi-tional diffusion [ 19 ], disentangled generation [ 17 ], graph-context retrieval [ 20 ], or training-free feature propagation [ 30 ]. However, individual completion does not explicitly ensure coherent cross-modal organization or effectiveness for personalized ranking. CaIRec: Calibrated Modality Imputation for Incomplete Multimodal Recommendation Conference’17, July 2017, Washington, DC, USA 
+
+CalMRL [ 28 ] infers shared semantics from observed modalities and uses imputation to recalibrate observed encoders against an-chor shift in generic multimodal alignment. In contrast, CaIRec 
+
+preserves observed modalities as direct item content and uses their shared semantics to recover and calibrate the missing modality itself. SIC regularizes the recovered representation into a coherent within-item cross-modal structure, while PRC adapts only the re-covery pathway to the ranking-supervised space and reconstructs completion-aware item relations for preference propagation. 
+
+## 6 Conclusion 
+
+In this work, we studied incomplete multimodal recommendation from the joint perspectives of modality completion and recom-mendation adaptation. We identified two successive challenges, 
+
+Cross-modal Structural Distortion and the Preference Adaptation Gap . The former arises when individually recovered representa-tions form inconsistent relations with other modalities of the same item, while the latter concerns whether completed representations and item relations are effective for personalized ranking. To ad-dress them, we proposed Ca librated Imputation for Incomplete Multimodal Rec ommendation ( CaIRec ), a two-stage framework connecting modality completion with personalized ranking. SIC calibrates the within-item cross-modal organization of estimated missing-modality representations, while PRC adapts them in the recommendation space and supplements item relations for pref-erence propagation. Extensive experiments on three real-world datasets under different modality-missing settings demonstrated the effectiveness and robustness of CaIRec . Our evaluation is lim-ited to Amazon benchmarks with visual and textual modalities and synthetically generated missingness. Extending CaIRec to other domains, naturally occurring missing patterns, and settings with more than two modalities remains important future work. Overall, the results show that effective incomplete multimodal rec-ommendation requires both structurally calibrated completion and recommendation-oriented adaptation. 
+
+## References 
+
+[1] Francis R. Bach and Michael I. Jordan. 2005. A Probabilistic Interpretation of Canonical Correlation Analysis. Technical Report (2005). [2] Haoyue Bai, Le Wu, Min Hou, Miaomiao Cai, Zhuangzhuang He, Yuyang Zhou, Richang Hong, and Meng Wang. 2024. Multimodality Invariant Learning for Multimedia-Based New Item Recommendation. SIGIR (2024), 677–686. [3] Huilin Chen, Miaomiao Cai, Fan Liu, Zhiyong Cheng, Richang Hong, and Meng Wang. 2025. I 3-MRec: Invariant Learning with Information Bottleneck for In-complete Modality Recommendation. ACM MM (2025), 6133–6142. [4] Jingyuan Chen, Hanwang Zhang, Xiangnan He, Liqiang Nie, Wei Liu, and Tat-Seng Chua. 2017. Attentive Collaborative Filtering: Multimedia Recommendation with Item- and Component-Level Attention. SIGIR (2017), 335–344. [5] Sihan Chen, Handong Li, Qunbo Wang, Zijia Zhao, Mingzhen Sun, Xinxin Zhu, and Jing Liu. 2023. VAST: A Vision-Audio-Subtitle-Text Omni-Modality Founda-tion Model and Dataset. NeurIPS (2023), 72842–72866. [6] Giordano Cicchetti, Eleonora Grassucci, and Danilo Comminiello. 2025. A TRIAN-GLE Enables Multimodal Alignment Beyond Cosine Similarity. NeurIPS (2025). [7] Christian Ganhör, Marta Moscati, Anna Hausberger, Shah Nawaz, and Markus Schedl. 2024. A Multimodal Single-Branch Embedding Network for Recommen-dation in Cold-Start and Missing Modality Scenarios. arXiv:2409.17864 (2024). [8] Benyamin Ghojogh, Ali Ghodsi, Fakhri Karray, and Mark Crowley. 2021. Factor Analysis, Probabilistic Principal Component Analysis, Variational Inference, and Variational Autoencoder: Tutorial and Survey. arXiv:2101.00734 (2021). [9] Zhiqiang Guo, Jianjun Li, Guohui Li, Chaoyang Wang, Si Shi, and Bin Ruan. 2024. LGMRec: Local and Global Graph Learning for Multimodal Recommendation. 
+
+AAAI (2024), 8454–8462. [10] Ruining He and Julian McAuley. 2016. VBPR: Visual Bayesian Personalized Ranking from Implicit Feedback. AAAI (2016), 144–150. [11] Xiangnan He, Kuan Deng, Xiang Wang, Yan Li, Yongdong Zhang, and Meng Wang. 2020. LightGCN: Simplifying and Powering Graph Convolution Network for Recommendation. SIGIR (2020), 639–648. [12] Jun Hu, Bryan Hooi, Bingsheng He, and Yinwei Wei. 2025. Modality-Independent Graph Neural Networks with Global Transformers for Multimodal Recommen-dation. AAAI (2025), 11790–11798. [13] Yifan Hu, Yehuda Koren, and Chris Volinsky. 2008. Collaborative Filtering for Implicit Feedback Datasets. ICDM (2008), 263–272. [14] Kalervo Järvelin and Jaana Kekäläinen. 2002. Cumulated Gain-Based Evaluation of IR Techniques. TOIS (2002), 422–446. [15] Yangqin Jiang, Lianghao Xia, Wei Wei, Da Luo, Kangyi Lin, and Chao Huang. 2024. DiffMM: Multi-Modal Diffusion Model for Recommendation. ACM MM 
+
+(2024), 7591–7599. [16] Wang-Cheng Kang, Chen Fang, Zhaowen Wang, and Julian McAuley. 2017. Visually-Aware Fashion Recommendation and Design with Generative Image Models. ICDM (2017), 207–216. [17] Jiwan Kim, Hongseok Kang, Sein Kim, Kibum Kim, and Chanyoung Park. 2025. Disentangling and Generating Modalities for Recommendation in Missing Modal-ity Scenarios. SIGIR (2025), 1820–1829. [18] Arto Klami, Seppo Virtanen, Eemeli Leppäaho, and Samuel Kaski. 2015. Group Factor Analysis. TNNLS (2015), 2136–2147. [19] Jin Li, Shoujin Wang, Qi Zhang, Shui Yu, and Fang Chen. 2025. Generating with Fairness: A Modality-Diffused Counterfactual Framework for Incomplete Multimodal Recommendations. WWW (2025), 2787–2798. [20] Yuan Li, Jun Hu, Jiaxin Jiang, Bryan Hooi, and Bingsheng He. 2026. Robust Mul-timodal Recommendation via Graph Retrieval-Enhanced Modality Completion. 
+
+arXiv:2605.00670 (2026). [21] Zhenyang Li, Fan Liu, Yinwei Wei, Zhiyong Cheng, Liqiang Nie, and Mohan S. Kankanhalli. 2024. Attribute-Driven Disentangled Representation Learning for Multimodal Recommendation. ACM MM (2024), 9660–9669. [22] Guojiao Lin, Zhen Meng, Dongjie Wang, Qingqing Long, Yuanchun Zhou, and Meng Xiao. 2024. GUME: Graphs and User Modalities Enhancement for Long-Tail Multimodal Recommendation. arXiv:2407.12338 (2024). [23] Xixun Lin, Rui Liu, Yanan Cao, Lixin Zou, Qian Li, Yongxuan Wu, Yang Liu, Dawei Yin, and Guandong Xu. 2025. Contrastive Modality-Disentangled Learning for Multimodal Recommendation. TOIS (2025), 1–31. [24] Zhenghong Lin, Yanchao Tan, Yunfei Zhan, Weiming Liu, Fan Wang, Chaochao Chen, Shiping Wang, and Carl Yang. 2023. Contrastive Intra- and Inter-Modality Generation for Enhancing Incomplete Multimedia Recommendation. ACM MM 
+
+(2023), 6234–6242. [25] Fan Liu, Huilin Chen, Zhiyong Cheng, Anan Liu, Liqiang Nie, and Mohan S. Kankanhalli. 2023. Disentangled Multimodal Representation Learning for Rec-ommendation. TMM (2023), 7149–7159. [26] Fan Liu, Huilin Chen, Zhiyong Cheng, Liqiang Nie, and Mohan S. Kankanhalli. 2023. Semantic-Guided Feature Distillation for Multimodal Recommendation. 
+
+ACM MM (2023), 6567–6575. [27] Xiaohao Liu, Xiaobo Xia, See-Kiong Ng, and Tat-Seng Chua. 2026. Principled Multimodal Representation Learning. TPAMI (2026), 9114–9128. Conference’17, July 2017, Washington, DC, USA Ruiyu Liu, Xiaohao Liu, Miaomiao Cai, Yunshan Ma, and See-Kiong Ng 
+
+[28] Xiaohao Liu, Xiaobo Xia, Jiaheng Wei, Shuo Yang, Xiu Su, See-Kiong Ng, and Tat-Seng Chua. 2026. Calibrated Multimodal Representation Learning with Missing Modalities. ICML (2026). [29] Daniele Malitesta, Emanuele Rossi, Claudio Pomo, Tommaso Di Noia, and Fragkiskos D. Malliaros. 2024. Do We Really Need to Drop Items with Miss-ing Modalities in Multimodal Recommendation? CIKM (2024), 3943–3948. [30] Daniele Malitesta, Emanuele Rossi, Claudio Pomo, Tommaso Di Noia, and Fragkiskos D. Malliaros. 2026. Training-Free Graph-Based Imputation of Missing Modalities in Multimodal Recommendation. TKDE (2026), 3250–3263. [31] Daniele Malitesta, Emanuele Rossi, Claudio Pomo, Fragkiskos D. Malliaros, and Tommaso Di Noia. 2024. Dealing with Missing Modalities in Multimodal Recom-mendation: A Feature Propagation-Based Approach. arXiv:2403.19841 (2024). [32] Julian McAuley, Christopher Targett, Qinfeng Shi, and Anton van den Hengel. 2015. Image-Based Recommendations on Styles and Substitutes. SIGIR (2015), 43–52. [33] Jiquan Ngiam, Aditya Khosla, Mingyu Kim, Juhan Nam, Honglak Lee, and An-drew Y. Ng. 2011. Multimodal Deep Learning. In ICML . 689–696. [34] Yongxin Ni, Yu Cheng, Xiangyan Liu, Junchen Fu, Youhua Li, Xiangnan He, Yongfeng Zhang, and Fajie Yuan. 2023. A Content-Driven Micro-Video Recom-mendation Dataset at Scale. arXiv:2309.15379 (2023). [35] Rongqing Kenneth Ong and Andy W. H. Khong. 2025. Spectrum-Based Modality Representation Fusion Graph Convolutional Network for Multimodal Recom-mendation. WSDM (2025), 773–781. [36] Nils Reimers and Iryna Gurevych. 2019. Sentence-BERT: Sentence Embeddings Using Siamese BERT-Networks. EMNLP-IJCNLP (2019), 3982–3992. [37] Steffen Rendle, Christoph Freudenthaler, Zeno Gantner, and Lars Schmidt-Thieme. 2009. BPR: Bayesian Personalized Ranking from Implicit Feedback. UAI (2009), 452–461. [38] Nitish Srivastava and Ruslan Salakhutdinov. 2012. Multimodal Learning with Deep Boltzmann Machines. In NeurIPS . 2222–2230. [39] Zhulin Tao, Xiaohao Liu, Yewei Xia, Xiang Wang, Lifang Yang, Xianglin Huang, and Tat-Seng Chua. 2023. Self-Supervised Learning for Multimedia Recommen-dation. TMM (2023), 5107–5116. [40] Zhi Tao, Yinwei Wei, Xiang Wang, Xiangnan He, Xianglin Huang, and Tat-Seng Chua. 2020. MGAT: Multimodal Graph Attention Network for Recommendation. 
+
+IPM (2020), 102277. [41] Michael E. Tipping and Christopher M. Bishop. 1999. Probabilistic Principal Component Analysis. JRSS-B (1999), 611–622. [42] Cheng Wang, Mathias Niepert, and Hui Li. 2018. LRMM: Learning to Recommend with Missing Modalities. EMNLP (2018), 3360–3370. [43] Qifan Wang, Yinwei Wei, Jianhua Yin, Jianlong Wu, Xuemeng Song, and Liqiang Nie. 2023. DualGNN: Dual Graph Neural Network for Multimedia Recommenda-tion. TMM (2023), 1074–1084. [44] Yinwei Wei, Wenqi Liu, Fan Liu, Xiang Wang, Liqiang Nie, and Tat-Seng Chua. 2023. LightGT: A Light Graph Transformer for Multimedia Recommendation. 
+
+SIGIR (2023), 1508–1517. [45] Yinwei Wei, Xiang Wang, Liqiang Nie, Xiangnan He, and Tat-Seng Chua. 2020. GRCN: Graph-Refined Convolutional Network for Multimedia Recommendation with Implicit Feedback. ACM MM (2020), 3541–3549. [46] Yinwei Wei, Xiang Wang, Liqiang Nie, Xiangnan He, Richang Hong, and Tat-Seng Chua. 2019. MMGCN: Multi-modal Graph Convolution Network for Personalized Recommendation of Micro-video. ACM MM (2019), 1437–1445. [47] Jinfeng Xu, Zheyu Chen, Shuo Yang, Jinze Li, Hewei Wang, and Edith C.-H. Ngai. 2024. MENTOR: Multi-Level Self-Supervised Learning for Multimodal Recommendation. arXiv:2402.19407 (2024). [48] Zixuan Yi, Xi Wang, Iadh Ounis, and Craig Macdonald. 2022. Multi-modal Graph Contrastive Learning for Micro-video Recommendation. SIGIR (2022), 1807–1811. [49] Junliang Yu, Hongzhi Yin, Xin Xia, Tong Chen, Lizhen Cui, and Quoc Viet Hung Nguyen. 2022. Are Graph Augmentations Necessary? Simple Graph Contrastive Learning for Recommendation. SIGIR (2022), 1294–1303. [50] Penghang Yu, Zhiyi Tan, Guanming Lu, and Bing-Kun Bao. 2023. Multi-View Graph Convolutional Network for Multimedia Recommendation. ACM MM 
+
+(2023), 6576–6585. [51] Penghang Yu, Zhiyi Tan, Guanming Lu, and Bing-Kun Bao. 2025. Mind Individual Information! Principal Graph Learning for Multimedia Recommendation. AAAI 
+
+(2025), 13096–13105. [52] Jinghao Zhang, Yanqiao Zhu, Qiang Liu, Shu Wu, Shuhui Wang, and Liang Wang. 2021. Mining Latent Structures for Multimedia Recommendation. ACM MM 
+
+(2021), 3872–3880. [53] Xin Zhou and Zhiqi Shen. 2023. A Tale of Two Graphs: Freezing and Denoising Graph Structures for Multimodal Recommendation. ACM MM (2023), 935–943. [54] Xin Zhou, Hongyu Zhou, Yong Liu, Zhiwei Zeng, Chunyan Miao, Pengwei Wang, Yuan You, and Feijun Jiang. 2023. Bootstrap Latent Representations for Multi-Modal Recommendation. WWW (2023), 845–854. 
+
+## A Additional Method Details 
+
+The shared-latent imputation backbone in SIC follows conjugate Gaussian latent-variable modeling [ 1, 8, 18 , 41 ]. This section pro-vides the analytical posterior inference, pseudo-missing construc-tion, graph propagation, and additional analysis omitted from the main text. 
+
+## A.1 SIC Posterior Inference 
+
+Given the observed completion-space representations {z𝑚 𝑖 }𝑚 ∈ O 𝑖 
+
+and the generative parameters Θ𝑔 = {W𝑚 , 𝝁 𝑚 , 𝜎 𝑚 }𝑚 ∈ M , the poste-rior of the shared latent variable is: 
+
+𝑞 𝑖 (𝜷 𝑖 ) = 𝑝  𝜷 𝑖 | { z𝑚 𝑖 }𝑚 ∈ O 𝑖 , Θ𝑔 
+
+ = N ( b𝑖 , 𝚺 𝑖 ), (17) where 
+
+𝚺 𝑖 =
+
+
+
+I𝑑 𝛽 +∑︁ 
+
+𝑚 ∈ O 𝑖 
+
+(W𝑚 )⊤W𝑚 
+
+(𝜎 𝑚 )2
+
+
+
+−1
+
+, (18) and 
+
+b𝑖 = 𝚺 𝑖 ∑︁ 
+
+𝑚 ∈ O 𝑖 
+
+(W𝑚 )⊤ (z𝑚 𝑖 − 𝝁 𝑚 )(𝜎 𝑚 )2 . (19) These expressions are obtained by collecting the quadratic terms in the log posterior and completing the square. Because the posterior depends only on the observed modality set O𝑖 , the same inference applies to different missing patterns. 
+
+## A.2 Pseudo-Missing Inference 
+
+For each eligible pair (𝑖, 𝑚 ) ∈ E pm , modality 𝑚 is temporarily removed from the observed set: 
+
+O (− 𝑚 )
+
+𝑖 = O𝑖 \ { 𝑚 }. (20) The corresponding posterior covariance and mean are: 
+
+𝚺 (− 𝑚 )
+
+𝑖 =
+
+
+
+I𝑑 𝛽 +∑︁ 
+
+𝑛 ∈ O (− 𝑚 )
+
+> 𝑖
+
+(W𝑛 )⊤W𝑛 
+
+(𝜎 𝑛 )2
+
+
+
+−1
+
+, (21) and 
+
+b(− 𝑚 )
+
+𝑖 = 𝚺 (− 𝑚 )
+
+𝑖 ∑︁ 
+
+𝑛 ∈ O (− 𝑚 )
+
+> 𝑖
+
+(W𝑛 )⊤ (z𝑛 𝑖 − 𝝁 𝑛 )(𝜎 𝑛 )2 . (22) The pseudo-recovered representation is: 
+
+bz𝑚, (− 𝑚 )
+
+𝑖 = W𝑚 b(− 𝑚 )
+
+𝑖 + 𝝁 𝑚 
+
+W𝑚 b(− 𝑚 )
+
+𝑖 + 𝝁 𝑚 
+
+2 + 𝜖 . (23) Pseudo-recovered and genuinely missing representations therefore follow the same posterior inference and target-modality generation process. 
+
+## A.3 Completion-Aware Graph Propagation 
+
+For modality 𝑚 , collaborative and completed content similarities are first fused as: 
+
+S𝑚, fuse = (1 − 𝜂 )Scf + 𝜂 S𝑚 . (24) We then retain the row-wise Top-𝑘 entries and symmetrize the resulting graph: 
+
+G𝑚 
+
+item = T𝑘 
+
+
+
+S𝑚, fuse 
+
+, G𝑚 
+
+item = S
+
+
+
+G𝑚 
+
+item 
+
+
+
+, (25) CaIRec: Calibrated Modality Imputation for Incomplete Multimodal Recommendation Conference’17, July 2017, Washington, DC, USA 
+
+where T𝑘 (·) denotes row-wise Top-𝑘 sparsification and S(·) denotes graph symmetrization. The modality-specific augmented adjacency matrix is: 
+
+A𝑚 =
+
+ 0 RR⊤ G𝑚 
+
+> item
+
+
+
+. (26) Following LightGCN [11], we apply symmetric normalization: 
+
+bA𝑚 = (D𝑚 )− 12 A𝑚 (D𝑚 )− 12 , D𝑚 = Diag (A𝑚 1). (27) The initial node representations are: 
+
+H𝑚, (0) =
+
+"
+
+E(0)
+
+> 𝑈
+
+E𝑚, (0)
+
+> 𝐼
+
+#
+
+, E𝑚, (0) 
+
+> 𝐼
+
+= [s𝑚  
+
+> 1
+
+, . . . , s𝑚 𝑁 𝑖 ]⊤. (28) Layer-wise propagation is performed as: 
+
+H𝑚, (𝑙 +1) = bA𝑚 H𝑚, (𝑙 ) . (29) The representations from all layers are uniformly aggregated: 
+
+H𝑚 = 1
+
+𝐿 + 1
+
+> 𝐿
+
+∑︁ 
+
+> 𝑙 =0
+
+H𝑚, (𝑙 ) . (30) Let p𝑚 𝑢 and q𝑚 𝑖 denote the propagated user and item representa-tions under modality 𝑚 . The final representations are: 
+
+h𝑢 = 1
+
+𝑁 𝑚 ∑︁ 𝑚 ∈ M 
+
+p𝑚 𝑢 , h𝑖 = 1
+
+𝑁 𝑚 ∑︁ 𝑚 ∈ M 
+
+q𝑚 𝑖 . (31) During PRC training, the SIC parameters, completed modality rep-resentations, and completion-aware item graphs remain fixed. 
+
+## A.4 Bimodal Interpretation of Structural Calibration 
+
+For two normalized modality representations, let 𝑐 𝑖 = ( ˜z1 
+
+> 𝑖
+
+)⊤ ˜z2 
+
+> 𝑖
+
+. Their Gram matrix is: 
+
+G𝑖 =
+
+ 1 𝑐 𝑖 
+
+𝑐 𝑖 1
+
+
+
+, (32) with eigenvalues 𝜆 𝑖, 1 = 1 + | 𝑐 𝑖 | and 𝜆 𝑖, 2 = 1 − | 𝑐 𝑖 |. Consequently, the leading-eigenvalue component of Lstr increases with |𝑐 𝑖 | in the bimodal setting. This component should not be interpreted as directly match-ing the ground-truth cross-modal geometry or recovering a rich item-specific structural configuration. With two modalities, the within-item structure contains only one pairwise degree of free-dom. The leading-eigenvalue component therefore acts as a relation-concentration regularizer that discourages near-orthogonal config-urations. It does not independently determine the sign or semantic correctness of the pairwise relation. In the complete SIC objective, Lrep constrains the conditional estimate using the observed representations, while Lcorr provides same-item correspondence supervision from genuinely observed modality pairs. The structural component is therefore optimized jointly with the imputation and correspondence objectives rather than used as an isolated recovery criterion. When 𝑁 𝑚 = 2, the principal eigenvector is constant within each fixed similarity-sign region. The principal-direction component therefore provides no additional continuous gradient in our bimodal experiments, and the leading-eigenvalue component supplies the effective structural signal. The principal-direction formulation is retained for settings with more than two modalities, where nontriv-ial modality-wise directional configurations can arise. Its empirical benefit in such settings remains to be investigated. 
+
+## A.5 Model Analysis 
+
+A.5.1 Computational complexity. Let |E 𝑅 | = ∥R∥0, and let 𝑄 and 
+
+𝐿 denote the numbers of distinct nonempty observed-modality patterns and propagation layers, respectively. The main costs of SIC are: Projection: O ©«∑︁ 𝑖 ∈ I ∑︁ 𝑚 ∈ O 𝑖 
+
+𝑑 𝑚 𝑑 𝑐 ª®¬
+
+,
+
+Posterior inference: O 𝑁 𝑚 𝑑 𝑐 𝑑 2 
+
+> 𝛽
+
++ 𝑄𝑑 3 
+
+> 𝛽
+
++∑︁  
+
+> 𝑖 ∈ I
+
+|O 𝑖 |𝑑 𝑐 𝑑 𝛽 + 𝑁 𝑖 𝑑 2
+
+> 𝛽
+
+!
+
+,
+
+Structural calibration: O  𝑁 𝑖 𝑁 2
+
+> 𝑚
+
+𝑑 𝑐 + 𝑁 𝑖 𝑁 3 
+
+> 𝑚
+
++ 𝑁 𝑖 |B| 𝑁 𝑚 
+
+ .
+
+(33) Here, (W𝑚 )⊤W𝑚 is reused by items sharing the same observed-modality pattern, and the final structural-calibration term arises from batch-wise principal-direction comparison. Correspondence calibration is linear in the number of sampled observed cross-modal pairs. Before PRC training, exact content-based neighbor construction and collaborative co-occurrence computation require: 
+
+O 𝑁 𝑚 𝑁 2 
+
+> 𝑖
+
+𝑑 𝑐 +∑︁  
+
+> 𝑢 ∈ U
+
+𝛿 2
+
+> 𝑢
+
+!
+
+, 𝛿 𝑢 =∑︁ 
+
+> 𝑖
+
+𝑅 𝑢𝑖 . (34) In our implementation, R is stored sparsely, collaborative co-occurrence is computed by sparse matrix multiplication, and content sim-ilarities are evaluated in blocks. Only the Top-𝑘 neighbors are retained and the resulting graphs are symmetrized, so the full dense 𝑁 𝑖 × 𝑁 𝑖 similarity matrix is not stored simultaneously. Each modality-specific graph contains O( 𝑁 𝑖 𝑘 ) retained edges and is con-structed once for reuse throughout PRC training. After graph construction, the per-epoch PRC costs are: Graph propagation: O ( 𝐿𝑁 𝑚 (|E 𝑅 | + 𝑘𝑁 𝑖 )𝑑 ) ,
+
+Ranking and alignment: O    |D BPR | + |E pm |𝑑  . (35) Thus, the quadratic term is incurred only during exact content-neighbor construction, whereas repeated propagation is linear in the numbers of interaction and retained item-graph edges. Exact construction may still be expensive for million-scale item collec-tions, for which approximate nearest-neighbor or distributed graph construction can be adopted. 
+
+A.5.2 Empirical efficiency. Table 4 reports per-epoch training time and full-ranking recommendation inference time under the same ex-perimental setting. Because CaIRec is optimized sequentially, SIC and PRC are reported separately. SIC requires 5.9 seconds per train-ing epoch. After the completed representations and item graphs are constructed, PRC requires 12 .5 seconds per epoch and 5.6 sec-onds for full-ranking inference. The one-time missing-modality completion pass takes 3.9 × 10 −3 seconds. PRC has a slightly higher per-epoch training cost than DGMRec but is faster than HEAT and MoDiCF. Its full-ranking inference is faster than DGMRec and MoDiCF, while HEAT remains the fastest. These results show that recommendation-space adaptation and Conference’17, July 2017, Washington, DC, USA Ruiyu Liu, Xiaohao Liu, Miaomiao Cai, Yunshan Ma, and See-Kiong Ng 
+
+Table 4: Per-epoch training and inference/preprocessing time under the same experimental setting. The SIC entry denotes the one-time missing-modality completion pass, whereas the PRC entry denotes full-ranking recommendation inference.              
+
+> Method or Stage Train/Epoch (s) Inference / Preprocessing (s) DGMRec 10.1 10.8 HEAT 20.2 4.4 MoDiCF 761.0 33.2
+> CaIRec : SIC 5.9 3.9×10 −3
+> CaIRec : PRC 12.5 5.6
+
+sparse graph propagation introduce moderate per-epoch overhead. The one-time exact item-graph construction cost is not included in the reported PRC per-epoch time and is discussed separately in the complexity analysis. 
+
+## A.6 Relation to CalMRL and Task-Specific Distinction 
+
+Although CaIRec builds on the calibrated representation recovery principle of CalMRL [ 28 ], the two methods differ fundamentally in the optimization role of the recovered modality. CalMRL studies missing modalities in generic multimodal representation learning, where anchor shift denotes the deviation between the alignment direction induced by the complete modality set and that induced by the observed subset. It estimates the missing representation to com-pensate for its absent contribution to the virtual alignment anchor and thereby recalibrate the observed modality encoders. Recovery thus primarily serves as an auxiliary mechanism for improving the available modalities. 
+
+CaIRec shifts the role of recovery. It operates on pretrained item features and preserves genuinely observed modalities as di-rect item content. Their shared semantics are instead used to es-timate the unavailable modality, whose recovered representation is retained as explicit content and must itself become structurally reliable. Accordingly, Cross-modal Structural Distortion is related to but distinct from anchor shift: it concerns whether the recov-ered modality forms a coherent within-item organization with the observed modalities, rather than whether it restores an alignment direction for optimizing observed encoders. SIC therefore special-izes calibrated recovery toward improving the recovered modality and organizing the completed item content. This shift further exposes the Preference Adaptation Gap : struc-tural reliability alone does not ensure that recovered content is com-patible with the ranking-supervised representation space, while modality missingness also disrupts content-derived item neigh-borhoods. PRC addresses this gap by aligning the recovery path-way with its stop-gradient observed counterpart through same-item, same-modality pseudo-missing supervision, and by combin-ing completion-aware content relations with collaborative evidence for preference propagation. Removing PRC produces the largest module-level degradation, while removing either pseudo-missing alignment or the completion-aware item graph also consistently reduces performance. These results show that CaIRec ’s contribu-tion lies not in latent-variable imputation alone, but in redirecting calibrated recovery toward improving the missing modality itself and enabling its effective participation in personalized recommen-dation. 
+
+## A.7 Model Limitations 
+
+Our evaluation is limited to three Amazon datasets containing vi-sual and textual modalities. Although these datasets are widely used in multimodal recommendation, they belong to the same platform and domain family. The current results therefore do not establish generalization to other domains or to settings involving audio, video, attributes, or more than two modalities. This limitation is particularly relevant to the principal-direction component of structural calibration. In the bimodal setting, the within-item structure contains only one pairwise relation, and the principal-direction component provides no additional continuous gradient within a fixed similarity-sign region. Its role in settings with richer modality configurations remains to be empirically vali-dated. The main experiments also use synthetically generated modality-missing masks. Real-world missingness may depend on item popu-larity, category, content quality, or interaction sparsity. Evaluating 
+
+CaIRec under naturally occurring and non-random missing mech-anisms is an important direction for future work. Finally, correspondence calibration and pseudo-missing adapta-tion require training items with at least two genuinely observed modalities. When eligible paired observations are extremely scarce or unavailable, these objectives provide limited or no supervision. The effectiveness of CaIRec under such settings remains to be investigated. 
+
+## B Experimental Details B.1 Baselines and Evaluation 
+
+We compare CaIRec with eleven representative baselines covering collaborative filtering, general multimodal recommendation, and missing-aware multimodal recommendation. 
+
+• LightGCN [ 11 ] simplifies graph convolution to neighborhood aggregation and learns collaborative representations from user– item interactions. 
+
+• SimGCL [ 49 ] injects noise into node embeddings to construct contrastive views without explicit graph augmentation. 
+
+• VBPR [ 10 ] extends pairwise ranking by incorporating visual item features. 
+
+• BM3 [ 54 ] learns multimodal representations through bootstrap self-supervision over interactions and item content. 
+
+• PGL [ 51 ] uses principal subgraphs to model global co-occurrence and local personalized information. 
+
+• MIG-GT [12 ] combines modality-independent GNN receptive fields with a sampling-based global Transformer. 
+
+• I3-MRec [3 ] addresses modality incompleteness through invari-ant representation learning and an information bottleneck. 
+
+• MILK [ 2] learns modality-invariant preferences across heteroge-neous missing environments. 
+
+• MoDiCF [19 ] combines diffusion-based modality completion with counterfactual recommendation. CaIRec: Calibrated Modality Imputation for Incomplete Multimodal Recommendation Conference’17, July 2017, Washington, DC, USA 
+
+• DGMRec [ 17 ] disentangles modality-shared and modality-specific information before generating missing features. 
+
+• HEAT [ 30 ] performs training-free feature propagation over an item–item graph to impute unavailable modalities. We use official implementations when available and reproduce the remaining baselines following their original papers. Hyperpa-rameters are selected on the validation set, and all methods use the same data splits and modality-missing masks. Following the full-ranking protocol commonly used in graph recommendation [ 11 , 49 ], we report Recall@ 𝐾 and NDCG@ 𝐾 for 
+
+𝐾 ∈ { 10 , 20 }. Recall@ 𝐾 measures the proportion of held-out inter-actions retrieved in the top-𝐾 list, while NDCG@ 𝐾 assigns greater weight to items ranked at higher positions [ 14 ]. For each user, all items except those observed during training are used as ranking candidates, and the results are averaged over test users. Each method is run five times with different random seeds while keeping the data split and modality-missing mask fixed. Within each run, all methods use the same experimental setting. We report the mean performance over the five runs. Because the data split and missing mask remain fixed, differences across runs arise from random initialization and stochastic optimization rather than dif-ferent missing masks. Statistical significance between CaIRec and the strongest baseline is evaluated using a paired two-sided 𝑡 -test. 
+
+## B.2 Hyperparameter Settings 
+
+The completion and recommendation dimensions are both set to 64, and the mini-batch size is fixed at 2,048. We tune the learning rate over {10 −4, 5 × 10 −4, 10 −3 } and the 𝐿 2 regularization coefficient over {10 −5, 10 −4, 10 −3 }. The structural-calibration temperature 𝜏 is selected from {0.05 , 0.1, 0.2, 0.5}.The SIC weights 𝜆 str and 𝜆 corr are selected according to validation performance from the candidate values examined in the sensitivity analysis. For PRC, we tune 𝜆 align over {10 −4, 1.25 ×10 −3, 5×10 −3, 2×
+
+10 −2, 10 −1 } and 𝜆 reg over {10 −3, 5 × 10 −3, 10 −2, 2 × 10 −2 }.The item-graph hyperparameters are selected from: 
+
+𝑘 ∈ { 1, 3, 5, 10 , 20 }, 𝜂 ∈ { 0.1, 0.25 , 0.4, 0.7, 0.9}. (36) All hyperparameters are selected according to validation Recall@20 under the same data split and modality-missing setting used for fi-nal evaluation. We apply early stopping when validation Recall@20 does not improve for 30 consecutive epochs and use the best vali-dation checkpoint for testing. 
+
+## C Further Analysis C.1 Performance under Single-Modality Missingness 
+
+The main experiments randomly select whether image or text is unavailable for each modality-incomplete item. We additionally consider two controlled missing directions. 𝑇 →𝐼 removes images and estimates them from text, while 𝐼 →𝑇 removes text and esti-mates it from images. For each direction, we vary the missing rate from 10% to 90% and compare CaIRec with its w/o SIC variant. Figure 6 shows that SIC consistently improves Recall@20 and NDCG@20 under both missing directions. The advantage generally 
+
+Table 5: Effect of stage-wise optimization on Clothing. Δ
+
+reports the relative change from the stage-wise strategy.                       
+
+> Training Strategy Recall@20 NDCG@20 ΔRecall / NDCG Stage-wise (Ours) 0.0814 0.0361 –Warm-started Joint 0.0753 0.0337 −7.49% /−6.65%
+> From-scratch Joint (Rec-only) 0.0753 0.0336 −7.49% /−6.93%
+> From-scratch Joint (Rec+SIC) 0.0756 0.0339 −7.13% /−6.09%
+
+increases at higher missing rates, particularly under 𝑇 →𝐼 on Cloth-ing and Beauty. This result shows that SIC remains beneficial when the missing modality type is fixed rather than randomly selected. Performance is generally lower under 𝐼 →𝑇 than under 𝑇 →𝐼 ,especially at high missing rates. This difference may reflect the greater recommendation utility of textual content, the difficulty of estimating it from images, or both. The current experiment does not isolate these explanations. Overall, the results show that the effect of modality incompleteness depends on which modality is unavailable, while SIC provides consistent gains in both directions. 
+
+## C.2 Additional Results under Varying Missing Rates 
+
+Figure 7 reports additional results under varying modality-missing rates. Completion-based methods generally degrade more slowly than MIG-GT as the missing rate increases, indicating that explicit modality estimation can partially compensate for the loss of original content. Among these methods, CaIRec maintains the strongest or near-strongest performance and shows clearer advantages under severe missingness. These observations are consistent with the robustness analysis in the main text. 
+
+## C.3 Stage-Wise Optimization 
+
+SIC and PRC optimize different representation spaces. SIC learns conditional modality imputation and within-item cross-modal orga-nization, whereas PRC learns recommendation-space transforma-tions and preference propagation. Under joint optimization, ranking gradients can update the SIC parameters through the recovered branch, causing the completion process and recommendation model to change simultaneously. Stage-wise optimization instead fixes the completion process before learning recommendation-oriented adaptation. Table 5 shows that stage-wise optimization outperforms all three joint-training variants on Clothing. Warm-started joint training remains weaker despite using the same SIC initialization, suggesting that pretraining alone does not explain the improvement. The two from-scratch variants perform similarly, while retaining the SIC objectives yields only a modest gain over recommendation-only joint training. These results are consistent with the rationale that fixing SIC provides a more stable input space for PRC and reduces coupling between completion and ranking objectives. However, this compar-ison does not establish gradient interference as the only cause of the performance difference. Conference’17, July 2017, Washington, DC, USA Ruiyu Liu, Xiaohao Liu, Miaomiao Cai, Yunshan Ma, and See-Kiong Ng 0.0780         
+
+> 0.0800
+> 0.0820
+> 0.0840
+> Recall@20
+> 0.0700
+> 0.0750
+> 0.0800
+> 0.0850
+> 10% 30% 50% 70% 90%
+> T->I
+> 0.0352
+> 0.0360
+> 0.0368
+> 0.0376
+> NDCG@20
+> 10% 30% 50% 70% 90%
+> I->T
+> 0.0320
+> 0.0340
+> 0.0360
+> 0.0380
+
+(a) Clothing 0.1060         
+
+> 0.1065
+> 0.1070
+> 0.1075
+> Recall@20
+> 0.1000
+> 0.1025
+> 0.1050
+> 0.1075
+> 10% 30% 50% 70% 90%
+> T->I
+> 0.0474
+> 0.0477
+> 0.0480
+> 0.0483
+> NDCG@20
+> 10% 30% 50% 70% 90%
+> I->T
+> 0.0450
+> 0.0460
+> 0.0470
+> 0.0480
+
+CaIRec w/o SIC (b) Sports 0.0795          
+
+> 0.0810
+> 0.0825
+> 0.0840
+> Recall@20
+> 0.0800
+> 0.0825
+> 0.0850
+> 10% 30% 50% 70% 90%
+> T->I
+> 0.0320
+> 0.0328
+> 0.0336
+> 0.0344
+> NDCG@20
+> 10% 30% 50% 70% 90%
+> I->T
+> 0.0320
+> 0.0330
+> 0.0340
+
+(c) Beauty 
+
+Figure 6: Performance of CaIRec and its w/o SIC variant under varying single-modality missing rates. 𝑇 →𝐼 denotes image completion from text, while 𝐼 →𝑇 denotes text completion from images. 10% 30% 50% 70% 90% 
+
+Missing Rate 
+
+> 0.0320
+> 0.0340
+> 0.0360
+> 0.0380
+> 0.0400
+> NDCG@20
+
+(a) Clothing     
+
+> 10% 30% 50% 70% 90%
+
+Missing Rate 
+
+> 0.0700
+> 0.0750
+> 0.0800
+> 0.0850
+> 0.0900
+> Recall@20
+
+(b) Clothing     
+
+> 10% 30% 50% 70% 90%
+
+Missing Rate 
+
+> 0.0420
+> 0.0440
+> 0.0460
+> 0.0480
+> NDCG@20
+
+(c) Sports     
+
+> 10% 30% 50% 70% 90%
+
+Missing Rate 
+
+> 0.0320
+> 0.0330
+> 0.0340
+> 0.0350
+> NDCG@20
+
+(d) Beauty    
+
+> MIG-GT DGMRec HEAT Ours
+
+Figure 7: Additional recommendation results under varying modality-missing rates. Clothing Sports Beauty 
+
+0.0500 
+
+0.0600 
+
+0.0700 
+
+0.0800 
+
+0.0900 
+
+0.1000 
+
+> Recall@20
+
+Clothing Sports Beauty 
+
+0.0200 
+
+0.0250 
+
+0.0300 
+
+0.0350 
+
+0.0400 
+
+0.0450 
+
+> NDCG@20
+
+PGL PGL + SIC 
+
+Figure 8: Performance of PGL and PGL+SIC on the three Amazon datasets under a 50% modality-missing rate. 
+
+## C.4 Plug-In Evaluation of SIC 
+
+We examine whether SIC can be incorporated into an existing multimodal recommender without modifying its recommendation backbone. We apply SIC to PGL and denote the resulting variant as PGL+SIC. As shown in Figure 8, PGL+SIC consistently outperforms PGL on all three datasets in Recall@20 and NDCG@20. The gains sug-gest that the completed representations produced by SIC can also support a recommendation backbone not specifically designed for modality missingness. This result provides additional evidence that SIC can serve as a plug-in completion component. 
+
+## C.5 Additional Hyperparameter Experiments 
+
+Figure 9 provides complementary NDCG@20 results for the SIC and PRC objective weights and examines the graph parameters 
+
+𝑘 and 𝜂 on Clothing. Here, 𝑘 controls the number of neighbors retained in each modality-specific item graph, while 𝜂 balances collaborative and completed content similarities. We vary one graph hyperparameter at a time while fixing the remaining settings. Figures 9(a)–(b) show broad high-performing regions under moderate SIC and PRC objective weights. Figures 9(c)–(d) exhibit increase-then-decrease trends for the graph parameters. A very small 𝑘 provides limited item neighborhoods, whereas a large value introduces less relevant neighbors. Similarly, a moderate 𝜂 balances collaborative and completed content relations. These results show that CaIRec is stable around suitable settings but can be affected by excessively weak or strong calibration and graph signals. 
+
+## C.6 Additional Results on Modality-Incomplete Items 
+
+Figure 10 reports additional group-wise results under the same set-ting as the main text. Consistent with Figure 3, CaIRec achieves its clearest gains on modality-incomplete items, while competing meth-ods remain competitive on modality-complete items. This shows CaIRec: Calibrated Modality Imputation for Incomplete Multimodal Recommendation Conference’17, July 2017, Washington, DC, USA 0.01 0.05 0.1 0.5 
+
+λcorr 
+
+(a) NDCG@20 
+
+0.05 
+
+0.25 
+
+1.0 
+
+5.0             
+
+> λstr
+> 0.0352 0.0349 0.0351 0.0352
+> 0.0358 0.0359 0.0359 0.0357
+> 0.0357 0.0358 0.0361 0.0358
+> 0.0359 0.0361 0.0359 0.0356
+
+0.001 0.005 0.01 0.02 
+
+λreg 
+
+(b) NDCG@20 
+
+0.00125 
+
+0.005 
+
+0.02 
+
+0.1             
+
+> λalign
+> 0.0345 0.0358 0.0360 0.0349
+> 0.0351 0.0361 0.0355 0.0346
+> 0.0354 0.0360 0.0361 0.0352
+> 0.0350 0.0357 0.0358 0.0348
+
+1 3 5 10 20 
+
+k
+
+(c) Clothing 
+
+0.0780 
+
+0.0800 
+
+0.0820 
+
+> Recall@20
+
+0.1 0.25 0.4 0.7 0.9 
+
+η
+
+(d) Clothing 
+
+0.0760 
+
+0.0780 
+
+0.0800 
+
+0.0820 
+
+0.0350 
+
+0.0355 
+
+0.0360 
+
+0.0345 
+
+0.0350 
+
+0.0355 
+
+0.0360 
+
+0.0350 
+
+0.0355 
+
+0.0360 
+
+0.0365 
+
+0.0370 
+
+0.0350 
+
+0.0360 
+
+0.0370 
+
+> NDCG@20
+
+Figure 9: Additional hyperparameter sensitivity on Clothing. Incomplete Complete Overall 
+
+(a) Clothing 
+
+0.0200 
+
+0.0250 
+
+0.0300 
+
+0.0350 
+
+0.0400 
+
+0.0450 
+
+0.0500 
+
+> NDCG@20
+
+Incomplete Complete Overall 
+
+(b) Sports 
+
+0.0350 
+
+0.0400 
+
+0.0450 
+
+0.0500 
+
+0.0550 
+
+> NDCG@20
+
+Incomplete Complete Overall 
+
+(c) Beauty 
+
+0.0650 
+
+0.0700 
+
+0.0750 
+
+0.0800 
+
+0.0850 
+
+0.0900 
+
+0.0950 
+
+> Recall@20
+
+Incomplete Complete Overall 
+
+(d) Beauty 
+
+0.0200 
+
+0.0250 
+
+0.0300 
+
+0.0350 
+
+0.0400 
+
+0.0450 
+
+> NDCG@20
+
+MIG-GT DGMRec Ours 
+
+Figure 10: Additional performance comparison on modality-incomplete, modality-complete, and overall test-item groups. 
+
+that the overall improvement is primarily associated with items di-rectly affected by modality missingness. The advantage over DGM-Rec on incomplete items further suggests that explicit modality completion alone may not be sufficient to produce recommendation-effective representations.
