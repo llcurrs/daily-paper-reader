@@ -6,34 +6,46 @@
 </div>
 
 ## 每次日报
-- 最新运行日期：2026-08-03
-- 运行时间：2026-08-03 20:19:15 UTC
+- 最新运行日期：2026-08-04
+- 运行时间：2026-08-04 21:26:54 UTC
 - 运行状态：成功
-- 本次总论文数：4
+- 本次总论文数：8
 - 精读区：2
-- 速读区：2
+- 速读区：6
 
 ### 今日简报（AI）
-今日精读2篇、速读2篇，覆盖遥感洪水监测、多模态推荐、自动驾驶3D感知与多模态建模。  
-最值得关注的是高分遥感洪水监测框架（9.0）与缺失模态推荐方法CaIRec（8.0），均涉及跨模态信息利用。  
-建议优先精读这两篇，关注其如何提升灾害响应效率与推荐鲁棒性。
-- 详情：[/202608/03/README](/202608/03/README)
+今日精读聚焦文本引导图像融合与多模态域适应，速读覆盖多模态图聚类与异常检测，共8篇。  
+最值得关注：文本引导流匹配可应对复杂退化下的图像融合；跨模态融合偏差的Fisher信息分析为异常检测提供新视角。  
+下一步建议：优先尝试将文本提示引入多模态融合任务，同时留意标签偏移与模态缺失的鲁棒性设计。
+- 详情：[/202608/04/README](/202608/04/README)
 
 ### 精读区论文标签
-1. [Large scale cross-regional remote sensing flood monitoring framework for operative mapping and impact analysis](/202608/03/2607.28401v1-large-scale-cross-regional-remote-sensing-flood-monitoring-framework-for-operative-mapping-and-impact-analysis)  
-   标签：评分：9.0/10、query:multi-modal
-   evidence：端到端多模态框架融合SAR、多光谱和DEM等不同传感器遥感数据，用于洪水监测与影响评估
-2. [CaIRec: Calibrated Modality Imputation for Incomplete Multimodal Recommendation](/202608/03/2607.26720v1-cairec-calibrated-modality-imputation-for-incomplete-multimodal-recommendation)  
+1. [Unleashing the Power of Text: Text-Guided Flow Matching for Image Fusion under Complex Degradations](/202608/04/2608.00530v1-unleashing-the-power-of-text-text-guided-flow-matching-for-image-fusion-under-complex-degradations)  
    标签：评分：8.0/10、query:multi-modal
-   evidence：直接处理不完整多模态观测，提出校准模态补全方法；可迁移至遥感缺失模态学习
+   evidence：利用文本引导实现复杂退化下的红外-可见光图像融合
+2. [Multimodal domain adaptation under label shift and blockwise missing modalities](/202608/04/2608.01282v1-multimodal-domain-adaptation-under-label-shift-and-blockwise-missing-modalities)  
+   标签：评分：8.0/10、query:multi-modal
+   evidence：直接研究多模态数据中分块缺失模态下的学习方法
 
 ### 速读区论文标签
-1. [MATS: A novel multi-modality multi-task learning framework for 3D perception in autonomous driving](/202608/03/2607.24224v1-mats-a-novel-multi-modality-multi-task-learning-framework-for-3d-perception-in-autonomous-driving)  
+1. [RHEA: Reliability-Harmonized Reconstruction and Assignment for Robust Multimodal-Attributed Graph Clustering](/202608/04/2608.00621v1-rhea-reliability-harmonized-reconstruction-and-assignment-for-robust-multimodal-attributed-graph-clustering)  
+   标签：评分：7.0/10、query:multi-modal
+   evidence：通过可靠性感知重建处理缺失/噪声模态，直接针对缺失模态学习
+2. [Understanding and Overcoming Cross-modal Fusion Bias in Multimodal Anomaly Detection From A Fisher Information Perspective](/202608/04/2608.00986v1-understanding-and-overcoming-cross-modal-fusion-bias-in-multimodal-anomaly-detection-from-a-fisher-information-perspective)  
+   标签：评分：7.0/10、query:multi-modal
+   evidence：分析并缓解多模态异常检测中的跨模态融合偏差，可迁移至遥感传感器融合
+3. [Training-Free Entity-Level Few-Shot Segmentation of Remote Sensing Images with Advection Refinement](/202608/04/2607.29278v1-training-free-entity-level-few-shot-segmentation-of-remote-sensing-images-with-advection-refinement)  
    标签：评分：6.0/10、query:multi-modal
-   evidence：面向3D感知的多传感器多模态融合，可迁移至遥感多模态融合
-2. [MODUS: Decoder-Only Any-to-Any Modeling of Diverse Modalities](/202608/03/2607.25948v1-modus-decoder-only-any-to-any-modeling-of-diverse-modalities)  
+   evidence：利用多模态语义场的遥感影像免训练少样本分割
+4. [Beyond Symmetric Fusion: Exploiting Task-Dependent Modality Strengths for RGB-Event Small Object Detection](/202608/04/2608.01302v1-beyond-symmetric-fusion-exploiting-task-dependent-modality-strengths-for-rgb-event-small-object-detection)  
    标签：评分：6.0/10、query:multi-modal
-   evidence：仅解码器任意到任意多模态建模支持任意模态子集
+   evidence：RGB-Event非对称融合，利用任务相关模态优势，可迁移至多模态遥感
+5. [SPECTRA: Band-Routed Embedding and Stage-Wise LoRA for Cross-Sensor Fine-Tuning of Geospatial Foundation Models](/202608/04/2608.01751v1-spectra-band-routed-embedding-and-stage-wise-lora-for-cross-sensor-fine-tuning-of-geospatial-foundation-models)  
+   标签：评分：6.0/10、query:multi-modal
+   evidence：提出跨传感器微调方法，解决不同传感器的波段不匹配问题
+6. [Deep Multimodal Fusion Detection through Spatial Mask and Channel Fusion](/202608/04/2608.02092v1-deep-multimodal-fusion-detection-through-spatial-mask-and-channel-fusion)  
+   标签：评分：6.0/10、query:multi-modal
+   evidence：通过空间掩码与通道融合的深度多模态融合方法，可迁移至遥感
 
 
 <div class="dpr-home-promo-card">
