@@ -6,46 +6,53 @@
 </div>
 
 ## 每次日报
-- 最新运行日期：2026-08-04
-- 运行时间：2026-08-04 21:26:54 UTC
+- 最新运行日期：2026-08-07
+- 运行时间：2026-08-07 01:08:39 UTC
 - 运行状态：成功
-- 本次总论文数：8
-- 精读区：2
-- 速读区：6
+- 本次总论文数：10
+- 精读区：5
+- 速读区：5
 
 ### 今日简报（AI）
-今日精读聚焦文本引导图像融合与多模态域适应，速读覆盖多模态图聚类与异常检测，共8篇。  
-最值得关注：文本引导流匹配可应对复杂退化下的图像融合；跨模态融合偏差的Fisher信息分析为异常检测提供新视角。  
-下一步建议：优先尝试将文本提示引入多模态融合任务，同时留意标签偏移与模态缺失的鲁棒性设计。
-- 详情：[/202608/04/README](/202608/04/README)
+- 今日共生成 10 篇推荐（精读 5 篇，速读 5 篇）
+- 精读：《TRNet: Topography-Guided Frequency Rectification and Structure-Aware Decoding for Multimodal Paddy Rice Segmentation》（9.0/10）, 《CalibBEV: LiDAR-Camera Calibration via BEV Alignment》（8.0/10）
+- 速读：《RHEA: Reliability-Harmonized Reconstruction and Assignment for Robust Multimodal-Attributed Graph Clustering》（7.0/10）, 《Geo-Embed: Towards Unified Multimodal Embeddings for Urban Understanding》（7.0/10）, 《TriCLE: Tri-Modal Vision-Language Reasoning for Edge-Deployed Fine-Grained Clustering》（7.0/10）
+- 这些结果覆盖了当下较热的方向，建议先看精读区论文的关键问题与方法。
+- 详情：[/202608/07/README](/202608/07/README)
 
 ### 精读区论文标签
-1. [Unleashing the Power of Text: Text-Guided Flow Matching for Image Fusion under Complex Degradations](/202608/04/2608.00530v1-unleashing-the-power-of-text-text-guided-flow-matching-for-image-fusion-under-complex-degradations)  
+1. [TRNet: Topography-Guided Frequency Rectification and Structure-Aware Decoding for Multimodal Paddy Rice Segmentation](/202608/07/2608.04154v1-trnet-topography-guided-frequency-rectification-and-structure-aware-decoding-for-multimodal-paddy-rice-segmentation)  
+   标签：评分：9.0/10、query:multi-modal
+   evidence：融合RGB与DEM等多传感器数据的多模态水稻分割
+2. [CalibBEV: LiDAR-Camera Calibration via BEV Alignment](/202608/07/2608.02309v1-calibbev-lidar-camera-calibration-via-bev-alignment)  
    标签：评分：8.0/10、query:multi-modal
-   evidence：利用文本引导实现复杂退化下的红外-可见光图像融合
-2. [Multimodal domain adaptation under label shift and blockwise missing modalities](/202608/04/2608.01282v1-multimodal-domain-adaptation-under-label-shift-and-blockwise-missing-modalities)  
+   evidence：通过BEV对齐进行LiDAR-相机标定，在不同传感器数据间建立共享表示
+3. [GEOID-Flood: A Large-Scale Multi-Modal Benchmark Dataset for Flood Segmentation](/202608/07/2608.02315v1-geoid-flood-a-large-scale-multi-modal-benchmark-dataset-for-flood-segmentation)  
    标签：评分：8.0/10、query:multi-modal
-   evidence：直接研究多模态数据中分块缺失模态下的学习方法
+   evidence：大规模多模态基准数据集，包含配准的Sentinel-1 SAR与光学影像用于洪水分割
+4. [Oh Deer, How Should I Handle This? Seasonal Priors for Selective Wildlife Annotation and Classification](/202608/07/2608.02762v2-oh-deer-how-should-i-handle-this-seasonal-priors-for-selective-wildlife-annotation-and-classification)  
+   标签：评分：8.0/10、query:multi-modal
+   evidence：RGB/热成像多模态航空野生动物分类，匹配多模态可解决单模态模糊情况
+5. [Compass: Degradation-Simulated Reciprocal Learning with Lightweight Needle RWKV for Multimodal Crack Segmentation under Missing Modalities](/202608/07/2608.03559v1-compass-degradation-simulated-reciprocal-learning-with-lightweight-needle-rwkv-for-multimodal-crack-segmentation-under-missing-modalities)  
+   标签：评分：8.0/10、query:multi-modal
+   evidence：面向任意缺失模态的深度学习分割方法，与缺失模态学习高度相关
 
 ### 速读区论文标签
-1. [RHEA: Reliability-Harmonized Reconstruction and Assignment for Robust Multimodal-Attributed Graph Clustering](/202608/04/2608.00621v1-rhea-reliability-harmonized-reconstruction-and-assignment-for-robust-multimodal-attributed-graph-clustering)  
+1. [RHEA: Reliability-Harmonized Reconstruction and Assignment for Robust Multimodal-Attributed Graph Clustering](/202608/07/2608.00621v1-rhea-reliability-harmonized-reconstruction-and-assignment-for-robust-multimodal-attributed-graph-clustering)  
    标签：评分：7.0/10、query:multi-modal
-   evidence：通过可靠性感知重建处理缺失/噪声模态，直接针对缺失模态学习
-2. [Understanding and Overcoming Cross-modal Fusion Bias in Multimodal Anomaly Detection From A Fisher Information Perspective](/202608/04/2608.00986v1-understanding-and-overcoming-cross-modal-fusion-bias-in-multimodal-anomaly-detection-from-a-fisher-information-perspective)  
+   evidence：针对多模态属性图中缺失或噪声模态，提出重构与分配机制
+2. [Geo-Embed: Towards Unified Multimodal Embeddings for Urban Understanding](/202608/07/2608.03826v1-geo-embed-towards-unified-multimodal-embeddings-for-urban-understanding)  
    标签：评分：7.0/10、query:multi-modal
-   evidence：分析并缓解多模态异常检测中的跨模态融合偏差，可迁移至遥感传感器融合
-3. [Training-Free Entity-Level Few-Shot Segmentation of Remote Sensing Images with Advection Refinement](/202608/04/2607.29278v1-training-free-entity-level-few-shot-segmentation-of-remote-sensing-images-with-advection-refinement)  
+   evidence：统一多模态嵌入，融合遥感观测、街景影像、文本和时变线索以支持城市理解
+3. [TriCLE: Tri-Modal Vision-Language Reasoning for Edge-Deployed Fine-Grained Clustering](/202608/07/2608.04175v1-tricle-tri-modal-vision-language-reasoning-for-edge-deployed-fine-grained-clustering)  
+   标签：评分：7.0/10、query:multi-modal
+   evidence：面向空中飞行器聚类的三模态视觉语言融合，从RGB生成缺失热成像与LiDAR视图
+4. [DRPFNet: Dual-domain Residual Progressive Fusion Network for RGB-Thermal Object Detection](/202608/07/2608.03370v1-drpfnet-dual-domain-residual-progressive-fusion-network-for-rgb-thermal-object-detection)  
    标签：评分：6.0/10、query:multi-modal
-   evidence：利用多模态语义场的遥感影像免训练少样本分割
-4. [Beyond Symmetric Fusion: Exploiting Task-Dependent Modality Strengths for RGB-Event Small Object Detection](/202608/04/2608.01302v1-beyond-symmetric-fusion-exploiting-task-dependent-modality-strengths-for-rgb-event-small-object-detection)  
+   evidence：RGB-热红外双域融合网络，直接融合不同传感器数据，但并非遥感场景
+5. [RegisterBridgeMM: A Register-Centric Framework for RGB-Infrared Object Detection](/202608/07/2608.04833v1-registerbridgemm-a-register-centric-framework-for-rgb-infrared-object-detection)  
    标签：评分：6.0/10、query:multi-modal
-   evidence：RGB-Event非对称融合，利用任务相关模态优势，可迁移至多模态遥感
-5. [SPECTRA: Band-Routed Embedding and Stage-Wise LoRA for Cross-Sensor Fine-Tuning of Geospatial Foundation Models](/202608/04/2608.01751v1-spectra-band-routed-embedding-and-stage-wise-lora-for-cross-sensor-fine-tuning-of-geospatial-foundation-models)  
-   标签：评分：6.0/10、query:multi-modal
-   evidence：提出跨传感器微调方法，解决不同传感器的波段不匹配问题
-6. [Deep Multimodal Fusion Detection through Spatial Mask and Channel Fusion](/202608/04/2608.02092v1-deep-multimodal-fusion-detection-through-spatial-mask-and-channel-fusion)  
-   标签：评分：6.0/10、query:multi-modal
-   evidence：通过空间掩码与通道融合的深度多模态融合方法，可迁移至遥感
+   evidence：基于寄存器令牌的RGB-红外跨模态融合框架，可见光-热红外融合思想可迁移到遥感多传感器数据融合。
 
 
 <div class="dpr-home-promo-card">
