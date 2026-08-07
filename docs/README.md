@@ -7,52 +7,43 @@
 
 ## 每次日报
 - 最新运行日期：2026-08-07
-- 运行时间：2026-08-07 01:08:39 UTC
+- 运行时间：2026-08-07 20:57:20 UTC
 - 运行状态：成功
-- 本次总论文数：10
-- 精读区：5
-- 速读区：5
+- 本次总论文数：8
+- 精读区：4
+- 速读区：4
 
 ### 今日简报（AI）
-- 今日共生成 10 篇推荐（精读 5 篇，速读 5 篇）
-- 精读：《TRNet: Topography-Guided Frequency Rectification and Structure-Aware Decoding for Multimodal Paddy Rice Segmentation》（9.0/10）, 《CalibBEV: LiDAR-Camera Calibration via BEV Alignment》（8.0/10）
-- 速读：《RHEA: Reliability-Harmonized Reconstruction and Assignment for Robust Multimodal-Attributed Graph Clustering》（7.0/10）, 《Geo-Embed: Towards Unified Multimodal Embeddings for Urban Understanding》（7.0/10）, 《TriCLE: Tri-Modal Vision-Language Reasoning for Edge-Deployed Fine-Grained Clustering》（7.0/10）
-- 这些结果覆盖了当下较热的方向，建议先看精读区论文的关键问题与方法。
+今日共读8篇论文，精读2篇高分工作，聚焦地理空间先验与场景理解。最值得关注的是野生动物标注的季节先验（8.0/10）与3D语义场景补全的地理先验（8.0/10），均通过引入先验信息提升模型性能。建议优先精读这两篇，其余速读可扩展至少样本遥感与多模态聚类。
 - 详情：[/202608/07/README](/202608/07/README)
 
 ### 精读区论文标签
-1. [TRNet: Topography-Guided Frequency Rectification and Structure-Aware Decoding for Multimodal Paddy Rice Segmentation](/202608/07/2608.04154v1-trnet-topography-guided-frequency-rectification-and-structure-aware-decoding-for-multimodal-paddy-rice-segmentation)  
-   标签：评分：9.0/10、query:multi-modal
-   evidence：融合RGB与DEM等多传感器数据的多模态水稻分割
-2. [CalibBEV: LiDAR-Camera Calibration via BEV Alignment](/202608/07/2608.02309v1-calibbev-lidar-camera-calibration-via-bev-alignment)  
+1. [Oh Deer, How Should I Handle This? Seasonal Priors for Selective Wildlife Annotation and Classification](/202608/07/2608.02762v1-oh-deer-how-should-i-handle-this-seasonal-priors-for-selective-wildlife-annotation-and-classification)  
    标签：评分：8.0/10、query:multi-modal
-   evidence：通过BEV对齐进行LiDAR-相机标定，在不同传感器数据间建立共享表示
-3. [GEOID-Flood: A Large-Scale Multi-Modal Benchmark Dataset for Flood Segmentation](/202608/07/2608.02315v1-geoid-flood-a-large-scale-multi-modal-benchmark-dataset-for-flood-segmentation)  
+   evidence：RGB与热红外航拍分类，对比单模态与融合模态并处理歧义
+2. [Geospatial-Prior Guidance for 3D Semantic Scene Completion](/202608/07/2608.03618v1-geospatial-prior-guidance-for-3d-semantic-scene-completion)  
    标签：评分：8.0/10、query:multi-modal
-   evidence：大规模多模态基准数据集，包含配准的Sentinel-1 SAR与光学影像用于洪水分割
-4. [Oh Deer, How Should I Handle This? Seasonal Priors for Selective Wildlife Annotation and Classification](/202608/07/2608.02762v2-oh-deer-how-should-i-handle-this-seasonal-priors-for-selective-wildlife-annotation-and-classification)  
+   evidence：融合卫星影像与OSM先验用于三维场景补全，学习多模态观测可靠性权重
+3. [TRNet: Topography-Guided Frequency Rectification and Structure-Aware Decoding for Multimodal Paddy Rice Segmentation](/202608/07/2608.04154v1-trnet-topography-guided-frequency-rectification-and-structure-aware-decoding-for-multimodal-paddy-rice-segmentation)  
    标签：评分：8.0/10、query:multi-modal
-   evidence：RGB/热成像多模态航空野生动物分类，匹配多模态可解决单模态模糊情况
-5. [Compass: Degradation-Simulated Reciprocal Learning with Lightweight Needle RWKV for Multimodal Crack Segmentation under Missing Modalities](/202608/07/2608.03559v1-compass-degradation-simulated-reciprocal-learning-with-lightweight-needle-rwkv-for-multimodal-crack-segmentation-under-missing-modalities)  
+   evidence：融合RGB影像与DEM及坡度进行水稻分割，保留模态特有特征
+4. [RegisterBridgeMM: A Register-Centric Framework for RGB-Infrared Object Detection](/202608/07/2608.04833v1-registerbridgemm-a-register-centric-framework-for-rgb-infrared-object-detection)  
    标签：评分：8.0/10、query:multi-modal
-   evidence：面向任意缺失模态的深度学习分割方法，与缺失模态学习高度相关
+   evidence：来自不同传感器的RGB-红外融合，与遥感多模态融合高度相关
 
 ### 速读区论文标签
-1. [RHEA: Reliability-Harmonized Reconstruction and Assignment for Robust Multimodal-Attributed Graph Clustering](/202608/07/2608.00621v1-rhea-reliability-harmonized-reconstruction-and-assignment-for-robust-multimodal-attributed-graph-clustering)  
-   标签：评分：7.0/10、query:multi-modal
-   evidence：针对多模态属性图中缺失或噪声模态，提出重构与分配机制
-2. [Geo-Embed: Towards Unified Multimodal Embeddings for Urban Understanding](/202608/07/2608.03826v1-geo-embed-towards-unified-multimodal-embeddings-for-urban-understanding)  
-   标签：评分：7.0/10、query:multi-modal
-   evidence：统一多模态嵌入，融合遥感观测、街景影像、文本和时变线索以支持城市理解
-3. [TriCLE: Tri-Modal Vision-Language Reasoning for Edge-Deployed Fine-Grained Clustering](/202608/07/2608.04175v1-tricle-tri-modal-vision-language-reasoning-for-edge-deployed-fine-grained-clustering)  
-   标签：评分：7.0/10、query:multi-modal
-   evidence：面向空中飞行器聚类的三模态视觉语言融合，从RGB生成缺失热成像与LiDAR视图
-4. [DRPFNet: Dual-domain Residual Progressive Fusion Network for RGB-Thermal Object Detection](/202608/07/2608.03370v1-drpfnet-dual-domain-residual-progressive-fusion-network-for-rgb-thermal-object-detection)  
+1. [Locally Consistent Transductive Information Maximization for Few-Shot Remote Sensing Scene Classification](/202608/07/2607.29192v1-locally-consistent-transductive-information-maximization-for-few-shot-remote-sensing-scene-classification)  
    标签：评分：6.0/10、query:multi-modal
-   evidence：RGB-热红外双域融合网络，直接融合不同传感器数据，但并非遥感场景
-5. [RegisterBridgeMM: A Register-Centric Framework for RGB-Infrared Object Detection](/202608/07/2608.04833v1-registerbridgemm-a-register-centric-framework-for-rgb-infrared-object-detection)  
+   evidence：基于CLIP多模态模型的遥感场景分类
+2. [RHEA: Reliability-Harmonized Reconstruction and Assignment for Robust Multimodal-Attributed Graph Clustering](/202608/07/2608.00621v1-rhea-reliability-harmonized-reconstruction-and-assignment-for-robust-multimodal-attributed-graph-clustering)  
    标签：评分：6.0/10、query:multi-modal
-   evidence：基于寄存器令牌的RGB-红外跨模态融合框架，可见光-热红外融合思想可迁移到遥感多传感器数据融合。
+   evidence：处理多模态图中的缺失与噪声模态，可迁移至缺失模态学习
+3. [CalibBEV: LiDAR-Camera Calibration via BEV Alignment](/202608/07/2608.02309v1-calibbev-lidar-camera-calibration-via-bev-alignment)  
+   标签：评分：6.0/10、query:multi-modal
+   evidence：跨模态激光雷达与相机标定及BEV对齐，用于多传感器融合
+4. [Geo-Embed: Towards Unified Multimodal Embeddings for Urban Understanding](/202608/07/2608.03826v1-geo-embed-towards-unified-multimodal-embeddings-for-urban-understanding)  
+   标签：评分：6.0/10、query:multi-modal
+   evidence：面向异构地理空间与遥感观测的统一多模态嵌入
 
 
 <div class="dpr-home-promo-card">
