@@ -1,0 +1,1031 @@
+Title: GAUGE: Granularity-Adaptive Counterfactual Gating of Evidence for Incomplete Multimodal Classification
+
+URL Source: https://arxiv.org/pdf/2608.05608v1
+
+Published Time: Fri, 07 Aug 2026 00:29:29 GMT
+
+Number of Pages: 14
+
+Markdown Content:
+# GAUGE: Granularity-Adaptive Counterfactual Gating of Evidence for Incomplete Multimodal Classification 
+
+## Yunping Shi, En Yu, Kairui Guo, Jie Lu 
+
+Australian Artificial Intelligence Institute (AAII), University of Technology Sydney (UTS), Australia yunping.shi@student.uts.edu.au; {en.yu-1; kairui.guo; jie.lu}@uts.edu.au 
+
+Abstract 
+
+Multimodal classification typically assumes all modalities are available, yet real-world inputs are often incomplete. Imputa-tion and dynamic fusion can mitigate such incompleteness, but existing methods operate at a coarse modality level and thus cannot retain reliable components while suppressing mislead-ing ones within the same recovered modality, compromis-ing prediction reliability. To address this issue, we propose 
+
+GAUGE , a lightweight counterfactual gating framework for incomplete multimodal classification. GAUGE first imputes missing modalities with a frozen imputer and encodes ob-served and recovered inputs uniformly as fine-grained evi-dence units. Rather than intervening on each unit explicitly, GAUGE scores the counterfactual effect of replacing every unit with a reference representation through prediction-aware Taylor evidence scores, all obtained in a single forward– backward pass. These scores are mapped to continuous gates, which are converted into additive attention-logit biases for unit-wise evidence modulation without altering the backbone architecture. Experiments across six benchmarks demonstrate that GAUGE outperforms strong baselines across diverse incomplete-input settings. Furthermore, a Taylor remainder theoretical analysis characterizes the error of the first-order approximation relative to the exact counterfactual effect, es-tablishing GAUGE as a principled and scalable framework for fine-grained evidence control under modality incompleteness. 
+
+## Introduction 
+
+Multimodal models have achieved remarkable success in complex perception and reasoning tasks by leveraging com-plementary information from diverse sources, such as im-ages, text, and sensor data (Liang, Zadeh, and Morency 2024; Xu, Zhu, and Clifton 2023; Zhang et al. 2025a). However, they are typically developed under the idealized assumption that all required modalities are available for each input (Ma et al. 2021; Du et al. 2024; Yang, Lu, and Yu 2025). In prac-tice, modalities may be missing or inaccessible because of sensor failures, heterogeneous acquisition protocols, privacy constraints, or transmission errors (Sun et al. 2024; Yao et al. 2024). Reliable prediction under such incomplete inputs is therefore critical in high-stakes applications such as medical diagnosis (Yao et al. 2024) and autonomous driving (Park et al. 2025). Existing methods for learning with incomplete modalities can be broadly categorized into two paradigms: recovery-free and recovery-based . Recovery-free methods learn di-rectly from the available modalities (Ma et al. 2021; Wu et al. 2024; Zhang et al. 2025b), avoiding imputation-induced errors but discarding potentially recoverable cross-modal cues. In contrast, recovery-based approaches explicitly im-pute missing modalities (Zhang et al. 2022; Wang, Li, and Cui 2023) to restore complementary cues, but the recon-structed content may contain low-fidelity, noisy, or seman-tically inconsistent evidence. Recent quality-aware dynamic fusion (Zhang et al. 2023; Cao et al. 2024) and modality-robustness methods (Wang et al. 2024) mitigate this un-reliability through weighting, gradient-guided decoupling, or availability-conditioned parameter switching. However, these mechanisms operate only at the modality level, ap-plying a shared control decision to the entire encoder output. This coarse-grained approach overlooks within-modality het-erogeneity in the reliability of individual components. The limitation is especially pronounced for recovered modalities, where uneven reconstruction errors can cause informative and misleading signals to coexist. Therefore, effective post-recovery control should operate at a finer granularity within each modality, independently modulating its representations according to the contributions to the current prediction. However, realizing such fine-grained post-recovery con-trol raises three interrelated questions: 1) At what granu-larity should control operate? Modern multimodal architec-tures employ heterogeneous encoders that produce represen-tation sets with different structures across modalities. Ex-isting mechanisms disregard this encoder-defined structure by assigning a shared control value to the entire represen-tation of each modality (Zhu et al. 2026). Effective control should therefore operate at the native granularity of each encoder. 2) How should control strength be quantified? 
+
+The contribution of an individual representation component depends on the current multimodal context and predicted class (Deng et al. 2021; Fan, Yang, and Ma 2026). Its control strength should be assessed in a prediction-aware manner. A direct criterion is counterfactual replacement, which replaces a component with a reference representation while keeping the remaining representation fixed and measures the magni-tude of the resulting change in the predicted-class response. 
+
+3) How can control strength be estimated efficiently? Al-though counterfactual replacement yields a decision-aligned score for each component, exact evaluation requires one inter-arXiv:2608.05608v1 [cs.LG] 6 Aug 2026 vention forward pass per component— N additional passes for N components (Fong and Vedaldi 2017). Scalable con-trol therefore requires estimating all component-wise effects using a fixed number of forward–backward scoring passes independent of N .To address these questions, we propose GAUGE 
+
+(Granularity-Adaptive co Unterfactual Gating of Evidence), a lightweight counterfactual-attribution gating framework for incomplete multimodal classification. Given an incomplete input, GAUGE recovers the missing modalities with a frozen imputer and encodes each observed or recovered modality into fine-grained evidence units 1. This abstraction supports unit-level modulation for multi-unit modalities and reduces to modality-level gating for single-representation modalities. Furthermore, GAUGE defines a representation-level counter-factual effect for each unit by measuring how the predicted-class response changes when that unit is replaced by a ref-erence representation. To avoid exact per-unit interventions, GAUGE derives a signed first-order Taylor approximation and aggregates its channel-wise terms into a non-canceling magnitude score. All scores are obtained with a single un-gated forward–backward pass and mapped by a two-scalar gate into additive attention-logit biases, reducing attention to low-scoring units while leaving the Transformer backbone architecture and training objective unchanged. Our contribu-tions are summarized as follows: 
+
+• We formulate a granularity-adaptive evidence control paradigm for incomplete multimodal classification, rep-resenting both observed and reconstructed modalities as encoder-emitted evidence units. This abstraction enables fine-grained evidence modulation at the finest available representation level while naturally retaining compatibil-ity with modality-level settings. 
+
+• We propose GAUGE , a lightweight counterfactual-attribution gating framework that modulates evidence ac-cording to prediction-aware evidence scores. GAUGE for-malizes an interpretable unit-wise counterfactual replace-ment objective and derives a first-order Taylor scoring for-mulation that obtains all unit-level evidence scores in a single forward–backward pass, bypassing the prohibitive overhead of explicit per-unit interventions. 
+
+• Extensive experiments across diverse incomplete-modality settings demonstrate the effectiveness of GAUGE. We further provide a Taylor remainder anal-ysis for the signed first-order approximation and derive an upper bound relating the Taylor evidence score to the magnitude of the exact counterfactual effect. 
+
+## Related Work 
+
+Incomplete Multimodal Learning. Existing methods for incomplete multimodal learning broadly follow two paradigms: recovery-free and recovery-based . Recovery-free 
+
+approaches predict directly from available modalities via  
+
+> 1Evidence unit denotes the finest representation emitted by an encoder. It covers fine-grained representations, e.g., image patches, text tokens, and tabular feature embeddings, as well as modality-level embeddings when an encoder emits a single representation.
+
+modality dropout, missing-aware training, prompt tuning, or contrastive learning (Neverova et al. 2016; Ma et al. 2021; Lee et al. 2023; Wu et al. 2024; Sun et al. 2024; Wang et al. 2018), avoiding fabricated content but discarding po-tentially recoverable cues. In contrast, recovery-based ap-proaches explicitly reconstruct missing modalities through cross-modal generation, diffusion models, disentanglement, or context-guided completion (Wang, Li, and Cui 2023; Dai et al. 2025; Yu, Lu, and Zhang 2026; Liu et al. 2025; Zhao et al. 2026; Huang et al. 2026), alongside recent advances in retrieval-augmented prompts (Lang et al. 2025), feature disentangling (Yao et al. 2024), pre-training (Du et al. 2024), and inference-time selection (Du et al. 2026). However, these methods predominantly treat each observed or imputed modality as a monolithic decision unit, lacking prediction-aware control at the encoder-emitted feature level. GAUGE departs from this paradigm by dynamically re-evaluating both observed and recovered inputs as fine-grained evidence units, rather than treating a reconstructed modality as a static substitute. 
+
+Dynamic Multimodal Fusion. Dynamic multimodal fusion studies sample-specific modality utility at inference time, such as input-conditioned routing (Xue and Marculescu 2023), quality-aware weighting (Zhang et al. 2023), pre-dicted modality contributions (Cao et al. 2024), gradient-based decoupling (Wang et al. 2024), and cross-modal en-hancement (Chen et al. 2026). However, these methods op-erate exclusively at the coarse modality level, applying a uniform scalar weight, routing score, or gating decision to each modality. This formulation conflicts with Transformer encoders, whose fine-grained internal units exhibit heteroge-neous prediction relevance that becomes especially restric-tive when handling recovered modalities. Our research ad-vances this by shifting dynamic fusion from modality-level weighting to fine-grained unit-level modulation. 
+
+Feature Attribution and Counterfactual Reasoning. 
+
+Gradient-based attribution methods characterize reference-based or local changes in model outputs with respect to in-put features (Sundararajan, Taly, and Yan 2017; Shrikumar, Greenside, and Kundaje 2017; Ancona et al. 2018; Li et al. 2025). In particular, a first-order Taylor expansion around the current representation provides a local approximation of the prediction change induced by replacing a feature with a reference (Deng et al. 2021). Unlike the post-hoc explainers, GAUGE repurposes such attribution signals as an in-the-loop mechanism, computing unit-level Taylor evidence scores in a single backward pass against a prediction-aware objective to directly drive the attention bias of the underlying model. 
+
+## Methodology 
+
+Task Description. Let D = {(Xi, y i)}|D|  
+
+> i=1
+
+be a dataset for in-complete multimodal classification, where yi ∈ { 1, . . . , K }
+
+is the class label among K target classes. For each sample 
+
+i under the incomplete-modality setting, only a subset of modalities Oi ⊆ { 1, . . . , M } is observed, where M denotes the total number of modalities. The incomplete input is thus represented as Xi = {x(m) 
+
+> i
+
+}m∈O i , where x(m) 
+
+> i
+
+is the ob-servation from modality m, while the missing modalities are 𝑇 ˜! ← 𝑒 𝙲𝙻𝚂 ; 𝐸 !% ; … ; 𝐸 !&
+
+1 Complete & Encode            
+
+> Incomplete Input
+> 𝑋 !
+> Completed Input
+> 𝑋 "!
+> Multimodal Evidence Sequence
+> 𝑇 ˜!←𝑒 𝙲𝙻𝚂 ; 𝐸 !%; … ; 𝐸 !&
+> CLS ……
+> Lₘ= 1:
+> modality-level control
+> Lₘ> 1:
+> unit-level control
+> Modality-Specific Encoders
+> {ℎ !}!"# $
+> Frozen Imputer
+> Γ
+
+❄
+
+3 Predict & Update               
+
+> AConvert Gate to log-bias
+> 𝐁 𝐢 (,* = log max{ 𝑔 !,* , 𝜖 +}
+> BKey-Wise Bias Injection
+> Attn GAUGE 𝐐, 𝐊, 𝐕 = softmax 𝐐𝐊 )
+> 𝑑 *
+> + 𝐁 𝐢 𝐕
+> Higher gate → weaker suppression Lower gate → stronger suppression
+> CGated Prediction & Update
+> Forward ②
+> Backward ②𝜞 𝒓𝒆𝒎𝒂𝒊𝒏 𝒇𝒓𝒐𝒛𝒆𝒏
+> Task Loss
+> 𝐿 %&'(
+> Update
+> ℎ!, 𝐹 ), 𝜋 *, 𝜏, 𝜌
+> Gated Transformer
+> 𝐹 )
+> Classifier
+> 𝜋 *zᵢᵍᵃᵗᵉᵈ Final logits
+> 𝑇 ˜+
+
+=
+
+2 Score & Gate        
+
+> AUngated Prediction Forward ①
+> BTaylor Evidence Scoring Backward ①stop-gradient
+
+TE !,# = sg 𝛻 $!,# ℒ%&' 𝑇 ˜! ⊙ 𝑑 !,# (      
+
+> CNormalize & Gate
+> unit-wise gates
+> 1... 0.65 0.05 0.04
+> Recovered Observed
+> 0.27 0.78 ... 0.92
+> N-adaptive normalization Sigmoid gate 𝑔 +,-𝑠 +,-TE +,-
+> Ungated Transformer
+> 𝐹 )
+> Classifier
+> 𝜋 *
+> zᵢ
+> Ungated logits 𝑇 ˜+
+
+Figure 1: Overview of the GAUGE framework: (1) complete & encode; (2) score & gate, where Taylor evidence scores are computed for all evidence units in a single backward pass; and (3) predict & update via additive attention-bias injection. indexed by the set Ui = {1, . . . , M }\O i. A pre-trained mul-timodal imputer Γ is employed to reconstruct the missing in-puts. Specifically, each missing modality u ∈ U i is recovered as ˜x(u) 
+
+> i
+
+= Γ u(Xi). The formulation also extends to feature-level missingness within a partially observed modality, as detailed in Appendix B.1. Merging the observed and recon-structed inputs yields the completed input ¯Xi = {¯x(m) 
+
+> i
+
+}Mm=1 ,where ¯x(m) 
+
+> i
+
+= x(m) 
+
+> i
+
+if m ∈ O i, and ¯x(m) 
+
+> i
+
+= ˜ x(m) 
+
+> i
+
+otherwise. The final goal is to predict yi given the completed input ¯Xi.
+
+Overview of GAUGE 
+
+To achieve this goal, we propose GAUGE , a principled and scalable framework for granularity-adaptive evidence con-trol. As illustrated in Fig. 1 and summarized in Algorithm 1, GAUGE consists of three phases: 
+
+Phase 1 – Complete & Encode. A frozen imputer Γ recon-structs missing modalities to produce the completed multi-modal input ¯Xi. Modality-specific encoders h(m) then map each completed modality ¯x(m) 
+
+> i
+
+to one or more evidence units, which are concatenated with a learnable [CLS ] token to form the multimodal sequence ˜Ti.
+
+Phase 2 – Score & Gate. Given ˜Ti, GAUGE performs an ungated forward pass to obtain the logits zi and the ungated predicted class ˆyi. With ˆyi fixed, a single backward pass on the saliency objective Lsal ( ˜Ti) = −zi, ˆyi yields a magnitude-based Taylor evidence score TE i,j for each evidence unit along the replacement direction di,j = e′ 
+
+> i,j
+
+− ei,j . GAUGE then applies an N -adaptive score normalization to obtain 
+
+si,j and maps it to a continuous gate gi,j using two shared learnable scalars (τ, ρ ).
+
+Phase 3 – Predict & Update. The resulting gates gi,j are converted into an additive attention-logit bias matrix Bi,applied at every Transformer block without altering the un-derlying backbone architecture. A gated forward pass on the same sequence ˜Ti then produces the final logits zgated  
+
+> i
+
+and the final predicted class ˆyfinal  
+
+> i
+
+. During training, we minimize the cross-entropy loss on the gated prediction, which updates the encoders {h(m)}Mm=1 , the backbone Fθ , the classifier πϕ,and the gate parameters (τ, ρ ); the imputer Γ remains frozen. 
+
+Granularity-Adaptive Evidence Units 
+
+To instantiate the fine-grained evidence control, GAUGE first represents each observed or recovered modality at the finest granularity exposed by its encoder. For modality m, the en-coder h(m) maps the completed modality ¯x(m) 
+
+> i
+
+to Lm ev-idence units, E(m) 
+
+> i
+
+= h(m)(¯ x(m) 
+
+> i
+
+) = [ e(m) 
+
+> i, 1
+
+, . . . , e (m) 
+
+> i,L m
+
+] ∈
+
+RLm×C , where C denotes the shared hidden dimension. When Lm > 1, the units may correspond to image patches, text tokens, or tabular feature embeddings; when Lm = 1 ,the modality is represented by a single global embedding. The evidence units from all modalities are concatenated in a fixed modality order as Ti = [ E(1)  
+
+> i
+
+; . . . ; E(M ) 
+
+> i
+
+] = [ ei, 1, . . . , e i,N ] ∈ RN ×C , where ei,j denotes the j-th unit in the flattened multimodal sequence and N = PMm=1 Lm.Because each Lm is fixed by the encoder configuration, N is constant within each dataset. We prepend a learnable [CLS ]
+
+token to form ˜Ti = [ e[CLS ]; Ti ] ∈ R(N +1) ×C ; modality and positional embeddings are incorporated but omitted from the notation for brevity. Each encoder-emitted representation thus forms a separate evidence unit, allowing units from the same modality to receive different Taylor evidence scores and gates, while the formulation reduces to modality-level Algorithm 1 GAUGE : Minibatch Training 
+
+Require: Minibatch {(Xi, y i)}i∈B ; frozen imputer Γ; trainable parameters Θ = {h(m)}Mm=1 , F θ , π ϕ, τ, ρ .
+
+Ensure: Updated parameters Θ.1: for i ∈ B do 
+
+2: Form the completed input ¯Xi from Xi using frozen Γ.3: Compute E(m) 
+
+> i
+
+← h(m)(¯ x(m) 
+
+> i
+
+) for m = 1 , . . . , M .4: ˜Ti ← [ e[CLS ]; E(1)  
+
+> i
+
+; . . . ; E(M ) 
+
+> i
+
+] in fixed modality order. 5: Compute zi (Eq. 1) and set ˆyi ← arg max k zi,k . { ˆyi fixed} 6: end for 
+
+7: LB 
+
+> sal
+
+← − P 
+
+> i∈B
+
+zi, ˆyi .8: Differentiate LB 
+
+> sal
+
+once to obtain all ∇ei,j Lsal ( ˜Ti) for i ∈ B 
+
+and j = 1 , . . . , N ; do not accumulate gradients for Θ.9: for i ∈ B do 
+
+10: for j = 1 , . . . , N do 
+
+11: e′ 
+
+> i,j
+
+← 0; di,j ← e′ 
+
+> i,j
+
+− ei,j .12: TE i,j ← sg 
+
+
+
+∇ei,j Lsal ( ˜Ti) ⊙ di,j 1
+
+
+
+.13: end for 
+
+14: Compute si,j and gi,j for j = 1 , . . . , N by Eqs. 6 and 7. 15: Set gi, 0 ← 1 and construct Bi (Eq. 9). 16: zgated  
+
+> i
+
+← πϕ
+
+
+
+Fθ ( ˜Ti; Bi)[CLS ]
+
+
+
+.17: pgated  
+
+> i
+
+← softmax( zgated  
+
+> i
+
+).18: end for 
+
+19: Compute LB 
+
+> task
+
+(Eq. 10), backpropagate, and update Θ.
+
+gating whenever Lm = 1 .
+
+Prediction-Aware Counterfactual Formulation 
+
+1) Ungated prediction and saliency objective. To deter-mine each unit’s evidence strength in a prediction-aware manner, GAUGE performs an ungated forward pass on ˜Ti
+
+and uses the resulting predicted class as the fixed target for evidence scoring. The Transformer backbone Fθ processes the input sequence ˜Ti, and the classifier head πϕ maps the resulting [CLS ] representation to class logits, with the corre-sponding class probabilities defined as: 
+
+zi = πϕ
+
+
+
+Fθ ( ˜Ti)[CLS ]
+
+
+
+, pi = softmax( zi), (1) where zi ∈ RK denotes the logit vector over the K classes and zi,k denotes its k-th entry. The ungated predicted class is 
+
+ˆyi = arg max k zi,k . We define the prediction-aware saliency objective as Lsal ( ˜Ti) = −zi, ˆyi , where ˆyi is fixed during evidence-unit replacement and differentiation. We adopt this logit-based objective rather than cross-entropy because the latter may yield weak attribution gradients for confident pre-dictions; a detailed comparison is provided in Appendix A.6. 
+
+2) Representation-level counterfactual replacement. For the j-th evidence unit ei,j in the flattened multimodal sequence Ti, where j ∈ {1, . . . , N }, we construct arepresentation-level counterfactual by replacing ei,j with a reference representation e′ 
+
+> i,j
+
+. Specifically, we set e′ 
+
+> i,j
+
+=
+
+0 ∈ RC . The resulting evidence sequence is denoted by T (j←e′  
+
+> i,j )
+> i
+
+= [ ei, 1, . . . , e ′ 
+
+> i,j
+
+, . . . , e i,N ], and its [CLS ]-prepended counterpart by ˜T (j←e′  
+
+> i,j )
+> i
+
+= [ e[CLS ]; T (j←e′  
+
+> i,j )
+> i
+
+].The [CLS ] token is never replaced. The exact counterfactual effect of unit j is then defined as 
+
+CEff exact  
+
+> i,j
+
+= Lsal 
+
+ ˜T (j←e′ 
+
+> i,j )
+> i
+
+
+
+− L sal ( ˜Ti). (2) However, evaluating Eq. (2) for all N evidence units requires 
+
+N additional forward passes per sample, motivating the pass-efficient Taylor scoring formulation introduced next. 
+
+Efficient Taylor Gating via Attention Bias 
+
+1) First-order counterfactual approximation. To over-come this bottleneck, GAUGE avoids per-unit intervention forward passes by approximating each exact counterfactual effect with a signed first-order Taylor term. For evidence unit 
+
+ei,j , let di,j = e′ 
+
+> i,j
+
+− ei,j denote the replacement direction from ei,j to its reference representation e′ 
+
+> i,j
+
+. A first-order Taylor expansion of Lsal around ei,j along di,j yields 
+
+CEff exact  
+
+> i,j
+
+=
+
+D
+
+∇ei,j Lsal ( ˜Ti), d i,j 
+
+E
+
++ Ri,j , (3) where Ri,j denotes the Taylor remainder. We denote the signed first-order term by ai,j = ⟨∇ ei,j Lsal ( ˜Ti), d i,j ⟩. Thus, Eq. (3) can be written as CEff exact  
+
+> i,j
+
+= ai,j + Ri,j . Assuming that Lsal is twice continuously differentiable along the re-placement segment and that the spectral norm of its Hessian with respect to ei,j is bounded by Hi,j throughout this seg-ment, the Taylor remainder satisfies |Ri,j | ≤ Hi,j  
+
+> 2
+
+∥di,j ∥22.The full derivation is provided in Appendix A. 
+
+2) Taylor evidence scoring. The signed first-order term ai,j 
+
+is the sum of the channel-wise gradient–direction products, so contributions with opposite signs can cancel. To obtain a non-canceling magnitude score, we instead aggregate the absolute channel-wise products using the ℓ1 norm, inspired by gradient-based attribution methods (Sundararajan, Taly, and Yan 2017; Shrikumar, Greenside, and Kundaje 2017; Deng et al. 2021): 
+
+TE i,j = sg 
+
+> C
+
+X
+
+> c=1
+
+∂Lsal ( ˜Ti)
+
+∂e i,j,c 
+
+di,j,c 
+
+!
+
+= sg 
+
+
+
+∇ei,j Lsal ( ˜Ti) ⊙ di,j 1
+
+
+
+.
+
+(4) Here, sg( ·) denotes the stop-gradient operator: it acts as the identity in the forward pass and has zero derivative dur-ing backpropagation. It therefore leaves both TE i,j and the bound below numerically unchanged, while preventing task-loss gradients from propagating through the gradient com-putation used to form the score during training. Applying the triangle inequality to their sum yields |ai,j | ≤ TE i,j . Com-bined with the second-order remainder bound, this leads to the following upper bound on the magnitude of the exact counterfactual effect: 
+
+|CEff exact  
+
+> i,j
+
+| ≤ TE i,j + Hi,j 
+
+2 ∥di,j ∥22. (5) This bound is established in Corollary 1 of Appendix A.5. Accordingly, TE i,j quantifies the aggregate magnitude of the channel-wise first-order contributions induced by replacing unit j along di,j . All N gradients {∇ ei,j Lsal ( ˜Ti)}Nj=1 are ob-tained simultaneously from a single ungated backward pass, enabling GAUGE to compute all evidence-unit scores with-out the N additional intervention forward passes required for exact counterfactual evaluation. 
+
+3) N -adaptive score normalization. Raw Taylor evidence scores can differ substantially in scale across samples because their magnitudes depend jointly on the prediction gradient and the replacement direction, both of which vary across samples. Since the gate uses a threshold and temperature shared across units and samples, this variation can hinder consistent gate calibration across samples. GAUGE therefore normalizes the N Taylor evidence scores of each sample using the following N -adaptive rule before gate construction: 
+
+si,j =
+
+
+
+TE i,j , N ≤ 3,
+
+TE i,j − μi
+
+max( σi, ϵ ) , N > 3, (6) where for N > 3, μi = 1
+
+> N
+
+PNℓ=1 TE i,ℓ , σ2 
+
+> i
+
+= 
+
+> 1
+> N−1
+
+PNℓ=1 (TE i,ℓ − μi)2, and ϵ > 0 is a small constant for numerical stability. For N > 3, this per-sample standard-ization removes the sample-specific offset and scale, making 
+
+si,j a relative score within the sample. For N ≤ 3, statistics based on at most three scores can yield highly constrained standardized values and remove informative absolute magni-tude, so GAUGE retains the raw scores. Because N is fixed by the encoder layout, each model uses the same normaliza-tion branch throughout training and inference. Appendix C.2 evaluates this normalization rule. 
+
+4) Continuous gate construction. Given the evidence score si,j , GAUGE maps it to a continuous gate gi,j ∈ (0 , 1) :
+
+gi,j = sigmoid 
+
+ si,j − τ
+
+exp( ρ)
+
+
+
+. (7) Here, τ ∈ R is a learnable threshold, with gi,j = 0 .5 at 
+
+si,j = τ , and ρ ∈ R parameterizes the positive temperature 
+
+exp( ρ), which controls the transition sharpness. This mono-tonic mapping assigns larger gates to higher-scoring units, enabling graded modulation rather than hard selection. The scalars (τ, ρ ) are shared across all samples and evidence units, adding only two parameters regardless of the modality or unit count. The [CLS ] token, indexed by j = 0 , serves as the aggregation anchor rather than an evidence unit and is therefore kept ungated ( gi, 0 = 1 ). 
+
+5) Key-wise attention-bias injection. GAUGE converts each gate into an additive attention-logit bias at the key posi-tion in each Transformer block, augmenting standard scaled dot-product attention (Vaswani et al. 2017): 
+
+Attn GAUGE (Q, K, V) = softmax 
+
+ QK ⊤
+
+√dh
+
++ Bi
+
+
+
+V,
+
+(8) where dh denotes the key dimension of each attention head, and Bi ∈ R(N +1) ×(N +1) is defined as 
+
+(Bi)q,r = log max {gi,r , ϵ g }, q, r ∈ { 0, . . . , N }, (9) where q and r index the query and key positions, respec-tively, and ϵg ∈ (0 , 1) is a small constant that prevents log 0 
+
+and keeps the bias finite. Index 0 corresponds to the [CLS ]
+
+token, whose gate is fixed to gi, 0 = 1 , yielding zero attention bias. Because (Bi)q,r depends only on the key index r, the same unit-level bias is applied at every query position and shared across attention heads. Since 0 < max {gi,r , ϵ g } ≤ 1,all entries of Bi are non-positive. Adding log max {gi,r , ϵ g }
+
+multiplies the unnormalized attention weight of key r by 
+
+max {gi,r , ϵ g }. Smaller gates therefore more strongly down-weight the corresponding keys, while preserving the se-quence length and backbone architecture. 
+
+Training and Inference 
+
+GAUGE follows the same imputation-and-gating pipeline during training and inference, with the imputer Γ kept frozen. During training, given a minibatch B, we mini-mize the cross-entropy loss on the gated prediction pgated  
+
+> i
+
+=softmax( zgated  
+
+> i
+
+):
+
+LB 
+
+> task
+
+= − 1
+
+|B| 
+
+X
+
+> i∈B
+
+log pgated  
+
+> i
+
+(yi). (10) This objective updates the modality encoders {h(m)}Mm=1 ,Transformer backbone Fθ , classifier πϕ, and gate parameters 
+
+(τ, ρ ). The Taylor evidence scores are detached before nor-malization and gate construction, so task optimization does not backpropagate through the saliency-gradient computa-tion or require second-order differentiation. Each training step comprises one ungated forward–backward scoring pass and one gated forward–backward optimization pass. At in-ference, the same ungated forward–backward scoring pass is followed by one gated forward pass to produce the prediction. 
+
+## Experiments 
+
+Experiment Settings 
+
+Datasets and Evaluation Metrics. We evaluate GAUGE on six multimodal classification benchmarks, including three simulated datasets (Sutter, Daunhawer, and Vogt 2021): PolyMNIST, MST, and bimodal CelebA, and two real-world image–tabular datasets: Deep Visual Marketing (DVM) (Huang et al. 2022) and UK Biobank (UKBB) (Sud-low et al. 2015). For UKBB, we consider two cardiac disease classification benchmarks: coronary artery disease (CAD) and myocardial infarction (Infarction). We report the area under the curve (AUC) on the two UKBB benchmarks and accuracy on the remaining four benchmarks. Dataset details and missingness protocols are provided in Appendix B.1. 
+
+Baselines. We compare GAUGE with nine baselines: four recovery-based methods (MultiAE (Ngiam et al. 2011), MoPoE (Sutter, Daunhawer, and Vogt 2021), M3Care (Zhang et al. 2022), and OnlineMAE (Woo et al. 2023)), four recovery-free methods (ModDrop (Neverova et al. 2016), MTL (Ma et al. 2022), MAP (Lee et al. 2023), and MUSE (Wu et al. 2024)), and the dynamic-recovery base-line DyMo c (Du et al. 2026). Implementation details are provided in Appendix B.3. Model PolyMNIST Acc (%) ↑ MST Acc (%) ↑ CelebA Acc (%) ↑ DVM Acc (%) ↑ CAD AUC (%) ↑ Infarction AUC (%) ↑                                                                                                                                                                                                                                              
+
+> Missing Rate ηMissing Modalities Missing Tabular Rate γ
+> 00.6 0.8 ∅{S,T} {M,T} ∅{I} {T} 00.9 100.9 100.9 1
+> (a) Recovery-based Methods for Missing Modality
+> MultiAE 99.77 95.36 84.39 99.96 97.00 81.60 89.98 15.51 89.71 ---------MultiAE †99.94 97.50 89.86 99.87 98.33 83.44 88.66 72.04 87.44 ---------MoPoE 99.79 93.94 79.84 99.62 90.86 79.01 38.97 13.91 34.84 ---------MoPoE †99.63 96.81 87.06 99.39 96.50 82.54 68.22 56.90 65.75 ---------M3Care 99.93 56.66 40.53 99.99 16.03 9.34 92.33 99.92 51.75 98.44 -11.92 85.62 -64.99 70.61 -70.53 M3Care †99.99 97.27 87.92 99.98 98.27 85.16 98.73 97.14 91.32 98.94 -93.43 72.48 -72.48 83.27 -68.44 OnlineMAE 100.00 98.29 90.09 99.90 98.14 84.14 86.67 86.67 86.67 90.92 -89.90 85.22 -70.96 84.05 -61.39
+> (b) Recovery-free Methods for Missing Modality
+> ModDrop 99.97 97.66 88.44 100.00 98.21 82.47 99.93 99.93 87.32 99.02 89.80 87.97 85.10 70.77 69.18 84.76 72.06 72.16 MTL 99.97 98.43 91.14 99.96 98.60 84.37 99.69 99.26 89.38 99.44 93.38 92.32 84.87 73.08 70.23 83.59 69.82 69.90 MAP 99.86 43.00 23.19 100.00 9.83 10.13 99.98 99.93 85.33 98.86 74.88 63.15 84.39 71.39 70.11 84.62 68.47 69.17 MAP †99.99 96.74 76.20 99.99 97.84 11.36 100.00 99.99 86.06 99.37 92.43 91.15 85.26 70.36 68.76 85.49 71.38 70.81 MUSE 99.93 94.73 77.56 99.86 97.14 35.96 99.93 99.86 88.35 96.86 -1.64 83.47 -53.23 84.40 -66.78
+> (c) Dynamic Recovery Method for Missing Modality
+> DyMo c100.00 99.79 96.74 99.99 97.61 84.11 100.00 100.00 87.26 99.34 93.48 92.87 84.12 71.29 68.31 86.96 73.70 71.36 GAUGE 100.00 99.67 97.61 99.99 97.86 85.26 100.00 100.00 93.16 99.30 94.79 94.42 84.68 74.20 70.41 87.12 74.37 72.86
+
+Table 1: Comparison of incomplete-modality methods across six benchmarks. Bold indicates the best result, and underline the second best; ties are both marked. Except for the reproduced DyMo c, baseline results are from Du et al. (2026) under the same missingness protocol; † denotes their incomplete-simulation variants, and “-” marks unsupported settings (Appendix B.2). 0.0 0.5 1.0        
+
+> gate
+> (a) Unit-level gates
+> img (16) tabular (75)
+> 020 40 60 80
+> evidence units (tokens)
+> 0.00 0.05
+> CLS attn
+> (b) [CLS]-to-unit attention
+> ungated GAUGE
+> observed imputed
+> 0.0 0.5 1.0
+> gate
+> (c) Gate distributions
+> 0.69 0.43
+
+Figure 2: Unit-level gating and attention redistribution on the Infarction dataset at missing rate γ = 1 .
+
+Main Results & Analysis 
+
+Quantitative Analysis. GAUGE achieves the best or tied-best performance in 9 of 12 incomplete-input settings reported in Table 1. Compared with recovery-free and 
+
+recovery-based baselines, GAUGE’s stronger performance reflects the discarding–imputation dilemma (Du et al. 2026): discarding missing modalities may forfeit recoverable task-relevant cues, whereas indiscriminately incorporating im-puted content may introduce task-irrelevant noise from un-reliable reconstructions. GAUGE mitigates this trade-off through finer-grained evidence modulation. We further com-pare GAUGE with DyMo c, which uses the same backbone and frozen imputation pipeline but operates at the coarse modality level. GAUGE outperforms DyMo c in 10 of 12 incomplete-input settings, with larger gains under severe missingness. Specifically, it improves accuracy by 5.90 per-centage points on CelebA {T}, with the text modality entirely missing, and yields consistent gains on CAD and Infarction. These gains under severe missingness indicate that, as pre-dictions rely more heavily on reconstructed inputs, unit-wise gating is more effective than modality-level weighting be-cause it down-weights lower-scoring components without uniformly attenuating the recovered modality. 
+
+Qualitative Analysis. Fig. 2 visualizes the unit-level gates and final-layer [CLS ]-to-unit attention for an Infarction sam-ple at γ = 1 (16 observed image units and 75 imputed tabular units). As shown in Fig. 2(a), observed image units generally receive higher gates, whereas the 75 imputed tab-ular units receive lower but nonuniform gates. This within-modality variation demonstrates that GAUGE differentiates encoder-emitted units via their prediction-aware Taylor evi-dence scores, avoiding the rigidity of modality-level assign-ment. Fig. 2(b) illustrates the resulting attention redistribu-tion. Because the gates are injected as key-wise log-biases, lower gates introduce more negative biases, down-weighting lower-scoring units relative to higher-scoring ones. Across the test set, the mean gate is 0.69 for observed units and 
+
+0.43 for imputed units (Fig. 2(c)), showing that GAUGE assigns lower gates on average to reconstructed evidence while retaining substantial variation among units within the recovered modality. Crucially, this nonuniform gating highlights a limitation of modality-level control: a shared modality weight cannot down-weight low-scoring recovered components without simultaneously down-weighting higher-scoring ones from the same modality. 
+
+Method PolyMNIST DVM CAD Infarction 
+
+η=0 .8 γ=1 γ=1 γ=1 
+
+GAUGE v1 87.21 91.24 68.22 71.34 GAUGE v2 97.35 94.18 69.13 68.32 GAUGE v3 97.23 94.27 68.95 69.52 GAUGE 97.61 94.42 70.41 72.86 
+
+Table 2: Ablation of fine-grained evidence control under se-vere missingness. 
+
+Ablation Study 
+
+To evaluate the necessity of fine-grained evidence control, we compare GAUGE with three alternatives shown in Table 2. GAUGE v1 performs inference directly on the completed in-puts without fine-tuning or evidence gating. GAUGE v2 uses the same missingness-aware fine-tuning as full GAUGE but fixes all gates to one, yielding zero attention bias; GAUGE v3
+
+shares one gate across all evidence units within each modal-ity; and GAUGE assigns a separate gate to each evidence unit. GAUGE consistently achieves the best performance across all four benchmarks with multi-unit modalities. The advantage over modality-level gating (GAUGE v3) is partic-ularly pronounced on clinical benchmarks with many evi-dence units in the recovered tabular modality, reaching 3.34 
+
+AUC points on Infarction. Notably, modality-level gating can underperform GAUGE v1, as a shared modality gate cannot suppress low-scoring units without simultaneously down-weighting high-scoring ones from the same modality; unit-level gating mitigates this limitation by assigning a separate gate to each evidence unit. Further ablations on evidence-unit scoring, score normalization, and evidence-unit granularity are provided in Appendix C. 
+
+Additional Analysis 
+
+Efficiency Analysis. We compare GAUGE with exact counterfactual scoring across four configurations with differ-ent evidence-unit counts N . Table 3 shows that exact scoring time increases markedly with N , whereas GAUGE remains within 3.11 –3.60 ms. At N =91 , GAUGE reduces the per-sample scoring time from 96 .43 ms to 3.11 ms, yielding a 
+
+31 .01 × speedup. These results show that GAUGE avoids per-unit intervention overhead and supports scalable fine-grained evidence scoring. Detailed timing protocol is in Appendix D. 
+
+Performance under Increasing Missingness. To evalu-ate robustness across missing rates, we compare GAUGE and DyMo c on CAD and Infarction. As shown in Fig. 3, GAUGE outperforms DyMo c in most scenarios, demonstrat-ing consistent adaptability from mild to complete tabular absence. Crucially, GAUGE’s advantage becomes increas-ingly pronounced as missingness rises. When missingness is Dataset N GAUGE (ms) Exact (ms) Speedup MST 3 3.15 4.51 1.43 ×
+
+PolyMNIST 20 3.60 26.30 7.31 ×
+
+DVM 33 3.18 39.06 12.28 ×
+
+CAD 91 3.11 96.43 31.01 ×
+
+Table 3: Per-sample scoring time for GAUGE and exact coun-terfactual scoring on a Quadro RTX 8000 with batch size 1.0.1 0.3 0.5 0.7 0.9 1.0   
+
+> Missing rate
+> 70 75 80 85
+> Test AUC (%)
+> GAUGE on Infarction DyMo con Infarction GAUGE on CAD DyMo con CAD
+
+Figure 3: Test AUC (%) on CAD and Infarction under varying tabular missing rates γ.mild ( γ ≤ 0.5) and observed features dominate, both meth-ods perform comparably. However, once imputation becomes dominant ( γ ≥ 0.7), GAUGE generally exhibits a larger ad-vantage over DyMo c. At extreme missingness ( γ = 1 .0), GAUGE surpasses DyMo c by 2.10 and 1.50 percentage points in AUC on CAD and Infarction, respectively. This further demonstrates that fine-grained evidence control be-comes increasingly important when models rely heavily on reconstructed content. 
+
+## Conclusion and Limitations 
+
+In this paper, we introduced GAUGE, a principled and scalable framework for granularity-adaptive evidence con-trol in incomplete multimodal classification. By formulat-ing a unit-wise counterfactual gating mechanism driven by pass-efficient Taylor evidence scoring, GAUGE effectively transitions multimodal evidence modulation from coarse modality-level aggregation to the finest granularity exposed by Transformer encoders. Extensive experiments across di-verse benchmarks demonstrate that GAUGE consistently out-performs state-of-the-art baselines, exhibiting exceptional robustness under severe modality incompleteness. However, GAUGE currently relies on the pre-trained backbones and frozen imputers inherited from existing baselines. Future work will explore extending this pass-efficient counterfac-tual gating paradigm to broader multimodal reasoning and generation architectures. Acknowledgments 
+
+The work was supported by the Australian Research Council (ARC) under Laureate project FL190100149. This research has been conducted using the UK Biobank Resource under Project Number 105141. 
+
+## References 
+
+Ancona, M.; Ceolini, E.; Öztireli, C.; and Gross, M. 2018. Towards better understanding of gradient-based attribution methods for Deep Neural Networks. In International Con-ference on Learning Representations .Cao, B.; Xia, Y.; Ding, Y.; Zhang, C.; and Hu, Q. 2024. Predictive Dynamic Fusion. In International Conference on Machine Learning , 5608–5628. PMLR. Chen, J.; Liu, J.; Liu, S.; Zhang, W.; Li, A.; Zhu, E.; and Liu, X. 2026. Sample-specific modality diagnosis and cross-modal enhancement for incomplete multimodal representa-tions. In Proceedings of the AAAI Conference on Artificial Intelligence , volume 40, 20154–20162. Dai, R.; Li, C.; Yan, Y.; Mo, L.; Qin, K.; and He, T. 2025. Un-biased Missing-modality Multimodal Learning. In Proceed-ings of the IEEE/CVF International Conference on Computer Vision (ICCV) , 24507–24517. Deng, H.; Zou, N.; Du, M.; Chen, W.; Feng, G.; and Hu, X. 2021. A unified Taylor framework for revisiting attribu-tion methods. In Proceedings of the AAAI Conference on Artificial Intelligence , volume 35, 11462–11469. Du, S.; Luo, X.; O’Regan, D. P.; and Qin, C. 2026. Inference-Time Dynamic Modality Selection for Incomplete Multi-modal Classification. In International Conference on Learn-ing Representations (ICLR) .Du, S.; Zheng, S.; Wang, Y.; Bai, W.; O’Regan, D. P.; and Qin, C. 2024. TIP: Tabular-image pre-training for multimodal classification with incomplete data. In European Conference on Computer Vision , 478–496. Springer. Fan, K.; Yang, Y.; and Ma, C. 2026. Enhancing interpretabil-ity for vision models via Shapley value optimization. In Pro-ceedings of the AAAI Conference on Artificial Intelligence ,volume 40, 3786–3794. Fong, R. C.; and Vedaldi, A. 2017. Interpretable explanations of black boxes by meaningful perturbation. In Proceedings of the IEEE international conference on computer vision ,3429–3437. Huang, H.; Gong, T.; He, K.; Wen, W.; Zhang, W.; and Feng, M. 2026. Recovering coherent affective patterns: Addressing modality missing in multimodal sentiment analysis. In Pro-ceedings of the AAAI Conference on Artificial Intelligence ,volume 40, 21957–21965. Huang, J.; Chen, B.; Luo, L.; Yue, S.; and Ounis, I. 2022. DVM-CAR: A large-scale automotive dataset for visual mar-keting research and applications. In 2022 IEEE International Conference on Big Data (Big Data) , 4140–4147. IEEE. Lang, J.; Cheng, Z.; Zhong, T.; and Zhou, F. 2025. Retrieval-augmented dynamic prompt tuning for incomplete multi-modal learning. In Proceedings of the AAAI Conference on Artificial Intelligence , volume 39, 18035–18043. Lee, Y.-L.; Tsai, Y.-H.; Chiu, W.-C.; and Lee, C.-Y. 2023. Multimodal prompting with missing modalities for visual recognition. In Proceedings of the IEEE/CVF Conference on Computer Vision and Pattern Recognition , 14943–14952. Li, X.; Wang, R.; Gao, E.; Gong, M.; and Yao, L. 2025. Causality-aligned Prompt Learning via Diffusion-based Counterfactual Generation. In Proceedings of the 33rd ACM International Conference on Multimedia , 5208–5217. Liang, P. P.; Zadeh, A.; and Morency, L.-P. 2024. Founda-tions & trends in multimodal machine learning: Principles, challenges, and open questions. ACM computing surveys ,56(10): 1–42. Liu, C.; Huang, Z.; Chen, Z.; Tang, F.; Tian, Y.; Xu, Z.; Luo, Z.; Zheng, Y.; and Meng, Y. 2025. Incomplete modality disentangled representation for ophthalmic disease grading and diagnosis. In Proceedings of the AAAI Conference on Artificial Intelligence , volume 39, 5361–5369. Ma, M.; Ren, J.; Zhao, L.; Testuggine, D.; and Peng, X. 2022. Are multimodal transformers robust to missing modality? In 
+
+Proceedings of the IEEE/CVF conference on computer vision and pattern recognition , 18177–18186. Ma, M.; Ren, J.; Zhao, L.; Tulyakov, S.; Wu, C.; and Peng, X. 2021. SMIL: Multimodal learning with severely missing modality. In Proceedings of the AAAI conference on artificial intelligence , volume 35, 2302–2310. Neverova, N.; Wolf, C.; Taylor, G.; and Nebout, F. 2016. ModDrop: adaptive multi-modal gesture recognition. IEEE Transactions on Pattern Analysis and Machine Intelligence ,38(8): 1692–1706. Ngiam, J.; Khosla, A.; Kim, M.; Nam, J.; Lee, H.; and Ng, A. Y. 2011. Multimodal Deep Learning. In Proceedings of the 28th International Conference on Machine Learning ,689–696. Park, K.; Kim, Y.; Kim, D.; and Choi, J. W. 2025. Resilient sensor fusion under adverse sensor failures via multi-modal expert fusion. In Proceedings of the IEEE/CVF Conference on Computer Vision and Pattern Recognition , 6720–6729. Shrikumar, A.; Greenside, P.; and Kundaje, A. 2017. Learn-ing important features through propagating activation dif-ferences. In International conference on machine learning ,3145–3153. PMLR. Sudlow, C.; Gallacher, J.; Allen, N.; Beral, V.; Burton, P.; Danesh, J.; Downey, P.; Elliott, P.; Green, J.; Landray, M.; et al. 2015. UK Biobank: An Open Access Resource for Identifying the Causes of a Wide Range of Complex Diseases of Middle and Old Age. PLOS Medicine , 12(3): e1001779. Sun, J.; Zhang, X.; Han, S.; Ruan, Y.-P.; and Li, T. 2024. RedCore: Relative advantage aware cross-modal representa-tion learning for missing modalities with imbalanced missing rates. In Proceedings of the AAAI Conference on Artificial Intelligence , volume 38, 15173–15182. Sundararajan, M.; Taly, A.; and Yan, Q. 2017. Axiomatic attribution for deep networks. In International conference on machine learning , 3319–3328. PMLR. Sutter, T. M.; Daunhawer, I.; and Vogt, J. E. 2021. Gener-alized Multimodal ELBO. In International Conference on Learning Representations .Vaswani, A.; Shazeer, N.; Parmar, N.; Uszkoreit, J.; Jones, L.; Gomez, A. N.; Kaiser, Ł.; and Polosukhin, I. 2017. Attention is all you need. Advances in neural information processing systems , 30. Wang, H.; Luo, S.; Hu, G.; and Zhang, J. 2024. Gradient-guided modality decoupling for missing-modality robust-ness. In Proceedings of the AAAI Conference on Artificial Intelligence , volume 38, 15483–15491. Wang, L.; Zhu, L.; Yu, E.; Sun, J.; and Zhang, H. 2018. Task-dependent and query-dependent subspace learning for cross-modal retrieval. IEEE Access , 6: 27091–27102. Wang, Y.; Li, Y.; and Cui, Z. 2023. Incomplete multimodality-diffused emotion recognition. Advances in Neural Information Processing Systems , 36: 17117–17128. Woo, S.; Lee, S.; Park, Y.; Nugroho, M. A.; and Kim, C. 2023. Towards good practices for missing modality robust action recognition. In Proceedings of the AAAI Conference on Artificial Intelligence , volume 37, 2776–2784. Wu, Z.; Dadu, A.; Tustison, N.; Avants, B.; Nalls, M.; Sun, J.; and Faghri, F. 2024. Multimodal patient representation learning with missing modalities and labels. In International Conference on Learning Representations .Xu, P.; Zhu, X.; and Clifton, D. A. 2023. Multimodal learning with transformers: A survey. IEEE Transactions on Pattern Analysis and Machine Intelligence , 45(10): 12113–12132. Xue, Z.; and Marculescu, R. 2023. Dynamic Multimodal Fusion. In 2023 IEEE/CVF Conference on Computer Vision and Pattern Recognition Workshops (CVPRW) , 2575–2584. IEEE. Yang, X.; Lu, J.; and Yu, E. 2025. Adapting Multi-modal Large Language Model to Concept Drift From Pre-training Onwards. In The Thirteenth International Conference on Learning Representations .Yao, W.; Yin, K.; Cheung, W. K.; Liu, J.; and Qin, J. 2024. DrFuse: Learning disentangled representation for clinical multi-modal fusion with missing modality and modal incon-sistency. In Proceedings of the AAAI conference on artificial intelligence , volume 38, 16416–16424. Yu, E.; Lu, J.; and Zhang, G. 2026. Generalized incremental learning under concept drift across evolving data streams. In 
+
+Proceedings of the ACM Web Conference 2026 , 3905–3916. Zhang, C.; Chu, X.; Ma, L.; Zhu, Y.; Wang, Y.; Wang, J.; and Zhao, J. 2022. M3Care: Learning with missing modalities in multimodal healthcare data. In Proceedings of the 28th ACM SIGKDD conference on knowledge discovery and data mining , 2418–2428. Zhang, Q.; Wu, H.; Zhang, C.; Hu, Q.; Fu, H.; Zhou, J. T.; and Peng, X. 2023. Provable dynamic fusion for low-quality multimodal data. In International conference on machine learning , 41753–41769. PMLR. Zhang, T.; Yu, E.; Shao, Y.; and Sun, J. 2025a. Multimodal inverse attention network with intrinsic discriminant feature exploitation for fake news detection. In Proceedings of the Thirty-Fourth International Joint Conference on Artificial Intelligence , 7940–7948. Zhang, Z.; Dai, L.; Lin, Q.; Diao, Y.; Jin, G.; Guo, Y.; Zhang, J.; and Hao, X. 2025b. Synergistic prompting for robust vi-sual recognition with missing modalities. In Proceedings of the IEEE/CVF International Conference on Computer Vi-sion , 1881–1890. Zhao, Y.; Chen, C.; Pang, Q. Y.; Fu, Y.; Li, Q.; Tang, C.; Ang, B. T.; and Jin, Y. 2026. Tackling dual-stage missing modalities in brain tumor segmentation via robust modal-ity reconstruction and prompt-guided modality adaptation. In Proceedings of the AAAI Conference on Artificial Intelli-gence , volume 40, 13314–13322. Zhu, A.; Hu, M.; Xing, Y.; and Tang, Y. 2026. Decoupled Sub-Feature Uncertainty Modeling for Robust Multimodal Representation Learning. In Proceedings of the IEEE/CVF Conference on Computer Vision and Pattern Recognition (CVPR) Findings , 6921–6931. A Theoretical Analysis 
+
+This appendix analyzes the Taylor evidence score used in GAUGE. It first defines the exact unit-level counterfactual effect and derives a first-order approximation with a remain-der bound. It then examines the non-canceling aggregation and explains the choice of a logit-based saliency objective. 
+
+A.1 Intervention Setup and Notation 
+
+We first establish the intervention notation used to define the exact counterfactual effect, its signed first-order approxima-tion, and the resulting Taylor evidence score. For sample i,replacing evidence unit ei,j in ˜Ti = [ e[CLS ]; ei, 1, . . . , e i,N ]
+
+with a reference representation e′ 
+
+> i,j
+
+yields ˜T (j←e′  
+
+> i,j )
+> i
+
+, with re-placement direction di,j = e′ 
+
+> i,j
+
+− ei,j . Throughout this work, we use the zero reference e′ 
+
+> i,j
+
+= 0, while the [CLS ] token is never replaced. 
+
+A.2 Exact Unit-Level Counterfactual Effect 
+
+The saliency objective is Lsal ( ˜Ti) = −zi, ˆyi , the negative logit of the ungated predicted class. Here ˆyi is determined once from the unreplaced sequence ˜Ti and is held constant under both evidence-unit replacement and differentiation: we do not differentiate through the arg max , and if the predicted class changes after replacement, Lsal (·) still denotes the neg-ative logit of the original ungated predicted class ˆyi. With ˆyi
+
+fixed, the exact counterfactual effect of unit j is defined as: 
+
+CEff exact  
+
+> i,j
+
+= Lsal 
+
+  ˜T (j←e′ 
+
+> i,j )
+> i
+
+ − L sal ( ˜Ti),
+
+and its magnitude |CEff exact  
+
+> i,j
+
+| measures the response change induced by replacing unit j with its reference representation. Computing this for all units requires one counterfactual for-ward pass per unit, i.e., N additional forward passes after the ungated forward pass. GAUGE instead constructs first-order local surrogates for all N effects using a single ungated forward–backward scoring pass. 
+
+A.3 First-Order Counterfactual Approximation 
+
+Because evaluating the exact effect separately for every ev-idence unit is computationally expensive, we derive a local first-order surrogate whose unit-wise values can be obtained from a single backward pass. Fixing all evidence units except 
+
+ei,j , regard the saliency objective as a function of this unit alone: 
+
+ψi,j (v) = Lsal 
+
+  ˜T (j←v)
+
+> i
+
+. (11) With ˆyi fixed, ψi,j is a scalar function of v, with 
+
+ψi,j (ei,j ) = Lsal ( ˜Ti) and ψi,j (e′ 
+
+> i,j
+
+) = Lsal ( ˜T (j←e′  
+
+> i,j )
+> i
+
+), so that CEff exact  
+
+> i,j
+
+= ψi,j (e′ 
+
+> i,j
+
+) − ψi,j (ei,j ). A first-order Taylor expansion of ψi,j at ei,j gives 
+
+CEff exact  
+
+> i,j
+
+≈ ai,j := ∇ei,j Lsal ( ˜Ti), d i,j , (12) which is the first-order term of Eq. (3) in the main text; we call ai,j the signed first-order term . This formulation makes all unit-wise first-order terms available from a single backward pass. The following analysis first characterizes its approximation error and then addresses the cancellation that can arise when channel-wise contributions are summed. 
+
+A.4 Taylor Remainder and Approximation Error 
+
+We now characterize the approximation error of the signed first-order term relative to the exact counterfactual effect under a local smoothness condition. 
+
+Theorem 1 (First-order Counterfactual Approximation) . Let 
+
+Ωi,j = { ei,j + α d i,j : α ∈ [0 , 1] }
+
+be the line segment between ei,j and e′ 
+
+> i,j
+
+. Assume that ψi,j is twice continuously differentiable on a neighborhood of Ωi,j 
+
+and that the unit-wise Hessian is uniformly bounded on this segment: 
+
+sup 
+
+> v∈Ωi,j
+
+∇2ψi,j (v) op ≤ Hi,j .
+
+Then the remainder Ri,j := CEff exact  
+
+> i,j
+
+− ai,j satisfies 
+
+CEff exact  
+
+> i,j
+
+= ai,j + Ri,j , |Ri,j | ≤ Hi,j 
+
+2 ∥di,j ∥22, (13) 
+
+recovering Eq. (3) of the main text with an explicit remainder bound. Consequently, 
+
+CEff exact  
+
+> i,j
+
+− | ai,j | ≤ Hi,j 
+
+2 ∥di,j ∥22, (14) 
+
+i.e., |ai,j | approximates the magnitude of the exact counter-factual effect up to a second-order error. 
+
+Remark 1 (ReLU and smoothness) . Networks with ReLU are not twice differentiable at activation boundaries. The stated remainder bound therefore applies when the replacement segment remains within a single differentiable activation re-gion. If the segment crosses activation boundaries, the C2
+
+assumption of Theorem 1 need not hold. For smooth activa-tions such as GELU or SiLU, a locally bounded Hessian can instead be assumed on the finite replacement segment. The theorem requires only this local bound, not a global Hessian bound. Proof. Let ψi,j be defined as in Eq. (11). By Taylor’s theorem with Lagrange remainder, there exists a point ξi,j ∈ Ωi,j such that 
+
+ψi,j (e′ 
+
+> i,j
+
+) = ψi,j (ei,j ) + ∇ψi,j (ei,j ), d i,j 
+
++ 12 d⊤ 
+
+> i,j
+
+∇2ψi,j (ξi,j ) di,j . (15) Since ∇ψi,j (ei,j ) = ∇ei,j Lsal ( ˜Ti) and CEff exact  
+
+> i,j
+
+=
+
+ψi,j (e′ 
+
+> i,j
+
+) − ψi,j (ei,j ), subtracting ψi,j (ei,j ) from both sides identifies the remainder as 
+
+Ri,j = CEff exact  
+
+> i,j
+
+− ai,j = 12 d⊤ 
+
+> i,j
+
+∇2ψi,j (ξi,j ) di,j . (16) The Hessian bound implies 
+
+|Ri,j | ≤ 12 ∇2ψi,j (ξi,j ) op ∥di,j ∥22 ≤ Hi,j 
+
+2 ∥di,j ∥22. (17) Finally, since |CEff exact  
+
+> i,j
+
+| = |ai,j +Ri,j |, the reverse triangle inequality |ai,j + Ri,j | − | ai,j | ≤ | Ri,j | proves Eq. (14). The theorem therefore identifies the regime in which the signed first-order term is a faithful local surrogate: its ap-proximation error is controlled by the local curvature and grows quadratically with the replacement distance. A.5 Non-Canceling Taylor Evidence Scoring 
+
+The magnitude of the signed first-order term can be reduced by cancellation among channel-wise contributions with op-posite signs. We therefore motivate GAUGE’s non-canceling aggregation and establish its relation to the exact counter-factual effect. The signed first-order term can be written channel-wise as 
+
+ai,j =
+
+> C
+
+X
+
+> c=1
+
+∂Lsal ( ˜Ti)
+
+∂e i,j,c 
+
+di,j,c .
+
+GAUGE instead sums the absolute channel-wise contribu-tions. This avoids sign cancellation, although the resulting score may exceed the magnitude of the signed first-order term, |ai,j |. Specifically, 
+
+TE i,j = sg 
+
+> C
+
+X
+
+> c=1
+
+∂Lsal ( ˜Ti)
+
+∂e i,j,c 
+
+di,j,c 
+
+!
+
+= sg 
+
+
+
+∇ei,j Lsal ( ˜Ti) ⊙ di,j 1
+
+
+
+.
+
+(18) The stop-gradient operator does not change the numerical value of TE i,j and therefore does not affect the inequali-ties below; it only prevents the task loss from differentiating through the gradient-based score. 
+
+Corollary 1. Because sg( ·) does not alter the forward value, the triangle inequality yields 
+
+|ai,j | ≤ TE i,j .
+
+Thus, TE i,j upper-bounds the magnitude of the signed first-order term and serves as a non-canceling channel-wise mag-nitude surrogate. Combining this with Theorem 1 gives 
+
+CEff exact  
+
+> i,j
+
+≤ TE i,j + Hi,j 
+
+2 ∥di,j ∥22, (19) which is Eq. (5) of the main text. The Hessian term appears only in the theoretical error bound; GAUGE neither estimates Hi,j nor uses it during training. 
+
+A.6 Choice of Saliency Objective 
+
+The quality of the resulting evidence score also depends on the saliency objective. We therefore compare the predicted-class logit with negative log-likelihood and show why the former avoids softmax-induced gradient saturation. One al-ternative is to use predicted-class cross-entropy, equivalently the negative log-likelihood (NLL), as the saliency target: 
+
+LNLL ( ˜Ti) = − log pi(ˆ yi). (20) Its gradient with respect to the logits is 
+
+∇zi LNLL = pi − 1ˆyi . (21) Here, 1ˆyi is the one-hot vector of the ungated predicted class. By the chain rule, the evidence-unit gradient is 
+
+∇ei,j LNLL =
+
+ ∂z i
+
+∂e i,j 
+
+⊤
+
+(pi − 1ˆyi ) . (22) For a confident model, pi ≈ 1ˆyi . When the logits–evidence-unit Jacobian is bounded, the factor pi − 1ˆyi can make the evidence-unit gradient very small. NLL-based saliency may therefore underestimate the con-tribution of informative evidence units due to softmax satu-ration. In contrast, the gradient of Lsal = −zi, ˆyi with respect to the logits is the constant −1ˆyi , bypassing the softmax and avoiding saturation. This is consistent with attribution methods that operate at the pre-softmax level (Shrikumar, Greenside, and Kundaje 2017; Sundararajan, Taly, and Yan 2017). Accordingly, GAUGE combines a signed Taylor term for pass-efficient local approximation, ℓ1 aggregation to pre-vent channel-wise cancellation, and the predicted-class logit to avoid softmax saturation. 
+
+## B Experimental Configuration 
+
+B.1 Datasets and Input Configurations 
+
+Datasets. Table 4 summarizes the six multimodal classifi-cation benchmarks derived from five datasets. PolyMNIST, MST (MNIST–SVHN–Text), and bimodal CelebA (Sutter, Daunhawer, and Vogt 2021) are three simulated multimodal benchmarks. PolyMNIST contains five image views of the same digit. MST consists of three heterogeneous modali-ties: MNIST (M), SVHN (S), and synthetic text (T). CelebA pairs face images (I) with attribute-based text descriptions (T). We further evaluate GAUGE on DVM and two car-diac classification benchmarks derived from UK Biobank. DVM (Huang et al. 2022) combines vehicle images with 17 
+
+tabular features, including 4 categorical and 13 continuous features. The coronary artery disease (CAD) and myocar-dial infarction (Infarction) benchmarks (Sudlow et al. 2015) each combine cardiac MR images with 75 disease-related tabular features, including 26 categorical and 49 continuous features. Because both diseases have low prevalence, class-balanced subsets are used for training. The dataset splits follow DyMo (Du et al. 2026). 
+
+Missingness Protocols. Following DyMo (Du et al. 2026), we use the same mask-generation procedure and benchmark-specific missingness protocols. For PolyMNIST, each sample randomly misses η × 100% of its five image modalities, and Table 1 reports η ∈ { 0, 0.6, 0.8}. For MST, we report the complete-input setting ( ∅) and the missing-modality subsets 
+
+{S, T} and {M, T}. For CelebA, we report ∅, {I}, and {T}.For both benchmarks, each set denotes the modalities re-moved from the input. For DVM, CAD, and Infarction, the imaging modality remains observed, while each sample ran-domly misses γ×100% of its tabular features. Table 1 reports 
+
+γ ∈ { 0, 0.9, 1} for all three benchmarks. For CAD and In-farction, Fig. 3 additionally includes γ ∈ { 0.1, 0.3, 0.5, 0.7}.Here, η = 0 or γ = 0 corresponds to complete input, and 
+
+γ = 1 indicates that the entire tabular modality is missing. To connect the feature-level protocol above with the formu-lation in the main text, let t denote the tabular modality. For 0 < γ < 1, t remains partially observed and therefore belongs to Oi. Its missing entries are reconstructed by the frozen TIP imputer used in the DyMo pipeline: 
+
+˜x(t) 
+
+> i
+
+= Γ t
+
+ {x(m) 
+
+> i
+
+}m∈O i\{ t}, x (t)
+
+> i, obs
+
+,Dataset/Task Modalities Train Validation Test Classes PolyMNIST Five image views 60,000 3,000 7,000 10 MST MNIST, SVHN, text 1,121,360 60,000 140,000 10 CelebA Image, text 162,770 19,962 19,867 2DVM Image, tabular 70,565 17,642 88,207 283 CAD MR image, tabular 3,482 6,510 3,617 2Infarction MR image, tabular 1,552 6,510 3,617 2
+
+Table 4: Dataset statistics for the six benchmarks, using the splits of Du et al. (2026). CAD and Infarction are constructed from UK Biobank. where x(t) 
+
+> i, obs
+
+denotes the observed tabular entries. The com-pleted modality ¯x(t) 
+
+> i
+
+retains the observed entries and fills the missing positions with the corresponding imputed values. When γ = 1 , the tabular modality belongs to Ui, reducing to whole-modality imputation. In all cases, GAUGE oper-ates only on the completed input ¯Xi produced by the frozen DyMo/TIP pipeline. 
+
+B.2 Baselines 
+
+We compare GAUGE with nine baselines and summarize their sources and configurations. The recovery-based base-lines are MultiAE (Ngiam et al. 2011), MoPoE (Sutter, Daun-hawer, and Vogt 2021), M3Care (Zhang et al. 2022), and OnlineMAE (Woo et al. 2023); the recovery-free baselines are ModDrop (Neverova et al. 2016), MTL (Ma et al. 2022), MAP (Lee et al. 2023), and MUSE (Wu et al. 2024). We also include the dynamic-recovery baseline DyMo (Du et al. 2026) with the cosine-distance reward, denoted as DyMo c.GAUGE and our reproduced DyMo c share the same back-bone and frozen imputation pipeline, making DyMo c the closest architecture-controlled baseline. Except for our repro-duced DyMo c, the results in Table 1 are taken from Tables 1, S3, and S4 of Du et al. (2026) under the same missing-ness protocols; † marks their incomplete-simulation variants (MultiAE, MoPoE, M3Care, and MAP). Methods are re-ported only for the settings they support; unsupported entries are marked “-”. Per-baseline configurations (e.g., the drop probability p=0 .5 of ModDrop and MUSE, MAP prompt lengths, and the encoder initialization of OnlineMAE) are likewise unchanged from that work. Table 1 focuses on methods explicitly designed or adapted for incomplete mul-timodal learning. Dynamic fusion methods such as QMF, DynMM, and PDF, which were evaluated by Du et al. (2026) on observed-plus-recovered inputs, are not repeated in this table. 
+
+B.3 Implementation Details 
+
+Model Initialization. We adopt the dataset-specific back-bones and frozen imputers from DyMo (Du et al. 2026). A MoPoE multimodal VAE is used to reconstruct missing modalities on PolyMNIST, MST, and CelebA, while the TIP imputer (Du et al. 2024) reconstructs missing tabular fea-tures on DVM, CAD, and Infarction. The modality-specific encoders, multimodal Transformer, and classifier are initial-ized from our reproduced DyMo c checkpoints using the ar-chitectures and hyperparameters reported in Table S2 of Du et al. (2026). During fine-tuning, the encoders, Transformer, classifier, and gate parameters (τ, ρ ) are updated, whereas all imputer parameters remain frozen. We use the same dataset preprocessing as DyMo. 
+
+Evidence-Unit Layouts. The evidence-unit layout is fixed by the inherited dataset-specific encoders. Each PolyMNIST view emits 4 units, giving N =20 across its five views. Each modality in MST and CelebA emits one global embedding, giving N =3 and N =2 , respectively. DVM emits 16 image units and 17 tabular units ( N =33 ), while CAD and Infarc-tion each emit 16 image units and 75 tabular units ( N =91 ). These layouts determine the branch used by the N -adaptive normalization rule (Appendix C.2). Because each modality in MST and CelebA emits a single embedding, GAUGE re-duces to modality-level gating on these two benchmarks.                             
+
+> Dataset LR Batch Epochs Metric PolyMNIST 10 −3256 100 Acc. MST 10 −4256 20 Acc. CelebA 10 −3256 20 Acc. DVM 10 −4256 300 Acc. CAD 10 −3128 300 AUC Infarction 3×10 −4128 300 AUC
+
+Table 5: Dataset-specific fine-tuning settings for GAUGE. 
+
+Optimization and Gate Settings. We fine-tune GAUGE using Adam with zero weight decay and the dataset-specific learning rates, batch sizes, and maximum numbers of epochs listed in Table 5. A new missingness mask is sampled for each minibatch following the protocol in Appendix B.1. We use the zero reference e′ 
+
+> i,j
+
+= 0. The gate threshold τ is initialized to 0 for PolyMNIST, DVM, CAD, and Infarction, which use z-score normalization, and to 0.5 for MST and CelebA, which use raw scores. For all benchmarks, ρ is initialized to 
+
+0, such that exp( ρ) = 1 , and we set ϵ = 10 −6 and ϵg = 10 −9.We select the checkpoint with the best validation accuracy on PolyMNIST, MST, CelebA, and DVM or the best validation AUC on CAD and Infarction. 
+
+## C Supplementary Experiments 
+
+C.1 Ablation on Evidence-Unit Scoring 
+
+To examine whether GAUGE benefits specifically from its reference-based Taylor evidence score, we compare it with four alternative scoring functions: random score, feature Score Function PolyMNIST MST CelebA DVM CAD Infarction Avg. 
+
+η=0 .8 {M, T} {T} γ=1 γ=1 γ=1 
+
+Random score 97.14 85.01 92.56 94.22 66.74 70.37 84.34 Feature norm 97.16 84.89 92.71 94.18 68.81 69.26 84.50 Gradient norm 96.93 84.97 92.84 94.14 68.64 70.77 84.72 Attention score 96.87 85.03 92.76 94.29 67.92 69.33 84.37 Taylor evidence score 97.61 85.26 93.16 94.42 70.41 72.86 85.62 
+
+Table 6: Ablation of evidence-unit scoring under the most severe missingness setting for each benchmark. Accuracy (%) is reported for PolyMNIST, MST, CelebA, and DVM, while AUC (%) is reported for CAD and Infarction. All variants use the same score-to-gate pipeline and differ only in the raw scoring function. Bold marks the best result. norm, gradient norm, and attention score. For a controlled comparison, all variants use the same N -adaptive normaliza-tion, continuous gate, attention-bias injection, initialization, and fine-tuning settings, differing only in the raw evidence-unit score. For evidence unit ei,j , random score samples an independent value from N (0 , 1) at each scoring pass; feature norm uses ∥ei,j ∥2; and gradient norm uses ∥∇ ei,j Lsal ( ˜Ti)∥1.
+
+Attention score uses the final-layer [CLS ]-to-unit attention from the ungated forward pass, averaged across attention heads. The Taylor evidence score is the default score de-fined in Eq. (4), using the zero reference e′ 
+
+> i,j
+
+= 0. As shown in Table 6, the Taylor evidence score consistently outper-forms all four alternatives across all six benchmarks, achiev-ing the highest average performance of 85 .62 , which ex-ceeds the strongest competing scorer, gradient norm, by 0.90 
+
+points. These results support the effectiveness of GAUGE’s reference-based Taylor scoring mechanism, showing that combining the prediction-aware gradient with the unit-to-reference displacement yields a stronger gating signal than the four alternative scores. 
+
+C.2 Ablation on Score Normalization 
+
+GAUGE adopts an N -adaptive normalization rule because per-sample standardization behaves differently across en-coder layouts. When only a few evidence units are available, the sample mean and variance are determined by too few scores, causing the standardized values to become highly constrained and discarding their absolute magnitudes. For example, when N =2 , any two distinct scores are mapped to −1/√2 and 1/√2, regardless of their original scale. In contrast, when many units are present, raw Taylor evidence scores can exhibit substantial sample-dependent offsets and scales, making the shared gate threshold and temperature dif-ficult to calibrate consistently. To verify whether these two regimes require different treatments, we fix the raw score to the Taylor evidence score and compare the default N -adaptive rule in Eq. (6) with two fixed strategies: Always 
+
+z-score and Always raw . The comparison includes two small-
+
+N benchmarks, MST ( N =3 ) and CelebA ( N =2 ), and two large-N benchmarks, CAD and Infarction ( N =91 ). All other model components and training settings are kept unchanged. As shown in Table 7, applying z-score normalization uni-formly degrades performance in the small-N regime, reduc-ing accuracy by 0.23 points on MST and 0.58 points on CelebA relative to raw scores. This confirms that standard-ization based on only two or three units can over-constrain their relative values and remove useful magnitude informa-tion. Conversely, using raw scores uniformly reduces AUC by 1.94 points on CAD and 1.67 points on Infarction, show-ing that normalization is important for calibrating the scores of large evidence-unit sets. These results support the N -adaptive rule: raw scores are preferable for small N , whereas per-sample standardization is beneficial for large N .                         
+
+> Normalization MST CelebA CAD Infarction
+> N=3 N=2 N=91 N=91
+> Always z-score 85.03 92.58 70.41 72.86
+> Always raw 85.26 93.16 68.47 71.19
+> N-adaptive (default) 85.26 93.16 70.41 72.86
+
+Table 7: Ablation of score normalization under each bench-mark’s most severe missingness setting. Accuracy (%) is reported for MST and CelebA, while AUC (%) is reported for CAD and Infarction. Bold marks the best result. 
+
+C.3 Ablation on Evidence-Unit Granularity 
+
+We examine whether finer-grained image evidence units im-prove GAUGE’s unit-level control. A finer spatial grid ex-poses more localized regions as separate evidence units, each with its own Taylor evidence score and gate. We test this by varying the input resolution on CAD and Infarction at γ = 1 .Input resolutions of 96 ×96 , 128 ×128 , 160 ×160 , 192 ×192 ,and 256 × 256 pixels yield 3 × 3, 4 × 4, 5 × 5, 6 × 6, and 8 × 8
+
+evidence-unit grids, respectively. The native 128 × 128 input corresponds to a 4 × 4 grid. We keep the model architecture, optimization setup, and gating configuration fixed across all resolution settings. Only the image positional embeddings are reinitialized, while all other pre-trained weights are re-tained and fine-tuned. Fig. 4 shows that finer grids generally improve test AUC on both benchmarks. CAD AUC increases from 69 .10 at 3×3 to 70 .87 at 8×8, while Infarction reaches its highest AUC of 73 .90 at 6×6, with no further gain at 8×8.Because bilinear upsampling adds no new source-pixel in-formation, the gains beyond the native 4 × 4 grid suggest that finer evidence-unit granularity can improve localized scor-ing and gating. On Infarction, performance plateaus beyond 
+
+6×6, indicating limited benefit from further grid refinement. 9(3²) 16 (4²) 25 (5²) 36 (6²) 64 (8²) Image evidence units 0.68 0.69 0.70 0.71 0.72 0.73 0.74 Test AUC 
+
+> CAD Infarction
+
+Figure 4: Effect of image resolution and the resulting evidence-unit granularity on CAD and Infarction at γ = 1 .
+
+## D Scoring Cost Comparison 
+
+Table 3 reports the runtime of the scoring stage, measured from the encoded sequence ˜Ti to the N evidence-unit scores. We exclude imputation, modality encoding, and the final gated forward pass, as these operations are identical for both methods. Exact counterfactual scoring performs one ungated forward pass followed by N sequential intervention forward passes, with batch size 1. In contrast, GAUGE com-putes all N Taylor evidence scores through a single ungated forward–backward pass. For each configuration, runtime is averaged over 500 test samples after 20 warm-up iterations. We call torch.cuda.synchronize() before and after each measurement to account for asynchronous GPU execu-tion. All timing measurements are conducted on a single NVIDIA Quadro RTX 8000.

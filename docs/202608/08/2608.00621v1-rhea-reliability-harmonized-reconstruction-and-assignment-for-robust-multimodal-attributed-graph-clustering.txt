@@ -1,0 +1,1345 @@
+Title: RHEA: Reliability-Harmonized Reconstruction and Assignment for Robust Multimodal-Attributed Graph Clustering
+
+URL Source: https://arxiv.org/pdf/2608.00621v1
+
+Published Time: Tue, 04 Aug 2026 00:46:55 GMT
+
+Number of Pages: 14
+
+Markdown Content:
+RHEA: Reliability-Harmonized Reconstruction and Assignment for Robust Multimodal-Attributed Graph Clustering 
+
+Yinlin Zhu 1, Di Wu 1*, Ziyu Han 2, Zekai Chen 3,Wang Luo 1, Miao Hu 1, Guocong Quan 1
+
+Sun Yat-sen University, Guangzhou, China 1
+
+Shandong University, Weihai, China 2
+
+Beijing Institute of Technology, Beijing, China 3
+
+{zhuylin27, luow69 }@mail2.sysu.edu.cn, {wudi27, humiao5, quangc }@mail.sysu.edu.cn, hanziyu@mail.sdu.edu.cn, zackchen02@163.com 
+
+Abstract 
+
+Multimodal-attributed graphs (MAGs), whose nodes carry heterogeneous attributes such as text and images over a re-lational structure, have become a fundamental substrate for label-free entity grouping tasks, including community dis-covery and product segmentation. Existing MAG cluster-ing methods effectively integrate complementary modalities when attributes are clean and complete, but degrade substan-tially under noisy or missing attributes because they implic-itly assume equal modality reliability across all nodes. In practice, modality reliability is inherently node-specific: im-ages may be corrupted or absent, while textual descriptions are incomplete or noisy. We argue that, under attribute ho-mophily, graph neighborhoods naturally provide supervision-free evidence for estimating node-specific modality reliabil-ity. Based on this insight, we propose RHEA, a reliability-aware framework for MAG clustering that estimates node-specific modality reliability from neighborhood consensus and propagates this signal throughout the clustering pipeline. RHEA reconstructs unreliable or missing modalities from graph neighborhoods, adaptively weights modalities during reliability-aware fusion, and performs topology-aware opti-mal transport clustering with reliability-aware transport as-signment and neighbor-consensus assignment distillation. Furthermore, the confidence of reconstructed representations is incorporated into the clustering objective, allowing uncer-tain reconstructions to contribute proportionally during opti-mization. Experiments on four MAG benchmarks under five attribute conditions show that RHEA consistently outper-forms the strongest baseline, with NMI gains increasing as attribute quality deteriorates. 
+
+1 Introduction 
+
+Multimodal-attributed graphs (MAGs), in which nodes are associated with heterogeneous attributes such as text and im-ages over relational structures, have become a fundamental data model for recommendation systems, e-commerce cata-logs, citation networks, and social communities (Guo et al. 2025; Zheng et al. 2025; Peng et al. 2021). A fundamental task on MAGs is node clustering, which aims to discover 
+
+> *
+
+Corresponding author. Copyright © 2026, Association for the Advancement of Artificial Intelligence (www.aaai.org). All rights reserved. 
+
+semantically coherent node clusters without manual anno-tation for applications such as community discovery, prod-uct segmentation, and cold-start taxonomy construction. Re-cent multimodal graph clustering methods learn node rep-resentations by jointly modeling graph topology and mul-timodal attributes, achieving strong performance when at-tributes across all modalities are clean and complete (Guo et al. 2025; Zheng et al. 2025). However, this assumption rarely holds in real-world MAGs. Product images may be corrupted or missing, textual descriptions are often noisy or incomplete, and the most in-formative modality can vary substantially across nodes. Ex-isting methods (Guo et al. 2025; Zheng et al. 2025) neverthe-less implicitly assume that each modality is equally reliable for all nodes during representation learning. As a result, cor-rupted modalities contaminate fused representations, miss-ing modalities cannot be effectively compensated, and clus-tering performance deteriorates as attribute quality declines. The problem is particularly challenging in the unsupervised setting, where modality reliability cannot be inferred from labels. This raises a fundamental question: how can node-specific modality reliability be estimated without supervision to support robust multimodal-attributed graph clustering? 
+
+We argue that the graph structure itself provides the an-swer. Under the widely observed principle of attribute ho-mophily (McPherson, Smith-Lovin, and Cook 2001), neigh-boring nodes tend to exhibit similar semantic attributes. Therefore, a modality that is consistent with its neighbor-hood is more likely to be reliable than one that persis-tently deviates from local consensus. This observation en-ables supervision-free estimation of node-specific modality reliability directly from the graph. Instead of treating relia-bility as a modality-level property shared across all nodes, we model it as a latent variable that varies across both nodes and modalities, providing a unified signal for robust multi-modal representation learning. Building upon this insight, we propose Reliability-
+
+Harmonized r Econstruction and Assignment ( RHEA ), a reliability-aware framework for MAG clustering. RHEA es-timates node-specific modality reliability from neighbor-hood consensus and leverages it to reconstruct unreliable modalities, adaptively fuse multimodal representations, and guide topology-aware optimal transport clustering. A uni-arXiv:2608.00621v1 [cs.LG] 1 Aug 2026 fied reliability signal connects these components, enabling robust representation learning under both attribute corrup-tion and missingness. Extensive experiments on four bench-mark datasets under five attribute conditions show that RHEA consistently outperforms existing methods, with im-provements becoming larger as attribute quality deteriorates. Moreover, the learned reliability estimates accurately re-cover synthetically injected attribute corruption, with AU-ROC consistently exceeding 0.95 across all datasets, validat-ing the effectiveness of the proposed reliability modeling. 
+
+Our contributions. (1) Valuable Insights. We identify 
+
+node-specific modality reliability as the missing ingredi-ent for robust multimodal-attributed graph clustering, and show that graph neighborhoods provide supervision-free ev-idence for estimating this reliability. (2) Novel Method. 
+
+We propose RHEA, a unified reliability-aware framework in which a shared neighborhood-consensus reliability signal simultaneously guides graph-based modality reconstruction, adaptive multimodal fusion, and topology-aware optimal transport clustering. (3) State-of-the-Art Performance. Ex-tensive experiments on four benchmark datasets demon-strate consistent improvements over state-of-the-art methods across diverse corruption and missingness settings. 
+
+2 Related Work 
+
+Attributed Graph Clustering. Attributed graph cluster-ing has been extensively studied for graphs with a sin-gle attribute modality. Early methods couple graph autoen-coders with clustering objectives, progressively improving structural-feature fusion through dual-branch architectures, attention mechanisms, or refined graph encoders (Bo et al. 2020; Tu et al. 2021; Peng et al. 2021; Wang et al. 2019; Liu et al. 2022a; Cui et al. 2020; Liu et al. 2023a, 2022b). More recent approaches instead rely on self-supervised objectives, including contrastive learning (Zhu et al. 2021; You et al. 2020; Xia et al. 2022; Liu et al. 2023b; Yang et al. 2023; Liu et al. 2024a) and differentiable graph partitioning based on modularity optimization (Tsitsulin et al. 2023; Newman 2006; Liu et al. 2024b). Extending clustering to multimodal attributed graphs remains comparatively underexplored. Ex-isting methods mainly improve cross-modal representation learning through disentanglement (Guo et al. 2025), graph filtering and contrastive alignment (Zheng et al. 2025), fea-ture fusion (Lin et al. 2024; Pan and Kang 2021; Ke et al. 2023), or more expressive multimodal architectures (Zhu et al. 2026; Li et al. 2025b,a, 2026; Lin and Hu 2022). De-spite their differences, these methods employ a shared fu-sion strategy across all nodes, implicitly assuming that ev-ery modality contributes equally regardless of local modality quality in real-world scenarios. 
+
+Incomplete Multimodal Learning. Our work is closely related to learning under missing or unreliable modali-ties. Existing incomplete multi-view methods typically re-cover missing views through contrastive prediction, feature alignment, or generative completion (Lin et al. 2021; Xu et al. 2023), while others adaptively weight modalities us-ing evidential learning, information bottlenecks, or opti-mal transport (Han et al. 2023; Yan et al. 2024b; Cuturi 2013; Peyr´ e and Cuturi 2019; Xue et al. 2025). On graphs, recent approaches extend these ideas via graph propaga-tion (Malitesta et al. 2026; Roh et al. 2025), graph denois-ing (Zhou and Shen 2023), diffusion-based modality gen-eration (Jiang et al. 2024), or uncertainty-aware aggrega-tion (Shim et al. 2019; Wang et al. 2025; Chen, Shi, and Chen 2025). In contrast, we neither train a dedicated gen-erative completion model nor assume a globally shared, modality-level reliability estimate. Instead, we study multi-modal graph clustering under heterogeneous modality qual-ity, where reliability is node-specific and unreliable modal-ities are repaired directly from graph neighborhoods. Our evaluation follows the standardized protocols of MAGB and OpenMAG (Yan et al. 2024a; Wan et al. 2026); broader dis-cussions of incomplete graph learning can be found in sur-veys (Xia et al. 2025; Wu et al. 2024). 
+
+3 Preliminaries and Problem Formulation 
+
+Multimodal Attributed Graph (MAG). We consider a MAG G = ( A, {X(m)}m∈M ) over N nodes. Here A ∈{0, 1}N ×N is the adjacency matrix and M indexes the attribute modalities, in our case text and image ( |M| =2). Each modality is associated with an attribute matrix 
+
+X(m) ∈ RN ×dm whose row x(m) 
+
+> i
+
+holds the modality-m
+
+attributes of node i, obtained from standard pretrained en-coders (Vaswani et al. 2017; Radford et al. 2021). We use D
+
+to denote the degree matrix, ˜A = D−1/2AD −1/2 for the symmetric-normalized adjacency, and N (i) for the graph neighbors of node i.
+
+MAG Clustering. We consider MAG clustering under heterogeneous modality quality, where, for an unknown sub-set of nodes, a modality is either absent (its absence is ob-servable) or present but uninformative (its unreliability is la-tent and must be inferred). The goal is to partition the N
+
+nodes into K clusters without labels, producing a hard as-signment ˆyi ∈ { 1, . . . , K } for every node i.
+
+Reliability Field. We define a node-specific modality re-liability field ρi,m ∈ [0 , 1] that captures how trustwor-thy modality m is for node i, normalized per node so that P 
+
+> m∈M
+
+ρi,m = 1 . Notably, a larger value indicates higher reliability. 
+
+4 Methodology 
+
+In this section, we present RHEA, a reliability-aware frame-work for robust multimodal graph clustering. As illustrated in Fig. 1, RHEA estimates node-specific modality reliability from neighborhood consensus in a fully unsupervised man-ner, and propagates this reliability field throughout represen-tation learning, fusion, and clustering. 
+
+4.1 Neighbor-Consensus Reliability Estimation 
+
+RHEA is built upon the observation that modality reliability is inherently node-specific. Rather than assuming that each modality is equally reliable across all nodes, we estimate a node-specific modality reliability field based on neighbor-hood consensus. Under attribute homophily, reliable modal-ities should be consistent with the semantic evidence pro-Estimation 
+
+Neighbor-Consensus Reliability Estimation Input: Missing & Corrupted MAG 
+
+1
+
+… 16 
+
+0.2 
+
+0.8 
+
+0.6 
+
+0.4 
+
+Per-Modality Reliability Field <latexit sha1_base64="yN7t996nLXZQlpLgGT0RfPRkTjk=">AAAB7XicbVDLSgNBEOyNrxhfUY9eBoPgKeyKRI9BLx4jmAckS5idzCZj5rHMzAphyT948aCIV//Hm3/jJNmDJhY0FFXddHdFCWfG+v63V1hb39jcKm6Xdnb39g/Kh0cto1JNaJMornQnwoZyJmnTMstpJ9EUi4jTdjS+nfntJ6oNU/LBThIaCjyULGYEWye1enqk+qJfrvhVfw60SoKcVCBHo1/+6g0USQWVlnBsTDfwExtmWFtGOJ2WeqmhCSZjPKRdRyUW1ITZ/NopOnPKAMVKu5IWzdXfExkWxkxE5DoFtiOz7M3E/7xuauPrMGMySS2VZLEoTjmyCs1eRwOmKbF84ggmmrlbERlhjYl1AZVcCMHyy6ukdVENatXa/WWlfpPHUYQTOIVzCOAK6nAHDWgCgUd4hld485T34r17H4vWgpfPHMMfeJ8/pfyPMg==</latexit> 
+
+⇢m
+
+<latexit sha1_base64="0tBaTV50bmWp0nQemL7QrLN2KB0=">AAAB9XicbVBNS8NAEN34WetX1aOXxSLUS0iKVI9FETxWsB/QxrLZbtqlm03cnagl9H948aCIV/+LN/+N2zYHbX0w8Hhvhpl5fiy4Bsf5tpaWV1bX1nMb+c2t7Z3dwt5+Q0eJoqxOIxGplk80E1yyOnAQrBUrRkJfsKY/vJz4zQemNI/kLYxi5oWkL3nAKQEj3XWAPUF6dT+2cal80i0UHduZAi8SNyNFlKHWLXx1ehFNQiaBCqJ123Vi8FKigFPBxvlOollM6JD0WdtQSUKmvXR69RgfG6WHg0iZkoCn6u+JlIRaj0LfdIYEBnrem4j/ee0EgnMv5TJOgEk6WxQkAkOEJxHgHleMghgZQqji5lZMB0QRCiaovAnBnX95kTTKtluxKzenxepFFkcOHaIjVEIuOkNVdI1qqI4oUugZvaI369F6sd6tj1nrkpXNHKA/sD5/ADrFkbE=</latexit> 
+
+Eq .(2) 
+
+Visual Channel 
+
+1
+
+4 2 1
+
+4 214 2
+
+<latexit sha1_base64="NhfDO6wSpAIwSiiNxhgAVQQGSqo=">AAAB9XicbVBNS8NAEN3Ur1q/qh69LBahXkIiUj0WRfBYwX5AG8tmu2mXbjZxd6KW0P/hxYMiXv0v3vw3btsctPXBwOO9GWbm+bHgGhzn28otLa+sruXXCxubW9s7xd29ho4SRVmdRiJSLZ9oJrhkdeAgWCtWjIS+YE1/eDnxmw9MaR7JWxjFzAtJX/KAUwJGuusAe4L06n5s47J73C2WHNuZAi8SNyMllKHWLX51ehFNQiaBCqJ123Vi8FKigFPBxoVOollM6JD0WdtQSUKmvXR69RgfGaWHg0iZkoCn6u+JlIRaj0LfdIYEBnrem4j/ee0EgnMv5TJOgEk6WxQkAkOEJxHgHleMghgZQqji5lZMB0QRCiaoggnBnX95kTRObLdiV25OS9WLLI48OkCHqIxcdIaq6BrVUB1RpNAzekVv1qP1Yr1bH7PWnJXN7KM/sD5/ADlAkbA=</latexit> 
+
+Eq .(1) 
+
+Textual Channel 
+
+1
+
+4
+
+9
+
+87
+
+5
+
+6
+
+2
+
+3
+
+10 11 12 13 14 15 16 
+
+> …
+
+Visual Rep. Textual Rep. 
+
+<latexit sha1_base64="PHZJdLWuLut02Lqf3V1JlFzO1cs=">AAAB83icbVBNS8NAEN3Ur1q/qh69LBbBU0lEqseiF48V7Ac0pWy2k3bpZhN2J2IJ/RtePCji1T/jzX/jts1BWx8MPN6bYWZekEhh0HW/ncLa+sbmVnG7tLO7t39QPjxqmTjVHJo8lrHuBMyAFAqaKFBCJ9HAokBCOxjfzvz2I2gjYvWAkwR6ERsqEQrO0Ep+2PcRnjAT0XDaL1fcqjsHXSVeTiokR6Nf/vIHMU8jUMglM6bruQn2MqZRcAnTkp8aSBgfsyF0LVUsAtPL5jdP6ZlVBjSMtS2FdK7+nshYZMwkCmxnxHBklr2Z+J/XTTG87mVCJSmC4otFYSopxnQWAB0IDRzlxBLGtbC3Uj5imnG0MZVsCN7yy6ukdVH1atXa/WWlfpPHUSQn5JScE49ckTq5Iw3SJJwk5Jm8kjcndV6cd+dj0Vpw8plj8gfO5w+iy5IY</latexit> 
+
+fimg 
+
+Visual Modality GNN Encoder Textual Modality GNN Encoder 
+
+> …
+
+<latexit sha1_base64="9sN3RwL0NkPZQb5i4iXnVKgd+XY=">AAAB83icbVBNS8NAEJ3Ur1q/qh69LBbBU0lEqseiF48VbC00pWy2m3bpZhN2J9IS+je8eFDEq3/Gm//GbZuDtj4YeLw3w8y8IJHCoOt+O4W19Y3NreJ2aWd3b/+gfHjUMnGqGW+yWMa6HVDDpVC8iQIlbyea0yiQ/DEY3c78xyeujYjVA04S3o3oQIlQMIpW8sOej3yMGY5x2itX3Ko7B1klXk4qkKPRK3/5/ZilEVfIJDWm47kJdjOqUTDJpyU/NTyhbEQHvGOpohE33Wx+85ScWaVPwljbUkjm6u+JjEbGTKLAdkYUh2bZm4n/eZ0Uw+tuJlSSIldssShMJcGYzAIgfaE5QzmxhDIt7K2EDammDG1MJRuCt/zyKmldVL1atXZ/Wanf5HEU4QRO4Rw8uII63EEDmsAggWd4hTcndV6cd+dj0Vpw8plj+APn8wfYG5I7</latexit> 
+
+ftxt 
+
+Visual Attributes Textual Attributes Neighbor Consensus Readout 
+
+Representation 
+
+Reliability-Aware Modality Reconstruction 
+
+> …
+
+Recon. Visual Rep. Recon. Textual Rep. 
+
+> …
+
+Fused Rep. 
+
+> …
+
+<latexit sha1_base64="hcsIBzOIxMXAjg34YMr0BSaOl5Q=">AAAB7XicbVDLSgNBEOyNrxhfUY9eBoPgKeyKRI9BLx4jmAckS5idzCZj5rHMzAphyT948aCIV//Hm3/jJNmDJhY0FFXddHdFCWfG+v63V1hb39jcKm6Xdnb39g/Kh0cto1JNaJMornQnwoZyJmnTMstpJ9EUi4jTdjS+nfntJ6oNU/LBThIaCjyULGYEWye1enqk+kG/XPGr/hxolQQ5qUCORr/81RsokgoqLeHYmG7gJzbMsLaMcDot9VJDE0zGeEi7jkosqAmz+bVTdOaUAYqVdiUtmqu/JzIsjJmIyHUKbEdm2ZuJ/3nd1MbXYcZkkloqyWJRnHJkFZq9jgZMU2L5xBFMNHO3IjLCGhPrAiq5EILll1dJ66Ia1Kq1+8tK/SaPowgncArnEMAV1OEOGtAEAo/wDK/w5invxXv3PhatBS+fOYY/8D5/AEsMjvY=</latexit> 
+
+⇢1
+
+<latexit sha1_base64="LJvmglGh1YHX7lxsypZENnqXiNc=">AAAB7XicbVBNSwMxEJ3Ur1q/qh69BIvgqewWqR6LXjxWsLXQLiWbZtvYbLIkWaEs/Q9ePCji1f/jzX9j2u5BWx8MPN6bYWZemAhurOd9o8La+sbmVnG7tLO7t39QPjxqG5VqylpUCaU7ITFMcMlallvBOolmJA4FewjHNzP/4Ylpw5W8t5OEBTEZSh5xSqyT2j09Uv1av1zxqt4ceJX4OalAjma//NUbKJrGTFoqiDFd30tskBFtORVsWuqlhiWEjsmQdR2VJGYmyObXTvGZUwY4UtqVtHiu/p7ISGzMJA5dZ0zsyCx7M/E/r5va6CrIuExSyyRdLIpSga3Cs9fxgGtGrZg4Qqjm7lZMR0QTal1AJReCv/zyKmnXqn69Wr+7qDSu8ziKcAKncA4+XEIDbqEJLaDwCM/wCm9IoRf0jj4WrQWUzxzDH6DPH0yQjvc=</latexit> 
+
+⇢2
+
+<latexit sha1_base64="sTdaBfUvm+GMqAmQnKatcAvDOi0=">AAAB9HicbVBNS8NAEN34WetX1aOXxSLUS0hEq8eiCB4r2A9oQ9lsN+3SzSbdnRRL6O/w4kERr/4Yb/4bt20O2vpg4PHeDDPz/FhwDY7zba2srq1vbOa28ts7u3v7hYPDuo4SRVmNRiJSTZ9oJrhkNeAgWDNWjIS+YA1/cDv1GyOmNI/kI4xj5oWkJ3nAKQEjeW1gT5DeDSd26fKsUyg6tjMDXiZuRoooQ7VT+Gp3I5qETAIVROuW68TgpUQBp4JN8u1Es5jQAemxlqGShEx76ezoCT41ShcHkTIlAc/U3xMpCbUeh77pDAn09aI3Ff/zWgkE117KZZwAk3S+KEgEhghPE8BdrhgFMTaEUMXNrZj2iSIUTE55E4K7+PIyqZ/bbtkuP1wUKzdZHDl0jE5QCbnoClXQPaqiGqJoiJ7RK3qzRtaL9W59zFtXrGzmCP2B9fkD5WyRig==</latexit> 
+
+Eq .(5) 
+
+Reliability-Aware Modality Fusion 
+
+Reconstruction Threshold 
+
+0.2 
+
+0.8 
+
+1
+
+<latexit sha1_base64="a86nubr8yCdlhdoP62UW46jva6A=">AAAB9HicbVBNS8NAEN34WetX1aOXxSLUS0hUqseiCB4r2A9oQ9lsN+3SzSbdnRRL6O/w4kERr/4Yb/4bt20O2vpg4PHeDDPz/FhwDY7zba2srq1vbOa28ts7u3v7hYPDuo4SRVmNRiJSTZ9oJrhkNeAgWDNWjIS+YA1/cDv1GyOmNI/kI4xj5oWkJ3nAKQEjeW1gT5DeDSd26eKsUyg6tjMDXiZuRoooQ7VT+Gp3I5qETAIVROuW68TgpUQBp4JN8u1Es5jQAemxlqGShEx76ezoCT41ShcHkTIlAc/U3xMpCbUeh77pDAn09aI3Ff/zWgkE117KZZwAk3S+KEgEhghPE8BdrhgFMTaEUMXNrZj2iSIUTE55E4K7+PIyqZ/bbtkuP1wWKzdZHDl0jE5QCbnoClXQPaqiGqJoiJ7RK3qzRtaL9W59zFtXrGzmCP2B9fkD4mKRiA==</latexit> 
+
+Eq .(3) 
+
+unreliable reliable 
+
+14 2
+
+Reconstruction Confidence 
+
+Reconstructed Visual Rep. 
+
+<latexit sha1_base64="bgH9VZjBdwAhPDzL1nqa+JAZQps=">AAAB9HicbVBNS8NAEN34WetX1aOXxSLUS0ikVI9FETxWsB/QhrLZbtqlm026OymW0N/hxYMiXv0x3vw3btsctPXBwOO9GWbm+bHgGhzn21pb39jc2s7t5Hf39g8OC0fHDR0lirI6jUSkWj7RTHDJ6sBBsFasGAl9wZr+8HbmN8dMaR7JR5jEzAtJX/KAUwJG8jrAniC9G03tUvmiWyg6tjMHXiVuRoooQ61b+Or0IpqETAIVROu268TgpUQBp4JN851Es5jQIemztqGShEx76fzoKT43Sg8HkTIlAc/V3xMpCbWehL7pDAkM9LI3E//z2gkE117KZZwAk3SxKEgEhgjPEsA9rhgFMTGEUMXNrZgOiCIUTE55E4K7/PIqaVzabsWuPJSL1Zssjhw6RWeohFx0haroHtVQHVE0Qs/oFb1ZY+vFerc+Fq1rVjZzgv7A+vwB4+eRiQ==</latexit> 
+
+Eq .(4) 
+
+Optimization 
+
+Cross-Modal Alignment Loss 
+
+> …
+> …
+
+Neighbor-Consensus Assignment Distillation Loss 
+
+<latexit sha1_base64="3exGxgGPNwkhth8sO8M6P4CbZ84=">AAACAHicbVDLSsNAFL2pr1pfURcu3AwWwVVJRKrLqhsXLirYB7SxTKaTdujk4cxEKCEbf8WNC0Xc+hnu/BsnbQRtPTBw5px7ufceN+JMKsv6MgoLi0vLK8XV0tr6xuaWub3TlGEsCG2QkIei7WJJOQtoQzHFaTsSFPsupy13dJn5rQcqJAuDWzWOqOPjQcA8RrDSUs/c6/pYDV0vOU/vrtHP5z7tmWWrYk2A5omdkzLkqPfMz24/JLFPA0U4lrJjW5FyEiwUI5ympW4saYTJCA9oR9MA+1Q6yeSAFB1qpY+8UOgXKDRRf3ck2Jdy7Lu6MttQznqZ+J/XiZV35iQsiGJFAzId5MUcqRBlaaA+E5QoPtYEE8H0rogMscBE6cxKOgR79uR50jyu2NVK9eakXLvI4yjCPhzAEdhwCjW4gjo0gEAKT/ACr8aj8Wy8Ge/T0oKR9+zCHxgf3+yMlqQ=</latexit> 
+
+ALq
+
+Optimal Transport (Clustering) Loss 
+
+Cluster Prototype Node Embedding Graph Contrastive Loss 
+
+<latexit sha1_base64="4bKMbjMQ23c4ZurpfXCsqZPAS3Q=">AAAB9XicbVBNS8NAEN34WetX1aOXxSLUS0iKVI9FETxWsB/QxrLZbtqlm03cnagl9H948aCIV/+LN/+N2zYHbX0w8Hhvhpl5fiy4Bsf5tpaWV1bX1nMb+c2t7Z3dwt5+Q0eJoqxOIxGplk80E1yyOnAQrBUrRkJfsKY/vJz4zQemNI/kLYxi5oWkL3nAKQEj3XWAPUF6dT+2S275pFsoOrYzBV4kbkaKKEOtW/jq9CKahEwCFUTrtuvE4KVEAaeCjfOdRLOY0CHps7ahkoRMe+n06jE+NkoPB5EyJQFP1d8TKQm1HoW+6QwJDPS8NxH/89oJBOdeymWcAJN0tihIBIYITyLAPa4YBTEyhFDFza2YDogiFExQeROCO//yImmUbbdiV25Oi9WLLI4cOkRHqIRcdIaq6BrVUB1RpNAzekVv1qP1Yr1bH7PWJSubOUB/YH3+AFSzkcI=</latexit> 
+
+Eq .(12) 
+
+Output 
+
+Clustering 
+
+Reliability-Aware Optimal Transport 
+
+Graph Feature Smoothing 
+
+<latexit sha1_base64="ZNLm2V82NIcq3P2BKwC2gPkNDeE=">AAAB+XicbVBNS8NAEN3Ur1q/oh69BItQQUIi0vZYFMFjBfsBbSib7aZdutnE3UmxhP4TLx4U8eo/8ea/cdvmoK0PBh7vzTAzz485U+A430ZubX1jcyu/XdjZ3ds/MA+PmipKJKENEvFItn2sKGeCNoABp+1YUhz6nLb80c3Mb42pVCwSDzCJqRfigWABIxi01DPNLtAnSG8f1dQuVS6q5z2z6NjOHNYqcTNSRBnqPfOr249IElIBhGOlOq4Tg5diCYxwOi10E0VjTEZ4QDuaChxS5aXzy6fWmVb6VhBJXQKsufp7IsWhUpPQ150hhqFa9mbif14ngaDqpUzECVBBFouChFsQWbMYrD6TlACfaIKJZPpWiwyxxAR0WAUdgrv88ippXtpu2S7fXxVr11kceXSCTlEJuaiCaugO1VEDETRGz+gVvRmp8WK8Gx+L1pyRzRyjPzA+fwAlDJKy</latexit> 
+
+Eqs .(7 , 8) 
+
+123 …
+
+0.8 0.1 0.1 
+
+<latexit sha1_base64="DKNKnXjjcBOavF5DRQTblnoPrBM=">AAAB7HicbVDLSgNBEOyNrxhfUY9eBoPgKeyKRI9BLx4juEkgWcLsZDYZMjO7zEMIS77BiwdFvPpB3vwbJ8keNFrQUFR1090VZ5xp4/tfXmltfWNzq7xd2dnd2z+oHh61dWoVoSFJeaq6MdaUM0lDwwyn3UxRLGJOO/Hkdu53HqnSLJUPZprRSOCRZAkj2Dgp7As7CAbVml/3F0B/SVCQGhRoDaqf/WFKrKDSEI617gV+ZqIcK8MIp7NK32qaYTLBI9pzVGJBdZQvjp2hM6cMUZIqV9KghfpzIsdC66mIXafAZqxXvbn4n9ezJrmOciYza6gky0WJ5cikaP45GjJFieFTRzBRzN2KyBgrTIzLp+JCCFZf/kvaF/WgUW/cX9aaN0UcZTiBUziHAK6gCXfQghAIMHiCF3j1pPfsvXnvy9aSV8wcwy94H9+H7I6F</latexit> 
+
+μ1
+
+<latexit sha1_base64="dfyppY73Rex6skGuu6hVWtuI3SU=">AAAB7HicbVBNS8NAEJ3Ur1q/oh69LBbBU0mKVI9FLx4rmLbQhrLZbtqlu5uwuxFK6G/w4kERr/4gb/4bt20O2vpg4PHeDDPzopQzbTzv2yltbG5t75R3K3v7B4dH7vFJWyeZIjQgCU9UN8KaciZpYJjhtJsqikXEaSea3M39zhNVmiXy0UxTGgo8kixmBBsrBX2RDeoDt+rVvAXQOvELUoUCrYH71R8mJBNUGsKx1j3fS02YY2UY4XRW6WeapphM8Ij2LJVYUB3mi2Nn6MIqQxQnypY0aKH+nsix0HoqItspsBnrVW8u/uf1MhPfhDmTaWaoJMtFccaRSdD8czRkihLDp5Zgopi9FZExVpgYm0/FhuCvvrxO2vWa36g1Hq6qzdsijjKcwTlcgg/X0IR7aEEABBg8wyu8OdJ5cd6dj2VrySlmTuEPnM8fiXCOhg==</latexit> 
+
+μ2
+
+<latexit sha1_base64="aLu7+1OHOklm3ilT+cSg6xOJyU4=">AAAB7HicbVBNS8NAEJ3Ur1q/qh69LBbBU0lUqseiF48VTFtoQ9lsN+3S3U3Y3Qgl9Dd48aCIV3+QN/+NmzYHbX0w8Hhvhpl5YcKZNq777ZTW1jc2t8rblZ3dvf2D6uFRW8epItQnMY9VN8Saciapb5jhtJsoikXIaSec3OV+54kqzWL5aKYJDQQeSRYxgo2V/L5IB5eDas2tu3OgVeIVpAYFWoPqV38Yk1RQaQjHWvc8NzFBhpVhhNNZpZ9qmmAywSPas1RiQXWQzY+doTOrDFEUK1vSoLn6eyLDQuupCG2nwGasl71c/M/rpSa6CTImk9RQSRaLopQjE6P8czRkihLDp5Zgopi9FZExVpgYm0/FhuAtv7xK2hd1r1FvPFzVmrdFHGU4gVM4Bw+uoQn30AIfCDB4hld4c6Tz4rw7H4vWklPMHMMfOJ8/ivSOhw==</latexit> 
+
+μ3
+
+16 
+
+Adj. Matrix 
+
+> …
+
+Fused Rep. Prop. Rep. 
+
+> …
+
+<latexit sha1_base64="ovnQECwmaC1X10X5iuEqGXW6pEA=">AAAB9HicbVBNS8NAEN3Ur1q/qh69LBahXkIiUj0WRfBYwX5AG8pmu2mXbjbp7qRYQn+HFw+KePXHePPfuG1z0NYHA4/3ZpiZ58eCa3Ccbyu3tr6xuZXfLuzs7u0fFA+PGjpKFGV1GolItXyimeCS1YGDYK1YMRL6gjX94e3Mb46Z0jySjzCJmReSvuQBpwSM5HWAPUF6N5ra5cp5t1hybGcOvErcjJRQhlq3+NXpRTQJmQQqiNZt14nBS4kCTgWbFjqJZjGhQ9JnbUMlCZn20vnRU3xmlB4OImVKAp6rvydSEmo9CX3TGRIY6GVvJv7ntRMIrr2UyzgBJuliUZAIDBGeJYB7XDEKYmIIoYqbWzEdEEUomJwKJgR3+eVV0riw3YpdebgsVW+yOPLoBJ2iMnLRFaqie1RDdUTRCD2jV/Rmja0X6936WLTmrGzmGP2B9fkD5vGRiw==</latexit> 
+
+Eq .(6) 
+
+<latexit sha1_base64="XABCs0+zUwlHDEFIZ5rnnhlY6c8=">AAAB9XicbVBNS8NAEN34WetX1aOXxSLUS0hUqseiCB4r2A9oY9lsN+3SzSbuTtQS+j+8eFDEq//Fm//GbZuDtj4YeLw3w8w8PxZcg+N8WwuLS8srq7m1/PrG5tZ2YWe3rqNEUVajkYhU0yeaCS5ZDTgI1owVI6EvWMMfXI79xgNTmkfyFoYx80LSkzzglICR7trAniC9uh/ZJffkqFMoOrYzAZ4nbkaKKEO1U/hqdyOahEwCFUTrluvE4KVEAaeCjfLtRLOY0AHpsZahkoRMe+nk6hE+NEoXB5EyJQFP1N8TKQm1Hoa+6QwJ9PWsNxb/81oJBOdeymWcAJN0uihIBIYIjyPAXa4YBTE0hFDFza2Y9okiFExQeROCO/vyPKkf227ZLt+cFisXWRw5tI8OUAm56AxV0DWqohqiSKFn9IrerEfrxXq3PqatC1Y2s4f+wPr8AVY4kcM=</latexit> 
+
+Eq .(13) 
+
+Grad. 
+
+<latexit sha1_base64="vk96m7sv44ZDwxcat0WlVpbMJ78=">AAAB8XicbVDLSgMxFL3js9ZX1aWbYBFclRmR6rLoxmUF+8C2lEx6pw3NZMYkI5Shf+HGhSJu/Rt3/o2ZdhbaeiBwOOdecu7xY8G1cd1vZ2V1bX1js7BV3N7Z3dsvHRw2dZQohg0WiUi1fapRcIkNw43AdqyQhr7Alj++yfzWEyrNI3lvJjH2QjqUPOCMGis9dENqRn6QPk77pbJbcWcgy8TLSRly1Pulr+4gYkmI0jBBte54bmx6KVWGM4HTYjfRGFM2pkPsWCppiLqXzhJPyalVBiSIlH3SkJn6eyOlodaT0LeTWUK96GXif14nMcFVL+UyTgxKNv8oSAQxEcnOJwOukBkxsYQyxW1WwkZUUWZsSUVbgrd48jJpnle8aqV6d1GuXed1FOAYTuAMPLiEGtxCHRrAQMIzvMKbo50X5935mI+uOPnOEfyB8/kD9iiRIA==</latexit> 
+
+q
+
+Reconstruction 
+
+<latexit sha1_base64="3T3bou7lpd7K1dSK0VH8cJCO0FY=">AAAB9HicbVBNS8NAEN34WetX1aOXxSLUS0hEqt6KInisYD+gDWWz3bRLN5t0d1Isob/DiwdFvPpjvPlv3LY5aOuDgcd7M8zM82PBNTjOt7Wyura+sZnbym/v7O7tFw4O6zpKFGU1GolINX2imeCS1YCDYM1YMRL6gjX8we3Ub4yY0jySjzCOmReSnuQBpwSM5LWBPUF6N5zYpeuzTqHo2M4MeJm4GSmiDNVO4avdjWgSMglUEK1brhODlxIFnAo2ybcTzWJCB6THWoZKEjLtpbOjJ/jUKF0cRMqUBDxTf0+kJNR6HPqmMyTQ14veVPzPayUQXHkpl3ECTNL5oiARGCI8TQB3uWIUxNgQQhU3t2LaJ4pQMDnlTQju4svLpH5uu2W7/HBRrNxkceTQMTpBJeSiS1RB96iKaoiiIXpGr+jNGlkv1rv1MW9dsbKZI/QH1ucP64CRjg==</latexit> 
+
+Eq .(9) 
+
+<latexit sha1_base64="p0nWlKKnYyVCIB5fSK9kCAdXGrM=">AAAB9XicbVBNS8NAEN3Ur1q/qh69LBahXkIiUj0WRfBYwX5AG8tmu2mXbjZxd6KW0P/hxYMiXv0v3vw3btsctPXBwOO9GWbm+bHgGhzn28otLa+sruXXCxubW9s7xd29ho4SRVmdRiJSLZ9oJrhkdeAgWCtWjIS+YE1/eDnxmw9MaR7JWxjFzAtJX/KAUwJGuusAe4L06n5sl133uFssObYzBV4kbkZKKEOtW/zq9CKahEwCFUTrtuvE4KVEAaeCjQudRLOY0CHps7ahkoRMe+n06jE+MkoPB5EyJQFP1d8TKQm1HoW+6QwJDPS8NxH/89oJBOdeymWcAJN0tihIBIYITyLAPa4YBTEyhFDFza2YDogiFExQBROCO//yImmc2G7FrtyclqoXWRx5dIAOURm56AxV0TWqoTqiSKFn9IrerEfrxXq3PmatOSub2Ud/YH3+AFMukcE=</latexit> 
+
+Eq .(11) Figure 1: Overview of RHEA. RHEA consists of four stages: (1) Estimation : learning node-specific modality reliability from neighbor consensus; (2) Representation : reconstructing unreliable modalities and performing reliability-aware fusion; (3) Clustering : obtaining topology-consistent assignments through reliability-aware optimal transport; and (4) Optimization :jointly training clustering and representation objectives. A unified reliability field connects all stages. vided by neighboring nodes, whereas corrupted modalities tend to deviate from this consensus. Specifically, let z(m)
+
+i = fm(X(m), A) ∈ Rd be the ℓ2-normalized embedding of node i in modality m from the per-modality graph encoder fm (e.g., GCN (Kipf and Welling 2017) or GAT (Veliˇ ckovi´ c et al. 2018)). For node i and modality m, we measure the intra-modal neighbor agree-ment, which can be calculated as follows: 
+
+ai,m = 1
+
+|N (i)|
+
+X
+
+j∈N (i)
+
+z(m)
+
+i , z(m)
+
+j , (1) where ⟨· , ·⟩ is cosine similarity on the ℓ2-normalized em-beddings. The agreement score measures how consistently modality m of node i aligns with its local neighborhood un-der structural homophily. Subsequently, we convert the per-modality agreements into a per-node reliability, which is formulated as: 
+
+ρi,m = exp( ai,m /τ )
+
+P
+
+m′∈M exp( ai,m ′ /τ ) , (2) where τ is a temperature, ρi,m ∈ [0 , 1] and P
+
+m ρi,m = 1 .The resulting ρi,m defines a probability distribution over modalities for each node, which serves as the unified reli-ability field for downstream learning. 
+
+4.2 Reliability-Aware Representation Learning 
+
+The estimated reliability identifies modalities that cannot be reliably used for representation learning. RHEA first re-constructs unreliable modalities from their graph neighbor-hoods, allowing neighborhood consensus to compensate for missing or corrupted observations before multimodal fusion. Without loss of generality, we describe the reconstruction procedure for the image modality; the same process is ap-plied symmetrically to all modalities (Appendix B). Recon-struction is triggered under two conditions: (1) the modality is missing, or (2) the modality is observed but assigned low reliability. Accordingly, the reconstruction set is defined as: 
+
+R = {i : oi = 0 ∨ ρi, img < γ }, (3) where oi ∈ { 0, 1} indicates whether the image modality of node i is observed and γ denotes the reliability threshold. For every node i ∈ R , the unreliable image representa-tion is reconstructed by aggregating image embeddings from neighboring nodes with available observations: 
+
+ˆz(img) 
+
+i =
+
+P
+
+j∈N +(i) ˜Aij z(img) 
+
+j
+
+P
+
+j∈N +(i) ˜Aij 
+
+, i ∈ R , (4) where N +(i) = {j ∈ N (i) : oj = 1 } contains only neigh-bors with observed image modalities. Restricting message passing to observed neighbors prevents missing or corrupted representations from propagating through the graph while preserving the neighborhood consensus. The reliability of each reconstruction further depends on the quality of its supporting neighbors. We therefore esti-mate a reconstruction confidence ci = exp( −βv i) · wi
+
+wi+1 ,where β > 0 is a decay coefficient, wi = P
+
+j∈N +(i) ˜Aij 
+
+measures the available neighborhood evidence, and vi is the mean per-dimension variance of the donor embeddings. Consequently, reconstruction confidence increases when more neighboring observations are available and their rep-resentations are mutually consistent, and decreases other-wise. This confidence serves as an absolute reliability mea-sure that complements the relative reliability and is subse-quently incorporated into the topology-aware clustering ob-jective (Sec. 4.3). Finally, the reconstructed modality representations are fused according to the estimated modality reliability: 
+
+zi = ρi, txt z(txt) 
+
+i + ρi, img ˜z(img) 
+
+i , (5) where ˜z(img) 
+
+i is the image representation used for down-stream fusion. Specifically, when node i is identified as unre-liable or missing ( i ∈ R ), its image feature is substituted by the reconstructed embedding ˆz(img) 
+
+i ; otherwise, the original observed embedding z(img) 
+
+i is retained. 4.3 Reliability-Aware Clustering 
+
+At the core of RHEA is a reliability-aware clustering mech-anism that turns the estimated modality reliability into the actual cluster assignments. It comprises two coupled compo-nents: a reliability-aware optimal transport assignment that lets reliable modalities dominate the transport cost (Eq. (7)), and a neighbor-consensus assignment distillation objective that repairs assignments where neighborhood evidence is weak (Eq. (9)). Together they constitute the primary learning signal of our model. 
+
+Reliability-aware Optimal Transport. The estimated re-liability is incorporated into cluster assignment. Since mul-timodal representations have already been reconstructed and fused according to their estimated reliability (Sec. 4.2), we first smooth the fused node embeddings over the graph to integrate local topological context before clustering, hi =norm( P 
+
+> j
+
+˜Aij zj ), where norm( ·) is ℓ2 normalization. Clus-ter assignments are then obtained by solving an entropy-regularized optimal transport problem between node embed-dings and K learnable cluster prototypes {μk}. The trans-port cost is defined as follows: 
+
+Cik = 1 − ⟨ hi, μk⟩, (6) where hi already encodes the node-specific modality relia-bility through Eq. (5). Consequently, unreliable modalities contribute less to the transport cost and exert reduced influ-ence on the resulting cluster assignment. The optimal trans-port plan is then computed as: 
+
+P⋆ = arg min 
+
+> P∈Π( r,c)
+
+⟨P, C⟩ − ϵH (P), (7) where H(·) denotes the entropy regularizer, ϵ is the regular-ization strength, and Π( r, c) denotes the transport polytope with row and column marginals. Crucially, both marginals are made reliability-aware. To account for reconstruction un-certainty, the row marginal is weighted by the reconstruction confidence (i.e., ri ∝ ci) such that nodes reconstructed from limited or inconsistent neighborhood evidence contribute less transport mass; the column marginal c is estimated from the graph topology to reflect the empirical cluster-size prior rather than assuming uniform cluster proportions. The op-timization problem in Eq. (7) can be solved using entropic Sinkhorn iterations (Cuturi 2013). The clustering objective is then defined as follows: 
+
+Lclu = ⟨P⋆, C⟩, (8) where P⋆ is treated as a fixed target via stop-gradient, and the final cluster assignment is obtained as ˆyi =arg max k P ⋆ik .
+
+Neighbor-consensus Assignment Distillation (NCRC). 
+
+Although reliability-aware optimal transport substantially improves assignment robustness, reconstructed nodes may still receive inaccurate assignments when neighborhood ev-idence is insufficient. We therefore introduce a neighbor-consensus assignment distillation objective that further reg-ularizes cluster assignments using neighborhood consen-sus. Specifically, let qi = softmax( ⟨hi, μ⟩/τ a) denote the soft cluster assignment, with assignment temperature τa.The assignments are propagated over the graph for L hops, 
+
+˜q = ˜ALq, and sharpened to a neighbor-consensus target 
+
+˜qsharp  
+
+> ik
+
+∝ ˜q1/T s 
+
+> ik
+
+(Ts<1, renormalized per node). Each node is then distilled toward this consensus via: 
+
+Lncrc = − 1
+
+N
+
+X
+
+> i
+
+X
+
+> k
+
+sg 
+
+h
+
+˜qsharp 
+
+> ik
+
+i
+
+log qik , (9) where sg[ ·] denotes the stop-gradient operator. This objec-tive encourages locally consistent cluster assignments while preventing the propagated consensus target from being up-dated by the student predictions. 
+
+4.4 Optimization Objectives 
+
+The clustering objectives introduced above provide the pri-mary supervision signal. Since reliability estimation de-pends on encoder representations, we further regularize the encoder with two lightweight auxiliary contrastive objec-tives defined on the fused embeddings h. These objectives improve representation quality without directly affecting cluster assignment. 
+
+Auxiliary contrastive regularization. We first introduce a graph-walk-based contrastive loss Lnbr , which preserves topology-aware invariance by enforcing agreement between random-walk co-occurrence pairs. Given an anchor node i,its positive set Pi and negative set Qi are constructed from random walks (walk length 5, 10 walks per node, context window 3). We then optimize an InfoNCE objective with temperature τc over the fused representation h:
+
+Lnbr = − 1
+
+N
+
+X
+
+> i
+
+1
+
+|P i|
+
+X
+
+> j∈P i
+
+log e⟨hi,hj ⟩/τ c
+
+P 
+
+> k∈P i∪Q i
+
+e⟨hi,hk ⟩/τ c
+
+.
+
+(10) We further introduce a cross-modal alignment loss Lmod ,which aligns modality-specific representations with the fused embedding after reliability-aware fusion. Let z(txt) 
+
+> i
+
+and ˜z(img)  
+
+> i
+
+denote the text and (possibly reconstructed) im-age representations, respectively. The alignment objective is defined as follows: 
+
+Lmod = 1
+
+N
+
+X
+
+> i
+
+2 − ⟨ hi, z(txt)  
+
+> i
+
+⟩ − ⟨ hi, ˜z(img)  
+
+> i
+
+⟩ + Ω cm ,
+
+(11) where Ωcm is a small inter-node repulsion term that discour-ages trivial collapse by enforcing margin separation across nodes (Detailed in Appendix E). 
+
+Joint objective. The model is trained end-to-end by mini-mizing the following optimization objective: 
+
+L = Lclu + λncrc Lncrc + λnbr Lnbr + λmod Lmod . (12) The first two terms constitute the core clustering objec-tive, combining reliability-aware optimal transport assign-ment ( Lclu ) and neighbor-consensus assignment distillation (Lncrc ). The remaining terms act as auxiliary representation regularizers that improve encoder robustness, with λnbr and 
+
+λmod controlling their influence, while λncrc balances the two clustering losses. Algorithm 1 summarizes the proce-dure. Methods RedditS Toys Grocery Amazon NMI ACC ARI F1 NMI ACC ARI F1 NMI ACC ARI F1 NMI ACC ARI F1                                                                                                                                                                
+
+> KMeans .774 ±.004 .737 ±.010 .689 ±.017 .651 ±.006 .308 ±.004 .353 ±.004 .171 ±.001 .315 ±.003 .202 ±.006 .248 ±.018 .099 ±.010 .219 ±.013 .358 ±.003 .799 ±.001 .465 ±.003 .716 ±.002
+> DFCN .804 ±.003 .812 ±.011 .765 ±.013 .725 ±.006 .430 ±.008 .441 ±.009 .255 ±.009 .400 ±.014 .402 ±.008 .406 ±.013 .255 ±.011 .328 ±.012 .381 ±.009 .763 ±.010 .427 ±.019 .718 ±.010
+> DMoN .595 ±.134 .531 ±.182 .451 ±.185 .394 ±.214 .130 ±.108 .177 ±.067 .058 ±.057 .103 ±.097 .124 ±.098 .193 ±.043 .052 ±.054 .106 ±.081 .347 ±.051 .710 ±.096 .363 ±.112 .645 ±.089
+> MVGRL .792 ±.006 .781 ±.012 .742 ±.015 .701 ±.009 .402 ±.010 .415 ±.012 .236 ±.011 .382 ±.010 .386 ±.009 .392 ±.011 .241 ±.010 .318 ±.012 .333 ±.010 .725 ±.012 .401 ±.013 .690 ±.010
+> S3GC .702 ±.012 .651 ±.020 .602 ±.018 .541 ±.022 .310 ±.014 .335 ±.015 .189 ±.013 .282 ±.012 .318 ±.010 .341 ±.012 .176 ±.011 .264 ±.013 .301 ±.012 .701 ±.015 .328 ±.014 .612 ±.013
+> COMPLETER .643 ±.013 .534 ±.026 .476 ±.033 .400 ±.030 .343 ±.016 .340 ±.013 .188 ±.014 .277 ±.011 .370 ±.033 .381 ±.025 .218 ±.036 .297 ±.022 .189 ±.089 .569 ±.156 .109 ±.201 .462 ±.148
+> APADC .540 ±.056 .339 ±.086 .239 ±.059 .227 ±.073 .262 ±.018 .246 ±.019 .071 ±.016 .179 ±.023 .283 ±.028 .285 ±.033 .126 ±.026 .164 ±.022 .064 ±.025 .649 ±.013 .045 ±.023 .330 ±.034
+> DGF .836 ±.003 .807 ±.014 .811 ±.013 .695 ±.031 .434 ±.011 .424 ±.018 .268 ±.011 .372 ±.015 .456 ±.003 .411 ±.005 .295 ±.003 .348 ±.008 .341 ±.011 .740 ±.013 .372 ±.020 .673 ±.011
+> DMGC .821 ±.005 .799 ±.013 .789 ±.011 .681 ±.021 .432 ±.010 .417 ±.015 .262 ±.012 .364 ±.013 .438 ±.005 .408 ±.006 .283 ±.004 .340 ±.008 .352 ±.008 .749 ±.010 .389 ±.009 .686 ±.009
+> RHEA (ours) .868 ±.008 .852 ±.016 .869 ±.017 .771 ±.023 .452 ±.014 .477 ±.020 .312 ±.020 .445 ±.016 .490 ±.010 .447 ±.017 .331 ±.009 .383 ±.014 .417 ±.007 .833 ±.012 .492 ±.015 .755 ±.009
+
+Table 1: Performance under standard settings on 4 MAG datasets. The best , second, and third results are marked in bold, underline, and italics, respectively. 
+
+Algorithm 1: Overall Procedure of RHEA 
+
+Input: Multimodal graph G = ( V, A, {X(m)}), cluster number 
+
+K, reliability threshold γ, temperatures τ , τa. 
+
+> 1
+
+initialize modality encoders {fm} and cluster prototypes {μk }; 
+
+> 2
+
+while not converged do 
+
+/* Neighbor-Consensus Reliability Estimation */  
+
+> 3
+
+compute modality embeddings {Z(m)}; 
+
+> 4
+
+compute neighbor agreement ai,m and modality reliability 
+
+ρi,m via Eq. (1)–(2); 
+
+/* Reliability-Aware Representation Learning */  
+
+> 5
+
+identify unreliable or missing modalities via Eq. (3);  
+
+> 6
+
+reconstruct unreliable representations and estimate reconstruction confidence via Eq. (4);  
+
+> 7
+
+obtain reliability-aware fused embeddings z via Eq. (5); 
+
+/* Reliability-Aware Clustering */  
+
+> 8
+
+compute topology-aware embeddings h; 
+
+> 9
+
+solve reliability-aware optimal transport via Eq. (7);  
+
+> 10
+
+compute neighbor-consensus assignments via Eq. (9);  
+
+> 11
+
+optimize the joint objective in Eq. (12) and update model parameters.  
+
+> 12
+
+end Output: Cluster assignments {ˆyi}Ni=1 .
+
+5 Experiments 
+
+In this section, we conduct a comprehensive evaluation of RHEA. We first describe the experimental settings (Sec. 5.1), and then answer the following research ques-tions: RQ1: Is RHEA competitive with state-of-the-art base-lines under clean and complete MAGs (Sec. 5.2)? RQ2: 
+
+Does RHEA consistently outperform existing methods when modalities are corrupted or partially missing (Sec. 5.3)? 
+
+RQ3: What are the individual contributions of each mod-ule in RHEA to the overall robustness gains (Sec. 5.4)? 
+
+RQ4: How stable are RHEA’s performance gains under dif-ferent hyperparameter settings and perturbation intensities (Sec. 5.5)? RQ5: Does the reliability field track real cor-ruption, and what does it reveal about how RHEA works (Sec. 5.6)? Computational cost and complexity are analyzed in Appendix E. 
+
+5.1 Experimental Setup 
+
+Datasets. We evaluate RHEA on four public MAG datasets: the social network RedditS (Desai et al. 2021), two e-commerce networks (Toys and Grocery) (Ni, Li, and McAuley 2019), and the co-purchase graph Amazon (Guo et al. 2025). Detailed statistics and descriptions are in Ap-pendix G. 
+
+Baselines. We compare RHEA against four categories of representative baselines. (1) Classical clustering methods ,which perform clustering solely based on node representa-tions without exploiting graph topology, including KMeans. (2) General attributed graph clustering methods , which leverage graph structure and node attributes but do not ex-plicitly model multimodal reliability, including DFCN (Tu et al. 2021), DMoN (Tsitsulin et al. 2023), MVGRL (Has-sani and Khasahmadi 2020) and S3GC (Devvrit et al. 2022). (3) Incomplete multi-view clustering methods , which are specifically designed to handle missing-view scenarios, in-cluding COMPLETER (Lin et al. 2021) and APADC (Xu et al. 2023). (4) MAG clustering methods , which jointly ex-ploit graph topology and multiple modalities for cluster-ing. These are our primary comparison methods, including DGF (Zheng et al. 2025) and DMGC (Guo et al. 2025). All baselines are implemented using their official codebases un-der an identical experimental protocol; per-baseline descrip-tions are in Appendix H. We report NMI, ACC, ARI, and F1 (defined in Appendix I) as the mean over five seeds under the protocol of Appendix F.1. 
+
+5.2 Performance under Standard Setting 
+
+To answer RQ1 , we evaluate clustering quality on all four benchmarks in the standard setting, where every modality is complete and uncorrupted. The results are summarized in Table 1. We summarize our observations as follows. 
+
+RHEA consistently achieves the best performance. 
+
+RHEA attains the best result on all four datasets across ev-ery evaluation metric, demonstrating its effectiveness in the clean, full-modality setting. On RedditS it clearly outper-forms the strongest baseline DGF (NMI: 0.868 vs. 0.836 ;ARI: 0.869 vs. 0.811 ), and on Grocery and Amazon it surpasses the second-best method by 0.034 and 0.036 in NMI, respectively. RHEA also maintains consistently low standard deviations, in contrast to methods such as DMoN and APADC, which show high variance and on the harder datasets cluster little better than chance. This stability indi-cates that the neighbor-consensus reliability estimation con-verges to a stable fusion solution (Appendix F.3). 
+
+RHEA is particularly effective on complex MAGs. The advantage of multimodal fusion is most pronounced on benchmarks with many categories, such as Toys ( 18 clus-0.0 0.2 0.4 0.6 0.8 1.0 
+
+Image corruption rate      
+
+> 0.4 0.6 0.8
+> NMI
+> Image corruption
+> 0.0 0.2 0.4 0.6 0.8 1.0
+
+Image missing rate m     
+
+> 0.4 0.6 0.8
+> Image missingness
+> 0.0 0.2 0.4 0.6 0.8 1.0
+
+Text corruption rate      
+
+> 0.4 0.6 0.8
+> Text corruption
+> 0.0 0.2 0.4 0.6 0.8 1.0
+
+Text missing rate m         
+
+> 0.4 0.6 0.8
+> Text missingness
+> KMeans DFCN DMoN MVGRL S3GC COMPLETER APADC DGF DMGC RHEA (ours)
+
+Figure 2: NMI vs. perturbation severity on RedditS. Each panel varies one perturbation regime. ters) and Grocery ( 20 clusters). On Grocery, RHEA reaches an NMI of 0.490 , well above the deep attributed clusterer DFCN ( 0.402 ) and the multimodal competitor DGF ( 0.456 ), showing its capacity to synthesize complementary informa-tion across views. Amazon is a special case: with only three clusters and highly discriminative attributes, even strong baselines such as KMeans ( 0.358 ) and DFCN ( 0.381 ) are competitive. Even there, RHEA still ranks first ( 0.417 NMI), confirming that its reliability-guided fusion remains benefi-cial when simpler baselines are already strong. 
+
+5.3 Robustness to Modality Perturbation 
+
+To evaluate RQ2 , we degrade one modality while keeping the other intact. Table 2 reports NMI across five settings, in-cluding clean data, image and text corruption with η = 0 .4,and image and text missingness with m = 0 .5. Results for other metrics are in Appendix A (Tables 5–7). Fig. 2 illus-trates performance trends as perturbation severity increases. 
+
+Overall performance. RHEA achieves the highest NMI across all configurations (4 datasets × 5 settings, 20 cases), consistently outperforming all baselines under both corrup-tion and missingness. The average margin over DGF in-creases from +0 .04 in clean conditions to +0 .07 under image corruption, +0 .08 under image missingness, and ∼
+
++0 .07 under text perturbations, indicating stronger robust-ness under modality degradation. 
+
+Robustness under increasing perturbation. All methods degrade as perturbation severity increases, while RHEA ex-hibits the slowest performance drop. On RedditS, its NMI decreases from 0.868 to 0.729 when m = 0 .8, whereas DGF drops from 0.836 to 0.647 , increasing the performance gap from +0 .03 to +0 .08 . Similar trends hold across datasets and perturbation types, as shown in Figure 2. These results indicate that modeling node-wise reliability improves stabil-ity under severe modality degradation. 
+
+5.4 Ablation Study 
+
+To answer RQ3 , we remove each component of RHEA in turn and report mean NMI across the four datasets under the clean, corruption, and missing-modality regimes (Table 3). Each component contributes most in the regime it is de-signed for. 
+
+Reconstruction dominates the missing regime and the re-liability gate the corrupted one. Removing the gated re-construction lowers mean NMI by 0.061 under missingness but by only 0.004 when modalities are clean, the sharpest regime contrast of any component, and recovers most of 
+
+Dataset Method Standard Image Pert. Text Pert. Corr. Miss. Corr. Miss. 
+
+RedditS KMeans .774 ±.004 .525 ±.015 .436 ±.010 .562 ±.011 .502 ±.013 
+
+DFCN .804 ±.003 .586 ±.011 .531 ±.010 .688 ±.013 .663 ±.010 
+
+DMoN .595 ±.134 .383 ±.157 .358 ±.179 .411 ±.177 .428 ±.160 
+
+MVGRL .792 ±.006 .537 ±.012 .494 ±.016 .533 ±.009 .537 ±.009 
+
+S3GC .702 ±.012 .478 ±.021 .479 ±.024 .538 ±.026 .562 ±.027 
+
+COMPLETER .643 ±.013 .506 ±.028 .591 ±.023 .482 ±.031 .572 ±.028 
+
+APADC .540 ±.056 .381 ±.067 .454 ±.073 .360 ±.084 .436 ±.102 
+
+DGF .836 ±.003 .708 ±.007 .719 ±.009 .746 ±.005 .716 ±.008 
+
+DMGC .821 ±.005 .633 ±.010 .685 ±.009 .719 ±.013 .729 ±.015 
+
+RHEA (ours) .868 ±.008 .764 ±.017 .791 ±.015 .808 ±.016 .785 ±.013 
+
+Toys KMeans .308 ±.004 .224 ±.014 .183 ±.007 .235 ±.013 .211 ±.008 
+
+DFCN .430 ±.008 .302 ±.013 .269 ±.019 .354 ±.016 .340 ±.014 
+
+DMoN .130 ±.108 .085 ±.042 .079 ±.040 .093 ±.046 .094 ±.047 
+
+MVGRL .402 ±.010 .304 ±.015 .279 ±.017 .303 ±.018 .298 ±.018 
+
+S3GC .310 ±.014 .213 ±.027 .213 ±.021 .236 ±.029 .256 ±.023 
+
+COMPLETER .343 ±.016 .271 ±.023 .322 ±.025 .259 ±.028 .308 ±.025 
+
+APADC .262 ±.018 .195 ±.035 .227 ±.033 .183 ±.026 .222 ±.029 
+
+DGF .434 ±.011 .359 ±.025 .362 ±.025 .379 ±.019 .370 ±.018 
+
+DMGC .432 ±.010 .342 ±.016 .365 ±.017 .382 ±.017 .389 ±.017 
+
+RHEA (ours) .452 ±.014 .409 ±.020 .416 ±.021 .420 ±.025 .411 ±.022 
+
+Grocery KMeans .202 ±.006 .130 ±.014 .107 ±.014 .143 ±.009 .125 ±.014 
+
+DFCN .402 ±.008 .292 ±.015 .262 ±.018 .343 ±.014 .325 ±.016 
+
+DMoN .124 ±.098 .078 ±.039 .072 ±.036 .082 ±.041 .084 ±.042 
+
+MVGRL .386 ±.009 .266 ±.018 .251 ±.016 .267 ±.017 .263 ±.024 
+
+S3GC .318 ±.010 .214 ±.026 .219 ±.016 .242 ±.020 .254 ±.019 
+
+COMPLETER .370 ±.033 .283 ±.063 .337 ±.060 .268 ±.041 .321 ±.048 
+
+APADC .283 ±.028 .215 ±.058 .249 ±.042 .201 ±.041 .243 ±.041 
+
+DGF .456 ±.003 .372 ±.013 .375 ±.008 .387 ±.006 .378 ±.009 
+
+DMGC .438 ±.005 .353 ±.013 .384 ±.010 .387 ±.011 .400 ±.010 
+
+RHEA (ours) .490 ±.010 .454 ±.022 .473 ±.017 .474 ±.024 .470 ±.025 
+
+Amazon KMeans .358 ±.003 .248 ±.007 .204 ±.009 .268 ±.007 .241 ±.009 
+
+DFCN .381 ±.009 .260 ±.013 .232 ±.019 .306 ±.019 .284 ±.016 
+
+DMoN .347 ±.051 .228 ±.063 .212 ±.070 .240 ±.063 .247 ±.087 
+
+MVGRL .333 ±.010 .239 ±.025 .223 ±.020 .241 ±.022 .240 ±.021 
+
+S3GC .301 ±.012 .203 ±.029 .201 ±.023 .226 ±.022 .239 ±.025 
+
+COMPLETER .189 ±.089 .147 ±.074 .172 ±.086 .140 ±.070 .168 ±.084 
+
+APADC .064 ±.025 .049 ±.024 .057 ±.028 .046 ±.023 .054 ±.027 
+
+DGF .341 ±.011 .296 ±.020 .298 ±.017 .309 ±.019 .294 ±.026 
+
+DMGC .352 ±.008 .274 ±.016 .295 ±.016 .304 ±.020 .316 ±.021 
+
+RHEA (ours) .417 ±.007 .372 ±.010 .387 ±.018 .383 ±.019 .376 ±.017 
+
+Table 2: Robustness (NMI) across standard, image-, and text-modality perturbation. Image/text corruption η=0 .4,missing m=0 .5.RHEA’s advantage over the bare backbone there, which is why its lead over DGF is widest under missing modalities (Sec. 5.3). The reliability gate makes that reconstruction se-lective: reconstructing every modality rather than only the ones the field flags as unreliable costs 0.050 NMI under cor-ruption, the largest gate-sensitive drop, because overwriting an already-reliable modality injects noise; under missing-ness the gate matters less ( 0.015 ), since an absent modality is always flagged. The field thus helps mainly by deciding which modality to repair, a role examined further in Sec. 5.6. 
+
+The clean base comes from assignment distillation over the shared backbone. Neighbor-consensus assignment dis-Variant Standard Corr. Miss. 
+
+RHEA (full) .557 ±.011 .500 ±.016 .517 ±.015 
+
+− Reconstruction .553 ±.010 .454 ±.021 .456 ±.023 
+
+− Reliability Gating .536 ±.017 .450 ±.022 .502 ±.014 
+
+− Reliability Fusion .550 ±.013 .484 ±.015 .505 ±.019 
+
+− Conf. OT Marginal .554 ±.009 .490 ±.012 .510 ±.013 
+
+− NCRC .538 ±.020 .487 ±.017 .508 ±.016 
+
+Backbone (all off) .518 ±.012 .437 ±.019 .442 ±.021 
+
+Table 3: Component ablation across regimes (mean NMI ±
+
+std; four datasets, five seeds; image corruption η=0 .4, miss-ing m=0 .5). Each row removes one component from full RHEA; the last removes all (only backbone). 
+
+Hyperparameter Sweep Standard Miss. 
+
+Entropic strength ϵ (0.05 ) 20 × [.851 , . 871] [.775 , . 793] 
+
+Sinkhorn iterations ( 20 ) 5−20 [.864 , . 868] [.785 , . 791] 
+
+Gate threshold γ (0.45 ) [.30 , . 65] [.861 , . 869] [.770 , . 792] 
+
+Reliability temp. τ (1) [.5, 2] [.865 , . 869] [.786 , . 792] 
+
+Table 4: Hyperparameter sensitivity on RedditS (NMI). Each row sweeps one hyperparameter over the listed range with all others fixed at their default (in parentheses); clean and missing m=0 .5 regimes. tillation (NCRC) is the most useful clean-regime compo-nent outside the repair pathway ( 0.019 NMI when removed); with every component off, NMI falls to the DGF-level back-bone ( 0.518 /0.437 /0.442 for clean/corruption/missing), so the clean-setting accuracy rests on NCRC over that back-bone while the repair mechanisms above add the missing-modality robustness on top. Reliability-weighted fusion and the confidence-shrunk optimal-transport marginal only re-fine the result (each at most 0.016 ); the choice of reconstruc-tion operator and the generality of the mechanism across text, joint, and asymmetric degradation are in Appendix B. 
+
+5.5 Sensitivity Analysis 
+
+To answer RQ4 , we check that the gains are stable across RHEA’s four main hyperparameters: the entropic-OT strength ϵ, the number of Sinkhorn iterations, the recon-struction gate threshold γ, and the reliability temperature 
+
+τ (Table 4). We sweep each in the clean setting and un-der missing modalities ( m=0 .5), the regime where RHEA’s advantage is largest and its components contribute most (Sec. 5.3 and 5.4); the corruption regime is intermediate, so these two settings bracket the operating range. Across every sweep NMI stays within a narrow band around the default: a 20 -fold change in ϵ shifts it by at most 0.020 ,Sinkhorn iterations and τ by at most 0.006 . The gate γ
+
+(swept over [0 .30 , 0.65] around its default 0.45 ) is the most regime-sensitive knob—its band widens from 0.008 (clean) to 0.022 under missingness, where it decides which modal-ity to repair—yet the default still sits near the top of the band rather than at a sharp optimum, so RHEA needs no per-dataset tuning; homophily sensitivity is in Appendix C. 0.1 0.2 0.4  
+
+> Injected corruption η
+> 0.95 0.96 0.97 0.98 0.99
+> AUROC
+> (a) Corruption detection
+> RedditS Toys Grocery Amazon
+> RedditS Toys Grocery Amazon
+> 0.6 0.8 1.0
+> (b) Neighbor control clean-neighbor corrupt-neighbor
+
+Figure 3: Synthetic-corruption recoverability of the reliabil-ity field (corruption regime). (a) AUROC of (1 − ρi, img ) vs. injected corruption η, per dataset. (b) AUROC stratified by clean- vs. corrupt-neighbor nodes ( η=0 .4). (a) Standard (b) Recon. (c) No recon. 
+
+Figure 4: t-SNE of RHEA fused embeddings on RedditS. (a) standard setting; (b) missing m=0 .5 with reconstruction; (c) missing m=0 .5 without reconstruction. 
+
+5.6 Interpretability Investigation 
+
+To answer RQ5 , we test what the reliability field learns and how it shapes the embedding through synthetic-corruption recoverability: we inject corruption into a known subset of nodes and ask, without supervision, whether the field recov-ers it. The detector (1 − ρi, img ) separates injected-corrupt from clean nodes at AUROC 0.958 –0.982 across all four benchmarks, rising with the corruption severity η (Fig. 3a); restricting to the clean-neighbor stratum, where a majority vote has nothing corrupt to imitate, it still scores 0.92 –0.96 
+
+(Fig. 3b), so it reads each node’s own corruption rather than echoing its neighborhood. Accurate detection turns into a clustering gain only through repair: the improvement un-der corruption is smaller and more dataset-dependent than under missingness (Sec. 5.3), because repair acts only on gate-flagged nodes: an absent modality is always flagged and replaced by the neighbor average (Eq. 4), while sub-threshold corruption is retained. This is visible in the em-bedding (Fig. 4): clusters are well separated in the standard setting, preserved under 50% image missingness when re-construction is on, and collapse together when it is off, cor-roborating the ablation (Sec. 5.4) that graph-neighbor recon-struction underlies the missing-modality robustness. 
+
+6 Conclusion 
+
+We presented RHEA, a multimodal graph clustering frame-work that estimates node-level modality reliability from neighborhood consensus, enabling adaptive feature recon-struction, reliability-aware reweighting of corrupted modal-ities, and topology-aware cluster assignment. Extensive ex-periments across diverse benchmarks and evaluation set-tings demonstrate that RHEA consistently outperforms com-petitive baselines, with particularly pronounced improve-ments under missing and corrupted modalities. These find-ings highlight the importance of modeling node-specific, graph-induced reliability for robust multimodal representa-tion learning and clustering, suggesting that local structural context provides an effective signal for identifying unreli-able observations. Future work will investigate extending the framework to low-homophily and heterophilous graphs. 
+
+References 
+
+Bo, D.; Wang, X.; Shi, C.; Zhu, M.; Lu, E.; and Cui, P. 2020. Structural Deep Clustering Network. In Proceedings of The Web Conference (WWW) .Chen, J.; Shi, L.; and Chen, B. 2025. RSEA-MVGNN: Multi-View Graph Neural Network with Reliable Structural Enhancement and Aggregation. Information Fusion , 121: 103143. Cui, G.; Zhou, J.; Yang, C.; and Liu, Z. 2020. Adaptive Graph Encoder for Attributed Graph Embedding. In Pro-ceedings of the 26th ACM SIGKDD International Confer-ence on Knowledge Discovery and Data Mining (KDD) .Cuturi, M. 2013. Sinkhorn Distances: Lightspeed Computa-tion of Optimal Transport. In Advances in Neural Informa-tion Processing Systems (NeurIPS) .Desai, K.; Kaul, G.; Aysola, Z. T.; and Johnson, J. 2021. RedCaps: Web-curated image-text data created by the peo-ple, for the people. In Advances in Neural Information Pro-cessing Systems, NeurIPS, Datasets and Benchmarks Track, NeurIPS DB Track .Devvrit, F.; Sinha, A.; Dhillon, I. S.; and Jain, P. 2022. S3GC: Scalable Self-Supervised Graph Cluster-ing. In Advances in Neural Information Processing Systems (NeurIPS) .Guo, Z.; Shen, Z.; Xie, X.; Wen, L.; and Kang, Z. 2025. Disentangling Homophily and Heterophily in Multimodal Graph Clustering. In Proceedings of the 33rd ACM Inter-national Conference on Multimedia (ACM MM) .Han, Z.; Zhang, C.; Fu, H.; and Zhou, J. T. 2023. Trusted Multi-View Classification with Dynamic Evidential Fusion. 
+
+IEEE Transactions on Pattern Analysis and Machine Intelli-gence .Hassani, K.; and Khasahmadi, A. H. 2020. Contrastive Multi-View Representation Learning on Graphs. In Pro-ceedings of the 37th International Conference on Machine Learning (ICML) .Hubert, L.; and Arabie, P. 1985. Comparing Partitions. Jour-nal of Classification , 2(1): 193–218. Jiang, Y.; Xia, L.; Wei, W.; Luo, D.; Lin, K.; and Huang, C. 2024. DiffMM: Multi-Modal Diffusion Model for Recom-mendation. In Proceedings of the 32nd ACM International Conference on Multimedia (MM) .Ke, G.; Chao, G.; Wang, X.; Xu, C.; and Yu, Y. 2023. AClustering-guided Contrastive Fusion for Multi-view Rep-resentation Learning. IEEE Transactions on Circuits and Systems for Video Technology .Kipf, T. N.; and Welling, M. 2017. Semi-Supervised Clas-sification with Graph Convolutional Networks. In Interna-tional Conference on Learning Representations (ICLR) .Kuhn, H. W. 1955. The Hungarian Method for the Assign-ment Problem. Naval Research Logistics Quarterly , 2(1-2): 83–97. Li, B.; Wang, Y.; Zhao, B.; Gao, H.; and Yan, B. 2025a. Attributed Graph Clustering with Multi-Scale Weight-Based Pairwise Coarsening and Contrastive Learning. Neurocom-puting .Li, B.; Xiang, X.; Li, X.; Zhao, B.; Gao, H.; and Yang, Q. 2025b. Tri-Learn Graph Fusion Network for Attributed Graph Clustering. Pattern Analysis and Applications .Li, X.; Wu, Z.; Chen, Z.; Sun, H.; Su, D.; Zeng, G.; Qin, H.; Li, R.-H.; and Wang, G. 2026. LION: A Clifford Neural Paradigm for Multimodal-Attributed Graph Learning. arXiv preprint arXiv:2601.21453 .Lin, J.-Q.; Chen, M.-S.; Zhu, X.-R.; Wang, C.-D.; and Zhang, H. 2024. Dual Information Enhanced Multi-view Attributed Graph Clustering. IEEE Transactions on Neural Networks and Learning Systems .Lin, R.; and Hu, H. 2022. Multimodal Contrastive Learning via Uni-Modal Coding and Cross-Modal Prediction for Mul-timodal Sentiment Analysis. Findings of the Association for Computational Linguistics: EMNLP .Lin, Y.; Gou, Y.; Liu, Z.; Li, B.; Lv, J.; and Peng, X. 2021. COMPLETER: Incomplete Multi-view Clustering via Con-trastive Prediction. In Proceedings of the IEEE/CVF Confer-ence on Computer Vision and Pattern Recognition (CVPR) .Liu, Y.; Gao, X.; He, T.; Zheng, T.; Zhao, J.; and Yin, H. 2024a. Reliable Node Similarity Matrix Guided Contrastive Graph Clustering. IEEE Transactions on Knowledge and Data Engineering .Liu, Y.; Li, J.; Chen, Y.; Wu, R.; Wang, B.; Zhou, J.; Tian, S.; Shen, S.; Fu, X.; Meng, C.; Wang, W.; and Chen, L. 2024b. Revisiting Modularity Maximization for Graph Clustering: A Contrastive Learning Perspective. In Proceedings of the 30th ACM SIGKDD Conference on Knowledge Discovery and Data Mining (KDD) .Liu, Y.; Liang, K.; Xia, J.; Zhou, S.; Yang, X.; Liu, X.; and Li, S. Z. 2023a. Dink-Net: Neural Clustering on Large Graphs. In Proceedings of the 40th International Confer-ence on Machine Learning (ICML) .Liu, Y.; Tu, W.; Zhou, S.; Liu, X.; Song, L.; Yang, X.; and Zhu, E. 2022a. Deep Graph Clustering via Dual Correla-tion Reduction. In Proceedings of the AAAI Conference on Artificial Intelligence .Liu, Y.; Yang, X.; Zhou, S.; Liu, X.; Wang, Z.; Liang, K.; Tu, W.; Li, L.; Duan, J.; and Chen, C. 2023b. Hard Sam-ple Aware Network for Contrastive Deep Graph Clustering. In Proceedings of the AAAI Conference on Artificial Intelli-gence .Liu, Y.; Zheng, Y.; Zhang, D.; Chen, H.; Peng, H.; and Pan, S. 2022b. Towards Unsupervised Deep Graph Struc-ture Learning. In Proceedings of the ACM Web Conference (WWW) .Malitesta, D.; Rossi, E.; Pomo, C.; Di Noia, T.; and Malliaros, F. D. 2026. Training-free Graph-based Imputa-tion of Missing Modalities in Multimodal Recommendation. 
+
+arXiv preprint arXiv:2602.17354 .McPherson, M.; Smith-Lovin, L.; and Cook, J. M. 2001. Birds of a Feather: Homophily in Social Networks. Annual Review of Sociology , 27: 415–444. Newman, M. E. J. 2006. Modularity and Community Struc-ture in Networks. Proceedings of the National Academy of Sciences , 103(23): 8577–8582. Ni, J.; Li, J.; and McAuley, J. J. 2019. Justifying Recommen-dations using Distantly-Labeled Reviews and Fine-Grained Aspects. In EMNLP/IJCNLP (1) , 188–197. Association for Computational Linguistics. Pan, E.; and Kang, Z. 2021. Multi-view Contrastive Graph Clustering. In Advances in Neural Information Processing Systems (NeurIPS) .Peng, Z.; Liu, H.; Jia, Y.; and Hou, J. 2021. Attention-driven Graph Clustering Network. In Proceedings of the 29th ACM International Conference on Multimedia (ACM MM) .Peyr´ e, G.; and Cuturi, M. 2019. Computational Optimal Transport. Foundations and Trends in Machine Learning ,11(5-6): 355–607. Radford, A.; Kim, J. W.; Hallacy, C.; Ramesh, A.; Goh, G.; Agarwal, S.; Sastry, G.; Askell, A.; Mishkin, P.; Clark, J.; Krueger, G.; and Sutskever, I. 2021. Learning Transferable Visual Models From Natural Language Supervision. In Pro-ceedings of the 38th International Conference on Machine Learning (ICML) .Roh, Y.-S.; Kim, J.-Y.; Park, J.-D.; and Shin, W.-Y. 2025. Training-free Adjustable Polynomial Graph Filtering for Ultra-fast Multimodal Recommendation. Engineering Ap-plications of Artificial Intelligence . ArXiv:2503.04406. Shim, M. S.; Li, P.; Bao, C.; and Lai, J. 2019. Ro-bust Deep Multi-Modal Sensor Fusion using Fusion Weight Regularization and Target Learning. arXiv preprint arXiv:1901.10610 .Strehl, A.; and Ghosh, J. 2002. Cluster Ensembles – A Knowledge Reuse Framework for Combining Multiple Par-titions. Journal of Machine Learning Research , 3: 583–617. Tsitsulin, A.; Palowitch, J.; Perozzi, B.; and M¨ uller, E. 2023. Graph Clustering with Graph Neural Networks. Journal of Machine Learning Research , 24(127): 1–21. Tu, W.; Zhou, S.; Liu, X.; Guo, X.; Cai, Z.; Zhu, E.; and Cheng, J. 2021. Deep Fusion Clustering Network. In Pro-ceedings of the AAAI Conference on Artificial Intelligence .Vaswani, A.; Shazeer, N.; Parmar, N.; Uszkoreit, J.; Jones, L.; Gomez, A. N.; Kaiser, L.; and Polosukhin, I. 2017. At-tention Is All You Need. In Advances in Neural Information Processing Systems (NeurIPS) .Veliˇ ckovi´ c, P.; Cucurull, G.; Casanova, A.; Romero, A.; Li` o, P.; and Bengio, Y. 2018. Graph Attention Networks. In Inter-national Conference on Learning Representations (ICLR) .Wan, C.; Li, X.; Zuo, Y.; Deng, H.; Li, S.; Fan, B.; Qin, H.; Li, R.-H.; and Wang, G. 2026. OpenMAG: A Compre-hensive Benchmark for Multimodal-Attributed Graph. arXiv preprint arXiv:2602.05576 .Wang, C.; Pan, S.; Hu, R.; Long, G.; Jiang, J.; and Zhang, C. 2019. Attributed Graph Clustering: A Deep Attentional Em-bedding Approach. In Proceedings of the 28th International Joint Conference on Artificial Intelligence (IJCAI) .Wang, N.; et al. 2025. Modality-uncertainty-aware knowl-edge distillation framework for multimodal sentiment anal-ysis. Complex & Intelligent Systems .Wu, R.; Wang, H.; Chen, H.-T.; and Carneiro, G. 2024. Deep Multimodal Learning with Missing Modality: A Sur-vey. Transactions on Machine Learning Research (TMLR) .ArXiv:2409.07825. Xia, J.; Wu, L.; Wang, G.; Chen, J.; and Li, S. Z. 2022. ProGCL: Rethinking Hard Negative Mining in Graph Con-trastive Learning. In Proceedings of the 39th International Conference on Machine Learning (ICML) .Xia, R.; Liu, H.; Li, A.; Liu, X.; Zhang, Y.; Zhang, C.; and Yang, B. 2025. Incomplete Graph Learning: A Comprehen-sive Survey. Neural Networks , 190: 107682. Xu, J.; Li, C.; Peng, L.; Ren, Y.; Shi, X.; Shen, H. T.; and Zhu, X. 2023. Adaptive Feature Projection with Distribu-tion Alignment for Deep Incomplete Multi-view Clustering. 
+
+IEEE Transactions on Image Processing .Xue, X.; Lei, Y.; Cai, Q.; Shan, H.; and Zhang, J. 2025. PROTOCOL: Partial Optimal Transport-enhanced Con-trastive Learning for Imbalanced Multi-view Clustering. In 
+
+Proceedings of the 42nd International Conference on Ma-chine Learning (ICML) .Yan, H.; Li, C.; Yin, J.; Yu, Z.; Han, W.; Li, M.; Zeng, Z.; Sun, H.; and Wang, S. 2024a. When Graph meets Multi-modal: Benchmarking and Meditating on Multimodal At-tributed Graphs Learning. arXiv preprint arXiv:2410.09132 .Yan, X.; Jin, Z.; Han, F.; and Ye, Y. 2024b. Differentiable In-formation Bottleneck for Deterministic Multi-view Cluster-ing. In Proceedings of the IEEE/CVF Conference on Com-puter Vision and Pattern Recognition (CVPR) .Yang, X.; Liu, Y.; Zhou, S.; Wang, S.; Tu, W.; Zheng, Q.; Liu, X.; Fang, L.; and Zhu, E. 2023. Cluster-guided Con-trastive Graph Clustering Network. In Proceedings of the AAAI Conference on Artificial Intelligence .You, Y.; Chen, T.; Sui, Y.; Chen, T.; Wang, Z.; and Shen, Y. 2020. Graph Contrastive Learning with Augmenta-tions. In Advances in Neural Information Processing Sys-tems (NeurIPS) .Zheng, H.; Yang, R.; Wang, H.; and Xu, J. 2025. Cross-Contrastive Clustering for Multimodal Attributed Graphs with Dual Graph Filtering. arXiv preprint arXiv:2511.20030 .Zhou, X.; and Shen, Z. 2023. A Tale of Two Graphs: Freez-ing and Denoising Graph Structures for Multimodal Recom-mendation. In Proceedings of the 31st ACM International Conference on Multimedia (MM) .Zhu, J.; Zou, X.; Sun, J.; Luo, C.; Liu, L.; and Zeng, L. 2026. MoEGCL: Mixture of Ego-Graphs Contrastive Representa-tion Learning for Multi-View Clustering. In Proceedings of the AAAI Conference on Artificial Intelligence .Zhu, Y.; Xu, Y.; Yu, F.; Liu, Q.; Wu, S.; and Wang, L. 2021. Graph Contrastive Learning with Adaptive Augmentation. In Proceedings of the Web Conference (WWW) .Dataset Method Standard Image Pert. Text Pert. Corr. Miss. Corr. Miss. 
+
+RedditS KMeans .737 ±.010 .498 ±.019 .419 ±.025 .534 ±.018 .486 ±.024 
+
+DFCN .812 ±.011 .594 ±.015 .543 ±.024 .697 ±.022 .660 ±.022 
+
+DMoN .531 ±.182 .332 ±.166 .319 ±.160 .366 ±.183 .370 ±.185 
+
+MVGRL .781 ±.012 .530 ±.021 .497 ±.028 .524 ±.027 .516 ±.019 
+
+S3GC .651 ±.020 .446 ±.030 .444 ±.026 .498 ±.037 .528 ±.025 
+
+COMPLETER .534 ±.026 .422 ±.038 .496 ±.038 .402 ±.039 .483 ±.056 
+
+APADC .339 ±.086 .238 ±.119 .286 ±.143 .231 ±.115 .276 ±.138 
+
+DGF .807 ±.014 .676 ±.027 .689 ±.030 .712 ±.030 .678 ±.023 
+
+DMGC .799 ±.013 .625 ±.020 .664 ±.021 .701 ±.024 .708 ±.030 
+
+RHEA (ours) .852 ±.016 .762 ±.028 .784 ±.029 .781 ±.036 .790 ±.030 
+
+Toys KMeans .353 ±.004 .250 ±.008 .206 ±.013 .271 ±.014 .242 ±.014 
+
+DFCN .441 ±.009 .307 ±.021 .279 ±.023 .363 ±.014 .344 ±.020 
+
+DMoN .177 ±.067 .115 ±.058 .109 ±.054 .128 ±.064 .127 ±.063 
+
+MVGRL .415 ±.012 .316 ±.022 .289 ±.023 .314 ±.029 .308 ±.018 
+
+S3GC .335 ±.015 .223 ±.022 .225 ±.021 .254 ±.032 .273 ±.030 
+
+COMPLETER .340 ±.013 .272 ±.023 .311 ±.025 .258 ±.026 .307 ±.023 
+
+APADC .246 ±.019 .179 ±.025 .213 ±.030 .174 ±.035 .203 ±.037 
+
+DGF .424 ±.018 .344 ±.034 .354 ±.031 .361 ±.032 .360 ±.035 
+
+DMGC .417 ±.015 .333 ±.031 .356 ±.021 .372 ±.023 .376 ±.030 
+
+RHEA (ours) .477 ±.020 .434 ±.038 .443 ±.029 .446 ±.036 .434 ±.029 
+
+Grocery KMeans .248 ±.018 .158 ±.038 .134 ±.024 .174 ±.028 .156 ±.035 
+
+DFCN .406 ±.013 .291 ±.021 .265 ±.025 .338 ±.028 .330 ±.026 
+
+DMoN .193 ±.043 .120 ±.060 .112 ±.056 .131 ±.061 .135 ±.068 
+
+MVGRL .392 ±.011 .271 ±.016 .253 ±.015 .267 ±.017 .269 ±.021 
+
+S3GC .341 ±.012 .234 ±.020 .228 ±.023 .262 ±.024 .274 ±.025 
+
+COMPLETER .381 ±.025 .295 ±.046 .347 ±.036 .287 ±.033 .343 ±.034 
+
+APADC .285 ±.033 .209 ±.049 .248 ±.062 .206 ±.040 .239 ±.067 
+
+DGF .411 ±.005 .332 ±.017 .335 ±.012 .351 ±.012 .336 ±.009 
+
+DMGC .408 ±.006 .331 ±.013 .351 ±.017 .366 ±.014 .375 ±.012 
+
+RHEA (ours) .447 ±.017 .409 ±.024 .423 ±.031 .433 ±.033 .419 ±.034 
+
+Amazon KMeans .799 ±.001 .534 ±.005 .444 ±.007 .590 ±.005 .515 ±.009 
+
+DFCN .763 ±.010 .512 ±.021 .462 ±.025 .601 ±.017 .581 ±.014 
+
+DMoN .710 ±.096 .456 ±.122 .435 ±.184 .495 ±.186 .509 ±.118 
+
+MVGRL .725 ±.012 .517 ±.023 .489 ±.024 .522 ±.021 .523 ±.020 
+
+S3GC .701 ±.015 .467 ±.018 .462 ±.030 .513 ±.026 .546 ±.033 
+
+COMPLETER .569 ±.156 .442 ±.220 .524 ±.180 .423 ±.211 .504 ±.220 
+
+APADC .649 ±.013 .495 ±.023 .585 ±.031 .466 ±.026 .564 ±.021 
+
+DGF .740 ±.013 .629 ±.018 .651 ±.027 .670 ±.027 .643 ±.029 
+
+DMGC .749 ±.010 .590 ±.015 .639 ±.014 .658 ±.018 .661 ±.020 
+
+RHEA (ours) .833 ±.012 .738 ±.027 .753 ±.026 .764 ±.024 .766 ±.024 
+
+Table 5: Robustness (ACC) across standard, image-, and text-modality perturbation. Image/text corruption η=0 .4,missing m=0 .5.
+
+A Robustness to Modality Perturbation (ACC, ARI, F1) 
+
+The NMI robustness results are reported in Table 2(Sec. 5.3). Tables 5–7 further present the corresponding ACC, ARI, and F1 scores under the same evaluation pro-tocol, including identical perturbation settings ( η = 0.4,
+
+m = 0 .5) and ranking marks. The Standard column re-produces the clean-performance results from the main com-parison in Table 1. As observed, across all metrics and all settings, RHEA consistently achieves the best performance in every case, in agreement with the NMI results. This con-sistency suggests that the observed robustness gains are not metric-specific, but instead reflect a general and stable im-provement under perturbations. 
+
+B More Ablation Study 
+
+Beyond the component ablation study in Sec. 5.4 (Table 3), we further conduct three analyses: the choice of recon-struction operator, the generality of the reliability mecha-nism across modality corruption settings, and a comparison against training-free graph imputation baselines. 
+
+Dataset Method Standard Image Pert. Text Pert. Corr. Miss. Corr. Miss. 
+
+RedditS KMeans .689 ±.017 .469 ±.034 .392 ±.031 .506 ±.036 .454 ±.031 
+
+DFCN .765 ±.013 .555 ±.018 .504 ±.018 .653 ±.028 .624 ±.021 
+
+DMoN .451 ±.185 .289 ±.144 .276 ±.138 .313 ±.156 .326 ±.163 
+
+MVGRL .742 ±.015 .495 ±.025 .461 ±.024 .491 ±.028 .490 ±.023 
+
+S3GC .602 ±.018 .419 ±.037 .412 ±.031 .472 ±.030 .495 ±.037 
+
+COMPLETER .476 ±.033 .388 ±.050 .453 ±.052 .364 ±.062 .442 ±.050 
+
+APADC .239 ±.059 .169 ±.085 .198 ±.099 .161 ±.080 .193 ±.076 
+
+DGF .811 ±.013 .686 ±.025 .711 ±.022 .723 ±.019 .697 ±.020 
+
+DMGC .789 ±.011 .612 ±.019 .649 ±.019 .677 ±.017 .690 ±.021 
+
+RHEA (ours) .869 ±.017 .766 ±.028 .788 ±.039 .815 ±.039 .793 ±.031 
+
+Toys KMeans .171 ±.001 .122 ±.008 .100 ±.005 .131 ±.006 .116 ±.006 
+
+DFCN .255 ±.009 .180 ±.018 .161 ±.012 .208 ±.016 .200 ±.021 
+
+DMoN .058 ±.057 .038 ±.019 .035 ±.018 .041 ±.020 .041 ±.021 
+
+MVGRL .236 ±.011 .174 ±.017 .163 ±.022 .176 ±.017 .174 ±.021 
+
+S3GC .189 ±.013 .129 ±.026 .131 ±.023 .144 ±.030 .155 ±.022 
+
+COMPLETER .188 ±.014 .150 ±.027 .175 ±.026 .142 ±.030 .167 ±.028 
+
+APADC .071 ±.016 .053 ±.025 .061 ±.031 .050 ±.025 .060 ±.028 
+
+DGF .268 ±.011 .222 ±.015 .222 ±.016 .229 ±.025 .222 ±.024 
+
+DMGC .262 ±.012 .212 ±.025 .224 ±.026 .236 ±.019 .239 ±.016 
+
+RHEA (ours) .312 ±.020 .283 ±.036 .289 ±.042 .288 ±.032 .284 ±.030 
+
+Grocery KMeans .099 ±.010 .063 ±.024 .052 ±.018 .069 ±.022 .061 ±.021 
+
+DFCN .255 ±.011 .184 ±.022 .163 ±.014 .212 ±.020 .206 ±.025 
+
+DMoN .052 ±.054 .033 ±.017 .031 ±.015 .036 ±.018 .036 ±.018 
+
+MVGRL .241 ±.010 .165 ±.018 .155 ±.021 .168 ±.022 .165 ±.024 
+
+S3GC .176 ±.011 .118 ±.024 .120 ±.014 .135 ±.020 .141 ±.018 
+
+COMPLETER .218 ±.036 .174 ±.045 .201 ±.059 .164 ±.074 .194 ±.045 
+
+APADC .126 ±.026 .092 ±.046 .110 ±.052 .089 ±.044 .105 ±.034 
+
+DGF .295 ±.003 .245 ±.010 .248 ±.009 .255 ±.008 .246 ±.011 
+
+DMGC .283 ±.004 .229 ±.013 .246 ±.014 .252 ±.013 .261 ±.009 
+
+RHEA (ours) .331 ±.009 .309 ±.017 .319 ±.016 .319 ±.015 .311 ±.017 
+
+Amazon KMeans .465 ±.003 .314 ±.012 .262 ±.010 .344 ±.007 .305 ±.007 
+
+DFCN .427 ±.019 .287 ±.028 .257 ±.027 .335 ±.036 .324 ±.028 
+
+DMoN .363 ±.112 .233 ±.116 .221 ±.111 .256 ±.128 .259 ±.129 
+
+MVGRL .401 ±.013 .286 ±.016 .274 ±.025 .293 ±.023 .286 ±.022 
+
+S3GC .328 ±.014 .216 ±.031 .219 ±.023 .246 ±.027 .261 ±.024 
+
+COMPLETER .109 ±.201 .086 ±.043 .100 ±.050 .080 ±.040 .096 ±.048 
+
+APADC .045 ±.023 .034 ±.017 .040 ±.020 .032 ±.016 .039 ±.019 
+
+DGF .372 ±.020 .316 ±.041 .315 ±.035 .325 ±.033 .316 ±.035 
+
+DMGC .389 ±.009 .300 ±.013 .323 ±.011 .333 ±.021 .347 ±.017 
+
+RHEA (ours) .492 ±.015 .431 ±.028 .444 ±.024 .460 ±.031 .455 ±.033 
+
+Table 6: Robustness (ARI) across standard, image-, and text-modality perturbation. Image/text corruption η=0 .4, miss-ing m=0 .5.
+
+Reconstruction operator. The reconstruction module in Sec. 4.2 aggregates one-hop neighbors of each node from the reliable modality. We evaluate alternative topology-aware denoising operators, including personalized PageR-ank (PPR, teleport α = 0 .15 ), heat kernel diffusion (H EAT ), a similarity-gated one-hop operator that down-weights anti-correlated edges (S IMGATE ), and their compositions. As shown in Fig. 5, evaluated on RedditS and Grocery under missing ( m = 0 .5) and corruption ( η = 0 .4) settings (averaged over five seeds), multi-hop diffusion methods (PPR/H EAT ) yield only marginal improvements over the one-hop mean aggregator ( +0 .002 NMI on average). The similarity-gated variant does not provide consistent gains (−0.004 NMI on average). This is likely because similar-ity gating effectively filters low-confidence neighbors, while RHEA already leverages per-node reliability via ci to iden-tify informative donors. Since all alternatives lie within one standard deviation of the mean and do not affect overall con-clusions, we retain the one-hop mean as the default recon-struction operator. 
+
+Generality across modality regimes. Since both the gat-ing and reconstruction operate on the modality identified Dataset Method Standard Image Pert. Text Pert. Corr. Miss. Corr. Miss. 
+
+RedditS KMeans .651 ±.006 .434 ±.014 .359 ±.018 .472 ±.013 .425 ±.014 
+
+DFCN .725 ±.006 .532 ±.010 .465 ±.011 .626 ±.018 .586 ±.013 
+
+DMoN .394 ±.214 .252 ±.126 .236 ±.118 .271 ±.135 .279 ±.139 
+
+MVGRL .701 ±.009 .472 ±.012 .445 ±.015 .470 ±.019 .471 ±.019 
+
+S3GC .541 ±.022 .378 ±.036 .373 ±.047 .413 ±.049 .446 ±.034 
+
+COMPLETER .400 ±.030 .317 ±.049 .370 ±.050 .298 ±.054 .354 ±.048 
+
+APADC .227 ±.073 .165 ±.083 .191 ±.096 .156 ±.078 .183 ±.091 
+
+DGF .695 ±.031 .590 ±.046 .591 ±.052 .604 ±.061 .586 ±.054 
+
+DMGC .681 ±.021 .532 ±.040 .573 ±.040 .598 ±.033 .617 ±.038 
+
+RHEA (ours) .771 ±.023 .685 ±.035 .707 ±.047 .718 ±.037 .699 ±.046 
+
+Toys KMeans .315 ±.003 .225 ±.012 .186 ±.010 .243 ±.007 .221 ±.011 
+
+DFCN .400 ±.014 .279 ±.032 .252 ±.031 .323 ±.018 .313 ±.022 
+
+DMoN .103 ±.097 .067 ±.034 .062 ±.031 .073 ±.037 .074 ±.037 
+
+MVGRL .382 ±.010 .285 ±.017 .266 ±.018 .284 ±.019 .286 ±.020 
+
+S3GC .282 ±.012 .194 ±.019 .194 ±.023 .216 ±.025 .229 ±.028 
+
+COMPLETER .277 ±.011 .215 ±.023 .252 ±.022 .206 ±.022 .247 ±.027 
+
+APADC .179 ±.023 .129 ±.033 .153 ±.042 .126 ±.033 .147 ±.030 
+
+DGF .372 ±.015 .311 ±.022 .315 ±.030 .330 ±.030 .316 ±.023 
+
+DMGC .364 ±.013 .285 ±.027 .314 ±.032 .321 ±.021 .333 ±.023 
+
+RHEA (ours) .445 ±.016 .394 ±.033 .413 ±.027 .421 ±.023 .414 ±.024 
+
+Grocery KMeans .219 ±.013 .139 ±.025 .115 ±.029 .151 ±.027 .133 ±.022 
+
+DFCN .328 ±.012 .236 ±.025 .213 ±.021 .273 ±.021 .265 ±.019 
+
+DMoN .106 ±.081 .067 ±.033 .063 ±.031 .072 ±.036 .074 ±.037 
+
+MVGRL .318 ±.012 .222 ±.020 .203 ±.023 .218 ±.023 .218 ±.020 
+
+S3GC .264 ±.013 .181 ±.020 .180 ±.020 .201 ±.025 .216 ±.026 
+
+COMPLETER .297 ±.022 .232 ±.046 .265 ±.038 .220 ±.047 .263 ±.041 
+
+APADC .164 ±.022 .124 ±.037 .144 ±.038 .119 ±.041 .139 ±.031 
+
+DGF .348 ±.008 .286 ±.021 .292 ±.016 .301 ±.016 .291 ±.011 
+
+DMGC .340 ±.008 .277 ±.016 .298 ±.021 .307 ±.017 .321 ±.018 
+
+RHEA (ours) .383 ±.014 .350 ±.020 .371 ±.030 .370 ±.022 .365 ±.022 
+
+Amazon KMeans .716 ±.002 .486 ±.010 .404 ±.007 .523 ±.009 .471 ±.010 
+
+DFCN .718 ±.010 .489 ±.023 .434 ±.024 .575 ±.019 .550 ±.016 
+
+DMoN .645 ±.089 .415 ±.131 .391 ±.158 .461 ±.132 .463 ±.172 
+
+MVGRL .690 ±.010 .497 ±.020 .475 ±.014 .503 ±.023 .498 ±.023 
+
+S3GC .612 ±.013 .410 ±.019 .404 ±.023 .452 ±.029 .487 ±.026 
+
+COMPLETER .462 ±.148 .366 ±.183 .431 ±.215 .350 ±.175 .410 ±.183 
+
+APADC .330 ±.034 .246 ±.059 .297 ±.050 .235 ±.049 .284 ±.047 
+
+DGF .673 ±.011 .571 ±.018 .586 ±.021 .602 ±.016 .586 ±.019 
+
+DMGC .686 ±.009 .528 ±.014 .580 ±.022 .591 ±.019 .621 ±.018 
+
+RHEA (ours) .755 ±.009 .669 ±.023 .695 ±.015 .705 ±.020 .686 ±.019 
+
+Table 7: Robustness (F1) across standard, image-, and text-modality perturbation. Image/text corruption η=0 .4, miss-ing m=0 .5.miss m = 0.5 corrupt η = 0.4 
+
+> 0.76 0.78 0.80
+> NMI
+
+RedditS       
+
+> miss m= 0.5 corrupt η= 0.4
+> 0.44 0.45 0.46 0.47 0.48
+
+Grocery      
+
+> mean ppr heat simgate ppr_sim heat_sim
+
+Figure 5: Reconstruction operator ablation. NMI under missing ( m = 0 .5) and corruption ( η = 0 .4) settings for different reconstruction operators. as unreliable, the mechanism is not restricted to a specific modality. Table 8 evaluates RHEA against the backbone without reliability modeling (S INKHORN ) under different corruption regimes, including text-only corruption, joint cor-ruption, and asymmetric modality degradation. RHEA consistently improves over the baseline across all settings, with the largest gains under asymmetric corruption (+0 .21 NMI on RedditS and +0 .06 on Amazon) and joint corruption ( +0 .10 and +0 .06 ). Even under single-modality 
+
+Dataset Regime RHEA SINKHORN 
+
+RedditS corrupt-text η=.4 .808 ±.008 .795 ±.011 
+
+corrupt-both η=.4 .700 ±.010 .600 ±.022 
+
+text-missing m=.5 .785 ±.009 .772 ±.012 
+
+asymmetric m=.5 .770 ±.009 .560 ±.017 
+
+Amazon corrupt-text η=.4 .383 ±.007 .370 ±.015 
+
+corrupt-both η=.4 .330 ±.009 .270 ±.020 
+
+text-missing m=.5 .376 ±.006 .363 ±.014 
+
+asymmetric m=.5 .360 ±.008 .300 ±.019 
+
+Table 8: Generality across modality degradation regimes. 
+
+Dataset m RHEA impute-MEAN impute-PPR impute-HEAT 
+
+RedditS .3 .815 ±.010 .730 ±.010 .672 ±.010 .683 ±.008 
+
+.5 .791 ±.013 .700 ±.009 .601 ±.008 .631 ±.012 
+
+Amazon .3 .400 ±.006 .322 ±.007 .310 ±.005 .318 ±.007 
+
+.5 .387 ±.005 .300 ±.018 .291 ±.021 .300 ±.022 
+
+Table 9: Comparison with training-free graph imputation un-der image-missing settings. text perturbation, RHEA remains competitive ( +0 .01 on both datasets). These results indicate that reliability-aware reconstruction is most beneficial when modality quality is uneven across nodes, consistent with the design assumption. 
+
+Learned reconstruction vs. training-free graph imputa-tion. Table 9 compares RHEA with training-free graph imputation strategies applied as preprocessing, including one-hop mean, personalized PageRank, and heat kernel dif-fusion, while keeping the downstream backbone fixed. RHEA consistently outperforms the best static imputation baseline (one-hop mean) by +0 .08 –+0 .09 NMI. In contrast, multi-hop diffusion methods do not improve over simple neighborhood averaging when used as fixed preprocessing, highlighting the benefit of learning reconstruction jointly with reliability estimation. 
+
+C More Sensitivity Analysis 
+
+Beyond the hyperparameter studies in Sec. 5.5 (Table 4), we examine the effect of graph structural properties on perfor-mance gains. 
+
+Sensitivity to graph homophily. RHEA relies on neigh-bor agreement to estimate reliability, and thus its effective-ness depends on attribute homophily. Across benchmarks, edge homophily ranges from 0.68 (Grocery) to 0.96 (Red-ditS). As shown in Table 2, RHEA consistently improves over DGF under missing data settings across this range. Performance gains decrease smoothly as homophily de-creases, rather than exhibiting abrupt degradation, indicating that the method remains stable but gradually approaches the behavior of non-reliability-aware baselines in heterophilous regimes (see Appendix J). 
+
+D More Interpretability Investigation 
+
+We further analyze the behavior of the learned reliability signal. As presented in Fig. 6, the node-wise confidence score ci reflects agreement among donor neighbors and thus responds to input corruption even when all modalities are present. On RedditS, the average confidence decreases 0.0 0.1 0.2 0.3 0.4    
+
+> Injected corruption η
+> 0.5 0.6 0.7 0.8 0.9 1.0
+> Reliability read-out
+> mean confidence ci
+> mean image-trust ρimg
+
+Figure 6: Reconstruction confidence vs. corruption (Red-ditS). Mean confidence ci and image trust ρimg versus cor-ruption level η.monotonically from 0.986 at η = 0 to 0.851 at η = 0 .4,while image-trust ρimg exhibits a consistent trend. 
+
+E Efficiency and Complexity Analysis 
+
+Time complexity. Modality-specific encoding and graph propagation rely on sparse message passing over G =(V, E), yielding O(|E| d) per iteration, where d is the embed-ding dimension. Reliability-aware reconstruction and fusion introduce only local neighborhood aggregation and remain bounded by the same sparsity pattern. The entropic optimal transport solver requires T Sinkhorn iterations over an N × K cost matrix, resulting in O(N KT )
+
+complexity, and the inter-node repulsion term Ωcm (Eq. (13) below) contributes an additional dense O(N 2d) computa-tion. Therefore, the overall per-iteration time complexity is 
+
+O(|E| d + N KT + N 2d),
+
+whose quadratic cross-modal term is shared with prior cross-modal graph clustering frameworks such as DGF, while all graph and transport components remain sparse or linear in 
+
+N .
+
+Memory complexity and the O(N 2) term. The graph-based components scale linearly with the number of edges and feature dimension. The only super-linear term arises from the inter-node margin repulsion Ωcm in Lmod 
+
+(Eq. (11)), which is defined as: 
+
+Ωcm = 1
+
+N 2
+
+X
+
+> i
+
+X 
+
+> j̸=i
+
+ m0 + ⟨hi, z(txt)  
+
+> j
+
+⟩ − ⟨ hi, z(txt)  
+
+> i
+
+⟩ 
+
+> +
+
+,
+
+(13) where m0 is the repulsion margin and [·]+ = max(0 , ·).This term induces a dense N × N similarity computa-tion h z (txt) ⊤, leading to an O(N 2) memory requirement. All other operations—including reliability modeling, recon-struction, message passing, and Sinkhorn updates—remain sparse and scale at most linearly with graph size. There-fore, the overall memory complexity is dominated by this quadratic term, consistent with prior cross-modal graph clustering frameworks. 
+
+F Additional Experimental Details 
+
+F.1 Training Protocol 
+
+Unless otherwise specified, all reported results are presented as mean ±standard deviation over five random seeds. For each seed, all methods share the same data split and, for robustness experiments, the same realization of missing-modality or corruption patterns. Perturbations are applied consistently to either image or text modalities under identi-cal settings. All models are trained for 120 epochs following the same protocol. Baseline implementations use the official released code with the recommended hyperparameter set-tings, while ablated variants inherit the same configuration with only the corresponding component removed. 
+
+Perturbation model. Both perturbations are injected into the raw features of the target modality before encoding, and both ratios are node fractions rather than noise amplitudes. Corruption with ratio η selects ⌊ηN ⌋ nodes uniformly at ran-dom and replaces each selected node’s feature vector with a random Gaussian vector rescaled to the ℓ2 norm of the original feature, so the content of the modality is destroyed while its scale is preserved. Missingness with ratio m se-lects ⌊mN ⌋ nodes uniformly at random and sets the target modality’s feature vector to zero. Node subsets are sampled with independent random streams per regime and per modal-ity, and for a given seed every method receives the identical node mask and noise realization. 
+
+F.2 Model Configuration 
+
+Each node is associated with text and image features ex-tracted from frozen pretrained encoders. We use RoBERTa for text and CLIP-ViT-L/14 for images, producing 768-dimensional representations for all MAGB datasets. The DMGC Amazon dataset uses its provided 1433-dimensional node attributes. Unless otherwise stated, each modality is encoded by a linear projection followed by simplified graph propagation. The default hyperparameters are shared across all datasets. Specifically, the reconstruction threshold is γ =0.45 , the reliability temperature is τ = 1 , the contrastive temperature is τc = 0.5, and the entropic regulariza-tion strength in optimal transport is ϵ = 0.05 with 20 Sinkhorn iterations. The remaining hyperparameters are likewise shared: the loss weights are λncrc = 1 , λnbr = 0 .5,and λmod = 0 .1; the assignment temperature is τa = 1 ;the consensus propagation depth is L = 2 ; the sharpening temperature is Ts = 0 .5; the confidence decay coefficient is 
+
+β = 3 ; and the repulsion margin is m0 = 0 .1. A sensitivity analysis of the main hyperparameters is reported in Sec. 5.5. 
+
+Optimization. All models are optimized using Adam with learning rate 10 −3 and weight decay 10 −5 for 120 epochs under full-batch training. The embedding dimension is fixed to 64 , and graph propagation uses 10 layers throughout all experiments. 
+
+Reconstruction confidence. The reconstruction confi-dence combines neighborhood consistency and neighbor-hood support. Specifically, it increases when neighboring donor embeddings exhibit high agreement and sufficient 0 20 40 60 80 100 
+
+> Training step
+> 10 −4
+> 10 −3
+> ρ-drift
+> no EMA EMA 0.99
+
+Figure 7: Stability of the reliability field. Per-step variation of the reliability estimate ρ with and without EMA on Red-ditS under missing-modality ratio m = 0 .5.Table 10: Statistics of the four evaluation datasets. All datasets are two-modality (text +image); the feature dimen-sions are those of the frozen pretrained encoders.                          
+
+> Dataset # Nodes # Clusters Text dim Image dim Domain
+> RedditS 15,894 20 768 768 Social Toys 20,695 18 768 768 E-commerce Grocery 17,074 20 768 768 E-commerce Amazon 6,158 31,433 1,433 Co-purchase
+
+coverage, and decreases when neighbor agreement is weak or only a few reliable donors are available. Nodes without reliable neighbors fall back to their original modality rep-resentation, ensuring stable behavior across different graph structures. 
+
+Initialization and normalization. All modality-specific and fused embeddings are ℓ2-normalized before reliability estimation, reconstruction, and optimal transport. Cluster centers are initialized by k-means on the fused embeddings from the first epoch and optimized jointly during training. 
+
+F.3 Stabilizing the Reliability Field 
+
+The reliability field is updated using an exponential mov-ing average (EMA) with momentum 0.99 to improve train-ing stability. As illustrated in Fig. 7, EMA substantially re-duces fluctuations of the reliability estimates across train-ing while preserving clustering performance. We therefore adopt EMA as the default setting in all experiments. 
+
+F.4 Experimental Environment 
+
+All experiments are conducted on a single NVIDIA RTX PRO 6000 (Blackwell Server Edition, 96 GB) GPU using PyTorch 2.10 with CUDA 12.8. 
+
+G Dataset Details 
+
+We evaluate on four public multimodal attributed graphs; ev-ery node carries two modalities (text and image), encoded by frozen pretrained models. Table 10 lists their statistics, with textual descriptions below. 
+
+RedditS. (Desai et al. 2021) A social-network graph from the MAGB benchmark, sourced from RedCaps. Each node is a post carrying its text (title and body) and its accompa-nying image; edges link related posts, and the 20 clusters correspond to their communities. Text and image features are the 768 -dimensional RoBERTa and CLIP-ViT-L/14 em-beddings, respectively. 
+
+Toys. (Ni, Li, and McAuley 2019) As a core component of MAGB, the Toys dataset comprises roughly 42 k products (of which 20 ,695 form the graph). Age suitability, safety information, materials, and functional descriptions are en-coded alongside visual features, and relations among prod-ucts, including series membership and accessory compati-bility, form the graph edges. It spans 18 product categories. 
+
+Grocery. (Ni, Li, and McAuley 2019) An Amazon-derived grocery co-purchase graph from MAGB with 17 ,074 
+
+nodes and 20 categories. Each product carries a textual description and a product image, and edges connect co-purchased or related items. Text and image features follow the same 768 -dimensional RoBERTa / CLIP encoding as the other MAGB graphs. 
+
+Amazon. (Guo et al. 2025) The multimodal co-purchase graph used by DMGC, with 6,158 nodes and only 3 clus-ters. Nodes carry 1,433 -dimensional text and image at-tributes, and the graph combines item–item and item–user relations. Its small cluster count and highly discriminative attributes make even simple attribute-only baselines com-petitive, which is why it is a useful stress test for reliability-guided fusion. 
+
+H Baseline Details 
+
+We compare against nine baselines spanning four families. All are run from their official code under the identical pro-tocol of Appendix F.1. 
+
+KMeans clusters nodes by Lloyd’s algorithm on their con-catenated text and image features, using no graph structure. It is the classical attribute-only reference point. 
+
+DFCN (Tu et al. 2021) is a deep fusion clustering net-work that couples an autoencoder with a graph autoencoder through a structure-and-attribute fusion module, and refines the fused representation with a triplet self-supervision ob-jective. 
+
+DMoN (Tsitsulin et al. 2023) trains a graph neural net-work with a differentiable spectral-modularity objective and a collapse regularizer, producing soft cluster assignments that directly optimize graph community structure. 
+
+MVGRL (Hassani and Khasahmadi 2020) is a contrastive multi-view method that maximizes the mutual information between node-level and graph-level representations across two structural views, the adjacency and a graph-diffusion view. 
+
+S3GC (Devvrit et al. 2022) performs scalable self-supervised graph clustering: a graph encoder is trained con-trastively with random-walk-based positive pairs, so it scales to large graphs while remaining label-free. COMPLETER (Lin et al. 2021) targets incomplete multi-view data through information-theoretic dual predic-tion, maximizing cross-view mutual information while min-imizing conditional entropy so that a missing view can be recovered from the observed one. 
+
+APADC (Xu et al. 2023) is a deep incomplete multi-view clustering method that is imputation-free: it aligns the view distributions with a maximum-mean-discrepancy term and adaptively projects and fuses whichever views are available for each sample. 
+
+DGF (Zheng et al. 2025) jointly exploits graph topology and multiple modalities with a dual-graph filtering backbone and a community-aware cross-modality contrastive objec-tive. It is the strongest prior method and our primary point of comparison. 
+
+DMGC (Guo et al. 2025) disentangles homophilous and heterophilous signals with a dual-frequency (low- and high-pass) graph filter, combines intra- and cross-modal con-trastive objectives, and refines the assignment with a DEC clustering head. 
+
+I Metric Details 
+
+We report four standard clustering metrics; all are higher-is-better. Let Y = {yi}Ni=1 be the ground-truth labels and 
+
+C = {ci}Ni=1 the predicted clusters over N nodes. Because clustering is permutation-invariant, ACC and F1 are com-puted after a best cluster-to-label matching obtained with the Hungarian algorithm (Kuhn 1955). 
+
+Normalized Mutual Information (NMI) (Strehl and Ghosh 2002) measures the shared information between the predicted and ground-truth partitions, normalized by their entropies, 
+
+NMI( Y, C ) = 2 I(Y ; C)
+
+H(Y ) + H(C) , (14) where I(·; ·) is mutual information and H(·) is entropy. It lies in [0 , 1] , with 1 for a perfect match. 
+
+Clustering Accuracy (ACC) is the fraction of correctly assigned nodes under the best label permutation π,
+
+ACC = max 
+
+> π
+
+1
+
+N
+
+> N
+
+X
+
+> i=1
+
+⊮(yi = π(ci)) , (15) where π ranges over cluster-to-label mappings and ⊮(·) is the indicator function. 
+
+Adjusted Rand Index (ARI) (Hubert and Arabie 1985) counts agreeing node pairs, corrected for chance. With nij 
+
+the number of nodes in ground-truth cluster i and predicted cluster j, and ai, b j the corresponding row/column sums, 
+
+ARI = 
+
+P
+
+> ij
+
+ nij 
+
+> 2
+
+ −  P 
+
+> i
+
+ ai
+
+> 2
+
+ P 
+
+> j
+
+ bj
+
+> 2
+
+  N
+
+> 2
+
+
+
+> 12
+
+ P 
+
+> i
+
+ ai
+
+> 2
+
+ + P
+
+> j
+
+ bj
+
+> 2
+
+ −  P 
+
+> i
+
+ ai
+
+> 2
+
+ P 
+
+> j
+
+ bj
+
+> 2
+
+  N
+
+> 2
+
+ .
+
+(16) 
+
+F1 is the macro-averaged harmonic mean of precision (P) and recall (R) over the matched clusters, F1 = 2 P R /(P + R) , which is robust to class imbalance. 
+
+J Limitations and Broader Impact 
+
+Limitations. RHEA assumes that local neighborhood in-formation provides useful cues for estimating modality re-liability and is therefore best suited to graphs with infor-mative local structure. As neighborhood agreement becomes less informative, the benefit of reliability-aware reconstruc-tion may diminish accordingly. In addition, RHEA inher-its the dense cross-modal contrastive objective from DGF, whose O(N 2) memory complexity (Appendix E) may limit scalability to very large graphs. Exploring reliability estima-tion under more challenging graph structures and improving scalability are promising directions for future work. 
+
+Broader Impacts. Multimodal attributed graphs are widely used in applications such as recommendation sys-tems, social networks, and citation analysis, where data quality is often heterogeneous across modalities. RHEA pro-vides a label-free mechanism to estimate modality reliabil-ity and improve robustness under imperfect data conditions, which may help reduce sensitivity to noise in downstream analysis. As with other unsupervised representation learning methods, care should be taken when applying the resulting embeddings or clusters in high-stakes decision scenarios.
