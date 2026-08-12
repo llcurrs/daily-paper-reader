@@ -6,27 +6,29 @@
 </div>
 
 ## 每次日报
-- 最新运行日期：2026-08-11
-- 运行时间：2026-08-11 20:47:14 UTC
+- 最新运行日期：2026-08-12
+- 运行时间：2026-08-12 21:14:52 UTC
 - 运行状态：成功
 - 本次总论文数：2
 - 精读区：0
 - 速读区：2
 
 ### 今日简报（AI）
-今日共速读2篇论文，聚焦多模态回归与地理空间推理方向；其中《Conformal Calibration for Multi-Modal Regression with Missing Modalities》得分7.0，值得关注缺失模态下的校准方法；下一步可延伸探索历史预测作为自由输入模态在多模态任务中的潜力。
-- 详情：[/202608/11/README](/202608/11/README)
+今日速读2篇多模态目标检测论文，聚焦模型剪枝与跨模态对齐优化。  
+最值得关注：InterPruner用泰勒隐式准则+语言先验做结构化剪枝（7.0），以及显式特征域仿射配准缓解可见光-红外错位（6.0）。  
+下一步可深入对比两种方法在多模态融合中的实际效率提升，并关注剪枝对本征对齐的影响。
+- 详情：[/202608/12/README](/202608/12/README)
 
 ### 精读区论文标签
 - 本次无精读推荐。
 
 ### 速读区论文标签
-1. [Conformal Calibration for Multi-Modal Regression with Missing Modalities](/202608/11/2608.07795v1-conformal-calibration-for-multi-modal-regression-with-missing-modalities)  
+1. [InterPruner: Interactive Structured Pruning via Taylor-Implicit Criterion and Language-Prior Modulator for Multimodal Object Detection](/202608/12/2608.10724v1-interpruner-interactive-structured-pruning-via-taylor-implicit-criterion-and-language-prior-modulator-for-multimodal-object-detection)  
    标签：评分：7.0/10、query:multi-modal
-   evidence：提出应对模态缺失的多模态回归校准方法
-2. [Multi-Year Geospatial Reasoning using Interannually-Consistent Historical Predictions as a Free Input Modality](/202608/11/2608.05979v1-multi-year-geospatial-reasoning-using-interannually-consistent-historical-predictions-as-a-free-input-modality)  
+   evidence：遥感RGB-红外多模态目标检测与跨模态交互
+2. [Bridging Severe Cross-Modal Misalignment: End-to-End Visible-Infrared Object Detection via Explicit Feature-Domain Affine Registration](/202608/12/2608.10680v1-bridging-severe-cross-modal-misalignment-end-to-end-visible-infrared-object-detection-via-explicit-feature-domain-affine-registration)  
    标签：评分：6.0/10、query:multi-modal
-   evidence：将历史预测与辅助图层作为免费输入模态，提升多年土地覆盖与作物类型制图性能
+   evidence：通过显式跨模态仿射配准实现可见光-红外检测，用于传感器融合
 
 
 <div class="dpr-home-promo-card">
