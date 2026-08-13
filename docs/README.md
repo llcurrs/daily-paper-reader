@@ -6,29 +6,32 @@
 </div>
 
 ## 每次日报
-- 最新运行日期：2026-08-12
-- 运行时间：2026-08-12 21:14:52 UTC
+- 最新运行日期：2026-08-13
+- 运行时间：2026-08-13 21:05:22 UTC
 - 运行状态：成功
-- 本次总论文数：2
-- 精读区：0
+- 本次总论文数：4
+- 精读区：2
 - 速读区：2
 
 ### 今日简报（AI）
-今日速读2篇多模态目标检测论文，聚焦模型剪枝与跨模态对齐优化。  
-最值得关注：InterPruner用泰勒隐式准则+语言先验做结构化剪枝（7.0），以及显式特征域仿射配准缓解可见光-红外错位（6.0）。  
-下一步可深入对比两种方法在多模态融合中的实际效率提升，并关注剪枝对本征对齐的影响。
-- 详情：[/202608/12/README](/202608/12/README)
+今日精读4篇论文，聚焦高光谱锐化与无人机多模态检测两大方向。最值得关注的是零样本高光谱融合（9.0分）和熵引导的RGB-IR无人机检测（8.0分），两者均显著突破传统场景限制。建议普通读者优先浏览精读摘要，速读文章可作扩展参考。
+- 详情：[/202608/13/README](/202608/13/README)
 
 ### 精读区论文标签
-- 本次无精读推荐。
+1. [Dual Modality Prompted Diffusion Priors for Zero Shot Hyperspectral Pansharpening](/202608/13/2608.11748v1-dual-modality-prompted-diffusion-priors-for-zero-shot-hyperspectral-pansharpening)  
+   标签：评分：9.0/10、query:multi-modal
+   evidence：融合全色与高光谱模态进行全色锐化，直接涉及多模态遥感数据融合。
+2. [EGM-Det: Entropy-Guided Multimodal Adaptive Fusion for UAV RGB-IR Object Detection](/202608/13/2608.11685v1-egm-det-entropy-guided-multimodal-adaptive-fusion-for-uav-rgb-ir-object-detection)  
+   标签：评分：8.0/10、query:multi-modal
+   evidence：熵引导的RGB与红外自适应融合用于无人机目标检测，匹配多模态遥感数据融合需求
 
 ### 速读区论文标签
-1. [InterPruner: Interactive Structured Pruning via Taylor-Implicit Criterion and Language-Prior Modulator for Multimodal Object Detection](/202608/12/2608.10724v1-interpruner-interactive-structured-pruning-via-taylor-implicit-criterion-and-language-prior-modulator-for-multimodal-object-detection)  
+1. [Warping Earth Observations for better ice labeling in the Marginal Marginal Ice Zone](/202608/13/2608.11883v1-warping-earth-observations-for-better-ice-labeling-in-the-marginal-marginal-ice-zone)  
    标签：评分：7.0/10、query:multi-modal
-   evidence：遥感RGB-红外多模态目标检测与跨模态交互
-2. [Bridging Severe Cross-Modal Misalignment: End-to-End Visible-Infrared Object Detection via Explicit Feature-Domain Affine Registration](/202608/12/2608.10680v1-bridging-severe-cross-modal-misalignment-end-to-end-visible-infrared-object-detection-via-explicit-feature-domain-affine-registration)  
+   evidence：通过扭曲对准来自不同传感器的多模态卫星影像，用于海冰标注
+2. [IRPol-Fuse: Energy-structure coordination for infrared polarization fusion under low visibility](/202608/13/2608.07848v1-irpol-fuse-energy-structure-coordination-for-infrared-polarization-fusion-under-low-visibility)  
    标签：评分：6.0/10、query:multi-modal
-   evidence：通过显式跨模态仿射配准实现可见光-红外检测，用于传感器融合
+   evidence：红外与偏振图像的多模态传感器融合，可迁移到遥感数据融合
 
 
 <div class="dpr-home-promo-card">
