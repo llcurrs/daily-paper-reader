@@ -6,36 +6,37 @@
 </div>
 
 ## 每次日报
-- 最新运行日期：2026-08-14
-- 运行时间：2026-08-14 20:45:22 UTC
+- 最新运行日期：2026-08-15
+- 运行时间：2026-08-15 20:26:15 UTC
 - 运行状态：成功
-- 本次总论文数：4
-- 精读区：2
-- 速读区：2
+- 本次总论文数：5
+- 精读区：1
+- 速读区：4
 
 ### 今日简报（AI）
-今日完成4篇论文阅读，其中2篇精读、2篇速读，覆盖遥感生物量估算、红外-可见光图像融合、跨模态位置识别与开放词汇分割。
-
-最值得关注的是两篇8.0分精读论文：基于多传感器与稀疏场校准的AGB迁移估算模型，以及基于提示双先验蒸馏的P2Fusion图像融合方法。
-
-建议优先深入复现精读高分工作，同时可从速读的GeoUniPR跨模态位置识别中挖掘几何一致性思路，拓展应用场景。
-- 详情：[/202608/14/README](/202608/14/README)
+今日精读多模态联邦学习，速读遥感、点云与农业监测，共5篇论文。  
+最值得关注的是《Multimodal Federated Learning under Dual-Axis Modality Missingness》（8.0分），探讨双轴模态缺失场景下的鲁棒学习。  
+建议后续关注多模态联邦学习与自监督表示的结合，以应对真实世界数据不完整问题。
+- 详情：[/202608/15/README](/202608/15/README)
 
 ### 精读区论文标签
-1. [Transferable Above-Ground Biomass (AGB) Estimation Model from Multi-Sensor Data with Sparse Field Calibration](/202608/14/2608.11638v1-transferable-above-ground-biomass-agb-estimation-model-from-multi-sensor-data-with-sparse-field-calibration)  
+1. [Multimodal Federated Learning under Dual-Axis Modality Missingness](/202608/15/2608.09240v1-multimodal-federated-learning-under-dual-axis-modality-missingness)  
    标签：评分：8.0/10、query:multi-modal
-   evidence：融合光学、SAR和LiDAR等多传感器遥感数据，并结合稀疏实地校准进行生物量估算
-2. [P2Fusion: Prompt-based Progressive Infrared-Visible Image Fusion via Dual-Prior Distillation](/202608/14/2608.13045v1-p2fusion-prompt-based-progressive-infrared-visible-image-fusion-via-dual-prior-distillation)  
-   标签：评分：8.0/10、query:multi-modal
-   evidence：通过双内禀提示的知识蒸馏实现红外-可见光图像融合
+   evidence：直接面向模态缺失学习，提出掩码感知监督与置信度融合，可迁移至遥感缺失模态场景
 
 ### 速读区论文标签
-1. [GeoUniPR: A Geometry-Consistent Unified Framework for Cross-Modal Place Recognition](/202608/14/2608.11263v1-geounipr-a-geometry-consistent-unified-framework-for-cross-modal-place-recognition)  
-   标签：评分：7.0/10、query:multi-modal
-   evidence：通过几何一致的深度图像视图融合视觉与LiDAR，实现跨模态地点识别
-2. [GeoSeg-OV: Bridging Geospatial Gaps with Structural Guidance for Open-Vocabulary Remote Sensing Segmentation](/202608/14/2608.10426v1-geoseg-ov-bridging-geospatial-gaps-with-structural-guidance-for-open-vocabulary-remote-sensing-segmentation)  
+1. [Vernata: Self-Supervised Learning of LiDAR Point Representations](/202608/15/2608.06919v1-vernata-self-supervised-learning-of-lidar-point-representations)  
    标签：评分：6.0/10、query:multi-modal
-   evidence：面向遥感开放词汇分割，融合视觉-文本匹配与结构指导
+   evidence：多模态多教师蒸馏用于激光雷达自监督表示学习
+2. [GRASP: Granularity-Aware Region Alignment and Semantic Prototype Learning for Fine-Grained Cross-Modal Understanding in Drone Views](/202608/15/2608.09270v1-grasp-granularity-aware-region-alignment-and-semantic-prototype-learning-for-fine-grained-cross-modal-understanding-in-drone-views)  
+   标签：评分：6.0/10、query:multi-modal
+   evidence：航空视觉-语言跨模态对齐，与多模态遥感理解相关
+3. [SAR2Agri: Learning SAR Intensity Representations for Agricultural Monitoring](/202608/15/2608.11142v1-sar2agri-learning-sar-intensity-representations-for-agricultural-monitoring)  
+   标签：评分：6.0/10、query:multi-modal
+   evidence：以SAR农业监测为任务，并讨论利用光学影像联合编码与对比学习训练多模态遥感基础模型，与多传感器融合相关
+4. [ProtoHGF-Net: Prototype HyperGraph Fusion with Intra-modal Calibration for RGBT Object Detection](/202608/15/2608.11595v1-protohgf-net-prototype-hypergraph-fusion-with-intra-modal-calibration-for-rgbt-object-detection)  
+   标签：评分：6.0/10、query:multi-modal
+   evidence：RGB-热红外目标检测的原型级跨模态融合，可迁移至多模态遥感融合
 
 
 <div class="dpr-home-promo-card">

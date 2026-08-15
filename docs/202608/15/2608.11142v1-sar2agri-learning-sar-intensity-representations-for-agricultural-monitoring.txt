@@ -1,0 +1,1676 @@
+SAR2Agri: Learning SAR Intensity Representations for Agricultural Monitoring
+Moti Rattan Gupta , Anupam Sobti
+Plaksha University, Mohali, Punjab, India
+moti.gupta@plaksha.edu.in, anupam.sobti@plaksha.edu.in
+Abstract
+Agricultural monitoring faces unique challenges, arising from
+the landscape’s complex temporal, phenological, and climate
+dynamics, yet monitoring them is critical for ensuring food
+security. Synthetic Aperture Radar (SAR) satellites offer all-
+weather day-night imaging capability supporting key mon-
+itoring tasks including crop type mapping, yield prediction
+and phenological event detection. Existing multimodal remote
+sensing foundation models including TerraMind and Coper-
+nicusFM learn SAR representations by grounding them in
+optical imagery using joint encoding and contrastive learn-
+ing techniques, while SAR-specific foundation models such
+as SAR-JEPA, SARMAE, and SAR-W-MixMAE primarily
+focus on target detection, flood mapping, and land cover clas-
+sification applications. Recent work has introduced phenology
+inspired temporal pretext tasks (Gupta and Sobti 2026) with
+optical imagery which has shown strong performance on agri-
+cultural downstream tasks. In this work, we propose the first
+self-supervised learning pipeline focused on using only SAR
+intensity imagery for agricultural applications. We improve
+the temporal pretext tasks through masking and curriculum
+learning to enhance the pretraining pipeline’s ability to capture
+phenological features from SAR. On the SICKLE benchmark,
+our final model achieves 84.9% IoU on crop type mapping,
+outperforming optical baselines (by 15.3 pt) and existing SAR
+baselines (by 2.2 pt), demonstrating the effectiveness of our
+proposed pipeline for pretraining SAR intensity encoders for
+agricultural monitoring.
+1
+Introduction
+Food security remains a global challenge, with 713–757 mil-
+lion people experiencing hunger in 2023 and 582 million
+projected to remain undernourished by 2030 (FAO 2024). Re-
+mote sensing enables timely and accurate agricultural moni-
+toring, supporting applications including crop type mapping,
+yield forecasting and phenological event detection. Self-
+supervised learning (SSL) allows learning representations
+from large unlabeled optical and radar satellite imagery (Lu
+et al. 2025), which has shown promise in diverse downstream
+domains including agriculture.
+Optical and radar satellites operate in distinct regions
+of the electromagnetic spectrum and offer complementary
+views of the landscape. Optical imagery (e.g., Sentinel-2 and
+Landsat-8) captures spectral properties correlated with vege-
+tation state, but is limited by cloud cover, especially in tropi-
+Figure 1: Pretext-task design space for SAR phenology
+modeling. From a SAR time series, we sample acquisition
+pairs separated by ∆t and construct three modular pretext
+tasks: (1) predict the time gap ∆t; (2) forecast the future
+acquisition from the past; (3) reconstruct an acquisition from
+a masked version of itself. These can be combined (e.g.,
+multi-task learning) into different objectives (Fig 2).
+cal regions such as Tamil Nadu, India, where the kharif crop-
+ping season coincides with persistent monsoon cloud cover.
+Synthetic Aperture Radar (SAR) satellites (e.g., Sentinel-1)
+provide all-weather, day-night imaging by penetrating clouds
+and capturing structural and pedological properties of vege-
+tation. SAR is a complex-valued signal with both amplitude
+and phase, supporting applications like interferometry and
+polarimetry (Moreira et al. 2013). We focus on SAR in-
+tensity (squared amplitude) which is more widely used in
+operational monitoring (Van Tricht et al. 2023) due to its
+availability on platforms like Google Earth Engine (Gorelick
+et al. 2017) and refer to it as SAR unless otherwise specified.
+Existing SAR foundation models (FMs), including SAR-
+JEPA (Li et al. 2024), SARMAE (Liu et al. 2026), and SAR-
+W-MixMAE (Caglayan, Imamoglu, and Kouyama 2026) are
+designed for target detection (localizing sparse objects such
+as vehicles, ships, and aircraft), flood mapping (identifying
+transient low-backscatter flooded regions), and land cover
+classification (coarse, scene-level discrimination of crop-
+arXiv:2608.11142v1  [cs.CV]  11 Aug 2026
+
+
+lands, forests, and water bodies). Agricultural monitoring
+requires dense spatio-temporal scene understanding to form
+a localized understanding of farm parcels (e.g., crop grown
+in the parcel) and a broader landscape understanding (e.g.,
+nearby rivers and ponds that shape irrigation and soil mois-
+ture). We believe this requires a distinct pretraining pipeline
+to capture the unique spatio-temporal requirements of agri-
+cultural landscapes.
+Recently, Time2Agri (Gupta and Sobti 2026) has intro-
+duced phenology-aware pretext tasks for optical imagery,
+arguing that the predictive causality of agricultural land (the
+natural cycle of sowing, growth and harvest) is an inherent
+inductive bias that can be leveraged to learn agriculture-
+relevant representations from optical imagery. Unlike opti-
+cal imagery, where vegetation dynamics are primarily re-
+flected through chlorophyll-driven spectral changes (cap-
+tured through high reflectance in NIR and absorption in red),
+SAR backscatter responds to surface geometry and dielec-
+tric properties (Ulaby 1986) rather than spectral content, with
+temporal dynamics shaped by canopy volume scattering and
+soil moisture (Steele-Dunne et al. 2017).
+Motivated by the distinct properties of SAR, we investi-
+gate learning agricultural representations by extending the
+phenology-inspired pretext tasks to SAR, and studying how
+to effectively combine them to learn representations that cap-
+ture both the spatial and temporal dynamics of crop phenol-
+ogy from SAR (Fig 1). We restrict our scope to regional pre-
+training and avoid framing this work as a foundation model
+(FM), and instead focus on improving pretraining efficiency
+with SAR-only imagery. Regional models have been shown
+to outperform global counterparts (Gupta and Sobti 2026;
+Tong and Wang 2026), which is also consistent with broader
+findings in SSL that suggest domain-aligned pretraining data
+leads to more effective representations for downstream tasks
+(Al Kader Hammoud et al. 2024). We also found that in-
+troducing masking as spatial regularization and curriculum
+learning to combine different temporal objectives leads to
+further complementary gains over either component alone,
+when evaluated on the SICKLE benchmark (Sani et al. 2024)
+on crop type, yield, and phenological date prediction.
+To the best of our knowledge, this is the first work to design
+a unimodal SAR pretraining pipeline to generate powerful
+single SAR intensity image representations for agricultural
+monitoring. Our key contributions are: (i) we demonstrate
+that temporal pretext tasks transfer effectively from optical
+to SAR, with SAR pretraining substantially outperforming
+optical for crop type and yield estimation on SICKLE; (ii) we
+show that masking interacts differently with temporal pretext
+tasks, benefiting dense prediction objectives (predicting fu-
+ture) while degrading global summarization objectives (pre-
+dicting time differences); (iii) we show that a curriculum over
+the temporal pretext tasks outperforms both individual and
+multi-task learning, where we first learn a coarse temporal
+structure through a global summarization objective before
+learning more fine-grained temporal dynamics with a dense
+forecasting objective yielding strong performance on both
+crop type and yield prediction; and (iv) we show that masking
+and curriculum learning interact non-trivially, with extreme
+masking in the second stage of the curriculum strengthening
+rather than degrading the global spatio-temporal prior from
+the first stage.
+2
+Related Work
+2.1
+SAR in Multimodal Vision RSFMs
+Multimodal Vision RSFMs encode multiple satellite sen-
+sors (optical, SAR, and sometimes weather) into a shared
+representation. CROMA (Fuller, Millard, and Green 2023)
+aligns masked optical and SAR representations via con-
+trastive learning. DeCUR (Wang et al. 2024) uses both same-
+modality and cross-modality contrastive loss to separate
+common and modality-unique information. DoFA (Xiong
+et al. 2024) and CopernicusFM (Wang et al. 2025) use a
+modality-specific weight generator to learn a shared encod-
+ing using MAE. TerraMind (Jakubik et al. 2025) adds a dis-
+crete token prediction loss to the existing continuous MAE
+objective. These models rely on grounding SAR with op-
+tical representations via joint encoding (Xiong et al. 2024;
+Wang et al. 2025) or contrastive learning (Wang et al. 2024;
+Fuller, Millard, and Green 2023) to learn SAR representa-
+tions. We focus on learning agricultural representations from
+single-timestamp SAR imagery in this work.
+2.2
+Pretext Tasks for SAR Intensity Imagery
+Early SAR SSL targeted despeckling because of the presence
+of multiplicative speckle noise. Boulch et al. (2018) showed
+that cross-acquisition prediction can implicitly despeckle,
+while SAR2SAR (Dalsasso, Denis, and Tupin 2021) despeck-
+les synthetically corrupted images in the log-intensity do-
+main. Recent SAR FMs build on MAE (He et al. 2022) with
+speckle-related objectives: SAR-JEPA (Li et al. 2024) and
+SARATR-X (Li et al. 2025) add gradient feature prediction
+for speckle-robust features, SAR-W-MixMAE (Caglayan,
+Imamoglu, and Kouyama 2026) reweights the loss toward
+low-backscatter regions, SARMAE (Liu et al. 2026) and
+SUMMIT (Du et al. 2025) use denoising, with SARMAE
+additionally adding optical contrastive loss, while SUMMIT
+adds edge and corner prediction. They perform well on tar-
+get detection, flood mapping, and land cover classification,
+but do not focus on capturing temporal or cyclic patterns of
+crop growth. Our work introduces masking and curriculum
+over temporal pretext tasks to learn phenology-aware repre-
+sentations from SAR for agricultural monitoring. We avoid
+speckle-related objectives, since speckle may contain useful
+information about crop-specific structure.
+2.3
+Pretext Tasks for Agricultural Monitoring
+Recently, few agriculture-specific remote sensing models
+have been proposed, including AgriFM (Li et al. 2026) and
+Time2Agri (Gupta and Sobti 2026). AgriFM (Li et al. 2026)
+is a globally pretrained time-series encoder pretrained on S2,
+L8, and MODIS with a supervised land cover fraction estima-
+tion objective. Time2Agri (Gupta and Sobti 2026) proposes
+phenology-inspired temporal pretext tasks – time difference
+and future frame (forecasting) prediction, which use bitem-
+poral image pairs to pretrain a single-timestamp S2 encoder
+to learn representations that capture phenological patterns
+of crop growth. Similarly, the forecasting objective has been
+
+
+Figure 2: Overview of different pretraining strategies. (a) TD: predict absolute time gap ∆t from two acquisitions. (b) FF:
+predict a future acquisition from a past acquisition. (c) TD + Mask: predict ∆t from two independently masked acquisitions. (d)
+FF + Mask: predict future acquisition from a masked past acquisition. (e) FF + TD: jointly predict ∆t and the future acquisition
+(both acquisitions for ∆t, past only for forecasting). (f) FF + TD + Mask: same as (e), with both acquisitions independently
+masked. These strategies can be chained as a curriculum — pretrain to convergence on one strategy, then switch to another for
+continued pretraining (Sec 3.5).
+proven effective for AEF (Brown et al. 2025), a global pre-
+trained RSFM. We pretrain single-timestamp SAR encoders
+for agricultural monitoring to capture the temporal dynamics
+of crop growth from SAR backscatter, which has fundamen-
+tally different properties from optical reflectance.
+3
+Methodology
+In this work, we push the boundaries of single-timestamp
+unimodal SAR representation learning for agricultural mon-
+itoring. We describe our pretraining and evaluation datasets,
+and the design of our pretraining pipeline, where we design a
+pretraining curriculum to combine strengths of different tem-
+poral pretext tasks and use masking to add further difficulty
+to the pretraining objective to avoid shortcuts.
+3.1
+Datasets
+Pretraining Dataset
+Our pretraining pipeline uses tem-
+poral pretext tasks (Gupta and Sobti 2026) and requires a
+dense SAR satellite image time series (SITS). We curate
+224 × 224 chips from the S1 RTC (Microsoft) product over
+Tamil Nadu, using the publicly released locations and times-
+tamps of Time2Agri’s (Gupta and Sobti 2026) S2 pretrain-
+ing dataset (permitting a 21-day time difference). This yields
+242,590 chips (∼12b usable pixels) from 6,602 locations,
+spanning January 2018–March 2021. We apply dB conver-
+sion (10 log10(x)) to compress dynamic range and convert
+multiplicative speckle to an additive component following
+Ulaby et al. (2014).
+Evaluation Dataset
+We use the SICKLE benchmark (Sani
+et al. 2024) for evaluation, which provides S1, L8, and S2
+SITS over the Cauvery Delta region in Tamil Nadu, India. It
+has annotations for crop type (1937 train / 227 val. samples),
+crop yield, sowing, transplanting, and harvesting date (282
+train / 37 val. samples). This diverse set of agricultural tasks
+makes it a suitable benchmark for evaluating our pretrain-
+ing pipeline. Crop type mapping is a binary segmentation
+task, measured by intersection-over-union (IoU), while crop
+yield prediction and phenological date estimation are re-
+gression tasks measured by mean-absolute-percentage-error
+(MAPE). Following Sani et al. (2024), yield prediction uses
+two settings, one where we have access to SITS from the
+growing season (in-season), and one where we have access
+to complete SITS. Date prediction tasks are evaluated on the
+in-season setting. We use the S1 SITS and the corresponding
+ground truth labels for our experiments.
+3.2
+Setup
+We process our pretraining dataset to form bitemporal im-
+age pairs, which are needed for the temporal pretext tasks.
+Specifically, we define our final pretraining dataset as S =
+(Xti, Xtj) consisting of bitemporal image pairs , where Xti
+and Xtj are satellite images at ti and tj with ti ≤tj. Each
+Xti ∈RH×W ×C, where H, W and C denote height, width
+and number of channels respectively, is patchified into N
+non-overlapping patches, resulting in Xpatch
+ti
+∈RN×(P 2C),
+where P is the patch size.
+We define fθ as a ViT (Dosovitskiy et al. 2021) en-
+coder which extracts Zti ∈R(N+1)×Din from Xpatch
+ti
+∈
+RN×(P 2C), where N is the number of patches, and define
+positional encoding (Vaswani et al. 2023) PE(i, .)
+PE(i, 2j) = sin(
+i
+B
+2j
+D )
+(1)
+PE(i, 2j + 1) = cos(
+i
+B
+2j
+D )
+(2)
+where i, j denote position and feature index, D denotes
+length of the encoding and B is a constant, which we set
+
+
+to 10000. Similar to Gupta and Sobti (2026), we define time
+encoding of timestamp ti as tei as
+tei = [PE(mi); PE(yi)]
+(3)
+where mi, yi denote month and year of ti, [; ] denotes con-
+catenation.
+3.3
+Pretext Tasks
+Time Difference Prediction (TD)
+TD (Gupta and Sobti
+2026) predicts the absolute monthly time difference |∆t| =
+|t2−t1| (Fig 2(a)) from latent representations Zt1 and Zt2 by
+applying a lightweight temporal classifier on top of stacked
+CLS tokens from both representations
+ZCLS,t1,t2 = [(Zt1)CLS; (Zt2)CLS]
+(4)
+where (Zti)CLS denote the CLS token of Zti. The classifier
+is trained to predict |∆t| discretized into CT classes, and
+optimized using a cross-entropy loss.
+Future Frame Prediction (FF)
+FF (Gupta and Sobti 2026)
+predicts the future image Xt2 from the past image Xt1 of a
+given location (Fig 2(b)). FF uses a transformer decoder ttγ,
+called time translator, to predict future latent representation
+ˆZt2 from the summation of Zt1 and concatenation of te1,
+te2 and pe, and then uses another transformer decoder gϕ to
+project the predicted latent to pixel space to get the predicted
+future frame ˆXt2.
+ˆZt2 = ttγ([Zt1] + [pe; te1; te2])
+(5)
+where we set dimension of pe, te1, and te2 to be D/3, so
+their concatenation has the same dimension as Zt1.
+ˆXt2 = gϕ( ˆZt2)
+(6)
+The network is optimized using norm-pix-loss (He et al.
+2022) between predicted future ˆXt2 and ground truth Xt2.
+3.4
+Adding Spatial Objective through Masking
+Inspired by MAE (He et al. 2022), we introduce masking
+to the temporal pretext tasks to further enhance the model’s
+spatial understanding. Specifically, we randomly mask a pro-
+portion p of the input image patches by sampling masked
+indices M and remove them from the input.
+Xmasked
+ti
+= stack([Xpatch
+ti
+]j /∈M)
+(7)
+where [Xpatch
+ti
+]j ∈RP 2C denotes the jth patch of Xpatch
+ti
+,
+and stack denotes the operation of stacking the unmasked
+patches together, which are then fed into the encoder fθ to
+get the masked latent representation Zmasked
+ti
+.
+Masking in TD
+To add masking to TD (Fig 2(c)), we
+independently mask both Xt1 and Xt2, and use the CLS
+token of the masked latent representation Zmasked
+ti
+to predict
+the time difference.
+Masking in FF
+Since FF is a dense prediction task, sim-
+ilar to MAE (He et al. 2022), we only mask the past frame
+Xt1 to obtain Zmasked
+t1
+, and use it to predict the future frame
+ˆXt2 (Fig 2(d)). Specifically, we concatenate a learnable mask
+token m, similar to He et al. (2022), to the masked latent rep-
+resentation Zmasked
+t1
+before feeding it into the time translator
+ttγ and decoder gϕ to predict the future frame.
+3.5
+Joint Training of Pretext Tasks
+As the temporal pretext tasks capture different aspects of the
+temporal dynamics, we want to discover how to effectively
+leverage their complementary strengths, by considering two
+training strategies:
+Multi-Task Learning
+Multi-Task Learning (MTL) jointly
+optimizes the model on both pretext tasks by optimizing a
+weighted sum of the losses of both tasks (Fig 2(e)-(f)).
+LMT L = λLF F + (1 −λ)LT D
+(8)
+where LF F and LT D denote the loss of FF and TD respec-
+tively, and λ is a hyperparameter that controls the relative
+importance of the two tasks.
+Curriculum Learning
+MTL can be challenging to opti-
+mize, and its pareto-optimal solution may not be optimal
+for downstream tasks (Shi et al. 2023). Following Shi et al.
+(2023), who show that sequential pretext-task learning can
+outperform MTL and argue that retaining previous tasks in
+later stages can retain the strengths of individual tasks, we
+implement curriculum learning by pretraining on one pretext
+task (e.g., TD), and then using the resulting model as initial-
+ization to jointly (multi-task) train on both that task and an
+additional one (e.g., FF).
+Lstage1 = LT ask1
+(9)
+Lstage2 = λLT ask1 + (1 −λ)LT ask2
+(10)
+where Task1 and Task2 denote the first and second pretext
+tasks in the curriculum, and λ is a hyperparameter that con-
+trols the relative importance of the two tasks in the second
+stage of training.
+4
+Experiments
+We investigate: (i) do temporal pretext tasks designed for
+optical imagery remain effective when applied to SAR; (ii)
+does masking further improve representations learned via
+temporal pretext tasks; (iii) among multi-task learning and
+curriculum learning, which can better leverage the comple-
+mentary strengths of the temporal pretext tasks; and (iv)
+would adding masking to the curriculum learning strategy
+further improve the representation.
+4.1
+Experimental Setup
+Baselines
+We consider the following baselines for compar-
+ison: a supervised ViT-S and UNet3D trained from scratch,
+a self-supervised MAE (He et al. 2022) pretrained on single-
+frame reconstruction with 75% masking, optical baselines
+from Gupta and Sobti (2026) pretrained on S2 SITS (FF,
+TD, and MAE on Tamil Nadu). These baselines allow us
+to evaluate the benefits of temporal pretext tasks for SAR,
+and to compare against pretraining on optical data. We also
+include globally pretrained RSFMs, namely DoFA (Xiong
+et al. 2024), CopernicusFM (Wang et al. 2025) and Terra-
+Mind (Jakubik et al. 2025) due to their strong performance
+in benchmarks (Jakubik et al. 2025), and global SAR FMs,
+SAR-JEPA (Liet al. 2024), SARATR-X(Li et al. 2025),SAR-
+W-MixMAE (Caglayan, Imamoglu, and Kouyama 2026) and
+
+
+Model
+Modality
+Crop Type
+Crop Yield
+Crop Yield
+Sowing
+Transpl.
+Harvest
+In-Season
+Date
+Date
+Date
+(IoU% ↑)
+(MAPE% ↓)
+(MAPE% ↓)
+(MAPE% ↓)
+(MAPE% ↓)
+(MAPE% ↓)
+M. RSFMs
+DoFA
+S1
+61.215
+316.616
+472.536
+96.316
+291.242
+774.963
+DoFA
+S2
+58.363
+36.144
+34.571
+1.685
+2.248
+7.149
+CopFM
+S1
+68.103
+31.395
+34.398
+2.5443
+2.834
+1.167
+CopFM
+S2
+57.229
+32.334
+33.706
+2.135
+2.823
+6.834
+TerraMind
+S1
+75.930
+33.071
+33.390
+1.942
+3.071
+8.563
+SAR FMs
+SAR-JEPA
+S1
+76.725
+33.551
+34.300
+2.433
+3.012
+10.286
+SARATR-X
+S1
+61.218
+38.570
+33.267
+2.491
+3.466
+18.580
+S-W-MMAE
+S1
+50.791
+388.010
+377.840
+4.364
+69.162
+77.470
+SARMAE
+S1
+69.211
+34.312
+33.705
+2.001
+3.140
+11.174
+Sup.
+ViT-S
+S1
+69.185
+31.213
+34.111
+2.197
+3.007
+10.328
+ViT-S
+S2
+65.523
+36.357
+33.687
+1.628
+2.553
+6.959
+UNet3D
+S1
+82.670
+31.995
+34.918
+1.460
+2.493
+4.375
+UNet3D
+S2
+65.442
+38.805
+37.964
+1.248
+1.925
+4.760
+S2 SSL
+FF
+S2
+69.595
+36.765
+32.516
+1.582
+2.839
+6.806
+TD
+S2
+66.628
+36.875
+32.877
+1.784
+2.499
+6.595
+MAE
+S2
+67.138
+37.833
+32.701
+1.749
+2.341
+6.520
+S1 SSL
+FF
+S1
+82.164
+31.697
+33.070
+2.108
+2.861
+9.991
+TD
+S1
+82.712
+35.683
+33.289
+2.173
+2.967
+10.417
+MAE
+S1
+76.899
+35.596
+32.950
+1.859
+3.196
+10.239
+Ours1
+S1
+84.871
+30.013
+30.024
+2.292
+2.905
+10.509
+Table 1: Comparison of temporal pretext tasks (FF, TD), MAE (He et al. 2022), pretrained multimodal vision RSFMs (M.
+RSFMs) DoFA (Xiong et al. 2024), CopernicusFM (CopFM) (Wang et al. 2025), TerraMind (Jakubik et al. 2025), pretrained
+SAR FMs SAR-JEPA (Li et al. 2024), SARATR-X (Li et al. 2025), SAR-W-MixMAE (S-W-MMAE) (Caglayan, Imamoglu,
+and Kouyama 2026), SARMAE (Liu et al. 2026), supervised baselines (ViT-S, UNet3D) and our proposed method on the
+SICKLE benchmark, evaluated separately on Sentinel-1 (S1) and Sentinel-2 (S2) splits across six agricultural monitoring tasks.
+↑indicates higher is better; ↓indicates lower is better. Bold and italic denote the best and second-best per column. Note:
+Pretext tasks FF, TD and MAE are executed on our pretraining dataset (3.1) for S1, or Gupta and Sobti (2026)’s Tamil Nadu S2
+pretraining dataset, while globally pretrained FMs use their publicly available checkpoints.
+SARMAE (Liu et al. 2026), using their publicly available
+checkpoints and evaluate their performance on S1 split of
+the SICKLE benchmark.
+Implementation Details
+We use a ViT-S encoder for pre-
+training, with a 3-layer MLP for TD, and a 2-layer Time
+Translator + 4-layer Transformer decoder for FF. Bitemporal
+pairs are sampled with a max gap of 3 months. All experi-
+ments use VV and VH polarizations as the input channels.
+We do not use VH/VV ratio as an additional channel, due to
+its reduced performance in supervised settings (d’Andrimont
+et al. 2021). We use a UPerNet (Xiao et al. 2018) segmenta-
+tion head for all ViT backbones. For pretrained multimodal
+vision RSFMs and SAR FMs, we specifically use their Base
+variants for comparison, and adjust the input channels for
+UPerNet segmentation head 2.
+4.2
+Results
+Do Optical Temporal Pretext Tasks Transfer to SAR?
+To test whether optical temporal pretext tasks transfer to
+SAR, we pretrain ViT-S on S2 and S1 with FF, TD, and
+1Our proposed pipeline: TD→TD+FF+90% Mask (Sec 4.2)
+2Please refer to supplementary material for more details.
+MAE, and evaluate on the corresponding SICKLE splits,
+and compare against the baselines described in Sec 4.1.
+Temporal Pretext Tasks Transfer to SAR:
+Table 1 shows
+that FF (82.2%) and TD (82.7%) pretrained on S1 outper-
+form DoFA (61.2%), CopernicusFM (68.1%), TerraMind
+(75.9%), SAR-JEPA (76.7%), SARATR-X (61.2%), SAR-W-
+MixMAE (50.8%), SARMAE (69.2%), MAE (76.9%) pre-
+trained on our S1 pretraining data, supervised ViT-S (69.2%),
+and remain competitive with UNet3D (82.7%) on crop type
+mapping on S1. Similarly, FF (31.697%) remainscompetitive
+on yield estimation and date prediction tasks, with exception
+of CopernicusFM on harvest prediction (1.167% MAPE),
+possibly due to inclusion of atmospheric products (Sentinel-
+5P) in its pretraining. The overall performance suggests that
+temporal pretext tasks can learn temporal dynamics from
+SAR as well. The performance gain switching from MAE
+to FF for crop type is larger for S1 (5 pt3) than for S2 (2.5
+pt), suggesting that the temporal structure captured by FF is
+particularly beneficial for SAR data.
+SAR Pretraining Outperforms Optical Pretraining for Crop
+Type and Yield:
+Comparing S1 and S2 pretrained models,
+we observe S1 outperforms S2 on FF (by 12.5 pt), TD (15.5
+3pt denotes the change between two metric values in % points.
+
+
+Model
+Mask
+Crop Type
+Crop Yield
+Crop Yield
+Sowing
+Transpl.
+Harvest
+Ratio
+In-Season
+Date
+Date
+Date
+(IoU% ↑)
+(MAPE% ↓)
+(MAPE% ↓)
+(MAPE% ↓)
+(MAPE% ↓)
+(MAPE% ↓)
+Without Masking
+FF
+–
+82.164
+31.697
+33.070
+2.108
+2.861
+9.991
+TD
+–
+82.712
+35.683
+33.289
+2.173
+2.967
+10.417
+FF + Mask
+FF
+25%
+83.596
+32.649
+34.062
+1.950
+3.822
+12.183
+FF
+50%
+76.366
+36.603
+31.948
+2.051
+3.184
+11.062
+FF
+75%
+72.105
+31.330
+30.380
+2.072
+2.981
+11.031
+FF
+90%
+81.105
+30.920
+33.882
+2.142
+2.912
+10.57
+TD + Mask
+TD
+25%
+76.818
+33.074
+32.583
+1.874
+2.958
+10.598
+TD
+50%
+77.228
+32.477
+29.765
+1.936
+2.642
+10.887
+TD
+75%
+76.361
+33.461
+33.036
+2.327
+3.025
+11.296
+TD
+90%
+79.173
+34.126
+31.750
+2.215
+2.683
+11.971
+Table 2: Effect of masking ratio p ∈{0.25, 0.50, 0.75, 0.90} on FF and TD pretraining on the SICKLE benchmark, evaluated
+against unmasked baselines. ↑indicates higher is better; ↓indicates lower is better. Bold and italic denote the best and second-
+best per column.
+Stage I
+Stage II
+Crop Type
+Crop Yield
+Crop Yield
+Sowing
+Transpl.
+Harvest
+In-Season
+Date
+Date
+Date
+(IoU% ↑)
+(MAPE% ↓)
+(MAPE% ↓)
+(MAPE% ↓)
+(MAPE% ↓)
+(MAPE% ↓)
+W/o Joint
+FF
+–
+82.164
+31.697
+33.070
+2.108
+2.861
+9.991
+TD
+–
+82.712
+35.683
+33.289
+2.173
+2.967
+10.417
+Multi-Task
+FF + TD
+–
+81.464
+33.151
+31.525
+2.104
+2.579
+11.176
+Curriculum
+FF
+FF+TD
+81.295
+34.686
+33.395
+2.244
+2.981
+10.863
+TD
+FF+TD
+83.705
+29.519
+33.856
+2.446
+3.291
+10.413
+Table 3: Comparison of joint pretraining strategies on the SICKLE benchmark: multi-task learning (FF+TD trained simul-
+taneously), two curriculum orderings (FF→FF+TD and TD→FF+TD), and single-task baselines (FF and TD without joint
+pretraining). ↑indicates higher is better; ↓indicates lower is better. Bold and italic denote the best and second-best per column.
+pt), and MAE (10 pt) on crop type, and similarly on yield
+though with some degradation on date tasks (3.1 pt–3.9 pt
+for harvest). This suggests date prediction benefits more from
+visible maturity than structural information from SAR. The
+overall gain in crop type (16.1 pt on TD) and yield (5 pt on FF)
+suggests S1 pretraining is more effective for crop type and
+yield prediction. CopernicusFM shows a similar S1 advan-
+tage on crop type, while DoFA’s S1 performance substantially
+degrades on most tasks, suggesting its SAR representations
+may not transfer well for agricultural monitoring.
+Can Masking Improve Pretraining With FF and TD?
+To investigate the impact of masking of input patches
+on temporal pretext tasks, we sweep mask ratios p ∈
+{0.25, 0.5, 0.75, 0.9} for both FF and TD, and evaluate them
+on SICKLE.
+Masking Improves FF but Degrades TD:
+Table 2 shows a
+low mask ratio (p=25%) on FF improves crop type (82.2%
+vs 83.6%) with slight yield degradation (0.95 pt) while TD
+degrades at all ratios (76.4–79.2%). Date tasks experience
+minimal loss across ratios, except harvest performance which
+increases with increasing mask ratios on FF but degrades on
+TD. The overall pattern is consistent with task design, where
+a dense prediction objective (FF) can benefit from mild mask-
+ing which encourages learning spatial associations, while a
+CLS-based global summarization task (TD) is more sensitive
+to missing spatial context, making masking less suitable.
+What Is the Optimal Masking Ratio for FF?
+Table 2
+shows 25% masking leads to good crop type (83.6%) but
+poor yield (32.7%) performance, while a 90% masking leads
+to good yield (31%) but poor crop type (81.1%) performance,
+despite 25% showing overall better pretraining loss (0.69
+vs 0.93). This indicates general useful representation across
+tasks could not be learnt, which we address through curricu-
+lum learning (Sec 4.2).
+Combining FF and TD
+We now investigate how to ef-
+fectively combine FF and TD to leverage their complemen-
+tary strengths, by comparing MTL (Sec 3.5) and curricu-
+lum learning (Sec 3.5). We consider both curricula: FF fol-
+lowed by FF+TD (FF→FF+TD) and TD followed by FF+TD
+(TD→FF+TD) to understand role of task order.
+Curriculum vs Multi-Task Learning:
+Table 3 shows that
+a well-chosen curriculum (TD→FF+TD) can outperform
+MTL, achieving better crop type (83.7% vs. 81.3%) and
+overall yield (29.5% vs. 33.2%) than FF+TD trained jointly,
+while remaining competitive on date tasks.
+Does Task Order Matter for Curriculum Learning?
+TD→FF+TD outperforms FF→FF+TD on crop type (2.4 pt)
+
+
+Stage II
+Crop Type
+Crop Yield
+Crop Yield
+Sowing
+Transpl.
+Harvest
+Mask Ratio
+In-Season
+Date
+Date
+Date
+(IoU% ↑)
+(MAPE% ↓)
+(MAPE% ↓)
+(MAPE% ↓)
+(MAPE% ↓)
+(MAPE% ↓)
+Curriculum W/o Mask
+N/A
+83.705
+29.519
+33.856
+2.446
+3.291
+10.413
+Curriculum + Mask
+50%
+77.838
+32.245
+33.889
+2.393
+2.643
+11.444
+75%
+76.723
+30.424
+30.378
+2.119
+2.844
+10.728
+90%
+84.871
+30.013
+30.024
+2.292
+2.905
+10.509
+Table 4: Effect of Stage II masking ratio on the TD→FF+TD curriculum on the SICKLE benchmark, with mask ratios
+p ∈{0.50, 0.75, 0.90}. The unmasked TD→FF+TD curriculum is included as reference. ↑indicates higher is better; ↓indicates
+lower is better. Bold and italic denote the best and second-best per column. Note: p = 0.25 is excluded due to out-of-memory
+(OOM) during pretraining.
+Step
+Configuration
+Crop Type
+∆Type
+Crop Yield
+∆Yield
+(IoU% ↑)
+(IoU%)
+(MAPE% ↓)
+(MAPE%)
+1
+TD
+82.712
+—
+35.683
+—
+2
+FF + TD
+81.464
+▼1.248
+33.151
+▲2.532
+3
+TD →FF + TD
+83.705
+▲2.241
+29.519
+▲3.632
+4
+TD →FF + TD + 90% Mask
+84.871
+▲1.166
+30.013
+▼0.494
+Table 5: Progressive ablation of pretraining components on the SICKLE benchmark. Each step adds one component over the
+previous row; ∆denotes the absolute change relative to the immediately preceding step. ▲and ▼indicate improvement and
+degradation respectively. Bold and italic denote the best and second-best per column.
+and yield (5.2 pt), improving over the single-task baselines
+and indicating that task order is important. This is consistent
+with the intuition that TD, by summarizing global temporal
+context, can provide a rich spatio-temporal prior for the sub-
+sequent FF stage to learn more richer spatial associations,
+while the reverse (FF→FF+TD) might not provide the same
+benefits. We use the TD→FF+TD curricula as the basis for
+our later experiments.
+Does Masking Further Improve the Curriculum?
+On
+TD→FF+TD, we investigate whether adding masking to
+Stage II can further improve performance. As shown in Ta-
+ble 4, only 90% masking improves crop type (84.9% vs.
+83.7% IoU) and in-season yield (30.024% vs 33.856%) over
+the unmasked curriculum, while 50% and 75% masking sig-
+nificantly degrade crop type performance (77.8% and 76.7%
+respectively). This is accompanied by minimal loss in sow-
+ing (0.173 pt) and transplanting (0.262 pt), and a slight gain
+in harvest (0.935 pt) performance across masking ratios. The
+effectiveness of extreme masking (90%) can be explained
+by understanding the role of spatial masking on the Stage I
+TD initialization. The initial TD pretraining provides a rich
+spatio-temporal prior which can weaken on addition of easier
+spatial tasks (50% and 75% masking), as it allows the model
+to rely on local spatial cues for reconstruction. In contrast,
+extreme masking (90%) can reduce this spatial reliance by
+forcing the model to improve this existing prior by recon-
+structing heavily occluded inputs, improving performance
+on both crop type and yield prediction.
+Overall Findings
+Table 5 summarizes the progressive con-
+tribution of each component: naive MTL is suboptimal (crop
+type degrades by 1.2 pt with yield gain of 2.5 pt), curricu-
+lum learning recovers and exceeds single-task performance
+(83.7% IoU, 29.5% MAPE), and adding 90% masking fur-
+ther improves crop type to 84.9% IoU at a marginal 0.5 pt
+yield cost — confirming that pretext-task structure and order
+affect downstream performance. Our final pipeline (TD →
+FF+TD + 90% mask) outperforms optical pretraining by 15.3
+pt, supervised baselines by 2.2 pt, and even globally trained
+multimodal vision RSFMs by 9 pt and SAR-specific FMs by
+8.1 pt on crop type, as well as yield. We see slight deteri-
+oration on sowing (0.7 pt), transplating (0.6 pt) and harvest
+(4 pt) prediction compared to optical pretraining, hinting at
+slight spatial learning bias of the pipeline (Table 1).
+5
+Conclusion
+We develop a state-of-the-art self-supervised pretraining
+pipeline for agricultural monitoring using only SAR intensity
+imagery. We use temporal pretext tasks (FF and TD) designed
+for optical imagery but add a curriculum (TD→TD+FF) and
+masking (90%) — showing that temporal pretext tasks trans-
+fer to SAR intensity, that masking benefits dense (FF) but
+harms global-summarization (TD) objectives, and that a TD-
+learned global prior provides better initialization for further
+curriculum pretraining than joint training alone. On regional
+pretraining over Tamil Nadu, we show it consistently out-
+performs optical pretraining (by 15.3 pt), supervised base-
+lines (by 2.2 pt) and even globally pretrained multimodal
+vision RSFMs (by 9 pt) and SAR FMs (by 8.1 pt) on crop
+type, as well as yield estimation on the SICKLE bench-
+mark, with slight deterioration on date tasks compared to
+optical pretraining. SAR2Agri establishes phenology-aware
+pretraining as a promising approach for agricultural monitor-
+ing using SAR intensity. In the future, we plan on creating a
+benchmark across a diverse set of regions to understand the
+regional variances of these representations.
+
+
+6
+Acknowledgements
+We are grateful to Dr. Shashank Tamaskar for his valuable
+feedback during various stages of this work. This research
+was supported by the Plaksha University Startup Research
+Grant and by GPU compute credits provided by Jarvis Labs.
+
+
+A
+Pretraining Dataset Construction
+To pretrain our SAR encoder, we curate a large satellite im-
+age time series (SITS) of S1 intensity imagery over Tamil
+Nadu, India. We illustrate the pipeline for curating the S1
+pretraining dataset as follows (Fig 3):
+1. Download Reference Locations & Timestamps We
+first download the reference locations and timestamps
+of S2 imagery from the regional pretraining dataset of
+Time2Agri (Gupta and Sobti 2026), which we use as a
+reference to query for S1 imagery, which are chips of
+shape 224 × 224 spanning 6602 unique spatial locations
+with temporal coverage from January 2018 to March 2021
+at a monthly cadence. We use the S2 locations and times-
+tamps as reference for querying S1 imagery to ensure
+spatial alignment between the two modalities, to ensure
+a fair comparison on the role of modality for learning
+agricultural representations, and to enable potential fu-
+ture work on multimodal pretraining by learning from the
+same locations and timestamps across both modalities.
+2. Query Sentinel-1 RTC Collection For each chip bound-
+ary and S2 timestamp, we query the Sentinel-1 RTC
+collection on the Microsoft Planetary Computer (Source
+et al. 2022) for available S1 acquisitions over that loca-
+tion. We use the RTC product because it is already terrain
+corrected and projected to a regular grid, which allows
+us to directly apply the pretext tasks designed for regular
+grid data (e.g., optical imagery).
+3. Filter By Temporal Proximity For the available S1 ac-
+quisitions from the previous step, we filter them by tem-
+poral proximity to the S2 timestamp, where we select an
+S1 acquisition only if it is within a 21-day window of
+the S2 timestamp. If multiple S1 acquisitions are avail-
+able within the 21-day window, we select the one closest
+in time to the S2 timestamp, and if no S1 acquisition is
+available within the 21-day window, we skip that month
+for that location. We allow a time difference of 21 days
+to ensure sufficient temporal coverage for the pretraining
+dataset while ensuring similar phenological state between
+the S1 and S2 acquisitions. We repeat this process for each
+monthly S2 timestamp for each location. This results in a
+total of 242,590 S1 chips across 6602 locations.
+4. Select and Export to Zarr. For each chip location, we
+obtain the satellite image time series (SITS) of the filtered
+S1 acquisitions, which have two channels corresponding
+to the VV and VH polarizations, and export them to a
+Zarr store.
+Figure 3: This figure shows the pipeline for constructing the
+S1 pretraining dataset for Tamil Nadu. We use the publicly
+released locations and timestamps of S2 imagery from the
+regional pretraining dataset of Time2Agri (Gupta and Sobti
+2026) to sample S1 chips ensuring spatial alignment with
+an allowed time difference of 21 days. The chips are of the
+shape 224 × 224 and contain 2 channels corresponding to
+the VV and VH polarizations of S1.
+B
+Further Investigation on Decline of
+Harvest Prediction Performance
+B.1
+Role of Modality
+TD
+Optical (S2)
+FF
+Optical (S2)
+TD
+SAR (S1)
+FF
+SAR (S1)
+0
+10
+20
+30
+40
+50
+Absolute error (days)
+n = 37 samples
+Figure 4: Distribution of absolute harvest-date prediction er-
+rors across the validation set of SICKLE. Results are shown
+for TD and FF considering both optical (S2) and SAR (S1)
+pretraining. Boxes represent the interquartile range, hori-
+zontal lines indicate medians, diamonds denote means, and
+points represent individual samples. Lower values indicate
+more accurate harvest-date predictions.
+
+
+Component
+Pretraining
+Downstream
+Downstream A100
+Hardware
+RTX A6000 (48GB)
+RTX A5000 (24GB)
+A100 (80GB)
+OS
+Ubuntu 24.04
+Ubuntu 22.04
+Ubuntu 22.04
+Framework
+PyTorch 2.10.0 + Lightning 2.6.1
+PyTorch 2.6.0
+PyTorch 2.11.0
+CUDA
+13.1
+12.2
+13.0
+Training
+Single GPU
+Single GPU
+Single GPU
+Table 6: Experimental Environment
+Parameter
+FF
+TD
+FF+TD
+MAE
+FF+Mask
+TD+Mask
+FF+TD+Mask
+Learning Rate
+0.0001
+0.0009
+0.0009
+0.001
+0.0001
+0.0001
+0.0001
+Batch Size
+512
+256
+256
+1024
+512
+512
+512
+Image Resolution
+224×224
+224×224
+224×224
+224×224
+224×224
+224×224
+224×224
+Warmup Epochs
+10
+10
+10
+10
+10
+10
+10
+Max Epochs
+100
+100
+100
+100
+100
+100
+100
+Early Stop Patience
+5
+5
+5
+5
+5
+5
+5
+Optimizer
+AdamW
+AdamW
+AdamW
+AdamW
+AdamW
+AdamW
+AdamW
+LR Schedule
+Cosine
+Cosine
+Cosine
+Cosine
+Cosine
+Cosine
+Cosine
+Weight Decay
+0.01
+0.01
+0.01
+0.01
+0.01
+0.01
+0.01
+Loss Function
+NPE
+CE
+weighted
+NPE
+NPE
+CE
+weighted
+CE & NPE
+CE & NPE
+λ (for Joint Training)
+–
+–
+0.5
+–
+–
+–
+0.5
+Table 7: Pretraining Hyperparameters: This table describes the hyperparameters for FF, TD, FF+TD, MAE, TD+Masking
+(TD+Mask), FF+Masking (FF+Mask) and FF+TD+Masking (FF+TD+Masking) pretraining. Note: the hyperparameters for cur-
+riculum learning strategies (FF→FF+TD, TD→FF+TD and TD→FF+TD+Masking) use the values as the mentioned depending
+on the stage in the curriculum.
+To understand the decline in harvest date prediction perfor-
+mance on S1, we compare absolute error across pretraining
+modality (S1 vs. S2) and pretext tasks TD & FF in Fig 4. Mod-
+els pretrained on S2 achieve a lower median and mean error,
+suggesting that the optical modality provides a more reliable
+signal for harvest date prediction. However, the interquartile
+ranges of S1 and S2 overlap considerably, indicating that S1
+can match or even outperform S2 on individual farms. Fig 5
+and Fig 6 illustrate this overlap with qualitative examples
+across four farms. While TD (S2) achieves the lowest error
+in (a) and (c), FF (S1) outperforms all other configurations in
+(b), and FF (S2) and TD (S2) both outperform their S1 coun-
+terparts in (d), suggesting no single modality or pretext task
+is consistently superior across farms for harvest prediction.
+B.2
+Comparison of S1 Pretraining
+Fig 7 and Fig 8 show some examples of harvest date pre-
+diction across four farms, comparing our S1 pretrained
+models: TD, TD+FF (MTL), TD→TD+FF (curriculum),
+and TD→TD+FF+90% masking (ours). Our final pipeline:
+TD→TD+FF+90% masking, achieves the lowest harvest pre-
+diction error in 3 out of 4 cases (a, c and d).
+C
+Implementation Details
+C.1
+Experimental Environment
+Table 6 describes the experimental environment for both
+pretraining and downstream evaluation. For all downstream
+experiments, we use RTX A5000 (24GB) with excep-
+tion of SARATR-X (Li et al. 2025) and SAR-W-MixMAE
+(Caglayan, Imamoglu, and Kouyama 2026), where we use an
+A100 (80GB) due to their high compute requirements.
+C.2
+Pretraining & Downstream
+Hyperparameters
+Table 7 describesthe hyperparameters for pretraining FF,TD,
+FF+TD, TD→FF+TD, MAE, TD+Masking, FF+Masking,
+TD→FF+TD+Masking, with curriculum learning experi-
+ments using hyperparameters according to the stage (e.g.,
+TD→TD+FF use TD’s hyperparameters for Stage I and
+FF+TD’s hyperparameters for Stage 2). Table 8 describes
+the hyperparameters for downstream evaluation using DoFA
+(Xiong et al. 2024), CopernicusFM (Wang et al. 2025), Ter-
+raMind (Jakubik et al. 2025), SAR-JEPA (Li et al. 2024),
+SARATR-X (Li et al. 2025), SARMAE (Liu et al. 2026),
+SAR-W-MixMAE (Caglayan, Imamoglu, and Kouyama
+2026), UNet and ViT-S on the SICKLE benchmark.
+C.3
+Model Architecture
+Pretraining
+Table 9a describes the ViT-S (Dosovitskiy
+et al. 2021) backbone which is used by all pretraining
+methods. The pretext tasks require task-specific components,
+whose configurations are described in Table 9b.
+Downstream
+For downstream evaluation on SICKLE, we
+follow Sani et al. (2024) and Gupta and Sobti (2026), and
+
+
+Parameter
+ViT-S
+DoFA
+SAR-JEPA
+SARATR-X
+SAR-W-MixMAE
+UNet
+Backbones
+CopFM
+TerraMind
+SARMAE
+Learning Rate
+0.001
+0.001
+0.001
+0.001
+0.001
+0.001
+Batch Size
+192
+64
+128
+64
+192
+192
+Image Resolution
+64×64
+64×64
+64×64
+64×64
+64×64
+64×64
+Max Epochs
+100
+100
+100
+100
+100
+100
+Optimizer
+Adam
+Adam
+Adam
+Adam
+Adam
+Adam
+Loss Function (Crop Type)
+CE
+CE
+CE
+CE
+CE
+CE
+Loss Function (Rest)
+RMSE
+RMSE
+RMSE
+RMSE
+RMSE
+RMSE
+GPU
+A5000
+A5000
+A5000
+A100 (80GB)
+A100 (80GB)
+A5000
+Table 8: Downstream Hyperparameters for Evaluation on the SICKLE benchmark: This table describes the hyperparam-
+eters for downstream evaluation on the SICKLE benchmark for crop type mapping, yield estimation, and phenological date
+prediction. Note: the same hyperparameters are used across all three downstream tasks except for the loss function, where crop
+type mapping uses cross-entropy (CE) loss while yield estimation and phenological date prediction use root mean squared error
+(RMSE) loss. SARATR-X and SAR-W-MixMAE use A100 (80GB) due to their high compute requirement.
+Component
+Specification
+Architecture
+ViT (Small)
+Patch Size
+16 × 16
+Embedding Dimension
+384
+Number of Layers
+12
+Number of Heads
+12
+MLP Ratio
+4.0
+Input Channels
+2 (VV + VH)
+(a) Backbone Configuration
+Method
+Component
+Architecture
+Layers
+Heads
+Dim
+FF
+Time Translator
+Transformer
+2
+12
+384
+Decoder
+Transformer
+4
+4
+192
+TD
+Classifier
+MLP
+3
+–
+192
+FF + TD
+Time Translator
+Transformer
+2
+12
+384
+Decoder
+Transformer
+4
+4
+192
+Classifier
+MLP
+3
+–
+192
+MAE
+Decoder
+Transformer
+6
+6
+192
+(b) Task-Specific Components
+Table 9: Architecture configurations: (a) This table describes the ViT-S (Dosovitskiy et al. 2021) backbone architecture used
+for all pretraining methods. (b) This table describes the architectural details for the task-specific components for each method.
+use a SITS for prediction. To ingest SITS with a single-image
+backbone, we extract the backbone features at multiple layers
+(third, sixth, ninth and last layer for Small and Base variants
+of backbones) for each timestamp and perform a per-layer
+temporal max pooling. The resulting features are interpolated
+to form a feature pyramid and are ingested by the UperNet
+decoder for prediction, similar to Xiong et al. (2024) and
+Wang et al. (2025). SARATR-X (Li et al. 2025) and SAR-W-
+MixMAE (Caglayan, Imamoglu, and Kouyama 2026) do not
+perform interpolation since they natively output hierarichal
+features which can be directly used with UperNet.
+
+
+(a)
+(b)
+Figure 5: Some examples on harvest date prediction by TD & FF pretrained on S1 and S2. Each row shows three S2 (RGB) and
+three S1 false-color acquisitions nearest to the ground truth harvest date, with farm boundaries delineated in red. S1 images are
+visualized as false-color composites (R: VV, G: VH, B: VH−VV) in log domain. Predicted harvest dates are shown for TD (S1),
+FF (S1), TD (S2), and FF (S2). (a) TD (S2) achieves the lowest error at 1 day, relying on visible transition from 21/03/2020
+to 26/03/2020 despite presence of cloud cover while SAR shows only a slight change. (b) FF (S1) achieves the best prediction
+error (11 days) by correctly anticipating the harvest between the transition from dark blue (low VV, high VH and high VH-VV
+on 14/03/2020) to reddish-brown (intermediate VV, low VH and low VH-VV on 26/03/2020).
+
+
+(c)
+(d)
+Figure 6: Some examples on harvest date prediction by TD & FF pretrained on S1 and S2 (continued from Fig 5). Each row
+shows three S2 (RGB) and three S1 false-color acquisitions nearest to the ground truth harvest date, with farm boundaries
+delineated in red. S1 images are visualized as false-color composites (R: VV, G: VH, B: VH−VV) in log domain. Predicted
+harvest dates are shown for TD (S1), FF (S1), TD (S2), and FF (S2). (c) FF (S1) and TD (S2) achieve errors of 2 days and 1
+day respectively. FF (S1) can correctly locate harvest within transition from 25/02/2021 to 09/03/2021 due to a more darker
+shade of red (high VV, low VH and low VH-VV), while TD (S2) can capture the stark visible transition from 01/03/2021 to
+06/03/2021. (d) Both FF (S2) and TD (S2) achieve the lowest errors, at 2 days and 3 days respectively, due to the presence of
+strong transition in optical imagery (from 24/08/2019 to 29/08/2019).
+
+
+(a)
+(b)
+Figure 7: Some examples on harvest date prediction by our S1 pretrained models: TD, TD+FF, TD→TD+FF and
+TD→TD+FF+90% masking. Each row shows three S2 (RGB) and three S1 false-color acquisitions nearest to the ground
+truth harvest date, with farm boundaries delineated in red. S1 images are visualized as false-color composites (R: VV, G: VH,
+B: VH−VV) in log domain. Predicted harvest dates are shown for TD, TD+FF, TD→TD+FF and TD→TD+FF+90% masking.
+(a) TD→TD+FF+90% masking perfectly overlaps with ground truth, correctly anticipating a wider spread of red (high VV, low
+VH and low VH-VV) from 19/02/2020 to 02/03/2020 signifying harvest, while the rest of methods deviates by at least 9 days.
+(b) All baselines deviate significantly with a least deviation of 12 days (FF+TD). None of them anticipated a harvest close to
+peak canopy (low VV, high VH and high VV-VH on 07/02/2020).
+
+
+(c)
+(d)
+Figure 8: Some examples on harvest date prediction by our S1 pretrained models: TD, TD+FF, TD→TD+FF and
+TD→TD+FF+90% masking (continued from Fig 7). Each row shows three S2 (RGB) and three S1 false-color acquisitions
+nearest to the ground truth harvest date, with farm boundaries delineated in red. S1 images are visualized as false-color com-
+posites (R: VV, G: VH, B: VH−VV) in log domain. Predicted harvest dates are shown for TD, TD+FF, TD→TD+FF and
+TD→TD+FF+90% masking. (c) Both TD and TD→TD+FF achieve similar performance with a deviation of 12–13 days. None
+of them anticipates the harvest between two acquistions showing large VH and VH-VV scattering (17/08/2020 and 29/08/2020).
+(d) TD→TD+FF+90% masking achieve the least error of 2 days followed by TD→TD+FF (3 days) and TD+FF (4 days). All of
+them correctly captures the harvest event from 02/03/2020 to 14/03/2020 due to increase in VV, but decrease in VH and VH-VV.
+
+
+References
+Al Kader Hammoud, H. A.; Das, T.; Pizzati, F.; Torr, P. H.;
+Bibi, A.; and Ghanem, B. 2024. On pretraining data diversity
+for self-supervised learning.
+In European Conference on
+Computer Vision, 54–71. Springer.
+Boulch, A.; Trouvé, P.; Koeniguer, E.; Janez, F.; and Saux,
+B. L. 2018. Learning Speckle Suppression in Sar Images
+Without Ground Truth: Application to Sentinel-1 Time-
+Series. In IGARSS 2018 - 2018 IEEE International Geo-
+science and Remote Sensing Symposium, 2366–2369.
+Brown, C. F.; Kazmierski, M. R.; Pasquarella, V. J.; Ruck-
+lidge, W. J.; Samsikova, M.; Zhang, C.; Shelhamer, E.; La-
+hera, E.; Wiles, O.; Ilyushchenko, S.; Gorelick, N.; Zhang,
+L. L.; Alj, S.; Schechter, E.; Askay, S.; Guinan, O.; Moore,
+R.; Boukouvalas, A.; and Kohli, P. 2025. AlphaEarth Foun-
+dations: An embedding field model for accurate and efficient
+global mapping from sparse label data. arXiv:2507.22291.
+Caglayan, A.; Imamoglu, N.; and Kouyama, T. 2026. SAR-
+W-MixMAE: Polarization-Aware Self-Supervised Pretrain-
+ing for Masked Autoencoders on SAR Data. IEEE Journal of
+Selected Topics in Applied Earth Observations and Remote
+Sensing.
+Dalsasso, E.; Denis, L.; and Tupin, F. 2021. SAR2SAR: A
+Semi-Supervised Despeckling Algorithm for SAR Images.
+IEEE Journal of Selected Topics in Applied Earth Observa-
+tions and Remote Sensing, 14: 4321–4329.
+Dosovitskiy, A.; Beyer, L.; Kolesnikov, A.; Weissenborn,
+D.; Zhai, X.; Unterthiner, T.; Dehghani, M.; Minderer, M.;
+Heigold, G.; Gelly, S.; Uszkoreit, J.; and Houlsby, N. 2021.
+An Image is Worth 16x16 Words: Transformers for Image
+Recognition at Scale. arXiv:2010.11929.
+Du, Y.; Chen, Y.; Huang, L.; Yang, Y.; Ghamisi, P.; and Du,
+Q. 2025. SUMMIT: A SAR foundation model with multiple
+auxiliary tasks enhanced intrinsic characteristics. Interna-
+tional Journal of Applied Earth Observation and Geoinfor-
+mation, 141: 104624.
+d’Andrimont, R.; Verhegghen, A.; Lemoine, G.; Kempe-
+neers, P.; Meroni, M.; and van der Velde, M. 2021. From
+parcel to continental scale – A first European crop type map
+based on Sentinel-1 and LUCAS Copernicus in-situ obser-
+vations. Remote Sensing of Environment, 266: 112708.
+FAO. 2024. The state of food and agriculture 2024–value-
+driven transformation of agrifood systems. FAO.
+Fuller, A.; Millard, K.; and Green, J. R. 2023. CROMA:
+Remote Sensing Representations with Contrastive Radar-
+Optical Masked Autoencoders. arXiv:2311.00566.
+Gorelick, N.; Hancher, M.; Dixon, M.; Ilyushchenko, S.;
+Thau, D.; and Moore, R. 2017.
+Google Earth Engine:
+Planetary-scale geospatial analysis for everyone.
+Remote
+Sensing of Environment, 202: 18–27.
+Gupta, M. R.; and Sobti, A. 2026. Time2Agri: Temporal
+Pretext Tasks for Agricultural Monitoring. In Proceedings
+of the AAAI Conference on Artificial Intelligence, volume 40,
+38533–38541.
+He, K.; Chen, X.; Xie, S.; Li, Y.; Dollár, P.; and Girshick,
+R. 2022. Masked autoencoders are scalable vision learners.
+In Proceedings of the IEEE/CVF conference on computer
+vision and pattern recognition, 16000–16009.
+Jakubik, J.; Yang, F.; Blumenstiel, B.; Scheurer, E.; Sedona,
+R.; Maurogiovanni, S.; Bosmans, J.; Dionelis, N.; Marsocci,
+V.; Kopp, N.; Ramachandran, R.; Fraccaro, P.; Brunschwiler,
+T.; Cavallaro, G.; Bernabe-Moreno, J.; and Longépé, N.
+2025. TerraMind: Large-Scale Generative Multimodality for
+Earth Observation. arXiv:2504.11171.
+Li, W.; Liang, S.; Chen, K.; Chen, Y.; Ma, H.; Xu, J.; Ma, Y.;
+Zhang, Y.; Guan, S.; Fang, H.; and Shi, Z. 2026. AgriFM: A
+multi-source temporal remote sensing foundation model for
+Agriculture mapping. Remote Sensing of Environment, 334:
+115234.
+Li, W.; Yang, W.; Hou, Y.; Liu, L.; Liu, Y.; and Li, X. 2025.
+SARATR-X: Toward Building A Foundation Model for SAR
+Target Recognition. arXiv:2405.09365.
+Li, W.; Yang, W.; Liu, T.; Hou, Y.; Li, Y.; Liu, Z.; Liu, Y.; and
+Liu, L. 2024. Predicting gradient is better: Exploring self-
+supervised learning for SAR ATR with a joint-embedding
+predictive architecture. ISPRS Journal of Photogrammetry
+and Remote Sensing, 218: 326–338.
+Liu, D.; Wang, D.; Wang, H.; Chen, H.; Jiang, W.; Cheng, Y.;
+Guo, H.; Cui, W.; and Zhang, J. 2026. Sarmae: Masked au-
+toencoder for sar representation learning. In Proceedings of
+the IEEE/CVF Conference on Computer Vision and Pattern
+Recognition, 6496–6507.
+Lu, S.; Guo, J.; Zimmer-Dauphinee, J. R.; Nieusma, J. M.;
+Wang, X.; VanValkenburgh, P.; Wernke, S. A.; and Huo,
+Y. 2025. Vision Foundation Models in Remote Sensing: A
+Survey. arXiv:2408.03464.
+Microsoft. ????
+Microsoft Planetary Computer.
+https:
+//planetarycomputer.microsoft.com/. Accessed 2026-03-05.
+Moreira, A.; Prats-Iraola, P.; Younis, M.; Krieger, G.; Ha-
+jnsek, I.; and Papathanassiou, K. P. 2013. A tutorial on syn-
+thetic aperture radar. IEEE Geoscience and Remote Sensing
+Magazine, 1(1): 6–43.
+Sani, D.; Mahato, S.; Saini, S.; Agarwal, H. K.; Devshali,
+C. C.; Anand, S.; Arora, G.; and Jayaraman, T. 2024.
+SICKLE: A Multi-Sensor Satellite Imagery Dataset Anno-
+tated With Multiple Key Cropping Parameters. In Proceed-
+ings of the IEEE/CVF Winter Conference on Applications of
+Computer Vision (WACV), 5995–6004.
+Shi, C.; Sun, C.; Wu, Y.; and Jia, Y. 2023. Video Anomaly
+Detection via Sequentially Learning Multiple Pretext Tasks.
+In 2023 IEEE/CVF International Conference on Computer
+Vision (ICCV), 10296–10306.
+Source, M. O.; McFarland, M.; Emanuele, R.; Morris, D.; and
+Augspurger,T.2022. microsoft/PlanetaryComputer:October
+2022.
+Steele-Dunne, S. C.; McNairn, H.; Monsivais-Huertero, A.;
+Judge, J.; Liu, P.-W.; and Papathanassiou, K. 2017. Radar
+remote sensing of agricultural canopies: A review. IEEE
+Journal of Selected Topics in Applied Earth Observations
+and Remote Sensing, 10(5): 2249–2273.
+Tong, X.-Y.; and Wang, S. 2026. Invariant Features for Global
+Crop Type Classification. arXiv:2509.03497.
+
+
+Ulaby, F.; Long, D.; Blackwell, W.; Elachi, C.; Fung, A.; Ruf,
+C.; Sarabandi, K.; Zyl, J.; and Zebker, H. 2014. Microwave
+Radar and Radiometric Remote Sensing. ISBN 978-0-472-
+11935-6.
+Ulaby, F. T. 1986. Microwave remote sensing active and
+passive. theory to applications, 2059–2081.
+Van Tricht, K.; Degerickx, J.; Gilliams, S.; Zanaga, D.; Bat-
+tude, M.; Grosu, A.; Brombacher, J.; Lesiv, M.; Bayas, J.
+C. L.; Karanam, S.; Fritz, S.; Becker-Reshef, I.; Franch, B.;
+Mollà-Bononad, B.; Boogaard, H.; Pratihast, A. K.; Koetz,
+B.; and Szantoi, Z. 2023. WorldCereal: a dynamic open-
+source system for global-scale, seasonal, and reproducible
+crop and irrigation mapping. Earth System Science Data,
+15(12): 5491–5515.
+Vaswani, A.; Shazeer, N.; Parmar, N.; Uszkoreit, J.; Jones, L.;
+Gomez, A. N.; Kaiser, L.; and Polosukhin, I. 2023. Attention
+Is All You Need. arXiv:1706.03762.
+Wang, Y.; Albrecht, C. M.; Braham, N. A. A.; Liu, C.; Xiong,
+Z.; and Zhu, X. X. 2024. Decoupling Common and Unique
+Representations for Multimodal Self-supervised Learning.
+arXiv:2309.05300.
+Wang, Y.; Xiong, Z.; Liu, C.; Stewart, A. J.; Dujardin, T.;
+Bountos, N. I.; Zavras, A.; Gerken, F.; Papoutsis, I.; Leal-
+Taixé, L.; and Zhu, X. X. 2025. Towards a Unified Copernicus
+Foundation Model for Earth Vision. arXiv:2503.11849.
+Xiao, T.; Liu, Y.; Zhou, B.; Jiang, Y.; and Sun, J.
+2018. Unified Perceptual Parsing for Scene Understanding.
+arXiv:1807.10221.
+Xiong, Z.; Wang, Y.; Zhang, F.; Stewart, A. J.; Hanna, J.;
+Borth, D.; Papoutsis, I.; Saux, B. L.; Camps-Valls, G.; and
+Zhu, X. X. 2024.
+Neural Plasticity-Inspired Multimodal
+Foundation Model for Earth Observation. arXiv:2403.15356.
