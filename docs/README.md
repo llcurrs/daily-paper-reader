@@ -6,41 +6,33 @@
 </div>
 
 ## 每次日报
-- 最新运行日期：2026-08-18
-- 运行时间：2026-08-18 20:13:13 UTC
+- 最新运行日期：2026-08-19
+- 运行时间：2026-08-19 20:55:04 UTC
 - 运行状态：成功
-- 本次总论文数：7
-- 精读区：2
-- 速读区：5
+- 本次总论文数：4
+- 精读区：0
+- 速读区：4
 
 ### 今日简报（AI）
-今日精读2篇高分论文，速读5篇，共处理7篇遥感与多模态方向新作。最值得关注高光谱重建新原理（9.0分）与光学-SAR目标检测的边界对齐路由（9.0分）。建议下一步可深入探索高光谱与多模态融合的跨任务泛化潜力。
-- 详情：[/202608/18/README](/202608/18/README)
+今日速读4篇论文，无精读，重点关注热成像深度估计与多模态重识别方向。最值得看的是用RGB基础模型做热图像深度估计（7.0分），其层次化监督思路有借鉴价值；其次是可关注多模态行人重识别的稀疏解耦方法（6.0分）。建议优先精读热成像深度估计一文的监督设计，后续可复现其核心流程。
+- 详情：[/202608/19/README](/202608/19/README)
 
 ### 精读区论文标签
-1. [Registration-Free Hyperspectral Reconstruction from RGB via a Permutation-Invariant Gram-Matrix Principle](/202608/18/2608.14994v1-registration-free-hyperspectral-reconstruction-from-rgb-via-a-permutation-invariant-gram-matrix-principle)  
-   标签：评分：9.0/10、query:multi-modal
-   evidence：融合不同传感器的低分辨率高光谱与高分辨率RGB，无需配准和相机响应函数
-2. [Boundary-Aligned Contribution Routing for Robust Optical--SAR Object Detection](/202608/18/2608.15261v1-boundary-aligned-contribution-routing-for-robust-optical--sar-object-detection)  
-   标签：评分：9.0/10、query:multi-modal
-   evidence：面向遥感目标检测的光学-SAR融合及贡献路由机制
+- 本次无精读推荐。
 
 ### 速读区论文标签
-1. [MSP-Net: Manifold-Guided Spectral Prompt Network for Hyperspectral Object Tracking](/202608/18/2608.09575v1-msp-net-manifold-guided-spectral-prompt-network-for-hyperspectral-object-tracking)  
+1. [Repurposing RGB-based Foundation Model for Depth Estimation on Thermal Images Using Hierarchical Supervision](/202608/19/2608.11564v1-repurposing-rgb-based-foundation-model-for-depth-estimation-on-thermal-images-using-hierarchical-supervision)  
+   标签：评分：7.0/10、query:multi-modal
+   evidence：通过层次监督从RGB迁移到热红外，处理推断时RGB模态缺失问题，可用于多模态遥感缺失模态学习
+2. [MODAL: Multi-Modal Object Re-ID via Model-Driven Sparse Decoupling and Text-Image Differential Filtering](/202608/19/2608.15096v1-modal-multi-modal-object-re-id-via-model-driven-sparse-decoupling-and-text-image-differential-filtering)  
    标签：评分：6.0/10、query:multi-modal
-   evidence：自适应光谱融合与传感器泛化，可迁移至多模态融合
-2. [PathFinder: Joint Decompositions of Linked Multimodal Datasets](/202608/18/2608.14951v1-pathfinder-joint-decompositions-of-linked-multimodal-datasets)  
+   evidence：多模态目标重识别明确处理模态缺失条件，方法可迁移至多模态图像分类与缺失模态学习
+3. [Beyond Independence: Learning Correlated Views for Variational Incomplete Multi-View Clustering](/202608/19/2608.15757v1-beyond-independence-learning-correlated-views-for-variational-incomplete-multi-view-clustering)  
    标签：评分：6.0/10、query:multi-modal
-   evidence：面向链接多模态数据集的联合分解框架，支持部分共享维度下的融合
-3. [SA-GEM: Scale-Adaptive and Geospatial Evidence-Modulated Token Pruning for Efficient Remote Sensing Large Vision-Language Models](/202608/18/2608.15075v1-sa-gem-scale-adaptive-and-geospatial-evidence-modulated-token-pruning-for-efficient-remote-sensing-large-vision-language-models)  
+   evidence：变分不完整多视图聚类，学习视图相关性以处理缺失模态
+4. [When More Foundation Models Means Less: Diagnosing and Addressing Multi-View Fusion Failure](/202608/19/2608.17490v1-when-more-foundation-models-means-less-diagnosing-and-addressing-multi-view-fusion-failure)  
    标签：评分：6.0/10、query:multi-modal
-   evidence：多模态遥感视觉语言模型，与多模态遥感理解相关
-4. [AlignJEPA: Predictive Vision-Language Alignment for Remote Sensing Foundation Models](/202608/18/2608.15456v1-alignjepa-predictive-vision-language-alignment-for-remote-sensing-foundation-models)  
-   标签：评分：6.0/10、query:multi-modal
-   evidence：遥感视觉-语言对齐，基于掩码预测的JEPA风格框架
-5. [Multi-scale Decomposed Convolution Refinement Network for Visible-Infrared Person Re-Identification](/202608/18/2608.16015v1-multi-scale-decomposed-convolution-refinement-network-for-visible-infrared-person-re-identification)  
-   标签：评分：6.0/10、query:multi-modal
-   evidence：可见光-红外跨模态特征学习与融合网络，可迁移至遥感多模态融合
+   evidence：诊断多视图融合失效并提出基于核对齐的贪心编码器选择，用于多模态融合
 
 
 <div class="dpr-home-promo-card">
