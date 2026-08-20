@@ -1,0 +1,725 @@
+Title: MARCUS: Missing-Aware Region Representation with Contextual Urban Signals for Rent Prediction
+
+URL Source: https://arxiv.org/pdf/2608.18546v1
+
+Published Time: Thu, 20 Aug 2026 00:31:53 GMT
+
+Number of Pages: 10
+
+Markdown Content:
+# MARCUS: Missing-Aware Region Representation with Contextual Urban Signals for Rent Prediction 
+
+Chenya Huang 1, Bin Liang 1,* , Zhidong Li 1, Yuxi Lu 1, Kunqi Li 1, Justin Wang 2, and Fang Chen 1
+
+> 1
+
+Data Science Institute University of Technology Sydney Sydney, Australia 
+
+{Bin.Liang, Zhidong.Li, Fang.Chen }@uts.edu.au {Chenya.Huang, Yuxi.Lu, Kunqi.Li }@student.uts.edu.au 
+
+> *
+
+Corresponding author: Bin Liang. 
+
+> 2
+
+The Property Investors Alliance Sydney, Australia Justin@pia.com.au 
+
+Abstract —Multimodal urban data has expanded the appli-cations of urban region representation learning, such as func-tional zone identification and real estate appraisal, but also introduces challenges caused by data incompleteness. Existing studies usually handle missing data through imputation, treat-ing missingness as noise while ignoring its potential semantic value. To address this issue, we propose MARCUS, a missing-aware region representation model that treats missingness as a contextual urban signal. MARCUS models missingness in three stages: Intra Learning jointly encodes observed features and missing patterns, Inter Learning estimates modality reliability to guide cross-modal interaction, and Fusion uses missing-aware and time-aware gating to generate the final region embedding. We apply MARCUS to rent prediction, a task with long-term trends and seasonal fluctuations, using real-world datasets from Sydney and New York. Experimental results show that MARCUS achieves state-of-the-art performance, reducing MAE by 51.35% on Sydney and 12.62% on New York compared with the best baselines. Additional experiments, including an imputation-based ablation study and randomized additional-missingness analysis, further demonstrate the effectiveness of the proposed method. For reproducibility, we release the implementation details and source code at: https://github.com/Santooops/MARCUS 
+
+Index Terms —Urban Region Embedding, Multimodal Learn-ing, Rental Price Prediction, Incomplete Learning 
+
+I. I NTRODUCTION 
+
+In recent years, urban computing has attracted increasing attention from the research community [1]. This trend is driven by the growing availability of multimodal urban data [2]. In urban computing, cities are commonly partitioned into multiple regions with well-defined boundaries but irregular shapes [3]. These regions differ substantially in functional attributes, demographic structure, and economic activities. As a result, effectively modelling and understanding urban structure has become a key problem. High-quality urban region representations help characterize the spatial structure and functional distribution of cities. They also support a variety of downstream tasks, such as housing price prediction [4], [5], rent estimation [6], crime prediction [7], [8], and urban vitality assessment [9]. However, multimodal urban data is often incomplete in real urban environments. Coverage across multiple modalities typically exhibits systematic missingness. Some modalities may be entirely unavailable in certain regions. Others are only partially observed in space or time. More importantly, such missingness is usually not random noise. It is highly 
+
+Fig. 1. Additional missing ratio analysis on the Sydney dataset. The additional missing ratio denotes the proportion of originally observed data that are artificially masked. Naturally missing records in the original data are kept unchanged. 
+
+correlated with regional attributes and urban structure. For example, population-related indicators are semantically invalid in uninhabited areas, and POI or mobility signals tend to be sparser in newly developed or more remote regions. The resulting missingness patterns therefore carry urban semantics. They reflect functional status and development disparities across regions. Hence, missingness should be treated as an urban context signal, rather than merely a data issue to be resolved [10]. Existing methods [6], [39], [40] often treat missingness as an imputation problem, or adopt simple masking strategies during fusion. However, these approaches suffer from two key limitations. 
+
+1) They make it difficult for the model to explicitly distin-guish reliable information from signals originating from sparse or missing sources during cross-modal interaction and fusion. This can introduce bias and noise. 
+
+2) They discard the regional semantics embedded in miss-ingness patterns, preventing such information from contribut-ing to representation learning. Even with dedicated imputation models, additional assumptions and imputation errors are inevitable, which may further amplify bias. To address these limitations, we propose a missing-aware arXiv:2608.18546v1 [cs.LG] 19 Aug 2026 urban region representation learning model. It explicitly char-acterizes availability patterns in multimodal urban data and allows missingness information to permeate key stages of representation learning, especially during cross-modal inter-action and fusion. Specifically, in intra learning, we jointly model observed-value features and missingness features by projecting them into the same latent space, then fusing the two embeddings into a unified representation. In inter learning, we estimate modality reliability based on missing status, thereby adaptively modulating interaction strength. In the final fusion stage, we further incorporate missingness patterns and temporal context to perform gated weighting, yielding region representations that are more robust and semantically infor-mative under incomplete multimodal urban data. In addition, to evaluate model performance under different degrees of missingness, we conduct an additional missing ratio exper-iment, as shown in Fig. 1. MARCUS consistently achieves the best performance when the additional missing ratio is below approximately 55%. More detailed analysis is provided in Section “Analysis on Missing Ratio”. Our contributions can be summarized as follows:  
+
+> •
+
+We propose a technical formulation that treats multimodal missingness as an informative urban context signal. For each region, time step, and modality, we construct miss-ingness descriptors containing availability, missing ratio, and missing-location information, and inject them into intra learning, inter learning, and final modality fusion. This allows MARCUS to adaptively assess modality reliability and learn robust region representations from incomplete multimodal urban data.  
+
+> •
+
+We propose a missingness-driven region representation learning framework, where missingness information per-meates the entire pipeline, from intra-modality encoding to cross-modality interaction and final fusion.  
+
+> •
+
+We validate MARCUS on real-world rental price pre-diction using datasets from Sydney and New York. MARCUS consistently outperforms traditional predictors and region embedding baselines across all metrics. Fur-ther comparisons with an imputation-first strategy and additional missingness experiments (Fig. 1) show that explicitly modelling missingness provides useful predic-tive information and enables MARCUS to remain robust under severe modality incompleteness. II. R ELATED WORK 
+
+Early studies on urban region representation learning pri-marily relied on human mobility data to construct region embeddings, as mobility patterns capture dynamic interactions and behavioral connections between regions [2], [18], [22]– [24]. However, mobility data alone reflects only one aspect of urban dynamics and may overlook the semantic, functional, and socioeconomic characteristics of urban regions. To obtain a more comprehensive representation of regions, recent studies have begun to jointly model mobility data with region attributes [25], [26], [27], [23]. For instance, POI distributions provide cues about regional functions [28], [29],                               
+
+> TABLE I DATASET STATISTICS
+> Datasets Description Sydney New York Regions Partition scheme SA2 ZIP code # Regions 373 177 Census data # Surveys 19,750 85,154 Missing ratio 0.54% 0% POI data # Records 145,548 20,570 # Categories 13 13 Missing ratio 27.67% 19.66% Traffic data # Mobility records 22,816 240,558,409 Missing ratio 40.40% 6.87% Rent data # Records 608,652 6,372 Temporal data Time Period 07/2021 –07/2024 01/2022 –12/2024
+
+[30], [31]. Census statistics capture demographic structure and socioeconomic context. Street-view or remote-sensing imagery further describes the built environment and land-use patterns [25], [32], [20], [33], [34], [35]. In addition, text, as a form of human language, also contributes to the enhancement of urban embedding [29], [20], [36]. These heterogeneous sources provide complementary perspectives on urban regions and have motivated multi-source region embedding learning. In parallel, researchers construct inter-region graphs based on spatial adjacency, functional similarity, or mobility [37], [38], [23], [18], [17]. These methods help capture cross-region dependencies and improve the structural consistency of the learned representations. However, existing fusion and relational modelling methods often rely on an implicit assumption. It is that most modalities are available across regions with comparable quality, enabling alignment and joint learning on a unified spatial unit. When this assumption does not hold, missingness and noise can be amplified during fusion and message passing. This should bias region representations and undermine structural consistency. Motivated by this practical constraint, we propose a novel missing-aware multimodal urban region representation learn-ing framework to address this issue. For heterogeneous data, we characterize data availability through missingness patterns and use them to guide cross-modal fusion weights, resulting in more robust and transferable urban region representations. In addition, some studies have introduced prompt-based task adaptation into urban region representation learning.HREP adopts a prefix-tuning–style prompt to guide heterogeneous region graph representations to learn more effectively across tasks [19]. FlexiReg further leverages prompting to customize task-oriented region representations [20]. These studies show that prompt-based adaptation can improve the flexibility and transferability of region embeddings. However, they mainly fo-cus on task adaptation and do not explicitly model multimodal missingness, which is the focus of this work. "POI coverage for this region is partial.               
+
+> Facility composition:
+> -residential facility: 1 (2%)
+> -education facility: 13 (23%)
+> -cultural facility: 4 (7%)
+> -recreational facility: 10 (18%)
+> -social service facility: 1 (2%)
+> -transportation facility: 8 (14%)
+> -commercial facility: 5 (9%)
+> -government facility: 8 (14%)
+> -religious institution: 2 (4%)
+> -health service facility: [MISSING]
+> -public safety facility: [MISSING]
+> -water infrastructure: [MISSING]
+> -miscellaneous facility: 5 (9%)"
+> Black boundary: SA2 cells Fig. 2. Example of POIs in the Sydney Region
+
+III. D ATA DESCRIPTION AND ANALYSIS 
+
+In this section, we introduce the datasets used in our research and provide a preliminary analysis. We use two real-world urban datasets, Sydney and New York, which corre-spond to major real-estate markets in Australia and the United States, respectively. We collected Point of Interest(POI) data, census statistics, and traffic records for both cities to construct region representations. These data were obtained from the Australian Bureau of Statistics (ABS) [11], NYC Open Data [12] and Office of Policy Development and Research [13]. In addition, we collected rental datasets for the downstream task. Table 1 summarizes the dataset statistics, including missing status. The missing ratio is computed at the region level. 
+
+A. Region Data 
+
+Due to differences in the availability and usability of other data sources across geographic scales, we adopt two different spatial partition schemes for Sydney and New York. Sydney follows the ABS statistical geography, Statistical Area Level 2 (SA2), while New York uses ZIP codes as the regional units. This setting also allows us to examine how our model performs under different spatial granularities. 
+
+B. Census Data 
+
+The raw census datasets contain 12,176 and 85,154 records for Sydney and New York. Both are reported at the finest available statistical units. To align with other data sources, we aggregate Sydney’s census data from Statistical Area Level(SA1) to SA2, and New York’s census data from Census Tracts to ZIP codes. Each record includes key socioeconomic attributes such as total population, average household income, educational attainment, and employment rate. In the Sydney census data, there is only a very small amount of missingness (0.54%), whereas the New York census data is complete. 
+
+C. POI Data 
+
+We collect all POIs in Sydney and New York, which are officially categorized into 13 functional groups in each city. Although the category definitions differ slightly between the two datasets, they broadly cover common urban functions such as community, education, health, and recreational facilities. In total, there are 145,548 POIs in Sydney and 20,570 POIs in New York. For each region, we construct a textual description of the POIs it contains, as illustrated in Fig. 2. In the POI data, Sydney has a notable amount of missingness (27.67%), while New York has a lower missing ratio (19.66%). 
+
+D. Traffic Data 
+
+Traffic data characterize city mobility flows. Due to data availability, we use public transport station entry and exit volumes for Sydney, and taxi trip records for New York. Taxi trip records include both street-hail and e-hail (app-based) trips, covering the entirety of New York City. These mobility data include information such as origins and destinations, and reflect the travel mode (e.g., train, metro and taxi). Since SA2 is a community-level geography designed for statistical reporting, transport stations do not cover all regions. As a result, the Sydney traffic dataset contains a substantial amount of missingness. The missing ratio of the New York traffic data is 6.87%. A large portion of this missingness arises because the raw records contain only origins or only destinations. 
+
+E. Rent Data 
+
+In this paper, rent data are collected from real estate agencies. Sydney rent data are sourced from PriceFinder [14] and the Property Industry Alliance (PIA) [15], while the New York rent data are obtained from Zillow [16]. The New York rent data are provided as ZIP-code–level rent index, rather than transaction-level rental records. The scope of the Sydney dataset spans from July 2021 to July 2024, while the New York dataset covers January 2022 to December 2024. Fig. 3(a) shows the monthly transaction volume from January 2023 to July 2024, revealing pronounced seasonal peaks. Fig. 3(b) plots the rental price trend over 43 months for Mascot, a representative area in Sydney, where we observe both seasonal fluctuations and a clear long-term upward trend. For a more clear presentation, we use data spanning January 2021 to July 2024. Fig. 3(c) presents the overall rent distribution in Sydney. IV. P ROPOSED MODEL 
+
+We start with a few basic concepts and a problem statement. The frequently used symbols are summarized in Table 2. 
+
+A. Features description 
+
+Regions. The set of regions R is obtained by partitioning the spatial area of interest into non-overlapping units using a predefined scheme (e.g., postcode-based areas or census-defined regions). We denote the i-th region by ri. For each region, we consider three types of features, including two static modalities (POI, census) and one dynamic modality (traffic), and collect them into the set M.
+
+POI. For each region, we collect all points of interest (POIs) from the Australian Bureau of Statistics and NYC Open Data, and follow the official POI taxonomies provided by the corresponding sources. Both cities contain 13 POI categories (e.g., education and transportation), although the category systems are city-specific and not required to be aligned across (c) Rental Price Distribution (a) Temporal Distribution of Transaction Volume  (b) Temporal Trend of Rental Price Fig. 3. Analysis and Visualization on Sydney Rent Data TABLE II FREQUENTLY USED SYMBOLS 
+
+Symbol Description 
+
+R Set of regions (e.g., SA2) 
+
+N Number of regions 
+
+M = {P, C, F } Modality set (POI, census, traffic) 
+
+s Missingness vector for modality m at (i, t ) (flag, ratio, and missing-location encoding). 
+
+h Intra-modality embedding for modality m at 
+
+(i, t )
+
+H Inter-updated embedding after cross-modal interaction 
+
+Z Final fused region embedding for downstream prediction 
+
+yi,t +1 Ground-truth rent at t+1 ˆyi,t +1 Predicted rent at t+1 
+
+cities. For each region ri, we first count the number of POIs in each category, and then serialize these statistics into a compact textual representation in the form of category count pairs (e.g., education:12; transport:3 ). We encode the resulting text into a fixed-dimensional semantic embedding, which serves as the POI modality input to our model. 
+
+Census. Consistent with the POI modality, we collect the most recent census data for both cities and extract region-level socioeconomic features, such as household income, employ-ment rate, and educational attainment. For each region ri, we represent the census attributes as a feature vector Ci.
+
+Traffic (Flow). For each region ri, we construct month-level inter-region mobility information. For each month t, we define the flow Fi,j,t for a region pair (ri, r j ), representing the travel volume from ri to rj during month t (which can be summarized as inflow/outflow statistics). As the most readily available mobility data differ across cities, we use train station tap-in/tap-out counts as a proxy for travel intensity in Sydney, and taxi trip volumes to characterize inter-region mobility in New York City. 
+
+Missingness. 
+
+We treat missingness as a contextual urban signal, and construct a missingness feature vector s(m) 
+
+> i,t
+
+for each region 
+
+ri, month t, and modality m ∈ M . Specifically, s(m) 
+
+> i,t
+
+includes an availability indicator b(m) 
+
+> i,t
+
+, a missingness ratio ρ(m) 
+
+> i,t
+
+, and a missing-location encoding l(m) 
+
+> i,t
+
+that captures where miss-ingness occurs and its spatial pattern. Here, b(m) 
+
+> i,t
+
+∈ { 0, 1}
+
+is defined at the modality level: b(m) 
+
+> i,t
+
+= 1 if any feature in modality m is missing for region i at time t, and b(m) 
+
+> i,t
+
+= 0 
+
+otherwise. The missingness ratio ρ(m) 
+
+> i,t
+
+is defined as the fraction of missing features in modality m for region i at time t:
+
+ρ(m) 
+
+> i,t
+
+=
+
+F(m)miss (i, t )
+
+F(m)(i, t ) . (1) We incorporate s(m) 
+
+> i,t
+
+into representation learning and cross-modal fusion, enabling the model to adaptively adjust modality contributions under incomplete observations. 
+
+s(m) 
+
+> i,t
+
+=  b(m) 
+
+> i,t
+
+∥ ρ(m) 
+
+> i,t
+
+∥ l(m)
+
+> i,t
+
+. (2) 
+
+B. Problem statement 
+
+Given a set of regions R = {ri}Ni=1 and a sequence of months indexed by t, we observe multi-modal region attributes from three modalities M = {P, C, F }, where P , C, and F
+
+denote POI, census, and traffic (flow), respectively. For each region ri at month t, let x(m) 
+
+> i,t
+
+denote the input of modality 
+
+m ∈ M , and let s(m) 
+
+> i,t
+
+denote its missingness vector (including missing flag, missing ratio, and a missing-location encoding). Our goal is to learn a missing-aware representation function f
+
+that maps the multi-modal inputs of (ri, t ) to a d-dimensional region embedding: 
+
+f :
+
+
+
+ri, t, {x(m) 
+
+> i,t
+
+, s(m) 
+
+> i,t
+
+}m∈M 
+
+
+
+→ Zi,t ∈ Rd. (3) The learned embedding Zi,t should capture region charac-teristics while being robust to structured missingness, and is used for the downstream house rent prediction task: 
+
+ˆyi,t +1 = M LP (Zi,t ), (4) where yi,t +1 is the ground-truth rent for the next month. In this section, we provide a detailed description of our proposed model MARCUS. First, we introduce Missing-aware Embedding Learning, which consists of two branches: Intra Learning and Inter Learning. These two branches jointly produce embeddings that are sensitive to missingness patterns and automatically calibrate modality trustworthiness. Then, we present Missing-aware Fusion, which dynamically weights and fuses modality representations based on missingness pat-terns and temporal context to obtain more robust embed-dings. The overall architecture of the model is illustrated in Fig. 4. It mainly consists of two modules. First, we feed the preprocessed multimodal inputs into Missing-aware Embedding Learning. The inputs include modality features and the corresponding missing summary. This module has two stages, Intra Learning and Inter Learning. Intra Learn-ing jointly models observed-value features and missingness features within each modality. It produces a missing-aware representation for each modality. Inter Learning then performs cross-modal interaction. It estimates modality reliability from the missingness status. It also adaptively calibrates the strength of information exchange across modalities. This produces updated cross-modal embeddings. Next, these embeddings are sent to Missing-aware Fusion. Fusion uses the missing summary and the temporal context. It dynamically weights and fuses modality representations. Finally, it outputs the region representation for downstream rent prediction tasks. 
+
+C. Missing-aware Embedding Learning 
+
+This section describes our missing-aware embedding learn-ing, where missingness is incorporated into intra-modal en-coding and cross-modal interaction. 
+
+1) Intra Learning: Modality-specific Missing-aware Encod-ing: For each region ri and month t, we consider a set of modalities M (e.g., POI, Census, and Traffic). For each modal-ity m ∈ M , we construct the modality input by concatenating its content embedding and the missingness feature vector: 
+
+x(m) 
+
+> i,t
+
+= e(m) 
+
+> i,t
+
+∥ s(m)
+
+> i,t
+
+, (5) where e(m) 
+
+> i,t
+
+∈ Rdme denotes the modality embedding, and the missingness feature vector is defined as 
+
+s(m) 
+
+> i,t
+
+= b(m) 
+
+> i,t
+
+, ρ (m) 
+
+> i,t
+
+, l(m)
+
+> i,t
+
+ ∈ Rdms . (6) Note that POI and Census are static modalities, thus e(m) 
+
+> i,t
+
+≡
+
+e(m) 
+
+> i
+
+for m ∈ { P, C}. Importantly, Intra Learning does not take the month index t as an explicit input; temporal context is incorporated later in the fusion stage. We instantiate Intra Learning with a lightweight MLP-based encoder block f (m) 
+
+> enc
+
+(·) for each modality m. All modalities share the same encoder architecture while using modality-specific parameters. The encoder maps (e(m) 
+
+> i,t
+
+, s(m) 
+
+> i,t
+
+) to aunified hidden representation h(m) 
+
+> i,t
+
+∈ Rdh by 1) projecting the content embedding and the missingness vector into the same hidden space via two separate branches and 2) fusing the two branches through a fusion layer. Specifically, we first compute two branch-wise hidden vec-tors: 
+
+˜h(m) 
+
+> e
+
+= σ
+
+
+
+W(m) 
+
+> e
+
+e(m) 
+
+> i,t
+
++ b(m)
+
+> e
+
+
+
+, (7) 
+
+˜h(m) 
+
+> s
+
+= σ
+
+
+
+W(m) 
+
+> s
+
+s(m) 
+
+> i,t
+
++ b(m)
+
+> s
+
+
+
+. (8) where σ(·) is a non-linear activation function. We then concatenate the two hidden vectors and apply a fusion layer to obtain the final intra-modality representation: 
+
+h(m) 
+
+> i,t
+
+= σ
+
+
+
+W(m)
+
+> f
+
+˜h(m) 
+
+> e
+
+∥ ˜h(m)
+
+> s
+
+ + b(m)
+
+> f
+
+
+
+. (9) The resulting h(m) 
+
+> i,t
+
+serves as the modality-specific hidden representation for subsequent Inter Learning and Missing-aware Fusion. 
+
+2) Inter Learning: Reliability-aware Cross-modality Inter-action: After Intra Learning, we obtain intra-modality rep-resentations h(m) 
+
+> i,t
+
+∈ Rdh for each modality m ∈ M =
+
+{P, C, F }. Since these modalities provide complementary urban signals (e.g., amenities, socioeconomic attributes, and mobility patterns), Inter Learning aims to explicitly model cross-modality dependencies so that each modality can absorb complementary cues from the others and refine its representa-tion, resulting in inter-updated embeddings H(m) 
+
+> i,t
+
+. Meanwhile, real-world observations are often incomplete and exhibit het-erogeneous data quality across modalities. Simply performing cross-modality interaction may propagate noise from severely missing modalities. To address this issue, we introduce a reliability-aware interaction mechanism that adaptively sup-presses the influence of unreliable modalities during cross-modality interaction. 
+
+Modality Reliability Estimation. We treat missingness as a useful signal reflecting data availability and quality. Given the missingness vector s(m) 
+
+> i,t
+
+= b(m) 
+
+> i,t
+
+, ρ (m) 
+
+> i,t
+
+, l(m)
+
+> i,t
+
+, Inter Learning focuses on the two most direct quality indicators: the missing flag and the missingness ratio. Specifically, we estimate a scalar reliability weight α(m) 
+
+> i,t
+
+∈ (0 , 1) from b(m) 
+
+> i,t
+
+, ρ (m)
+
+> i,t
+
+ via a lightweight mapping: 
+
+α(m) 
+
+> i,t
+
+= sigmoid 
+
+
+
+w⊤
+
+> α
+
+b(m) 
+
+> i,t
+
+, ρ (m)
+
+> i,t
+
+ + bα
+
+
+
+, m ∈ { P, C, F }.
+
+(10) Intuitively, α(m) 
+
+> i,t
+
+quantifies the trustworthiness of modality m
+
+under the current observation pattern. It decreases when the modality is less available or more severely missing, and is therefore used to down-weight its contribution during cross-modal interaction. 
+
+Reliability-modulated Cross-modality Interaction. We model cross-modality interaction by applying multi-head self-attention over the modality dimension, where each modality representation attends to the others to aggregate complemen-tary information. Let ∆h(m) 
+
+> i,t
+
+denote the interaction-induced update for modality m produced by the cross-modality atten-tion module. To prevent unreliable modalities from amplifying noisy interaction effects, we modulate the update magnitude POIs          
+
+> Census
+> Traffic
+> Missing Summary
+> Missing -aware Embedding
+> Learning Missing -aware Fusion
+> Region Embeddings Prediction Task
+> Rent Data
+> Missing -aware Embedding Learning Missing -aware Fusion
+> Missing Flag Missing Ratio Missing Location
+> POI
+> Encoder
+> Census
+> Encoder
+> Traffic
+> Encoder
+> Intra Learning Inter Learning
+> Reliability
+> Hm
+> Gp
+> Gc
+> Gf
+> Time
+> Contextual
+> Missing
+> Summary
+> ZFig. 4. Overview of the Proposed MARCUS Framework
+
+using the estimated reliability and fuse it with a residual connection: 
+
+H(m) 
+
+> i,t
+
+= h(m) 
+
+> i,t
+
++ α(m) 
+
+> i,t
+
+· ∆h(m) 
+
+> i,t
+
+, m ∈ { P, C, F }. (11) In this way, modalities with higher reliability preserve more interaction updates and benefit more from complementary cues, while unreliable modalities are explicitly suppressed to reduce noise propagation. In practice, normalization and a feed-forward network can be further applied for training stabil-ity and expressive power. However, the core idea remains that missingness-driven reliability adaptively controls the strength of cross-modality interaction. The resulting {H(m) 
+
+> i,t
+
+}m∈M are then fed into the subsequent Missing-aware Fusion module to produce the final region embedding. 
+
+D. Missing-aware Fusion: Dynamic Fusion with Missingness and Temporal Context 
+
+After Inter Learning, we obtain inter-updated modality representations H(m) 
+
+> i,t
+
+∈ Rdh for each modality m ∈ M =
+
+{P, C, F }. Since the contribution of each modality may vary across months (for example, traffic dynamics) and observations are often incomplete with heterogeneous missingness patterns, a fixed fusion strategy (such as uniform averaging) can be suboptimal and unstable. We therefore propose Missing-aware Fusion , which leverages both missingness patterns and tem-poral context to dynamically assign modality weights and produce a robust region representation Zi,t for downstream prediction. 
+
+Temporal Context Encoding. We map the month index t
+
+to a temporal context vector ct via a learnable embedding followed by a projection. Importantly, this temporal signal is not directly used in Intra or Inter encoding. Instead, it is introduced at the fusion stage to capture month-specific modality contributions and seasonal effects. 
+
+Missingness and Time-conditioned Gating. For each modality m, we compute a scalar fusion weight λ(m) 
+
+> i,t
+
+∈ (0 , 1) 
+
+using a modality-specific gating function (a lightweight MLP) conditioned on the full missingness vector and temporal con-text: 
+
+λ(m) 
+
+> i,t
+
+= gm
+
+s(m) 
+
+> i,t
+
+∥ ct
+
+
+
+, m ∈ { P, C, F }. (12) Compared to Inter Learning, which estimates reliability using only b(m) 
+
+> i,t
+
+, ρ (m)
+
+> i,t
+
+, Missing-aware Fusion exploits the complete missingness vector s(m) 
+
+> i,t
+
+= b(m) 
+
+> i,t
+
+, ρ (m) 
+
+> i,t
+
+, l(m)
+
+> i,t
+
+ to capture where missingness occurs and its spatial pattern, enabling finer-grained and context-dependent weighting. 
+
+Normalized Weighted Aggregation. Given the dynamic weights, we fuse modality representations via a normalized weighted sum: 
+
+Zi,t =
+
+P 
+
+> m∈M
+
+λ(m) 
+
+> i,t
+
+H(m)
+
+> i,t
+
+P 
+
+> m∈M
+
+λ(m) 
+
+> i,t
+
++ ϵ . (13) where ϵ is a small constant for numerical stability. This design allows the model to down-weight modalities that are severely missing or less informative under the current month, and to emphasize more reliable and month-relevant modalities, resulting in robust region embeddings Zi,t for downstream tasks like rent prediction. V. E XPERIMENTS 
+
+Our experiments are designed to address four research objectives: 1) Performance comparison with traditional machine learn-ing methods and existing region-embedding approaches. 
+
+2) Applicability of MARCUS across different countries and geographic scales; 
+
+3) Effectiveness of region embeddings for rent prediction tasks with pronounced seasonal fluctuations, as shown in Fig. 3(b); 
+
+4) Contribution of each module to overall performance (via ablation studies). 
+
+Dataset. We conduct experiments on real-world datasets from two cities: Sydney and New York. We collect region partitions, census data, POI data, traffic records, and rent data. For region partitioning, we use SA2 area for Sydney and ZIP codes area (postcodes) for New York. More details on the data description and analysis can be found in Section 2. 
+
+Baselines. We compare MARCUS with two categories of baselines. The first category includes traditional machine learning predictors: LR, SVR, and RF. These baselines are used to examine whether incorporating region embeddings improves rent prediction performance. The second category includes existing region embedding models which are used to evaluate whether the representations learned by MARCUS outperform prior methods.They are MVURE [17], MGFN [18], HREP [19] and FLEXIREG [20]. 
+
+FLEXIREG proposes learning more flexible representa-tions of urban regions. It learns cell-level embeddings on a hexagonal grid from multimodal data, including POIs, street-view images and land-use data. Then, FLEXIREG customizes the representations for different region partitions and down-stream tasks via adaptive aggregation and prompt learning. 
+
+HREP targets heterogeneous region embedding. The core innovation lies in introducing prompt learning to region em-bedding. Task-specific prompts guide downstream task learn-ing, thereby eliminating the need to retrain region representa-tions for each individual task. 
+
+MGFN uses human mobility as the sole modality to mine urban structure and patterns. It fuses mobility graphs from multiple time steps into mobility patterns, and learns region representations via intra-pattern message passing combined with inter-pattern cross-attention. 
+
+MVURE uses multi-view urban data, including mobility views and urban attribute views. It encodes each view with GAT, shares information via cross-view self-attention, and fuses the views with adaptive weights into a region embedding. We similarly learn region embeddings by adaptively fusing multimodal urban data. MARCUS further addresses coverage imbalance and missingness by treating them as reliability signals that guide cross-modal interaction and fusion, thereby enabling reliable downstream performance even when certain features are missing. We also include a zero-information baseline ( ZIB ), which predicts the training-set mean of the target for every test sample without using any input features.It serves as a two-sided reference: compared with ZIB, lower error indicates retained region-discriminative information, while higher error                                                                             
+
+> TABLE III PERFORMANCE COMPARISON ON SYDNEY AND NEW YORK
+> Model Sydney New York MAE ↓RMSE ↓MAPE(%) ↓MAE ↓RMSE ↓MAPE(%) ↓
+> ZIB 126.46 158.65 24.05 558.94 862.07 16.14 LR 112.59 142.80 21.69 353.18 511.62 10.92 SVR 94.40 105.73 16.72 336.75 381.17 11.14 RF 84.46 96.61 15.19 187.42 261.18 6.04 FLEXIREG 77.18 88.83 14.18 160.10 239.55 5.14 HREP 75.51 87.33 13.97 174.81 251.69 5.61 MGFN 90.28 102.25 16.36 196.41 276.09 6.42 MVURE 72.54 85.87 13.45 189.48 287.29 6.17
+> MARCUS 35.29 45.91 7.08 139.90 213.87 4.51
+> Enhance(%) 51.35 46.53 47.36 12.62 10.72 12.26
+
+suggests that the model is misled by its inputs under severe missingness. 
+
+Metrics. For the downstream task, we use three evaluation metrics to assess prediction performance: mean absolute error (MAE), root mean square error (RMSE), and mean absolute percentage error (MAPE). Lower values indicate better per-formance. 
+
+A. Overall Performance 
+
+Table 3 reports the overall results of MARCUS and all baselines across the three metrics. MARCUS achieves state-of-the-art performance on all metrics. For clarity, the best overall result is highlighted in bold , while the best-performing baseline is marked with underlining. Based on these results, we have the following findings: 
+
+1) MARCUS achieves strong overall performance and out-performs all baseline models. In terms of MAE, MARCUS improves by up to 51.35% over the best baseline MVURE in the Sydney rental market. It also consistently surpasses the previous SOTA baseline FLEXIREG across all evaluated metrics and datasets, achieving improvements of 54.2% in Sydney and 12.62% in New York. The larger gain in Sydney reflects baseline degradation under native missingness rather than instability of MARCUS. Relative to ZIB, MARCUS stays at 25–29% of the zero-information error in both cities, whereas the strongest competing model degrades from 28–32% on New York to 54–57% on Sydney. This is largely due to Sydney’s data, where 40.4% of traffic records are natively missing, a regime that baseline models without explicit missingness handling struggle to handle. 
+
+2) MARCUS remains effective under different geographic partition schemes. As mentioned earlier, Sydney follows a sta-tistical geography standard, while New York uses postal zones. The consistent performance across these two different rental market settings and spatial scales suggests that MARCUS has good applicability beyond a single city-specific partition scheme. 
+
+3) MARCUS is effective for rent forecasting with temporal dynamics. Since rental markets exhibit pronounced seasonal fluctuations, we incorporate time into downstream prediction 0.00 20.00 40.00 60.00 80.00  
+
+> MAE
+> 0.00 20.00 40.00 60.00 80.00 100.00
+> RMSE
+> 0.00% 5.00% 10.00% 15.00% 20.00%
+> MAPE
+> MARCUS -w/o -IAM
+> MARCUS -w/o -RW
+> MARCUS -w/o -FG
+> MARCUS -w/o -TG
+> MARCUS -w/o -M
+> MARCUS -Full Fig. 5. Ablation Study Results (Sydney)
+
+by appending the same time embedding to all models. We do not modify the baseline representation learning models, ensur-ing a fair and consistent use of temporal information. Under this setting, MARCUS still outperforms all baselines, further demonstrating its effectiveness for seasonal rent forecasting. 
+
+B. Ablation Study 
+
+We conduct the following studies to validate the effective-ness of the components in MARCUS: 
+
+1) MARCUS-w/o-IAM : We disable the use of missing-ness features in the Intra Learning module. This investigates whether missingness should be incorporated early during each modality’s representation learning, or whether it is sufficient to introduce it only in the subsequent Inter learning and Fusion stages. 
+
+2) MARCUS-w/o-RW : We remove the reliability weights computed from the missing flag and missing ratio, thereby treating all modalities equally during cross-modal interactions in the Inter Learning module. It tests whether the gains are mainly due to missingness-based reliability weighting, instead of the cross-modal attention module itself. 
+
+3) MARCUS-w/o-FG : We remove the missing-aware fu-sion gate in the Fusion stage.It examines whether the final representation benefits from missing-aware fusion weighting, or whether naive fusion is already sufficiently robust. 
+
+4) MARCUS-w/o-TG : We keep the gating structure but re-move the time context input, computing fusion weights solely from missingness features. This variant assesses whether time-conditioned gating is necessary for rent prediction tasks with trends and seasonality. 
+
+5) MARCUS-w/o-M : We completely remove missingness from the model. This control experiment is designed to quan-tify the benefit of treating missingness as an urban contextual signal. As shown in Fig. 5, MARCUS consistently outperforms all variants, highlighting the contribution of each component to its overall effectiveness. The main observation is that missingness should be treated as a useful contextual signal, rather than being handled only as a data quality issue. When missingness is completely removed ( MARCUS-w/o-M ), the prediction performance degrades drastically that MAE nearly doubles from 35.29 to 70.15. Second, the missing-aware fusion gate                        
+
+> TABLE IV PERFORMANCE COMPARISON OF MARCUS VARIANTS .Model MAE RMSE MAPE(%)
+> MARCUS-w/o-IAM 38.24 50.34 8.48
+> MARCUS-w/o-RW 40.24 50.63 7.96
+> MARCUS-w/o-FG 75.39 90.08 14.20
+> MARCUS-w/o-TG 68.86 84.27 12.87
+> MARCUS-w/o-M 70.15 85.09 13.24
+> MARCUS-Full 35.29 45.91 7.08
+
+and its temporal conditioning constitute the key contributors to performance. Removing the fusion gate ( MARCUS-w/o-FG ) results in the largest performance drop. This implies that missingness should inform the fusion weights at the final stage, as naive fusion may override earlier missing-aware benefits. Moreover, removing time context from the gate ( MARCUS-w/o-TG ) leads to a substantial degradation. Because in rent prediction, long-term trends and seasonality make missing-ness effects time-dependent. The same missingness pattern can reflect different semantics and modality reliability across months, motivating temporal conditioning in the fusion gate. After confirming the decisive role of the fusion stage, we further examine the effect of missingness in earlier stages, including reliability modulation in cross-modal interactions (MARCUS-w/o-RW ) and intra-modality missing-aware en-coding ( MARCUS-w/o-IAM ). Specifically, without reliability weighting, MAE increases from 35.29 to 40.24, indicating that missingness-driven reliability modeling effectively sup-presses noise propagation in cross-modal attention. In contrast, removing intra-modality missing-aware encoding results in a smaller degradation. Overall, these observations suggest that missingness matters most in interaction and fusion, whereas intra-modality missing-aware encoding offers complementary gains in alignment and robustness. The ablation results are detailed in Table 4. 
+
+C. Analysis on Missing Ratio 
+
+We further conduct additional experiments with different levels of additional missingness on the rental price predic-tion task. Specifically, the original missing data are kept unchanged, while a certain proportion of originally observed data is randomly masked. Fig. 1 compares MARCUS with baseline models on the Sydney dataset. As the additional missing ratio increases, MARCUS degrades smoothly and monotonically. When all originally observed modality cells are masked, its MAE reaches 116.2, which remains below ZIB. This indicates that even when all originally observed modality information is removed, MARCUS can fall back on a meaningful learned prior through explicit missingness encoding, rather than being misled by absent inputs. In contrast, the baselines fail in distinct ways. MVURE’s MAE jumps by 55% from 71.4 to 110.5 with only 5% additional masking, and then fluctuates around ZIB. FlexiReg crosses ZIB at a ratio of around 0.3 and plateaus above it, suggesting limited region-discriminative information. MGFN deteriorates monotonically to 176.8, about 40% worse than ZIB, indicating that masked inputs may actively mislead it. HREP appears robust but is mainly insensitive to attribute modalities. Its MAE without additional masking is already 2.3 × that of MARCUS (81.4 versus 35.3), so it has little modality information to lose when originally observed modal-ity data are removed. Overall, MARCUS outperforms all baselines throughout the practically relevant regime, where the additional missing ratio is no larger than 0.5, while being the only model that both fully exploits available modalities and remains below ZIB under severe missingness. VI. R EAL -WORLD DEPLOYMENT 
+
+The proposed MARCUS model has been deployed in a real-world rent prediction system operated by our industry partner, Property Investors Alliance (PIA), as shown in Fig. 6 and Fig. 7. The system provides two modes: a simple view and a professional view. The simple view supports basic rent prediction, while the professional view extends it with additional functions, including file upload and map-based location. PIA is an Australian residential property investment and property management platform that provides data-driven mar-ket analysis and advisory services, and manages approximately 6,000 properties. In the deployed system, MARCUS generates region-level rent estimates across Greater Sydney, with Statis-tical Area Level 2 (SA2) regions serving as the default spatial unit. These estimates are combined with predictions at other spatial scales (SA1 and suburb) to provide comprehensive rental recommendations. The online deployment incorporates continuously updated multimodal data beyond the temporal range used in offline experiments, including newly collected rental transactions and urban signals from July 2024 onward, reflecting realistic operational conditions with persistent and heterogeneous missingness. Under this real-world deployment, MARCUS achieves a 57.1% improvement in rent prediction accuracy at the SA2 level compared with PIA’s previously adopted model, ST-ResMAE [6]. Beyond accuracy gains, the deployment demon-strates clear practical benefits in reducing uncertainty in region-level rent estimation under incomplete multimodal ob-servations. By producing more stable and informative regional rent reference ranges, the system supports downstream pricing and investment decision-making while avoiding reliance on individual-level or sensitive personal data. An additional practical advantage of MARCUS is its flexi-bility with respect to spatial granularity. Although SA2 regions are used by default due to their alignment with official statistical reporting, the model can be readily adapted to finer-grained units such as SA1 regions or to suburb-level partitions that are more intuitive for end users. This adaptability allows the deployed system to support diverse consumer-facing, busi-ness, and policy-oriented urban analytics, demonstrating that Simple View   
+
+> Fig. 6. Sydney Rent Prediction System-Simple View
+> Fig. 7. Sydney Rent Prediction System-Professional View
+
+explicitly modelling missingness delivers measurable practical value beyond offline benchmarks. VII. C ONCLUSION 
+
+In this paper, we studied urban region representation learn-ing under incomplete multimodal urban data, where systematic missingness is prevalent and often correlated with regional attributes and urban structure. Rather than treating missingness as noise to be imputed or masked, we propose MARCUS, which models missingness patterns as contextual urban signals to guide region representation learning and multimodal fusion. Specifically, MARCUS incorporates missingness into intra-modality encoding and reliability-aware cross-modality inter-action. It further performs missingness and time-conditioned fusion to learn region embeddings that are robust to incom-pleteness and semantically informative. Experiments on real-world datasets from Sydney and New York for rent prediction show that MARCUS consistently outperforms all baselines. In addition, we include an ablation setting that imputes missing values and disables all missing-aware components. Perfor-mance drops noticeably under this setting, confirming that explicitly modelling missingness is effective. Overall, these results highlight the practical value of missing signals in multimodal urban computing. REFERENCES [1] Y. Zheng, L. Capra, O. Wolfson, and H. Yang, “Urban computing: concepts, methodologies, and applications,” ACM Transactions on In-telligent Systems and Technology (TIST) , vol. 5, no. 3, pp. 1–55, 2014. [2] C. Huang, B. Liang, Z. Li, and F. Chen, “Multimodal machine learning for real estate appraisal: a comprehensive survey,” in Pacific-Asia Con-ference on Knowledge Discovery and Data Mining . Springer, 2025, pp. 345–361. [3] A. Schneider, M. A. Friedl, and D. Potere, “Mapping global urban areas using MODIS 500-m data: new methods and datasets based on ‘urban ecoregions’,” Remote Sensing of Environment , vol. 114, no. 8, pp. 1733– 1746, 2010. [4] P. Jenkins, A. Farag, S. Wang, and Z. Li, “Unsupervised representation learning of spatial data via multimodal embedding,” in Proc. 28th ACM Int. Conf. Inf. Knowl. Manage. , 2019, pp. 1993–2002. [5] Q. Zhang et al. , “HGAurban: heterogeneous graph autoencoding for urban spatial-temporal learning,” in Proc. 34th ACM Int. Conf. Inf. Knowl. Manage. , 2025, pp. 4139–4148. [6] C. Huang, B. Liang, Z. Li, J. Wang, and F. Chen, “Spatio-temporal residual masked autoencoder for urban rent estimation,” in Proc. 34th ACM Int. Conf. Inf. Knowl. Manage. , 2025, pp. 4807–4811. [7] M. Hou, X. Hu, J. Cai, X. Han, and S. Yuan, “An integrated graph model for spatial–temporal urban crime prediction based on attention mechanism,” ISPRS International Journal of Geo-Information , vol. 11, no. 5, p. 294, 2022. [8] J. Jin et al. , “Urban region pre-training and prompting: a graph-based approach,” in Proc. 31st ACM SIGKDD Conf. Knowl. Discovery Data Mining V. 2 , 2025, pp. 1071–1082. [9] W. Yue, Y. Chen, Q. Zhang, and Y. Liu, “Spatial explicit assessment of urban vitality using multi-source data: a case of Shanghai, China,” 
+
+Sustainability , vol. 11, no. 3, p. 638, 2019. [10] Z. Che, S. Purushotham, K. Cho, D. Sontag, and Y. Liu, “Recurrent neural networks for multivariate time series with missing values,” 
+
+Scientific Reports , vol. 8, no. 1, p. 6085, 2018. [11] Australian Bureau of Statistics, “Australian Bureau of Statistics,” 2026. [Online]. Available: https://www.abs.gov.au/. Accessed: Feb. 9, 2026. [12] NYC Open Data, “NYC Open Data,” 2026. [Online]. Available: https://opendata.cityofnewyork.us/. Accessed: Feb. 9, 2026. [13] U.S. Department of Housing and Urban Development, “Office of Pol-icy Development and Research (PD&R),” 2026. [Online]. Available: https://www.huduser.gov/portal/. Accessed: Feb. 9, 2026. [14] Pricefinder, “Pricefinder,” 2026. [Online]. Available: https://www.pricefinder.com.au/. Accessed: Feb. 9, 2026. [15] Property Investment Advisors (PIA), “Property Investment Advisors (PIA),” 2026. [Online]. Available: https://pia.com.au/. Accessed: Feb. 9, 2026. [16] Zillow Research, “Zillow Research,” 2026. [Online]. Available: https://www.zillow.com/research/. Accessed: Feb. 9, 2026. [17] M. Zhang, T. Li, Y. Li, and P. Hui, “Multi-view joint graph representation learning for urban region embedding,” in Proc. 29th Int. Joint Conf. Artif. Intell. , 2021, pp. 4431–4437. [18] S. Wu et al. , “Multi-graph fusion networks for urban region embedding,” 
+
+arXiv preprint arXiv:2201.09760 , 2022. [19] S. Zhou, D. He, L. Chen, S. Shang, and P. Han, “Heterogeneous region embedding with prompt learning,” in Proc. AAAI Conf. Artif. Intell. , vol. 37, no. 4, 2023, pp. 4981–4989. [20] F. Sun, Y. Chang, E. Tanin, S. Karunasekera, and J. Qi, “Flexireg: flex-ible urban region representation learning,” in Proc. 31st ACM SIGKDD Conf. Knowl. Discovery Data Mining V. 2 , 2025, pp. 2702–2713. [21] Z. Yao, Y. Fu, B. Liu, W. Hu, and H. Xiong, “Representing urban functions through zone embedding with human mobility patterns,” in 
+
+Proc. 27th Int. Joint Conf. Artif. Intell. , 2018. [22] P. Wang, Y. Fu, J. Zhang, X. Li, and D. Lin, “Learning urban community structures: a collective embedding perspective with periodic spatial-temporal mobility graphs,” ACM Transactions on Intelligent Systems and Technology (TIST) , vol. 9, no. 6, pp. 1–28, 2018. [23] H. Wang and Z. Li, “Region representation learning via mobility flow,” in Proc. 2017 ACM Conf. Inf. Knowl. Manage. , 2017, pp. 237–246. [24] Y. Zhang, W. Huang, Y. Yao, S. Gao, L. Cui, and Z. Yan, “Urban region representation learning with human trajectories: a multi-view approach incorporating transition, spatial, and temporal perspectives,” GIScience & Remote Sensing , vol. 61, no. 1, p. 2387392, 2024. [25] Y. Li, W. Huang, G. Cong, H. Wang, and Z. Wang, “Urban region representation learning with OpenStreetMap building footprints,” in 
+
+Proc. 29th ACM SIGKDD Conf. Knowl. Discovery Data Mining , 2023, pp. 1363–1373. [26] F. Sun et al. , “Urban region representation learning with attentive fusion,” in Proc. 2024 IEEE 40th Int. Conf. Data Eng. (ICDE) , 2024, pp. 4409–4421. [27] Z. Xu and X. Zhou, “CGAP: urban region representation learning with coarsened graph attention pooling,” arXiv preprint arXiv:2407.02074 ,2024. [28] L. Bai et al. , “Geographic mapping with unsupervised multi-modal representation learning from VHR images and POIs,” ISPRS Journal of Photogrammetry and Remote Sensing , vol. 201, pp. 193–208, 2023. [29] S. Hu et al. , “A framework for extracting urban functional regions based on multiprototype word embeddings using points-of-interest data,” 
+
+Computers, Environment and Urban Systems , vol. 80, p. 101442, 2020. [30] W. Huang, D. Zhang, G. Mai, X. Guo, and L. Cui, “Learning urban region representations with POIs and hierarchical graph infomax,” ISPRS Journal of Photogrammetry and Remote Sensing , vol. 196, pp. 134–145, 2023. [31] R. Xu, W. Huang, J. Zhao, M. Chen, and L. Nie, “A spatial and adversarial representation learning approach for land use classification with POIs,” ACM Transactions on Intelligent Systems and Technology ,vol. 14, no. 6, pp. 1–25, 2023. [32] Y. Lin et al. , “Dual contrastive prediction for incomplete multi-view representation learning,” IEEE Transactions on Pattern Analysis and Machine Intelligence , vol. 45, no. 4, pp. 4447–4461, 2022. [33] N. Tempelmeier, S. Gottschalk, and E. Demidova, “GeoVectors: a linked open corpus of OpenStreetMap embeddings on world scale,” in Proc. 30th ACM Int. Conf. Inf. & Knowl. Manage. , 2021, pp. 4604–4612. [34] Z. Wang, H. Li, and R. Rajagopal, “Urban2vec: incorporating street view imagery and POIs for multi-modal urban neighborhood embedding,” in 
+
+Proc. AAAI Conf. Artif. Intell. , vol. 34, no. 1, 2020, pp. 1013–1020. [35] C. Xiao, J. Zhou, Y. Xiao, J. Huang, and H. Xiong, “Refound: crafting a foundation model for urban region understanding upon language and visual foundations,” in Proc. 30th ACM SIGKDD Conf. Knowl. Discovery Data Mining , 2024, pp. 3527–3538. [36] Y. Yan et al. , “Urbanclip: learning text-enhanced urban region profiling with contrastive language-image pretraining from the web,” in Proc. ACM Web Conf. 2024 , 2024, pp. 4006–4017. [37] M. Chen et al. , “MGRL4RE: a multi-graph representation learning approach for urban region embedding,” ACM Transactions on Intelligent Systems and Technology , vol. 16, no. 2, pp. 1–23, 2025. [38] Y. Luo, F.-l. Chung, and K. Chen, “Urban region profiling via multi-graph representation learning,” in Proc. 31st ACM Int. Conf. Inf. & Knowl. Manage. , 2022, pp. 4294–4298. [39] X. Yi, Y. Zheng, J. Zhang, and T. Li, “ST-MVL: filling missing values in geo-sensory time series data,” in Proc. 25th Int. Joint Conf. Artif. Intell. , 2016. [40] M. Liu et al. , “Pristi: a conditional diffusion framework for spatiotempo-ral imputation,” in Proc. 2023 IEEE 39th Int. Conf. Data Eng. (ICDE) ,2023, pp. 1927–1939.

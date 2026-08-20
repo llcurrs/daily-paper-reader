@@ -6,33 +6,32 @@
 </div>
 
 ## 每次日报
-- 最新运行日期：2026-08-19
-- 运行时间：2026-08-19 20:55:04 UTC
+- 最新运行日期：2026-08-20
+- 运行时间：2026-08-20 21:01:30 UTC
 - 运行状态：成功
-- 本次总论文数：4
+- 本次总论文数：3
 - 精读区：0
-- 速读区：4
+- 速读区：3
 
 ### 今日简报（AI）
-今日速读4篇论文，无精读，重点关注热成像深度估计与多模态重识别方向。最值得看的是用RGB基础模型做热图像深度估计（7.0分），其层次化监督思路有借鉴价值；其次是可关注多模态行人重识别的稀疏解耦方法（6.0分）。建议优先精读热成像深度估计一文的监督设计，后续可复现其核心流程。
-- 详情：[/202608/19/README](/202608/19/README)
+今日速读3篇论文，聚焦租金预测、遥感图像描述与多模态重识别，暂无精读。  
+最值得关注的是《MARCUS》（7.0分），其利用缺失感知与城市信号提升租金预测准确性，方向实用。  
+建议优先深入精读该文，并留意遥感变化描述与多模态检索的后续进展。
+- 详情：[/202608/20/README](/202608/20/README)
 
 ### 精读区论文标签
 - 本次无精读推荐。
 
 ### 速读区论文标签
-1. [Repurposing RGB-based Foundation Model for Depth Estimation on Thermal Images Using Hierarchical Supervision](/202608/19/2608.11564v1-repurposing-rgb-based-foundation-model-for-depth-estimation-on-thermal-images-using-hierarchical-supervision)  
+1. [MARCUS: Missing-Aware Region Representation with Contextual Urban Signals for Rent Prediction](/202608/20/2608.18546v1-marcus-missing-aware-region-representation-with-contextual-urban-signals-for-rent-prediction)  
    标签：评分：7.0/10、query:multi-modal
-   evidence：通过层次监督从RGB迁移到热红外，处理推断时RGB模态缺失问题，可用于多模态遥感缺失模态学习
-2. [MODAL: Multi-Modal Object Re-ID via Model-Driven Sparse Decoupling and Text-Image Differential Filtering](/202608/19/2608.15096v1-modal-multi-modal-object-re-id-via-model-driven-sparse-decoupling-and-text-image-differential-filtering)  
+   evidence：在多模态城市数据中将缺失建模为上下文信号，方法可迁移至遥感
+2. [HIMEC: Directional Change Representation and Fixed-Interface Decoding for Remote Sensing Image Change Captioning](/202608/20/2608.12502v1-himec-directional-change-representation-and-fixed-interface-decoding-for-remote-sensing-image-change-captioning)  
    标签：评分：6.0/10、query:multi-modal
-   evidence：多模态目标重识别明确处理模态缺失条件，方法可迁移至多模态图像分类与缺失模态学习
-3. [Beyond Independence: Learning Correlated Views for Variational Incomplete Multi-View Clustering](/202608/19/2608.15757v1-beyond-independence-learning-correlated-views-for-variational-incomplete-multi-view-clustering)  
+   evidence：融合双时相遥感视觉特征，采用方向变化表示
+3. [MODAL: Multi-Modal Object Re-ID via Model-Driven Sparse Decoupling and Text-Image Differential Filtering](/202608/20/2608.15096v1-modal-multi-modal-object-re-id-via-model-driven-sparse-decoupling-and-text-image-differential-filtering)  
    标签：评分：6.0/10、query:multi-modal
-   evidence：变分不完整多视图聚类，学习视图相关性以处理缺失模态
-4. [When More Foundation Models Means Less: Diagnosing and Addressing Multi-View Fusion Failure](/202608/19/2608.17490v1-when-more-foundation-models-means-less-diagnosing-and-addressing-multi-view-fusion-failure)  
-   标签：评分：6.0/10、query:multi-modal
-   evidence：诊断多视图融合失效并提出基于核对齐的贪心编码器选择，用于多模态融合
+   evidence：多模态目标重识别，显式处理模态缺失，方法可迁移
 
 
 <div class="dpr-home-promo-card">
