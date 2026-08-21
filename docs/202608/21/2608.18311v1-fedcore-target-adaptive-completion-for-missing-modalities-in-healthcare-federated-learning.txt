@@ -1,0 +1,363 @@
+Title: FedCoRe: Target-Adaptive Completion for Missing Modalities in Healthcare Federated Learning
+
+URL Source: https://arxiv.org/pdf/2608.18311v1
+
+Published Time: Thu, 20 Aug 2026 00:11:13 GMT
+
+Number of Pages: 11
+
+Markdown Content:
+# FedCoRe : Target-Adaptive Completion for Missing Modalities in Healthcare Federated Learning 
+
+Holger R. Roth ⋆, Ziyue Xu, and Peter Cnudde 
+
+NVIDIA, Santa Clara, CA, USA 
+
+hroth@nvidia.com 
+
+Abstract. Federated multimodal models often assume every site has every modality, although hospitals differ in access to EHRs, chest radio-graphs, and ECGs. We study this setting on a MIMIC-derived respira-tory deterioration task with simulated FL clients and introduce Fed-CoRe (Federated Cross-Modal Representation Completion). FedCoRe 
+
+learns representation- or logit-space corrections rather than generating synthetic ECGs or CXR images. When a client observes a modality that may be missing at deployment, it evaluates the same example with and without that modality to obtain paired supervision. Only clients with such pairs update the completion module, and validation may retain the unchanged prediction. We freeze the trained multimodal predictor during evaluation so that measured differences come only from com-pletion. Hiding ECG reduced AUROC by about 0.085; paired-example FedAvg restored 0.0415 AUROC, or 49.0% of the lost performance. We therefore report two distinct effects: paired-example FedAvg partially recovers the missing-ECG gap, while validation-selected completion is a task-specific classifier-logit correction rather than literal ECG recov-ery. For CXR, effect-aware completion recovers 52.8% of the loss in a controlled test where CXR is hidden. Paired-example FedAvg trans-fers part of this effect, but validation keeps the no-completion baseline for deployment cases whose inputs lack CXR. Thus, FedCoRe should be read as a validation-gated completion/correction framework: it can recover missing-modality signal in supported settings, but it should be deployed only when paired examples and validation evidence support that modality. 
+
+Keywords: Federated learning · Missing modalities · Multimodal foun-dation models 
+
+1 Introduction 
+
+Multimodal clinical prediction increasingly combines structured context, radi-ology images, physiological signals, and text. Complete-modality evaluation is often overly optimistic for federated learning (FL): some hospitals may support  
+
+> ⋆
+
+Corresponding author. arXiv:2608.18311v1 [cs.CV] 18 Aug 2026 2 H. R. Roth et al. 
+
+different modalities, while others may include patients with only a subset of the observed modalities. Figure 1 illustrates this gap between evaluation and deployment. E V A L U A T I O N A S S U M P T I O N 
+
+Complete‑modality data 
+
+> EVERY EXAMPLE
+> EHR
+> CXR
+> ECG
+> Every site and patient carries all three modalities — one shared input schema.
+> D E P L O Y M E N T R E A L I T Y
+
+Uneven client inventories     
+
+> Federated server
+> Client A
+> complete site
+> EHR CXR ECG
+> Client B
+> site lacks CXR
+> EHR
+> –
+> CXR ECG
+> Client C
+> EHR‑only patients
+> EHR
+> –
+> CXR
+> –
+> ECG
+> observed unavailable
+> Clients differ in modality inventory — and patients within a client can vary too. structured radiograph waveform
+
+≠
+
+Fig. 1. Complete-modality evaluation contrasts with federated deployment, where sites and patients may have different subsets of EHR, CXR, and ECG. 
+
+Our question is whether clients observing a modality can teach a lightweight correction that benefits clients or patients missing it, without centralizing raw records [16]. Here, “completion” means adding a learned residual in represen-tation or classifier-logit space, not generating a synthetic ECG or CXR. We separate two possible sources of improvement: (1) robust predictor training and 
+
+(2) the completion operator itself. Accordingly, we ask whether collaborative training through FL helps missing-modality patients and, with that predictor frozen, whether completion adds further signal. 
+
+FedCoRe learns task-aware corrections, updates each operator only from clients with valid modality pairs, aggregates those updates, and uses validation to apply the operator or retain the unchanged prediction. 
+
+Related Work. FedAvg is the canonical decentralized optimization algo-rithm [14]; platforms such as Flower [2] or NVIDIA FLARE [17] can coordinate healthcare FL while keeping raw records at their source. Recent reviews identify modality heterogeneity as a central barrier [18] and prior multimodal FL ad-dresses missingness through pseudo-modality generation [20], cross-contrast syn-thesis [19,3], retrieval [15], contrastive ensembles [21], embedding transfer [13], and prototype/mask completion [1]. FedCoRe instead learns modality-specific corrections from paired outputs without requiring universal modality availability. Raw records remain local, but we do not claim formal privacy guarantees; model updates may leak information without mechanisms such as secure aggregation or differential privacy [12]. Target-Adaptive Completion for Missing Modalities 3
+
+2 Method 
+
+Intuition. Suppose one client has EHR, CXR, and ECG, while another lacks ECG. The first client compares predictions with and without ECG to train an ECG-specific completion operator. The server aggregates operator updates only from clients that can form such pairs; the second client applies the operator only when validation shows that it helps. Thus, FedCoRe creates paired views, trains correction operators, aggregates only valid updates, and validates deployment. 
+
+Paired views. Let client k contain examples Dk = {(xMi 
+
+> i
+
+, y i)}nk
+
+> i=1
+
+, where 
+
+yi is the clinical outcome and Mi ⊆ M is the observed modality set; M =
+
+{EHR , CXR , ECG }. A fixed encoder fϕ and prediction head gψ map the modal-ities available for an example to an internal representation hi(Mi) and classifier logits ℓi(Mi):
+
+hi(Mi) = fϕ(xMi 
+
+> i
+
+), ℓi(Mi) = gψ (hi(Mi)) . (1) Let t denote the input modality we want to complete when it is missing at deployment. Paired supervision exists only if t ∈ Mi and Mi \ { t}̸ = ∅. We evaluate each such example twice to form a pair: 
+
+h+ti = hi(Mi), h−ti = hi(Mi \ { t}), (2) Here, h+ti is the representation with t observed and h−ti is the representation after removing t. The corrected output introduced below is the completed rep-resentation or logit. Examples without t, or with only t, cannot supervise its completion. 
+
+Completion operator. FedCoRe learns the change induced by modality 
+
+t. For pooled hidden states, a modality-specific operator Cθt predicts a correction to the t-removed representation: 
+
+˜hti = h−ti + αtCθt (h−ti ), (3) The scalar αt controls how strongly that correction is applied; a zero value leaves the original representation unchanged. For logit-delta completion, the operator instead corrects the frozen classifier output directly: 
+
+˜ℓti = ℓ−ti + αtCθt (h−ti ). (4) Thus, Cθt can operate either in representation space or in classifier-logit space: it predicts a hidden-state residual in Eq. (3), or an additive logit residual in Eq. (4). In both cases, the paired t-present pass provides the training reference: h+ti for representation completion and ℓi(Mi) for logit completion. The formulation is backbone-agnostic: it requires only paired t-present and t-removed representa-tions or logits. For CXR, we use an effect-aware logit interface. Let 
+
+dCXR  
+
+> i
+
+= ℓi(Mi) − ℓi(Mi \ { CXR }), ∆CXR  
+
+> i
+
+= γirθ (h−CXR  
+
+> i
+
+),4 H. R. Roth et al. 
+
+where dCXR  
+
+> i
+
+is the observed two-logit CXR effect and γi ∈ [0 , 1] is an instance gate. Deployment uses 
+
+˜ℓCXR  
+
+> i
+
+= ℓ−CXR  
+
+> i
+
++ αCXR ∆CXR  
+
+> i
+
+.
+
+The CXR loss adds Smooth-L1 effect matching, probability consistency, gate supervision, and gate sparsity to the task/logit terms. The implementation uses 
+
+λd, λp, λg , and λs for effect matching, probability consistency, gate supervision, and gate sparsity, respectively. 
+
+Local objective. Each client learns the correction from its valid pairs using a task-aware objective: 
+
+Lti = λtask CE( gψ (˜hti), y i) + λlogit ∥gψ (˜hti) − gψ (h+ti )∥22 + λrep ∥˜hti − h+ti ∥22. (5) The three terms preserve label prediction, align the completed and t-present log-its, and regularize the completed representation, respectively. The main missing-ECG result retains the task and logit terms and sets λrep = 0 after validation. 
+
+Aggregation by available supervision. Clients share completion modules without assuming that every client can supervise every modality. For modality 
+
+t, the valid paired set at client k is 
+
+Pk,t = {i ∈ D k : t ∈ Mi, M i \ { t}̸ = ∅} (6) Clients with |P k,t | = 0 return no completion weights and receive zero aggregation weight. The server averages the remaining updates in proportion to the number of valid pairs: 
+
+θr+1  
+
+> t
+
+=
+
+> K
+
+X
+
+> k=1
+
+|P k,t |
+
+P 
+
+> j
+
+|P j,t | θr+1  
+
+> k,t
+
+. (7) Consequently, a client that cannot supervise completion for t cannot dilute or corrupt its global completion operator. 
+
+Validation-based deployment. Finally, validation selects a candidate c =(s, α, τ ) ∈ C t: an operator source s, completion strength α, and optional gate threshold τ . The no-completion candidate c0 has α = 0 and leaves predictions unchanged. For deployment, V t
+
+> miss
+
+(c) is computed on cases whose observed inputs exclude t; for a frozen-predictor completion test, it uses complete cases after deliberately removing t. Vsafe (c) optionally measures a protected validation view, such as complete-modality cases. We select 
+
+c⋆t = arg max 
+
+> c∈C t
+
+V t
+
+> miss
+
+(c) s.t. V t
+
+> miss
+
+(c) ≥ V t
+
+> miss
+
+(c0), V safe (c) ≥ Vsafe (c0) − ϵ. (8) The second constraint is omitted when no separate safety view is used. If no com-pletion candidate qualifies, c0 leaves the original prediction unchanged. Figure 2 summarizes the complete workflow. Target-Adaptive Completion for Missing Modalities 51 Uneven clients       
+
+> Sites & patients differ in which modalities they hold.
+> Site 1
+> Site 2 –
+> Site 3 ––
+> Patient‑mixed: complete · missing CXR · EHR‑only
+> EHR CXR ECG
+> 2
+
+Train on valid pairs        
+
+> Only examples that form a with / without‑ tpair supervise completion.
+> t
+> t+ companion
+> can teach
+> updates C
+> t
+> tabsent — no pair
+> zero weight
+> excluded
+> Server averages valid updates
+> weight ∝number of valid pairs
+> 3
+
+Validate & deploy    
+
+> Apply the operator only when validation shows it helps — otherwise leave the prediction unchanged.
+> C
+> learned operator
+> frozen
+> predictor
+> Validation gate
+> apply
+> α> 0
+> keep
+> α= 0
+> One gate — hidden‑state, token & logit‑effect completion.
+> tt
+
+Fig. 2. FedCoRe workflow: paired observations train the completion operator, sites without valid pairs receive zero weight, and validation applies completion or leaves predictions unchanged. 
+
+3 Task and Federated Setup 
+
+Cohort and label. We construct a MIMIC-derived benchmark using public datasets from PhysioNet 1 [4]: MIMIC-IV [6,9], MIMIC-CXR [8,10], MIMIC-CXR-JPG [7,11], and MIMIC-IV-ECG [5]. The benchmark links structured EHR context, a CXR image, and a diagnostic ECG record. The task is binary respira-tory deterioration within 48 hours of the later ECG–CXR “index” timestamp, op-erationalized as future invasive ventilation, ICU transfer, or all-cause in-hospital death. To reduce leakage, structured context is pre-index, outcome event times are strictly post-index, ICU-transfer labels use post-index transfer times, and encounters in which the patient was already in an ICU at the index time are excluded. The ventilation endpoint counts only new post-index invasive ventila-tion events. ECG and CXR observations are matched within 6 hours. The cohort contains 13,914 encounters from 11,331 patients, split patient-disjoint into 9,777 train, 2,056 validation, and 2,081 test examples; the positive class is 304/13,914 (2.2%). 
+
+FL modality heterogeneity. Let Mi ⊆ { EHR , CXR , ECG } be the ob-served modalities for example i. We simulate client-level missingness and patient-mixed missingness, where a client contains both complete and incomplete exam-ples. Splits are patient-disjoint across train/validation/test and FL clients. Ta-ble 1 summarizes the main templates used for the missing-ECG frozen-predictor completion test. 
+
+4 Experiments 
+
+Baselines and controls. We compare no completion, local-only completion, paired-example FedAvg completion, and validation-selected completion; full- 
+
+> 1
+
+https://physionet.org/ 6 H. R. Roth et al. 
+
+Table 1. Core FL heterogeneity templates for the missing-ECG frozen-predictor com-pletion test. Missing-ECG mass is expected test-set patient mass under the client mask; paired sources are examples in which ECG is observed and can supervise completion.                  
+
+> Template Clients Full-modality clients Missing-ECG mass Paired-example structure Purpose No full-modality client 4066.3% ECG-present but no complete site Negative control Patient-mixed any-missing 4Mixed 30.0% Complete and ECG-present patients within clients Main heterogeneous setting Patient-mixed heavy 4Mixed 36.3% Heavier missing-ECG patient mix Stress setting
+
+modality runs provide a reference, not a centralized pooled or directly reim-plemented prior-method comparison. CXR controls include server-selected and model-soup sources, scalar logit recalibration, pseudo-CXR tokens, and forced fixed-scale completion. In Table 2, “Before” is NoCompletion , FedAvg uses the aggregated operator with a validation-selected strength, and “Val-selected” additionally chooses among local and FedAvg sources. FedCoRe operates on previously trained global multimodal predictors, independent of whether pre-dictor training is centralized or federated. During controlled completion experi-ments, each predictor is held fixed so that performance changes are attributable to the target-specific completion operators trained and aggregated across clients. The ECG predictor was obtained through prior modality-heterogeneous feder-ated training, whereas the CXR reference predictors were trained separately on the complete EHR+CXR training view. 
+
+CXR configuration. Missing-CXR experiments use a frozen Qwen3-VL-8B-Instruct predictor with LoRA rank 8 adapters, pre-index EHR context, and CXR images. The effect-aware gated MLP uses hidden size 4096, dropout 0.25, learning rate 5×10 −5, 80 local operator-training epochs, batch size 128, un-capped completion train/validation sets, and balanced task weighting. Its loss weights are λtask = 1 , λlogit = 8 , and λrep = 0 , with Smooth-L1 effect matching, 
+
+λp = 0 .5, λg = 1 .0, and λs = 0 .005 . Validation considers α ∈ { 0, . 1, . 25 , . 5, . 75 ,
+
+1, 1.25 , 1.5, 2, 3, 4, 6, 8} and gate thresholds {0, . 1, . 25 , . 5, . 75 }.
+
+ECG/EHR configuration. Supporting ECG/EHR rows use an earlier Qwen-family backend with lead-II ECG patch tokens. The main ECG opera-tor is a two-layer logit-delta MLP with hidden size 2048, dropout 0.3, learning rate 10 −4, batch size 128, 50 local epochs, and one FedAvg completion round across four simulated clients, with λtask = 1 , λlogit = 4 , and λrep = 0 .
+
+Selection protocol. Candidate completion operators are selected using val-idation data only, and every strength grid includes α = 0 (no completion). For ECG, each source selects α ∈ { 0, 2, 4, 8, 12 } by missing-ECG validation AUROC subject to nonnegative gain; “Val-selected” then chooses the source with the greatest validation gain. The no-full-modality, any-missing, and heavy settings evaluate 3, 11, and 8 sources, respectively. All positive reported rows have unique validation maxima; any tie is resolved by the smallest |α| and a deterministic source identifier. For CXR, we evaluate the fixed operator over the 13 strengths and five gate thresholds above. A CXR candidate must improve remove-CXR validation AUROC, have at least 0.02 full-minus-removed validation headroom, and reduce full-view validation AUROC by no more than ϵ = 0 .005 . The valida-tion/test manifests contain 2,056/2,081 examples with 44/42 positives. For the Target-Adaptive Completion for Missing Modalities 7
+
+ECG-present reference, the same frozen predictor receives CXR, EHR, and ECG; the missing view removes only ECG on the same manifest. Table 2 changes the available completion sources and paired-example pattern, not the frozen pre-dictor. Test predictions were saved during replay but summarized only after validation fixed the source, strength, gate threshold, or no-completion choice; test metrics were never used for selection. 
+
+Metrics. Our primary endpoint is the absolute change in AUROC among cases missing the modality to be completed. Secondary measures are relative lift and, when available, aggregate deployment AUROC change. We report positive-row counts and selected strength; main ECG/CXR analyses also include AUPRC and patient-level paired bootstrap 95% CIs. The intervals condition on the validation-selected operator and exclude source, strength, and gate selection un-certainty. With 2.2% prevalence and 42 test positives, AUROC does not establish precision or clinical-threshold utility; results are model-development evidence. 
+
+5 Results & Discussion 
+
+ECG is the most reliably completed modality. Across the exploratory matrix, missing ECG improves in 69/70 rows, with mean +0.059 AUROC and +9.2% relative lift. Missing EHR improves more modestly in 20/20 rows (mean +0.027), while missing CXR depends more strongly on the backbone and com-pletion interface. Because the modalities use different source inputs, backbones, and completion interfaces, these numbers are not a ranking of clinical impor-tance. Figure 3 summarizes the main decisions, with detailed ECG and CXR results in Tables 2 and 3. Recovery tests & deployment decisions              
+
+> Mean AUROC change with the multimodal predictor frozen — only the completion operator changes.
+> 0.00 0.05 0.10 0.15
+> Mean AUROC change in matched evaluation set
+> Missing ECG · pooled patient‑mixed = full ECG‑present recovery (+0.085)
+> Paired FedAvg +0.0415
+> 49% of gap · CI [0.00, 0.08]
+> Validation‑selected +0.1455
+> residual correction
+> CI [0.06, 0.22]
+> Missing CXR · controlled removal
+> Effect‑aware +0.087
+> 52.8% of gap · 4/5 seeds
+> FedAvg transfer +0.034
+> 8/12 rows positive
+> Deployment decision
+> α=0 baseline retained
+> When deployment inputs lack CXR, validation keeps the no‑completion baseline — no bar is plotted.
+> ECG rows are pooled patient‑mixed with patient‑level 95% bootstrap CIs. CXR is the unweighted mean over 5 seeds (controlled removal) and 12 rows (FedAvg transfer).
+
+Fig. 3. Observed gains with the multimodal predictor frozen. Bars report matched target-removal/recovery tests rather than deployment gains; the box separately reports CXR deployment, where validation selected α = 0 and retained the baseline. 
+
+Paired-example FedAvg recovers about half of the missing-ECG gap. With ECG present, the frozen predictor reaches 0.6627 AUROC; removing ECG reduces it to 0.5781. Across the six patient-mixed rows, FedAvg raises 8 H. R. Roth et al. 
+
+AUROC to 0.6195, adding +0.0415 [0.0023, 0.0778] and recovering 49.0% of the lost performance. The predictor and patients are unchanged; only the comple-tion operator differs. In the no-full-modality-client control, validation leaves the prediction unchanged because none of the available corrections helps. 
+
+Validation-selected ECG completion acts as residual correction. It reaches 0.7235 AUROC, an improvement of +0.1455 [0.0617, 0.2213] that exceeds the ECG-present reference. We therefore interpret this result as classifier-logit correction beyond modality recovery, not literal ECG reconstruction. AUPRC changes remain unstable with 42 positive test examples; selected-source valida-tion/test deltas are +0.120–0.136/+0.104–0.169. 
+
+Table 2. Frozen-predictor missing-ECG test. Both methods select scale on valida-tion; “Val-selected” also selects source. CIs use shared patient-level resamples across the six matched patient-mixed predictions. Full ref is ECG-present replay; reference-normalized gain is (After −Before) /(Full ref −Before) , where values above 100% denote correction beyond the reference.                                    
+
+> Scenario Completion Seeds Before After Full ref Ref.-norm. ∆AUROC [95% CI] AUPRC Positive No full-modality client FedAvg 7,17,42 0.5781 0.5781 0.6627 0.0% +0.0000 [0.0000, 0.0000] 0.0375 / 0.0375 0/3 No full-modality client Val-selected 7,17,42 0.5781 0.5781 0.6627 0.0% +0.0000 [0.0000, 0.0000] 0.0375 / 0.0375 0/3
+> Patient-mixed combined FedAvg 6 rows 0.5781 0.6195 0.6627 49.0% +0.0415 [0.0023, 0.0778] 0.0375 / 0.0368 6/6 Patient-mixed combined Val-selected 6 rows 0.5781 0.7235 0.6627 171.8% +0.1455 [0.0617, 0.2213] 0.0375 / 0.0495 6/6
+
+Additional modality tests. A single missing-ECG scenario gives +0.095 mean AUROC for FedAvg and +0.116 for validation-selected completion across six seeds; missing-EHR is weaker but non-harmful (+0.014, three seeds). 
+
+CXR is partially recoverable when removed. With Qwen3-VL, we eval-uate complete cases with CXR present, deliberately remove CXR, and apply the effect-aware logit operator. Across five seeds, completion adds +0.087 AUROC on average (4/5 positive) and recovers 52.8% of the full-vs-missing gap. The effect varies: seed 23 leaves the prediction unchanged, and only two per-seed intervals exclude zero; we therefore report paired CIs per seed rather than treat seeds as independent clinical replications. AUPRC improves by +0.010 on average but is unstable with 42 positives. Scalar recalibration gives zero rank-metric lift. Pseudo-CXR tokens are a negative ablation: validation rejects them, while forced completion reduces AUROC by 0.082. This is evidence that some CXR-induced logit signal is recoverable from the remaining inputs, not that deployment with-out CXR is solved. 
+
+CXR completion transfers through FedAvg but is not deployed when unsupported. Paired-example FedAvg improves the remove-CXR test in 8/12 rows (mean +0.034 AUROC); server-selected sources are weaker (+0.017, 2/6 positive), and source-subset operators are negative (0/12). For deployment cases whose observed inputs lack CXR, validation selects α = 0 . FedCoRe 
+
+therefore retains the no-completion baseline instead of applying an unsupported CXR correction. Target-Adaptive Completion for Missing Modalities 9
+
+Table 3. Frozen-predictor missing-CXR completion test. Validation selects scale and gate threshold; only scale is shown. Delta intervals are paired patient-level bootstrap 95% CIs. Means and gap recovery are unweighted across seeds.                                                
+
+> Seed Full AUROC Missing Completed ∆AUROC [95% CI] Gap rec. AUPRC before/after α
+> 70.6673 0.5237 0.6454 +0.1217 [0.0005, 0.2330] 84.7% 0.0204 / 0.0409 0.50 17 0.6969 0.5933 0.6228 +0.0295 [-0.0520, 0.1104] 28.5% 0.0402 / 0.0331 0.75 23 0.7303 0.6187 0.6187 +0.0000 [0.0000, 0.0000] 0.0% 0.0297 / 0.0297 0.00 31 0.7072 0.5188 0.6594 +0.1405 [0.0301, 0.2464] 74.6% 0.0255 / 0.0345 0.10 42 0.7192 0.5307 0.6739 +0.1431 [-0.0037, 0.2826] 75.9% 0.0327 / 0.0611 0.10 Mean 0.7042 0.5570 0.6440 +0.0870 52.8% 0.0297 / 0.0399 –
+
+6 Conclusion 
+
+FedCoRe learns modality-specific operators from valid pairs, excludes unin-formative clients from aggregation, and can retain the unchanged prediction. Missing-ECG benefits from completion; missing-CXR shows recoverable signal in remove-CXR tests but not unsupported deployment cases. Controlled four-client masks impose modality availability rather than reflecting natural missing-ness or institutional covariate shift; external multi-site validation remains future work. 
+
+Code and AI use disclosure. Experiments used NVIDIA FLARE 2. Codex and ChatGPT assisted with experimentation and writing, and Claude Design with figures; the authors verified all content and remain responsible. 
+
+Disclosure of Interests. The authors have no competing interests to declare that are relevant to the content of this article. 
+
+References 
+
+1. Bao, G., Zhang, Q., Miao, D., Gong, Z., Hu, L., Liu, K., Liu, Y., Shi, C.: Multi-modal federated learning with missing modality via prototype mask and contrast (2023), arXiv:2312.13508 2. Beutel, D.J., Topal, T., Mathur, A., Qiu, X., Fernandez-Marques, J., Gao, Y., et al.: Flower: A friendly federated learning research framework. arXiv preprint arXiv:2007.14390 (2020) 3. Dalmaz, O., Mirza, M.U., Elmas, G., Özbey, M., Dar, S.U.H., Ceyani, E., Aves-timehr, S., Çukur, T.: One model to unite them all: Personalized federated learn-ing of multi-contrast MRI synthesis. Medical Image Analysis 94 , 103121 (2024). 
+
+https://doi.org/10.1016/j.media.2024.103121 
+
+4. Goldberger, A.L., Amaral, L.A.N., Glass, L., Hausdorff, J.M., Ivanov, P.C., Mark, R.G., et al.: Physiobank, physiotoolkit, and physionet: Components of a new re-search resource for complex physiologic signals. Circulation 101 (23), e215–e220 (2000). https://doi.org/10.1161/01.CIR.101.23.e215  
+
+> 2
+
+https://github.com/NVIDIA/NVFlare 10 H. R. Roth et al. 5. Gow, B., Pollard, T., Nathanson, L.A., Johnson, A., Moody, B., Fernandes, C., et al.: MIMIC-IV-ECG: Diagnostic electrocardiogram matched subset. PhysioNet (sep 2023). https://doi.org/10.13026/4nqg-sb35 , version 1.0 6. Johnson, A., Bulgarelli, L., Pollard, T., Gow, B., Moody, B., Horng, S., Celi, L.A., Mark, R.: MIMIC-IV. PhysioNet (oct 2024). https://doi.org/10.13026/ kpb9-mt58 , version 3.1 7. Johnson, A., Lungren, M., Peng, Y., Lu, Z., Mark, R., Berkowitz, S., Horng, S.: MIMIC-CXR-JPG - chest radiographs with structured labels. PhysioNet (mar 2024). https://doi.org/10.13026/jsn5-t979 , version 2.1.0 8. Johnson, A., Pollard, T., Mark, R., Berkowitz, S., Horng, S.: MIMIC-CXR Database. PhysioNet (sep 2019). https://doi.org/10.13026/C2JT1Q , version 2.0.0 9. Johnson, A.E.W., Bulgarelli, L., Shen, L., Gayles, A., Shammout, A., Horng, S., et al.: MIMIC-IV, a freely accessible electronic health record dataset. Scientific Data 10 (1), 1 (2023). https://doi.org/10.1038/s41597-022-01899-x 
+
+10. Johnson, A.E.W., Pollard, T.J., Berkowitz, S.J., Greenbaum, N.R., Lungren, M.P., Deng, C.y., et al.: MIMIC-CXR, a de-identified publicly available database of chest radiographs with free-text reports. Scientific Data 6(1), 317 (2019). https://doi. org/10.1038/s41597-019-0322-0 
+
+11. Johnson, A.E.W., Pollard, T.J., Greenbaum, N.R., Lungren, M.P., Deng, C.y., Peng, Y., et al.: MIMIC-CXR-JPG, a large publicly available database of labeled chest radiographs (2019), arXiv:1901.07042 12. Kairouz, P., et al.: Advances and open problems in federated learning. Foundations and Trends in Machine Learning 14 (1-2), 1–210 (2021). https://doi.org/10. 1561/2200000083 
+
+13. Le, H.Q., Nguyen, M.N.H., Thwal, C.M., Qiao, Y., Zhang, C., Hong, C.S.: Fed-MEKT: Distillation-based embedding knowledge transfer for multimodal feder-ated learning. Neural Networks 183 , 107017 (2025). https://doi.org/10.1016/ j.neunet.2024.107017 
+
+14. McMahan, B., Moore, E., Ramage, D., Hampson, S., Agüera y Arcas, B.: Communication-efficient learning of deep networks from decentralized data. In: Proceedings of the 20th International Conference on Artificial Intelligence and Statistics (2017) 15. Poudel, P., Shrestha, P., Amgain, S., Shrestha, Y.R., Gyawali, P., Bhattarai, B.: CAR-MFL: Cross-modal augmentation by retrieval for multimodal federated learn-ing with missing modalities. In: Medical Image Computing and Computer Assisted Intervention – MICCAI 2024. pp. 102–112. Springer Nature Switzerland (2024). 
+
+https://doi.org/10.1007/978-3-031-72117-5_10 
+
+16. Rieke, N., Hancox, J., Li, W., Milletari, F., Roth, H.R., Albarqouni, S., et al.: The future of digital health with federated learning. NPJ digital medicine 3(1), 119 (2020) 17. Roth, H.R., Cheng, Y., Wen, Y., Yang, I., Xu, Z., Hsieh, Y.T., et al.: NVIDIA FLARE: Federated learning from simulation to real-world (2022), arXiv:2210.13291 18. Thrasher, J., Devkota, A., Siwakoti, P., Chivukula, R., Poudel, P., Hu, C., et al.: Multimodal federated learning in healthcare: A review. Journal of Healthcare In-formatics Research (2025). https://doi.org/10.1007/s41666-025-00226-4 
+
+19. Wang, J., Xie, G., Huang, Y., Lyu, J., Zheng, F., Zheng, Y., Jin, Y.: FedMed-GAN: Federated domain translation on unsupervised cross-modality brain image synthe-sis. Neurocomputing 546 , 126282 (2023). https://doi.org/10.1016/j.neucom. 2023.126282 Target-Adaptive Completion for Missing Modalities 11 20. Yan, Y., Feng, C.M., Li, Y., Li, P., Goh, R.S.M., Lei, B., et al.: Federated pseudo modality generation for incomplete multi-modal MRI reconstruction. IEEE Journal of Biomedical and Health Informatics 29 (8), 5849–5861 (2025). https://doi.org/ 10.1109/JBHI.2025.3566217 
+
+21. Yu, Q., Liu, Y., Wang, Y., Xu, K., Liu, J.: Multimodal federated learning via con-trastive representation ensemble. In: International Conference on Learning Repre-sentations (2023)
