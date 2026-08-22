@@ -6,42 +6,41 @@
 </div>
 
 ## 每次日报
-- 最新运行日期：2026-08-21
-- 运行时间：2026-08-21 19:17:28 UTC
+- 最新运行日期：2026-08-22
+- 运行时间：2026-08-22 20:35:17 UTC
 - 运行状态：成功
-- 本次总论文数：7
+- 本次总论文数：6
 - 精读区：0
-- 速读区：7
+- 速读区：6
 
 ### 今日简报（AI）
-今日速读7篇论文，无精读，重点聚焦多模态与联邦学习前沿。最值得关注的是多模态物体重识别（MODAL）和医疗联邦学习中的缺失模态处理（FedCoRe、MOSAIC），均获7.0分。建议后续可深入比较这些方法在真实缺失场景下的鲁棒性与效率。
-- 详情：[/202608/21/README](/202608/21/README)
+今日速读6篇论文，聚焦多模态学习与医学、遥感视觉任务，暂无精读深度分析。  
+最值得关注两篇7分工作：多模态目标重识别的稀疏解耦与文本图像差分过滤（MODAL），以及联邦场景下缺失模态的肿瘤分割对齐（MOSAIC）。  
+建议优先精读这两篇，后续可围绕其模型设计对比实验或迁移到你的任务中验证。
+- 详情：[/202608/22/README](/202608/22/README)
 
 ### 精读区论文标签
 - 本次无精读推荐。
 
 ### 速读区论文标签
-1. [MODAL: Multi-Modal Object Re-ID via Model-Driven Sparse Decoupling and Text-Image Differential Filtering](/202608/21/2608.15096v1-modal-multi-modal-object-re-id-via-model-driven-sparse-decoupling-and-text-image-differential-filtering)  
+1. [MODAL: Multi-Modal Object Re-ID via Model-Driven Sparse Decoupling and Text-Image Differential Filtering](/202608/22/2608.15096v1-modal-multi-modal-object-re-id-via-model-driven-sparse-decoupling-and-text-image-differential-filtering)  
    标签：评分：7.0/10、query:multi-modal
-   evidence：多模态目标重识别框架，显式处理模态缺失条件下的分布偏移
-2. [FedCoRe: Target-Adaptive Completion for Missing Modalities in Healthcare Federated Learning](/202608/21/2608.18311v1-fedcore-target-adaptive-completion-for-missing-modalities-in-healthcare-federated-learning)  
+   evidence：处理多模态学习中的模态缺失情况
+2. [MOSAIC: Modality-agnostic Spectral Alignment for Federated Image-level Weakly Supervised Tumor Segmentation under Client-specific Missing Modalities](/202608/22/2608.19788v1-mosaic-modality-agnostic-spectral-alignment-for-federated-image-level-weakly-supervised-tumor-segmentation-under-client-specific-missing-modalities)  
    标签：评分：7.0/10、query:multi-modal
-   evidence：针对多模态联邦学习中的缺失模态补全，可迁移至遥感场景
-3. [MOSAIC: Modality-agnostic Spectral Alignment for Federated Image-level Weakly Supervised Tumor Segmentation under Client-specific Missing Modalities](/202608/21/2608.19788v1-mosaic-modality-agnostic-spectral-alignment-for-federated-image-level-weakly-supervised-tumor-segmentation-under-client-specific-missing-modalities)  
-   标签：评分：7.0/10、query:multi-modal
-   evidence：联邦学习框架，通过模态无关光谱对齐处理客户端缺失模态
-4. [Robust Incomplete Multimodal Sentiment Analysis via Iterative Proxy Correction](/202608/21/2608.19971v1-robust-incomplete-multimodal-sentiment-analysis-via-iterative-proxy-correction)  
-   标签：评分：7.0/10、query:multi-modal
-   evidence：不完整多模态情感分析中的迭代代理校正，与缺失模态学习范式相关
-5. [S$^3$AM: A Single-Stream SAM with Reliability-Calibrated Frequency Adapter for Multi-modal Salient Object Detection](/202608/21/2608.17475v1-s3am-a-single-stream-sam-with-reliability-calibrated-frequency-adapter-for-multi-modal-salient-object-detection)  
+   evidence：面向客户端缺失模态的联邦多模态分割框架，直接处理不完整模态学习，但属医学影像领域。
+3. [FIRM: Fine-Grained Intra-Token Representation of Masks for Remote Sensing Reasoning Segmentation](/202608/22/2608.13980v1-firm-fine-grained-intra-token-representation-of-masks-for-remote-sensing-reasoning-segmentation)  
    标签：评分：6.0/10、query:multi-modal
-   evidence：多模态融合结合可靠性校准频率适配，可用于多传感器遥感融合
-6. [When Two Tracers Disagree: An Investigation of Multimodal Fusion for Clinical PET/CT Segmentation](/202608/21/2608.19063v1-when-two-tracers-disagree-an-investigation-of-multimodal-fusion-for-clinical-petct-segmentation)  
+   evidence：利用多模态大语言模型进行遥感推理分割，涉及多模态遥感，但未涵盖缺失模态或跨传感器融合。
+4. [Cyclops: LiDAR as a Camera That Dreams in Color](/202608/22/2608.16264v1-cyclops-lidar-as-a-camera-that-dreams-in-color)  
    标签：评分：6.0/10、query:multi-modal
-   evidence：PET与CT多模态融合，比较早期与中间融合策略；方法可迁移至遥感多传感器融合
-7. [Contrastive Mixed Prompt Learning for Incomplete Multimodal Sentiment Analysis with Unseen Modality Combination](/202608/21/2608.20019v1-contrastive-mixed-prompt-learning-for-incomplete-multimodal-sentiment-analysis-with-unseen-modality-combination)  
+   evidence：将稀疏LiDAR强度转换为RGB视频，应对相机模态缺失
+5. [Cross-View Urban Sensing: Mapping Subjective Streetscape Perception via AlphaEarth Embeddings and Urban Context](/202608/22/2608.16310v1-cross-view-urban-sensing-mapping-subjective-streetscape-perception-via-alphaearth-embeddings-and-urban-context)  
    标签：评分：6.0/10、query:multi-modal
-   evidence：面向未见模态组合的不完整多模态情感分析，直接解决缺失模态学习问题
+   evidence：推理时无需街景影像，利用多源城市数据完成跨视角感知预测
+6. [Remote-Sensing City Layout Extraction with MLLM](/202608/22/2608.16484v1-remote-sensing-city-layout-extraction-with-mllm)  
+   标签：评分：6.0/10、query:multi-modal
+   evidence：基于多模态大语言模型从单张遥感图像提取城市布局，属于多模态遥感任务，但未涉及缺失模态或传感器融合。
 
 
 <div class="dpr-home-promo-card">
