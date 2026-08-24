@@ -1,0 +1,701 @@
+Title: MoRAX: Mobility-based Representation Augmentation for Geospatial Foundation Models
+
+URL Source: https://arxiv.org/pdf/2608.17848v1
+
+Published Time: Wed, 19 Aug 2026 01:04:25 GMT
+
+Number of Pages: 12
+
+Markdown Content:
+# MoRAX: Mobility-based Representation Augmentation for Geospatial Foundation Models 
+
+## Ya Wen 
+
+The University of Hong Kong Hong Kong SAR, China wenya@connect.hku.hk 
+
+## Jixuan Cai 
+
+The Chinese University of Hong Kong Hong Kong SAR, China codyjcai@gmail.com 
+
+## Yulun Zhou ∗
+
+The University of Hong Kong Hong Kong SAR, China yulunzhou@hku.hk 
+
+## Alec Kirkley ∗
+
+The University of Hong Kong Hong Kong SAR, China akirkley@hku.hk 
+
+## Abstract 
+
+Geospatial Foundation Models (GFMs) are emerging as a power-ful paradigm for learning semantically rich and geographically consistent visual and physical representations. However, their re-liance on Earth-observation (EO) data leaves information about human activity largely underrepresented. Human mobility data reveals the functional and relational structure between regions that is missing from EO data, but is often limited only to the city where it is observed, making it challenging to use for transferable ur-ban representation learning. We introduce MoRAX , a lightweight framework for augmenting geospatial embeddings with functional structure derived from human mobility. MoRAX preserves the cov-erage and consistency of a GFM while providing information about the functional connectivity among urban regions, permitting zero-shot deployment in unseen cities with or without available mobility data. Across four target cities spanning two countries, the MoRAX teacher model, which observes mobility, consistently outperforms GFMs and strong urban representation baselines in eight socioeco-nomic and environmental prediction tasks. Meanwhile, the student model, which never takes mobility data as input, approaches the teacher in performance on most tasks. Transfer results across coun-tries further demonstrate that modulation conditioned on mobility flows provides a general mechanism for grounding geospatial foun-dations in the human dimension of cities. 
+
+## CCS Concepts 
+
+• Information systems → Location based services ; Geographic information systems .
+
+## 1 Introduction 
+
+Urban region representation learning aims to encode spatial units of a city into low-dimensional vectors that support a wide range of downstream applications, including socioeconomic data estimation, environmental monitoring, and urban planning [2, 21, 34, 41]. A useful region representation should describe not only the physical and environmental properties of a space but also the functional role that the place plays within the broader urban system. Learning such representations is therefore an important step toward general-purpose urban intelligence [4, 46]. 
+
+> ∗Corresponding authors.
+
+Recent advances in geospatial foundation models (GFMs) pro-vide a promising basis for this goal. By pretraining on large-scale Earth observation (EO) data, these models produce geographically extensive, rich representations of the natural and built environ-ment [3, 11]. AlphaEarth Foundations [3], for instance, integrates multi-source temporal and spatially contextualized Earth observa-tions into globally available, fine-grained geospatial embeddings. Meanwhile, remote-sensing foundation models such as Remote-CLIP [22] extract visual cues directly from satellite imagery. Com-pared with conventional heterogeneous urban data sources such as points of interest, land-use records, and demographic statis-tics, geospatial foundation representations offer more consistent, broader coverage across cities and are far less dependent on local taxonomies, individual data platforms, or city-specific collection processes [3, 31]. However, by construction, GFMs learn seman-tics from what a region and its immediate surrounding environ-ment physically look like, ignoring the fundamentally different (and equally important) information embedded in the relational 
+
+semantics of a city which are defined by how people actually move through, use, and connect urban regions [23]. Traditional GFMs thus remain incomplete for providing a holistic understanding of urban regions. Human mobility, represented by observed flows of people be-tween regions, has repeatedly been shown to reveal the functional and interaction-driven structure of cities that GFMs do not explic-itly capture [40, 45, 48]. It is thus important to investigate how human mobility data can complement geospatial foundation rep-resentations. However, treating GFMs and human mobility data as symmetric modalities within a conventional fusion architecture risks obscuring their distinct roles and respective strengths. GFMs provide a compact representation of observable place characteristics and have broad geographic availability. Meanwhile, human mobil-ity data describes relational dynamics among places and is only available in a limited and potentially unrepresentative subset of cities, since collecting it requires dedicated data infrastructure [25]. These observations motivate the approach of learning a light-weight, feature-wise modulation conditioned on mobility in order to adapt, rather than reconstruct, the underlying semantic space of an existing GFM. Such modulation captures how the meaning of a geospatially described place changes according to its exchange relationships with the rest of the city, and allows the adaptation mechanism to be a compact, self-contained module that can be arXiv:2608.17848v1 [cs.LG] 18 Aug 2026 Ya Wen et al. 
+
+learned separately from the base representation it acts upon. This separation allows for distilling the teacher’s mobility-induced mod-ulation into a student model that does not depend on mobility data but approximates the same modulation using only widely available, mobility-free signals. This process enables deployment without access to mobility data, extending applicability across the broad geographic coverage of EO-based GFMs. The resulting adaptation and distillation framework generalizes across cities as well as across the choice of baseline foundation model, allowing, for example, the usage of either AlphaEarth or RemoteCLIP as the baseline GFM without changing the overall framework. Based on this perspective, we propose MoRAX , a framework that learns how mobility adapts an existing geospatial foundation representation and distills this adaptation capability into a deploy-able, mobility-free encoder. A teacher is trained on cities with ob-served mobility graphs, learning a lightweight modulation network that reshapes a baseline foundation embedding into a mobility-aware representation. A student , trained on the same cities but never taking mobility as input—mobility influences it only through the teacher’s supervision—is distilled to reproduce this modulation using a proxy relational signal constructed from widely available co-variates alone. MoRAX consequently supports two complementary transfer regimes. When mobility is available in an unseen city, the pretrained teacher model directly produces mobility-aware region representations without the need to fine-tune the encoder on the target city. When mobility data is unavailable, the pretrained stu-dent model infers how mobility would have reshaped each region’s representation, using only geospatial embeddings and pairwise geographic distances. Fig. 1 provides an overview of the MoRAX framework. Our main contributions are summarized as follows: 
+
+• We develop the MoRAX framework to augment EO-based GFMs with functional mobility structure through light-weight feature-wise modulation. 
+
+• We propose a teacher-student framework that distills this modulation into a student model, enabling functionally aware region representations in cities where no mobility data exists. 
+
+• We test MoRAX in a series of zero-shot evaluation tasks, finding that the mobility-aware teacher consistently outper-forms both geospatial foundation representations and urban representation learning baselines, while the mobility-free student remains competitive with the strongest baselines. 
+
+## 2 Related Work 
+
+Transferable Urban Region Representation Learning. Existing urban region representation methods draw on a wide range of data sources, including points of interest [12, 17, 33, 45], mobility flows [37, 42, 48], and satellite imagery [19, 24, 32], which are typically integrated through multimodal fusion and alignment then trained and evaluated within the same city. This diversity in data sources complicates fair comparison across methods, while the single-city paradigm obscures the distinction between regularities that transfer across urban systems and correlations tied to a specific city or its data collection process. These representations thus offer limited capability of generalization to cities with different urban structure and data modality availability [34]. Existing work has explored large scale urban representation pretraining by organizing heterogeneous urban signals around mobility as the principal relational backbone. By learning from a nation-scale mobility graph, MoRA [40] establishes a shared rep-resentation space in which human-centered urban knowledge can be accumulated, compared, and reused across locations. Similarly, PDFM [1] models population dynamics from a rich collection of human-related signals over a large scale neighborhood graph. These studies demonstrate the potential of foundation-style pretraining for learning transferable representations of urban systems from human activity and population dynamics. However, their learned foundations tend to have more limited geographic coverage than EO foundation models (PDFM, for instance, covers only postal codes and counties within the United States). 
+
+Earth Observation-Based Geospatial Foundation Models. 
+
+Benefiting from the growing volume, diversity, and geographic coverage of Earth observation data, recent EO-based geospatial foundation models have learned increasingly general and reusable representations of the Earth’s surface. For example, AlphaEarth Foundations [3] integrates multi-source, temporal, and spatially contextualized Earth observations into globally available geospatial embeddings while related efforts such as Tessera [11] similarly seek to provide broadly applicable representations for downstream geospatial applications. RemoteCLIP [22] aligns remote sensing imagery with language to support transfer across classification, retrieval, and recognition tasks. However, these representations remain primarily grounded in EO signals and may not fully capture the interaction-driven functional relationships that are critical to urban region understanding. 
+
+Adaptation of Pretrained Foundation Models. As pretrained foundation models have grown in scale and capability, research across different domains has developed a range of approaches for adapting their representations to new tasks, domains, and infor-mation sources without retraining from scratch [15, 16, 20]. These methods parameterize adaptation through a compact set of task- or domain-specific trainable parameters, learned once and then held fixed at inference time. A complementary line of work instead per-forms adaptation dynamically, generating the adaptation itself as a function of an auxiliary conditioning signal rather than learning a static set of parameters. FiLM [30], for example, generates feature-wise scaling and shifting parameters from a conditioning input to modulate intermediate activations. Similar conditional modu-lation mechanisms appear in adaptive normalization methods for style transfer and diffusion models, where activations are adjusted according to style, class, text, or timestep information [9, 18]. De-spite their broad use in language and vision, conditional adaptation mechanisms remain underexplored in geospatial representation learning. Geospatial foundation models are still typically used as fixed feature extractors, with limited study of how complementary signals such as city-wide relational information can adapt their pretrained representations. MoRAX: Mobility-based Representation Augmentation for Geospatial Foundation Models Modulation: adapt, don’t refit 
+
+> Mobility context (inter-region flows)
+> Lightweight
+> mobility-induced
+> modulation
+> scale
+> shift
+
+Geospatial foundation models: 
+
+Strong but incomplete    
+
+> AlphaEarth
+> RemoteCLIP
+> Geospatial field/
+> Urban region embeddings
+> Strengths
+> Broad geospatial coverage
+> Global consistent
+> Observation-derived
+> Limitation: captures what places look like,
+> but misses city-wide relational semantics
+> Different regions can look similar…
+> Missing:
+> functional
+> connectivity
+> among
+> places
+> Relation-aware
+> region
+> representation
+> Frozen geospatial
+> foundation representation (base field)
+> Mobility injects functional meaning without changing the foundation.
+
+Two deployment regimes in unseen cities 
+
+> Mobility available (Teacher)
+> Mobility flows
+
++ Frozen geospatial foundation  
+
+> Unseen city (zero-shot)
+> Relation-aware
+> Representation
+> (new city)
+> Teacher-student distillation framework
+> Mobility unavailable (Student)
+> Frozen geospatial foundation
+> Geospatial pairwise signals (embeddings + inter-region geography) Approximated relation-aware
+> Representation
+> (new city)
+
++
+
+> Backbone-agnostic:
+> Applicable across different geospatial foundations
+> (e.g., AlphaEarth, RemoteCLIP)
+
+Figure 1: Motivation and overview of MoRAX. Geospatial foundation models (GFMs) offer broad, consistent coverage but miss the relational semantics of how places function together (left). MoRAX adapts a frozen GFM base through lightweight modulation induced by mobility (middle), supporting zero-shot deployment in unseen cities with or without available mobility data (right). 
+
+## 3 Preliminaries 
+
+Regions. A city 𝑐 is partitioned into 𝑁 𝑐 disjoint urban regions, denoted as R𝑐 = {𝑟 𝑐 
+
+1 , 𝑟 𝑐 
+
+2 , . . . , 𝑟 𝑐 𝑁 𝑐 }. For notational simplicity, we omit the city superscript 𝑐 when the context is clear. 
+
+Region Features. Each region is associated with features drawn from different sources, characterizing it from complementary di-mensions. We consider two data types, chosen for their indepen-dence from manually defined taxonomies (e.g., POI category schemes). 
+
+Definition 3.1 (Human Mobility Graph). Human mobility flows record movements between urban regions and reflect functional interactions among them. For a city with observed mobility data, we represent these interactions as a mobility graph G𝑚 = (R , E𝑚 ),where each edge (𝑟 𝑖 , 𝑟 𝑗 ) ∈ E 𝑚 is associated with an observed inter-action intensity 𝑤 𝑖 𝑗 between regions 𝑟 𝑖 and 𝑟 𝑗 . The intensity 𝑤 𝑖 𝑗 is a generic measure of directed interaction between 𝑟 𝑖 and 𝑟 𝑗 within a given period of time, and provides a proxy for the functional con-nectivity of the two regions. It can be derived, for example, from observed flows of people or trips between the two regions, or from other interaction records aggregated to the region level. 
+
+Definition 3.2 (Geospatial Foundation Embedding). Each region 
+
+𝑟 𝑖 is represented by a pretrained foundation embedding s𝑖 , which summarizes the region’s EO-derived physical, environmental, and spatial characteristics in a globally consistent representation space. Such embeddings are produced by encoders pretrained on large-scale EO corpora, including satellite imagery and other sensor-derived measurements, through masked reconstruction, contrastive invariance, and cross-modal alignment objectives [8, 22, 26]. The resulting representation s𝑖 encodes physical morphology such as texture, spectral response, built density, and vegetation, but not the functional role a region plays within the wider urban system. 
+
+Region Representation Learning. Given a set of regions R
+
+and their associated features, region representation learning aims to train an encoder 𝑓 : R → R𝑑 that maps each region 𝑟 𝑖 ∈ R to a low-dimensional embedding z𝑖 ∈ R𝑑 that captures the region 𝑟 𝑖 ’s characteristics and can be directly applied to a variety of down-stream urban prediction tasks with a lightweight model such as Ridge Regression [14]. 
+
+## 3.1 Problem Statement 
+
+We consider the problem of augmenting pretrained geospatial foun-dation representations with the city-wide functional structure en-coded by human mobility. Given source cities Csrc with fixed foun-dation embeddings and observed mobility graphs, the objective is to learn a region representation model that transfers zero-shot to unseen target cities Ctgt , without updating the underlying founda-tion model or performing target-city training; zero-shot thus refers to the absence of target-city parameter updates, not the absence of target-city inputs. At inference time, the target city’s mobility graph may be available or unavailable—in the latter setting, we use a stu-dent model that only requires pretrained foundation embeddings and inter-region geographic information. 
+
+## 4 Methodology 4.1 Framework Overview 
+
+MoRAX extends pretrained geospatial foundation representations with the city-wide functional structure revealed by human mobility. Its central operation is a lightweight mobility-induced modulation that uses relational context to reinterpret the pretrained represen-tation without discarding its original geospatial semantics. Ya Wen et al. 
+
+When an observed mobility graph is available, a mobility-aware teacher derives the conditioning context directly from inter-region flows. When mobility is unavailable, a graph-free student approxi-mates the teacher-induced modulation using only pretrained geospa-tial embeddings and inter-region geographic information. As illustrated in Fig. 2, MoRAX first projects the pretrained GFM embedding of each region into a shared urban representation space (Sec. 4.2). It then defines a general feature-wise modulation operator that adapts the projected foundation representation according to a region-level relational context (Sec. 4.3). The teacher obtains this context from observed mobility relations through an edge-centric mobility encoder (Sec. 4.4), whereas the student infers a proxy context from pairwise geospatial representations (Sec. 4.5). Finally, modulation distillation transfers the mobility-induced adaptation from the teacher to the student (Sec. 4.6). 
+
+## 4.2 Geospatial Foundation Representation 
+
+As shown in Fig. 2(a), for each region 𝑟 𝑖 , we retrieve a pretrained GFM embedding s𝑖 ∈ R𝑑 EO according to its geographic location and spatial extent. These embeddings summarize EO-derived character-istics in a globally consistent representation space shared across source and target cities. We map each pretrained embedding into the hidden space of MoRAX using a lightweight projector 
+
+z0 
+
+> 𝑖
+
+= 𝑓 proj (s𝑖 ) ∈ R𝑑 , (1) where 𝑓 proj is implemented as an MLP shared across all regions and cities. The underlying geospatial foundation representation remains frozen and the projector is shared between the student and the teacher. The resulting set Z0 = {z0 
+
+> 𝑖
+
+}𝑁 𝑖 =1 provides the shared geospatial foundation representation used by both the teacher and student. Be-cause it is independent of the mobility graph, it provides a common semantic coordinate system across cities and across mobility avail-ability settings. We refer to this spatially indexed layer of region embeddings, defined consistently within and across cities, as the 
+
+geospatial field . However, the pretrained representation primarily describes the observable characteristics of individual regions and does not explicitly encode how they interact as parts of a city-wide system. We therefore conditionally reshape this representation us-ing region-level relational context. 
+
+## 4.3 Relation-Induced Feature Modulation 
+
+We first define the modulation operator, which is independent of how the conditioning signal is obtained. Given the projected foundation embedding z0 
+
+> 𝑖
+
+and a region-level relational context z𝑟 𝑖 , a lightweight modulation network generates feature-wise scale and shift parameters 
+
+𝜸 𝑖 = 𝑓 𝛾,𝜃 (z𝑟 𝑖 ), 𝜷 𝑖 = 𝑓 𝛽,𝜃 (z𝑟 𝑖 ), (2) where 𝜸 𝑖 , 𝜷 𝑖 ∈ R𝑑 , and 𝜃 denotes the parameters of the modulation module. We parameterize the feature-wise scale as 1 + tanh (𝜸 𝑖 ), which constrains each scaling coefficient to (0, 2). This parameteriza-tion centers the scale at identity and allows mobility to induce a bounded, feature-wise reweighting of the projected base. The resulting relation-conditioned transformation is 
+
+zmod  
+
+> 𝑖
+
+=  1 + tanh (𝜸 𝑖 ) ⊙ z0 
+
+> 𝑖
+
++ 𝜷 𝑖 , (3) where ⊙ denotes element-wise multiplication. For compactness, we denote the complete operation in Eqs. (2) and (3) as 
+
+zmod  
+
+> 𝑖
+
+= M𝜃 
+
+ z0 
+
+> 𝑖
+
+, z𝑟 𝑖 
+
+ . (4) The modulated features are then integrated with the projected foundation representation 
+
+z𝑖 = z0 
+
+> 𝑖
+
++ zmod  
+
+> 𝑖
+
+. (5) This additive formulation retains the projected geospatial repre-sentation while allowing relational context to alter its feature-wise interpretation. The projected foundation representation continues to provide the semantic basis of the final representation, while the modulation introduces complementary information about the functional role of each region. The modulation operation is agnostic to the source of z𝑟 𝑖 . In the mobility-aware teacher, the relational context is encoded directly from observed mobility flows. In the graph-free student, it is in-ferred from pairwise geospatial representations and inter-region geography. The teacher and student use the same modulation form but have independently learned parameters, denoted by 𝜃 𝑇 and 𝜃 𝑆 ,respectively, with only the frozen foundation embeddings and the projector 𝑓 proj being shared between the two. 
+
+## 4.4 Teacher: Mobility-Aware Relational Encoding 
+
+When inter-region mobility flows are observed, we derive the re-lational context directly from the mobility graph. We refer to this mobility-aware instantiation as the teacher because its induced modulation later supervises the graph-free student. Because mobility is naturally defined over region pairs rather than individual regions, we adopt an edge-centric encoder that ex-plicitly updates relation states before aggregating them into region-level mobility contexts, as shown in Fig. 2(b). 
+
+4.4.1 Edge-Centric Mobility Encoding. Human mobility is naturally observed on region pairs rather than on individual regions. For each mobility edge (𝑟 𝑖 , 𝑟 𝑗 ) ∈ E 𝑚 , let a𝑚 𝑖 𝑗 denote its edge attributes, including within-city standardized flow strength and geographic distance. We first map these attributes into a hidden relation state 
+
+e(0) 
+
+> 𝑖 𝑗
+
+= 𝑓 edge (a𝑚 𝑖 𝑗 ). (6) The mobility encoder then applies 𝐿 edge-centric message-passing layers. At layer ℓ, each region summarizes its incident relation states into a relational profile 
+
+h(ℓ ) 
+
+> 𝑖
+
+= Agg 
+
+n 
+
+e(ℓ −1) 
+
+> 𝑗𝑖
+
+: (𝑟 𝑗 , 𝑟 𝑖 ) ∈ E 𝑚 
+
+o 
+
+, (7) where Agg is mean pooling in our implementation, and h(ℓ ) 
+
+> 𝑖
+
+is set to the zero vector for regions with no incoming edges. Each edge state is then updated using the relational profiles of both endpoints and its previous state 
+
+e(ℓ ) 
+
+> 𝑖 𝑗
+
+= e(ℓ −1) 
+
+> 𝑖 𝑗
+
++ 𝑓 (ℓ )
+
+> upd
+
+
+
+h(ℓ ) 
+
+> 𝑖
+
+∥h(ℓ ) 
+
+> 𝑗
+
+∥e(ℓ −1)
+
+> 𝑖 𝑗
+
+
+
+, (8) MoRAX: Mobility-based Representation Augmentation for Geospatial Foundation Models Mobility graph  Mobility encoder  
+
+> Modulation
+> head
+> Shared GFM base
+> Scale Shift
+
+Feature-wise modulation 
+
+> Teacher
+> output
+
+b) Mobility-aware Teacher 
+
+c) Mobility-free Student 
+
+Pairwise input  
+
+> 𝑠 𝑖 𝑠 𝑗
+> Geographic distances
+
+Pairwise  relation encoder 
+
+> Modulation
+> head
+
+Feature-wise modulation     
+
+> Shared GFM base
+> Shift Scale
+> Student
+> output
+> Distillation loss
+> 𝑟 1𝑟 1
+> 𝑟 3𝑟 N
+> 𝑟 2
+> 𝑟 4
+> Layered message passing Node-level
+> exchange profile
+> 𝑟 1
+> 𝑟 2
+> 𝑟 𝑁
+> …
+> L profiles per node
+> 𝑑 𝑖𝑗
+> For each pair ( 𝑟 𝑖 , 𝑟 𝑗 )
+> 1-hop 2-hop L-hop
+> From pair tokens
+> For all ordered pairs
+> Encoded pairwise
+> Relation vectors
+> Pair
+> encoder
+> Shared across
+> all pairs
+
+a) Shared Geospatial Foundation Base 
+
+> Pretrained geospatial foundation model (GFM)
+> Shared geospatial semantic space
+
+v
+
+> Regions
+
+Regions          
+
+> 𝑟 1, 𝑟 2s1s2𝑑 12
+> 𝑟 1, 𝑟 3s1s3𝑑 13
+> 𝑟 1, 𝑟 𝑖 s1s𝑖 𝑑 1𝑖
+> …
+> …
+> Pretrained geospatial foundation model (GFM)
+> （e.g., AlphaEarth)
+
+Geospatial semantic space 
+
+> Frozen and shared for
+> teacher and student
+
+Figure 2: The MoRAX architecture. (a) A frozen geospatial foundation model provides a shared semantic base in which pretrained region embeddings are projected into a common representation space used by both teacher and student. (b) The mobility-aware teacher encodes the observed mobility graph with an edge-centric message passing encoder and generates feature-wise scale and shift parameters that modulate the shared base. (c) The mobility-free student approximates this modulation from pairwise geospatial embeddings and inter-region distances alone, trained by distilling the teacher’s mobility-induced modulation. where ∥ denotes vector concatenation and 𝑓 (ℓ )
+
+upd is a layer-specific MLP. Since the readout below consumes only the relational profiles, the edge update is omitted at the final layer ℓ = 𝐿 .Finally, the mobility context of region 𝑟 𝑖 is read out from the relational profiles across all layers 
+
+z𝑚 𝑖 = 𝑓 read 
+
+
+
+h(1)
+
+𝑖 ∥ · · · ∥ h(𝐿 )
+
+𝑖 
+
+
+
+∈ R𝑑 . (9) Since z𝑚 𝑖 is constructed from explicitly updated relation states, it summarizes the multi-layer relational profile associated with region 𝑟 𝑖 , rather than merely smoothing neighboring node features. The resulting mobility context serves as the teacher-side relational conditioning signal, z𝑟,𝑇 𝑖 = z𝑚 𝑖 .The teacher then applies the modulation operator defined in Eq. (4) 
+
+zmod ,𝑇 𝑖 = M𝜃 𝑇 
+
+
+
+z0
+
+𝑖 , z𝑟,𝑇 𝑖 
+
+
+
+, z𝑇 𝑖 = z0
+
+𝑖 + zmod ,𝑇 𝑖 . (10) The teacher thus uses observed city-wide interactions to rein-terpret the foundation representation while retaining its original geospatial content. Its computation, however, requires access to the target-city mobility graph. We therefore introduce a graph-free student that approximates the teacher-induced modulation from inputs available without mobility observations. 
+
+## 4.5 Student: Graph-Free Modulation Approximation 
+
+As shown in Fig. 2(c), the student does not attempt to reconstruct the target mobility graph. Instead, it learns to approximate how the mobility-aware teacher reshapes each region representation. It operates on the same projected foundation representation as the teacher but infers its relational context from pairwise geospatial embeddings and inter-region geographic information. 
+
+4.5.1 Geospatial Pair Relation Encoder. For an anchor region 𝑟 𝑖 and a candidate partner 𝑟 𝑗 , where 𝑗 ≠ 𝑖 , we construct the pair attribute 
+
+a𝑝 𝑖 𝑗 = s𝑖 ∥ s𝑗 ∥ 𝑑 𝑖 𝑗 
+
+ , (11) where s𝑖 and s𝑗 are the pretrained GFM embeddings of the two regions, and 𝑑 𝑖 𝑗 is their geographic distance standardized within the city. A shared pair encoder maps each pair attribute into a latent relation representation 
+
+e𝑆 𝑖 𝑗 = 𝑓 pair 
+
+
+
+a𝑝 𝑖 𝑗 
+
+
+
+∈ R𝑑 . (12) For each anchor region, the student aggregates the relation rep-resentations of all candidate partners 
+
+z𝑝 𝑖 = 1
+
+𝑁 − 1∑︁ 𝑗 ≠𝑖 
+
+e𝑆 𝑖 𝑗 , (13) The pair encoder captures the geospatial relation between the anchor and each candidate region, while mean pooling produces a permutation-invariant summary over the city. This aggregated representation serves as the student-side relational conditioning signal, z𝑟,𝑆 𝑖 = z𝑝 𝑖 .Ya Wen et al. 
+
+The student applies the same modulation form with indepen-dently learned parameters 
+
+zmod ,𝑆 𝑖 = M𝜃 𝑆 
+
+
+
+z0 
+
+> 𝑖
+
+, z𝑟,𝑆 𝑖 
+
+
+
+, z𝑆 𝑖 = z0 
+
+> 𝑖
+
++ zmod ,𝑆 𝑖 . (14) 
+
+## 4.6 Training Objectives 
+
+We train MoRAX in two stages. The teacher is first optimized on source-city mobility graphs so that observed interaction structure is encoded into both the mobility context and the final adapted representation. The teacher is then frozen, and its mobility-induced modulation supervises the graph-free student. 
+
+4.6.1 Teacher Training. The teacher is trained using self-supervision derived from observed mobility relations. The objective is applied both to the mobility context and to the final teacher representation. 
+
+Mobility Relation Loss. For each anchor region 𝑟 𝑖 , we construct a candidate set C𝑖 = P𝑖 ∪ N 𝑖 , where P𝑖 contains all regions with observed mobility interactions from 𝑟 𝑖 , and N𝑖 contains distance-stratified sampled non-neighbors. Positive candidates are assigned flow-normalized soft targets 
+
+𝑞 𝑖 𝑗 = 𝑤 𝑖 𝑗 
+
+Í𝑟 𝑘 ∈ P 𝑖 𝑤 𝑖𝑘 
+
+, 𝑟 𝑗 ∈ P 𝑖 , (15) while negative candidates receive zero target mass 𝑞 𝑖 𝑗 = 0. Given a region representation u𝑖 , a level-specific pair scorer 𝜓 𝑢 predicts a logit for each candidate 
+
+𝑠 𝑢 𝑖 𝑗 = 𝜓 𝑢 
+
+ [u𝑖 ∥u𝑗 ] , 𝑝 𝑢 𝑖 𝑗 = exp (𝑠 𝑢 𝑖 𝑗 )
+
+Í𝑟 𝑘 ∈ C 𝑖 exp (𝑠 𝑢 𝑖𝑘 ) . (16) The mobility relation loss is the soft-target cross entropy 
+
+Lmrel (u) = − 1
+
+|A| ∑︁ 𝑟 𝑖 ∈ A ∑︁ 𝑟 𝑗 ∈ C 𝑖 
+
+𝑞 𝑖 𝑗 log 𝑝 𝑢 𝑖 𝑗 , (17) where A denotes anchors with at least one observed positive inter-action. We apply this objective at two levels. First, L𝑚  
+
+> mrel
+
+= Lmrel (z𝑚 ) di-rectly supervises the mobility encoder. Second, L𝑇  
+
+> mrel
+
+= Lmrel (𝑔 𝑇 (z𝑇 )) 
+
+applies the same supervision to a relation-head projection of the final teacher representation, where 𝑔 𝑇 is a lightweight MLP head, to preserve mobility-derived interaction structure. The overall teacher objective is then as follows 
+
+L𝑇 = L𝑚  
+
+> mrel
+
++ 𝜆 𝑇 L𝑇 
+
+> mrel
+
+, (18) where 𝜆 𝑇 controls the contribution of the representation-level rela-tion objective. Note that the teacher objective is purely relational, since the underlying geospatial semantics are preserved architec-turally, through the frozen foundation embeddings and the additive formulation of Eq. (5), rather than through an explicit grounding term as in the student objective below. 
+
+4.6.2 Student Training. The student learns to approximate the mobility-conditioned modulation generated by the teacher. 
+
+Distillation of relation-induced modulation. We align the student modulated features with the detached teacher features 
+
+Lmod = 1
+
+𝑁 
+
+> 𝑁
+
+∑︁ 
+
+> 𝑖 =1
+
+zmod ,𝑆 𝑖 − zmod ,𝑇 𝑖  
+
+> 22
+
+. (19) To keep the student representation anchored to the pretrained GFM semantic space, we use a lightweight decoder Dec 𝑆 to reconstruct the original foundation embedding 
+
+L𝑆  
+
+> field
+
+= 1
+
+𝑁 
+
+> 𝑁
+
+∑︁ 
+
+> 𝑖 =1
+
+Dec 𝑆 
+
+
+
+z𝑆 𝑖 
+
+
+
+− s𝑖  
+
+> 22
+
+. (20) The overall student objective is 
+
+L𝑆 = 𝛼 mod Lmod + L 𝑆 
+
+> field
+
+, (21) where 𝛼 mod controls the weight of the modulation distillation term. 
+
+## 5 Experiments 5.1 Experimental Setup 
+
+Datasets. We collect data from seven Chinese cities. Five cities, Beijing, Shenzhen, Hangzhou, Nanjing, and Suzhou, serve as source cities for pretraining, while Shanghai (SH) and Guangzhou (GZ) 
+
+are held out for zero-shot transfer evaluation. We further include 
+
+New York City (NYC) and Chicago (CHI) to assess cross-country transfer. We use AlphaEarth embeddings as the EO-based geospa-tial foundation representation in the main experiments. We adopt hexagonal H3 grids [35] at Level 7 for region discretization for Shanghai and Guangzhou, with each cell covering approximately 5.16 km 2, offering a spatial granularity suitable for city-level mod-eling. For NYC and CHI, administrative boundaries (i.e., census tracts) are adopted for region construction. We detail the training and downstream data collection and processing in Appendix C. 
+
+Implementation Details. MoRAX is trained in two stages. We first train the teacher on the 5 source cities with observed mobility graphs, and then freeze the teacher to train the student on the same source cities. Both stages use AdamW, with learning rates 3 × 10 −4 and 1 × 10 −4 for the teacher and student, respectively, and weight decay 1 × 10 −2. The hidden dimension is 𝑑 = 128, the mobility encoder uses 𝐿 = 3 message-passing layers, and the loss weights are 𝜆 𝑇 = 0.5 and 𝛼 mod = 0.25. For each anchor region, N𝑖 
+
+contains up to 24 negatives sampled with distance stratification: non-neighbor regions are divided into three distance-quantile bins according to their distance to 𝑟 𝑖 , and up to eight negatives are sampled from each bin. 
+
+Evaluation Procedure. We evaluate two deployment regimes, corresponding to the teacher and student encoders introduced in Sec. 4. In the mobility-available regime, the pretrained teacher 𝑓 𝑇 
+
+is directly applied to a held-out target city using that city’s own mobility graph, without any target-city fine-tuning. In the mobility-free regime, the pretrained student 𝑓 𝑆 is applied to the same held-out city using only widely available region signals, without observing the target city’s mobility graph. We consider four downstream prediction tasks for Shanghai and Guangzhou: crime, nighttime light intensity, carbon emissions, and PM 2.5 concentration. For New York City and Chicago, we evaluate crime, check-in counts, house prices, and income levels. For each downstream task, we train a lightweight Ridge regressor on the tar-get city and evaluate it with five-fold cross-validation over regions. We report the coefficient of determination, 𝑅 2, as the main metric. 
+
+Baselines. We select state-of-the-art urban region representa-tion methods that are compatible with city-agnostic transfer as base-lines, including HREP [48], FlexiReg [32], and UrbanCLIP [43]. MoRAX: Mobility-based Representation Augmentation for Geospatial Foundation Models 
+
+Table 1: Comparison of model performance on cross-city and cross-country transfer. Results are reported as 𝑅 2. The best result for each task is shown in bold and the second best is underlined. Δ denotes the relative improvement over the strongest non-MoRAX baseline for each task. Standard deviations over 10 random seeds are reported in parentheses (RemoteCLIP and AlphaEarth embeddings are deterministic and therefore reported without variance). 
+
+Model Shanghai Guangzhou Crime NTL CO 2 PM 2.5 Crime NTL CO 2 PM 2.5
+
+RemoteCLIP 0.494 0.636 0.449 0.397 0.524 0.611 0.433 0.346 AlphaEarth 0.548 0.638 0.508 0.506 0.672 0.694 0.466 0.430 FlexiReg 0.192(0.037) 0.237(0.040) 0.228(0.038) 0.281(0.050) 0.209(0.052) 0.225(0.060) 0.257(0.058) 0.399(0.079) HREP 0.268(0.014) 0.361(0.027) 0.323(0.006) 0.592(0.044) 0.367(0.025) 0.415(0.036) 0.355(0.027) 0.640(0.035) UrbanCLIP 0.519(0.007) 0.642(0.004) 0.418(0.001) 0.287(0.017) 0.563(0.008) 0.633(0.008) 0.369(0.024) 0.281(0.019) MoRAX-Student 0.569(0.008) 0.774(0.002) 0.659(0.002) 0.915(0.001) 0.725(0.017) 0.797(0.018) 0.702(0.012) 0.929(0.005) Student Δ +3.8% +20 .6% +29 .7% +54 .6% +7.9% +14 .8% +50 .6% +45 .2% 
+
+MoRAX-Teacher 0.618(0.005) 0.777(0.010) 0.649(0.004) 0.917(0.002) 0.727(0.005) 0.803(0.007) 0.696(0.004) 0.943(0.002) 
+
+Teacher Δ +12 .8% +21 .0% +27 .8% +54 .9% +8.2% +15 .7% +49 .4% +47 .3% 
+
+Model NYC Chicago Crime Check-in House Income Crime Check-in House Income RemoteCLIP 0.168 0.341 0.232 0.271 0.012 0.243 0.188 0.113 AlphaEarth 0.179 0.464 0.222 0.277 0.050 0.246 0.208 0.108 FlexiReg 0.176(0.043) 0.256(0.078) 0.179(0.055) 0.209(0.044) 0.174(0.086) 0.233(0.061) 0.307(0.093) 0.235(0.100) HREP 0.421(0.039) 0.564(0.042) 0.419(0.049) 0.518(0.027) 0.382(0.052) 0.610(0.053) 0.625(0.047) 0.455(0.060) UrbanCLIP 0.150(0.033) 0.318(0.038) 0.111(0.018) 0.149(0.026) 0.066(0.021) 0.205(0.054) 0.163(0.048) 0.106(0.037) MoRAX-Student 0.404(0.013) 0.588(0.013) 0.466(0.034) 0.530(0.022) 0.367(0.030) 0.570(0.040) 0.715(0.014) 0.502(0.024) Student Δ −4.0% +4.3% +11 .2% +2.3% −3.9% −6.6% +14 .4% +10 .3% 
+
+MoRAX-Teacher 0.520(0.035) 0.825(0.020) 0.469(0.064) 0.542(0.039) 0.662(0.050) 0.859(0.021) 0.809(0.051) 0.622(0.051) 
+
+Teacher Δ +23 .5% +46 .3% +11 .9% +4.6% +73 .3% +40 .8% +29 .4% +36 .7% 
+
+For each method, we train on the five source cities and directly apply the learned model to the four test cities, reporting the average transfer performance across source-city runs. We further include two pretrained geospatial foundation mod-els as training-free baselines. RemoteCLIP [22] directly encodes satellite imagery from the target cities, whereas AlphaEarth [3] provides a pretrained geospatial embedding for each target region, retrieved according to its geographic location and spatial extent. 
+
+## 5.2 Performance Comparison 
+
+Table 1 reports cross-city transfer results on four held-out cities, covering both within-country and cross-country settings. Overall, MoRAX-Teacher consistently outperforms pretrained foundation embeddings and existing urban representation baselines, achieving relative gains of up to 54 .9% in the within-country setting and 73 .3% in the cross-country setting. Pretrained geospatial embeddings, particularly AlphaEarth, per-form strongly in the Chinese target cities, where tasks such as CO 2 prediction are closely associated with spatially continuous physical and environmental patterns that Earth-observation-based foundations can capture. Their advantage is less consistent in the U.S. cities, where the prediction targets depend more strongly on human activity and inter-region interactions and are therefore less directly recoverable from Earth-observation signals alone. This con-trast highlights the need to complement Earth-observation-based foundation embeddings with relational knowledge. Built on frozen AlphaEarth embeddings, MoRAX-Teacher in-creases the average 𝑅 2 from 0 .558 to 0 .766 in the within-country setting and from 0 .219 to 0 .663 in the cross-country setting, corre-sponding to relative gains of 37 .4% and 202 .6%, respectively. Impor-tantly, these gains are not confined to tasks for which the under-lying foundation representation is weak. Even when AlphaEarth already performs strongly, as in NTL prediction for Shanghai and Guangzhou, relational adaptation yields further improvements. This suggests that mobility contributes complementary functional structure rather than merely compensating for deficiencies in the base representation. Overall, mobility conditioned modulation en-ables MoRAX to enrich geospatial foundation representations with interaction-aware information while preserving their observation-derived semantics. MoRAX-Student further shows that a substantial portion of the mobility-induced modulation can be transferred to a graph-free encoder through distillation. On spatially smooth tasks, the stu-dent closely matches the teacher and occasionally performs slightly better. In contrast, the larger teacher–student gaps on crime and Ya Wen et al. 
+
+check-in prediction suggest that some fine-grained human inter-action patterns remain difficult to recover without direct access to the target city’s mobility graph. Nevertheless, MoRAX-Student improves over AlphaEarth by an average of 36 .0% in the within-country setting and 136 .1% in the cross-country setting. It also outperforms most urban region representation baselines despite its lightweight, graph-free design. The main exception is HREP on several interaction-intensive U.S. tasks, where human mobility is used directly as an input. 
+
+## 5.3 Cross-Country Transfer 
+
+We further complement the cross-country evaluation with a bidirec-tional transfer analysis. In addition to transferring models trained on the five Chinese source cities to New York City and Chicago, we reverse the direction by training MoRAX on the two U.S. cities and directly applying it to the held-out Chinese cities. As shown 
+
+Table 2: Cross-country transfer results ( 𝑅 2). (a) Transfer to held-out Chinese cities Target Source Encoder Crime NTL CO 2 PM 2.5
+
+SH – AlphaEarth 0.548 0.638 0.508 0.506 5 CN Student 0.569 0.774 0.659 0.915 Teacher 0.618 0.777 0.649 0.917 NYC+CHI Student 0.585 0.789 0.615 0.829 Teacher 0.625 0.785 0.597 0.824 GZ – AlphaEarth 0.672 0.694 0.466 0.430 5 CN Student 0.725 0.797 0.702 0.929 Teacher 0.727 0.803 0.696 0.943 NYC+CHI Student 0.736 0.843 0.565 0.818 Teacher 0.742 0.849 0.541 0.782 
+
+(b) Transfer to U.S. cities Target Source Encoder Crime Check-in House Income                                               
+
+> NYC –AlphaEarth 0.179 0.464 0.222 0.277 5 CN Student 0.404 0.588 0.466 0.530 Teacher 0.520 0.825 0.469 0.542 CHI Student 0.349 0.537 0.402 0.536 Teacher 0.422 0.752 0.410 0.541 CHI –AlphaEarth 0.050 0.246 0.208 0.108 5 CN Student 0.367 0.570 0.715 0.502 Teacher 0.662 0.859 0.809 0.622 NYC Student 0.453 0.517 0.651 0.425 Teacher 0.476 0.856 0.700 0.525
+
+in Table 2(a), training on the five Chinese cities or on the two U.S. cities leads to broadly comparable performance in Shanghai and Guangzhou. More importantly, both source configurations yield consistent improvements over the unadapted AlphaEarth em-beddings across all tasks for both the student and teacher. This suggests that mobility-conditioned modulation captures relational regularities that can transfer across countries, rather than merely memorizing interaction patterns specific to the source cities. Interestingly, for transfer to New York City and Chicago, training on the five Chinese cities generally performs better than training on the other U.S. city (See Table 2 (b)), despite the latter being geographically and institutionally closer to the target. Averaged across the student and teacher variants, the five-city Chinese source 
+
+Table 3: Performance applying MoRAX to RemoteCLIP ( 𝑅 2). 
+
+Δ denotes the relative improvement over RemoteCLIP.                                                  
+
+> City Model Crime NTL CO 2PM 2.5
+> SH RemoteCLIP 0.494 0.636 0.449 0.397 MoRAX-Student 0.532 0.716 0.632 0.874 Student Δ+7.7% +12.6% +40.8% +120.2% MoRAX-Teacher 0.596 0.739 0.623 0.884 Teacher Δ+20.6% +16.2% +38.8% +122.7% GZ RemoteCLIP 0.524 0.611 0.433 0.346 MoRAX-Student 0.655 0.748 0.687 0.895 Student Δ+25.0% +22.4% +58.7% +158.7% MoRAX-Teacher 0.702 0.801 0.635 0.931 Teacher Δ+34.0% +31.1% +46.7% +169.1%
+
+set improves the mean 𝑅 2 from 0 .535 to 0 .591, corresponding to a relative gain of 10 .4%, and achieves higher performance in 14 of the 16 model–task comparisons. This result suggests that source diversity may be more important than geographic proximity alone. The five Chinese cities expose the model to a broader range of urban forms and interaction patterns, which may support a more robust and transferable modulation rule, whereas training on a single source city is more susceptible to city-specific regularities. 
+
+## 5.4 Generalization Across Geospatial Foundations 
+
+Table 3 evaluates whether MoRAX generalizes beyond AlphaEarth by applying the same adaptation framework to RemoteCLIP, a satellite-based vision-language foundation model. Across Shanghai and Guangzhou, both MoRAX variants consistently improve the original RemoteCLIP representations on all four downstream tasks. To accommodate the independently encoded region images pro-duced by RemoteCLIP, we first transform them into a spatially continuous visual field using parameter-free heat diffusion, as de-scribed in Appendix A. We then apply the same relational modula-tion framework used for the AlphaEarth-derived geospatial field. The consistent gains across these two substantially different foun-dation representations suggest that MoRAX provides a general interface for relational adaptation across geospatial backbones. Its improvements arise from injecting city-wide interaction structure into a spatially aligned region field, rather than from properties specific to the underlying geospatial encoder. Additional ablations in Appendix B further show that constructing a coherent semantic field is important for effective modulation. 
+
+## 5.5 Ablation Study 
+
+We conduct ablation studies on Shanghai to isolate the contribution of each component in MoRAX. For the teacher, w/o modulation 
+
+directly uses the original AlphaEarth embedding without mobility-induced reshaping; w/o relation removes mobility-relation super-vision and replaces it with geospatial reconstruction; w/o founda-tion removes the geospatial foundation and trains only the mobility encoder. For the student, w/o distillation trains the student di-rectly from observed mobility relations without teacher supervision while w/o modulation alignment removes the objective aligning the student with the teacher’s mobility-induced modulation. MoRAX: Mobility-based Representation Augmentation for Geospatial Foundation Models 
+
+Figure 3: Ablation study on Shanghai ( 𝑅 2). Blue bars ablate the teacher by removing the modulation, the mobility-relation supervi-sion, or the geospatial foundation. Purple bars ablate the student by training directly on mobility relations without the teacher (w/o distill.) or removing modulation alignment (w/o mod. align). The complete teacher and student match or exceed every ablated variant on all four tasks. As shown in Figure 3, the gap between the mobility-only variant (w/o foundation) and the teacher indicates that mobility provides useful relational information but benefits from the stable semantic base of the geospatial foundation. Removing relation supervision also degrades the teacher, showing that reconstructing the original AlphaEarth embeddings alone is insufficient to learn meaningful modulation. For the student, both direct training and removing mod-ulation alignment reduce performance on most tasks, suggesting that teacher supervision helps transfer the mobility-induced adapta-tion rather than only providing another embedding target. Overall, the ablation results support the central design of MoRAX: a shared geospatial foundation provides transferable semantics, mobility-relation learning injects functional context through feature-wise modulation, and distillation transfers this adaptation to the graph-free student. 
+
+## 6 Conclusion 
+
+We presented MoRAX, a framework that learns transferable urban region representations by using mobility to modulate a shared geospatial foundation. The key idea is that foundation embeddings provide a stable cross-city semantic base, but Earth-observation alone is not sufficient for urban understanding. MoRAX therefore treats mobility as relational context that reshapes the functional interpretation of geospatial foundation embeddings. MoRAX further enables graph-free transfer by distilling the mod-ulation process itself into a student that relies only on widely avail-able proxy signals (e.g. pairwise distances). Across Chinese and U.S. cities, MoRAX consistently improves over pretrained geospatial embeddings and existing urban representation baselines. It further demonstrates the generalizability across foundation model back-bones and across countries, strengthening the foundation backbone along a human-centric dimension. More broadly, this work sug-gests a shift in how relational signals can be incorporated into the growing ecosystem of pretrained foundation models. Ya Wen et al. 
+
+## References 
+
+[1] Mohit Agarwal, Mimi Sun, Chaitanya Kamath, Arbaaz Muslim, Prithul Sarker, Joydeep Paul, Hector Yee, Marcin Sieniek, Kim Jablonski, Swapnil Vispute, et al. 2024. General geospatial inference with a population dynamics foundation model. 
+
+arXiv preprint arXiv:2411.07207 (2024). [2] Pasquale Balsebre, Weiming Huang, Gao Cong, and Yi Li. 2024. City foundation models for learning general purpose representations from openstreetmap. In 
+
+Proceedings of the 33rd ACM international conference on information and knowledge management . 87–97. [3] Christopher F Brown, Michal R Kazmierski, Valerie J Pasquarella, William J Rucklidge, Masha Samsikova, Chenhui Zhang, Evan Shelhamer, Estefania Lahera, Olivia Wiles, Simon Ilyushchenko, et al. 2025. AlphaEarth foundations: An embedding field model for accurate and efficient global mapping from sparse label data. arXiv preprint arXiv:2507.22291 (2025). [4] Yile Chen, Weiming Huang, Kaiqi Zhao, Yue Jiang, and Gao Cong. 2025. Self-supervised representation learning for geospatial objects: A survey. Information Fusion 123 (2025), 103265. [5] City of Chicago. 2024. Chicago Data Portal. https://data.cityofchicago.org/. Accessed: 2024-08-20. [6] City of Chicago. 2024. Transportation Network Providers - Trips (2018 -2022). https://data.cityofchicago.org/Transportation/Transportation-Network-Providers-Trips-2018-2022-/m6dm-c72p/about_data. Accessed: 2024-08-20. [7] NYC Taxi & Limousine Commission. 2024. TLC Trip Record Data. https://www. nyc.gov/site/tlc/about/tlc-trip-record-data.page. Accessed: 2024-08-20. [8] Yezhen Cong, Samar Khanna, Chenlin Meng, Patrick Liu, Erik Rozi, Yutong He, Marshall Burke, David B Lobell, and Stefano Ermon. 2022. SatMAE: Pre-training transformers for temporal and multi-spectral satellite imagery. In Advances in Neural Information Processing Systems , Vol. 35. 197–211. [9] Prafulla Dhariwal and Alex Nichol. 2021. Diffusion models beat GANs on image synthesis. In Proceedings of the 35th International Conference on Neural Informa-tion Processing Systems (NeurIPS ’21) . Curran Associates Inc., Red Hook, NY, USA, Article 672, 15 pages. [10] Christopher D Elvidge, Kimberly Baugh, Mikhail Zhizhin, Feng Chi Hsu, and Tilottama Ghosh. 2017. VIIRS night-time lights. International journal of remote sensing 38, 21 (2017), 5860–5879. [11] Zhengpeng Feng, Clement Atzberger, Sadiq Jaffer, Jovana Knezevic, Silja Sor-munen, Robin Young, Madeline C Lisaius, Markus Immitzer, Toby Jackson, James Ball, et al. 2026. TESSERA: Temporal embeddings of surface spectra for earth rep-resentation and analysis. In Proceedings of the IEEE/CVF Conference on Computer Vision and Pattern Recognition . 34818–34831. [12] Yunfan Gao, Yun Xiong, Siqi Wang, and Haofen Wang. 2022. GeoBERT: Pre-training geospatial representation learning on point-of-interest. Applied Sciences 
+
+12, 24 (2022), 12942. [13] Noel Gorelick, Matt Hancher, Mike Dixon, Simon Ilyushchenko, David Thau, and Rebecca Moore. 2017. Google Earth Engine: Planetary-scale geospatial analysis for everyone. Remote Sensing of Environment 202 (2017), 18–27. [14] Arthur E Hoerl and Robert W Kennard. 1970. Ridge regression: applications to nonorthogonal problems. Technometrics 12, 1 (1970), 69–82. [15] Neil Houlsby, Andrei Giurgiu, Stanislaw Jastrzebski, Bruna Morrone, Quentin De Laroussilhe, Andrea Gesmundo, Mona Attariyan, and Sylvain Gelly. 2019. Parameter-Efficient Transfer Learning for NLP. In Proceedings of the 36th In-ternational Conference on Machine Learning (Proceedings of Machine Learning Research, Vol. 97) , Kamalika Chaudhuri and Ruslan Salakhutdinov (Eds.). PMLR, 2790–2799. https://proceedings.mlr.press/v97/houlsby19a.html [16] Edward J Hu, Yelong Shen, Phillip Wallis, Zeyuan Allen-Zhu, Yuanzhi Li, Shean Wang, Lu Wang, and Weizhu Chen. 2022. LoRA: Low-rank adaptation of large language models. In International Conference on Learning Representations .[17] Weiming Huang, Daokun Zhang, Gengchen Mai, Xu Guo, and Lizhen Cui. 2023. Learning urban region representations with POIs and hierarchical graph infomax. 
+
+ISPRS Journal of Photogrammetry and Remote Sensing 196 (2023), 134–145. [18] Xun Huang and Serge Belongie. 2017. Arbitrary Style Transfer in Real-time with Adaptive Instance Normalization. In ICCV .[19] Konstantin Klemmer, Esther Rolf, Caleb Robinson, Lester Mackey, and Marc Rußwurm. 2025. SatCLIP: Global, general-purpose location embeddings with satellite imagery. In Proceedings of the AAAI Conference on Artificial Intelligence ,Vol. 39. 4347–4355. [20] Brian Lester, Rami Al-Rfou, and Noah Constant. 2021. The Power of Scale for Parameter-Efficient Prompt Tuning. In Proceedings of the 2021 Conference on Empirical Methods in Natural Language Processing , Marie-Francine Moens, Xuanjing Huang, Lucia Specia, and Scott Wen-tau Yih (Eds.). Association for Computational Linguistics, Online and Punta Cana, Dominican Republic, 3045– 3059. doi:10.18653/v1/2021.emnlp-main.243 [21] Zechen Li, Weiming Huang, Kai Zhao, Min Yang, Yongshun Gong, and Meng Chen. 2024. Urban region embedding via multi-view contrastive prediction. In 
+
+Proceedings of the AAAI Conference on Artificial Intelligence , Vol. 38. 8724–8732. [22] Fan Liu, Delong Chen, Zhangqingyun Guan, Xiaocong Zhou, Jiale Zhu, Qiaolin Ye, Liyong Fu, and Jun Zhou. 2024. RemoteCLIP: A vision language foundation model for remote sensing. IEEE Transactions on Geoscience and Remote Sensing 
+
+62 (2024), 1–16. [23] Junyuan Liu, Quan Qin, Guangsheng Dong, Xinglei Wang, Jiazhuang Feng, Zichao Zeng, and Tao Cheng. 2025. Beyond AlphaEarth: Toward human-centered geospatial foundation models via POI-guided contrastive learning. arXiv preprint arXiv:2510.09894 (2025). [24] Yu Liu, Xin Zhang, Jingtao Ding, Yanxin Xi, and Yong Li. 2023. Knowledge-infused Contrastive Learning for Urban Imagery-based Socioeconomic Prediction. In 
+
+Proceedings of the ACM Web Conference 2023 (Austin, TX, USA) (WWW ’23) .Association for Computing Machinery, New York, NY, USA, 4150–4160. doi:10. 1145/3543507.3583876 [25] Massimiliano Luca, Gianni Barlacchi, Bruno Lepri, and Luca Pappalardo. 2021. A survey on deep learning for human mobility. Comput. Surveys 55, 1 (2021), 1–44. doi:10.1145/3485125 [26] Oscar Mañas, Alexandre Lacoste, Xavier Giró-i Nieto, David Vazquez, and Pau Rodríguez. 2021. Seasonal contrast: Unsupervised pre-training from uncurated remote sensing data. In Proceedings of the IEEE/CVF International Conference on Computer Vision .[27] NYC Department of Finance. 2024. Annualized Sales Update. https://www.nyc. gov/site/finance/property/property-annualized-sales-update.page. Accessed: 2024-08-20. [28] NYC Open Data. 2024. NYC Open Data. https://opendata.cityofnewyork.us/. Accessed: 2024-08-20. [29] Tomohiro Oda, Shamil Maksyutov, and Robert J Andres. 2018. The Open-source Data Inventory for Anthropogenic CO 2, version 2016 (ODIAC2016): A global monthly fossil fuel CO 2 gridded emissions data product for tracer transport simulations and surface flux inversions. Earth System Science Data 10, 1 (2018), 87–107. [30] Ethan Perez, Florian Strub, Harm De Vries, Vincent Dumoulin, and Aaron Courville. 2018. FiLM: Visual reasoning with a general conditioning layer. In 
+
+Proceedings of the AAAI conference on artificial intelligence , Vol. 32. [31] Esther Rolf, Jonathan Proctor, Tamma Carleton, Ian Bolliger, Vaishaal Shankar, Miyabi Ishihara, Benjamin Recht, and Solomon Hsiang. 2021. A generalizable and accessible approach to machine learning with global satellite imagery. Nature Communications 12, 1 (2021), 4392. [32] Fengze Sun, Yanchuan Chang, Egemen Tanin, Shanika Karunasekera, and Jianzhong Qi. 2025. FlexiReg: Flexible urban region representation learning. In Proceedings of the 31st ACM SIGKDD Conference on Knowledge Discovery and Data Mining V. 2 . 2702–2713. [33] Fengze Sun, Jianzhong Qi, Yanchuan Chang, Xiaoliang Fan, Shanika Karunasek-era, and Egemen Tanin. 2024. Urban region representation learning with attentive fusion. In 2024 IEEE 40th International Conference on Data Engineering (ICDE) .IEEE, 4409–4421. [34] Fengze Sun, Egemen Tanin, Shanika Karunasekera, Zuqing Li, Flora D Salim, and Jianzhong Qi. 2026. UrbanVerse: Learning urban region representation Across Cities and Tasks. arXiv preprint arXiv:2602.15750 (2026). [35] Uber Technologies, Inc. [n. d.]. H3: Hexagonal hierarchical geospatial indexing system. https://h3geo.org/. Accessed: 2025-05-04. [36] U.S. Census Bureau. 2024. United States Census Bureau Data. https://www. census.gov. Accessed: 2024-08-20. [37] Hongjian Wang and Zhenhui Li. 2017. Region Representation Learning via Mobility Flow. In Proceedings of the 2017 ACM on Conference on Information and Knowledge Management (Singapore, Singapore) (CIKM ’17) . Association for Computing Machinery, New York, NY, USA, 237–246. doi:10.1145/3132847. 3133006 [38] Jing Wei, Zhanqing Li, Maureen Cribb, Wei Huang, Wenhao Xue, Lin Sun, Jian-ping Guo, Yiran Peng, Jing Li, Alexei Lyapustin, et al. 2020. Improved 1 km resolution PM 2.5 estimates across China using enhanced space–time extremely randomized trees. Atmospheric Chemistry and Physics 20, 6 (2020), 3273–3289. [39] Jing Wei, Zhanqing Li, Alexei Lyapustin, Lin Sun, Yiran Peng, Wenhao Xue, Tianning Su, and Maureen Cribb. 2021. Reconstructing 1-km-resolution high-quality PM 2.5 data records from 2000 to 2018 in China: spatiotemporal variations and policy implications. Remote Sensing of Environment 252 (2021), 112136. [40] Ya Wen, Jixuan Cai, Qiyao Ma, Linyan Li, Xinhuan Chen, Chris Webster, and Yulun Zhou. 2026. MoRA: Mobility as the backbone for geospatial representa-tion learning at scale. In The Fourteenth International Conference on Learning Representations .[41] Ya Wen and Yulun Zhou. 2024. Demo2Vec: Learning region embedding with de-mographic information. In Proceedings of the 7th ACM SIGSPATIAL International Workshop on AI for Geographic Knowledge Discovery . 71–74. [42] Shangbin Wu, Xu Yan, Xiaoliang Fan, Shirui Pan, Shichao Zhu, Chuanpan Zheng, Ming Cheng, and Cheng Wang. 2022. Multi-graph fusion networks for urban region embedding. In Proceedings of the Thirty-First International Joint Conference on Artificial Intelligence, IJCAI-22 . 2312–2318. doi:10.24963/ijcai.2022/321 [43] Yibo Yan, Haomin Wen, Siru Zhong, Wei Chen, Haodong Chen, Qingsong Wen, Roger Zimmermann, and Yuxuan Liang. 2024. UrbanCLIP: Learning text-enhanced urban region profiling with contrastive language-image pretraining from the web. In Proceedings of the ACM Web Conference 2024 . 4006–4017. MoRAX: Mobility-based Representation Augmentation for Geospatial Foundation Models              
+
+> [44] Dingqi Yang, Daqing Zhang, and Bingqing Qu. 2016. Participatory Cultural Mapping Based on Collective Behavior Data in Location-Based Social Networks.
+> ACM Trans. Intell. Syst. Technol. 7, 3, Article 30 (jan 2016), 23 pages. [45] Xixian Yong and Xiao Zhou. 2024. MuseCL: Predicting urban socioeconomic indicators via multi-semantic contrastive learning. In Proceedings of the Thirty-Third International Joint Conference on Artificial Intelligence, IJCAI-24 . doi:10. 24963/ijcai.2024/834 [46] Weijia Zhang, Jindong Han, Zhao Xu, Hang Ni, Hao Liu, and Hui Xiong. 2024. Urban foundation models: A survey. In Proceedings of the 30th ACM SIGKDD Conference on Knowledge Discovery and Data Mining . 6633–6643. [47] Yan Zhang, Mei-Po Kwan, and Libo Fang. 2025. An LLM driven dataset on the spatiotemporal distributions of street and neighborhood crime in China.
+> Scientific Data 12, 1 (2025), 467. [48] Silin Zhou, Dan He, Lisi Chen, Shuo Shang, and Peng Han. 2023. Heterogeneous region embedding with prompt learning. In Proceedings of the AAAI conference on artificial intelligence , Vol. 37. 4981–4989. [49] Zillow Research. 2024. Zillow Research Data. https://www.zillow.com/research/ data/. Accessed: 2024-08-20.
+
+## A Constructing a Visual Field from RemoteCLIP 
+
+Unlike AlphaEarth, which directly provides a spatially contextu-alized geospatial embedding field, RemoteCLIP independently en-codes the satellite image associated with each urban region. Directly applying relational modulation to these isolated image embeddings provides no explicit spatial continuity across neighboring regions. We therefore apply a parameter-free heat diffusion operator before using RemoteCLIP as the field base of MoRAX. For each region 𝑟 𝑖 , a pretrained RemoteCLIP encoder produces an image embedding s𝑖 ∈ R𝑑 RC . Let S ∈ R𝑁 ×𝑑 RC denote the embedding matrix of all regions in a city. We construct a distance-weighted 
+
+𝐾 -nearest-neighbor graph ( 𝐾 = 8) over region centroids. The edge weight between neighboring regions is defined by an exponential decay of geographic distance. The graph is then symmetrized and row-normalized to obtain a transition matrix P.Let H = {0, 1, 2, 4} denote the retained diffusion orders. The spatially diffused embedding of region 𝑟 𝑖 is 
+
+es𝑖 =∑︁ 
+
+> ℎ∈ H
+
+𝑤 ℎ (𝑡 )
+
+
+
+Pℎ S
+
+ 
+
+> 𝑖
+
+, (22) where the diffusion weights follow a truncated and renormalized Poisson distribution with diffusion time 𝑡 = 2: 
+
+𝑤 ℎ (𝑡 ) = 𝑒 −𝑡 𝑡 ℎ /ℎ!
+
+Íℎ′ ∈ H 𝑒 −𝑡 𝑡 ℎ′ /ℎ′! . (23) We then project the diffused satellite embedding into the model hidden space as z0 
+
+> 𝑖
+
+= 𝑓 proj (es𝑖 ) ∈ R𝑑 . The resulting z0 
+
+> 𝑖
+
+serves as the RemoteCLIP-based visual field for both the teacher and student. Heat diffusion is used only to construct a spatially coherent field from independently encoded region images, while the subsequent mobility encoder, pairwise student encoder, modulation heads, and training objectives remain unchanged. 
+
+## B Importance of the Semantic Field 
+
+MoRAX assumes that relational context modulates a coherent region-level semantic field. To examine the importance of this field structure, we compare the complete RemoteCLIP-based model with a variant that applies the same teacher and student modulation mechanisms directly to isolated RemoteCLIP region embeddings, without heat diffusion. All other components and training settings are kept unchanged. 
+
+Table 4: Ablation on the RemoteCLIP-based semantic field. “w/ Field” applies heat diffusion before projection, whereas “w/o Field” directly projects isolated RemoteCLIP embed-dings. Results are reported in terms of 𝑅 2.
+
+Task Variant Target Cities GZ SH 
+
+Crime Student w/o Field 0.415 0.432 Student w/ Field 0.655 0.532 Teacher w/o Field 0.571 0.534 Teacher w/ Field 0.702 0.596 NTL Student w/o Field 0.572 0.628 Student w/ Field 0.748 0.716 Teacher w/o Field 0.651 0.639 Teacher w/ Field 0.801 0.739 CO 2
+
+Student w/o Field 0.237 0.449 Student w/ Field 0.687 0.632 Teacher w/o Field 0.267 0.491 Teacher w/ Field 0.635 0.623 PM 2.5
+
+Student w/o Field 0.345 0.384 Student w/ Field 0.895 0.874 Teacher w/o Field 0.776 0.690 Teacher w/ Field 0.931 0.884 
+
+As reported in Table 4, removing heat diffusion consistently and largely weakens both the teacher and student. This result indicates that relational modulation benefits from an aligned and spatially coherent base: the mobility or proxy context can then reinterpret an existing semantic field rather than independently modulating a set of disconnected image embeddings. 
+
+## C Datasets C.1 Training Datasets 
+
+Mobility graphs. For U.S. cities, we use publicly available ride-hailing trip records released by local transportation agencies. New York City mobility flows are constructed from the Taxi and Limou-sine Commission (TLC) trip record data [7], while Chicago mobility flows are constructed from the Transportation Network Providers (TNP) trip records released by the City of Chicago [6]. Both datasets provide origin–destination information, which we aggregate into region-level mobility graphs. For Chinese cities, mobility graphs are constructed by aggregating offline store-level transaction records from WeChat Pay (Tencent) into region-level interaction flows. 
+
+AlphaEarth embeddings. We use AlphaEarth embeddings as the geospatial foundation features in the main experiments. The embeddings are obtained from Google Earth Engine [13]. For each H3 region, we extract all 10-meter AlphaEarth embedding pixels within the region boundary and use their mean vector as the region-level representation. 
+
+## C.2 Downstream Tasks 
+
+Shanghai and Guangzhou. For crime datasets, we aggregate the original crime cases data from Zhang et al. [47] over a 5-year inter-val. Night-time light labels are derived by aggregating VIIRS radi-ance pixels within each H3 region. We remove invalid and negative Ya Wen et al. 
+
+pixels, compute region-level summary statistics, and use the log-transformed total radiance, log (1 + sum ), as the downstream NTL target [10]. Carbon emissions are derived from the ODIAC fossil-fuel CO2 emission dataset [29]. We use monthly 1 km ODIAC 2024 GeoTIFF rasters for 2021, aggregate pixel values within each H3 region across all months, and use the log-transformed annual sum. PM2.5 concentration is derived from the CHAP / ChinaHighPM2.5 1 km annual PM2.5 product [38, 39]. We use the 2021 NetCDF raster, aggregate valid raster pixels within each H3 region by their mean value. 
+
+NYC and CHI. Crime records are collected from NYPD [28] and the Chicago Police Department [5]. Check-in activity is obtained from Foursquare [44] and house price labels are derived from Zil-low [49] and NYC Department of Finance records [27]. We obtain regional income level data from the U.S. Census Bureau [36].
