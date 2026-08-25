@@ -6,32 +6,34 @@
 </div>
 
 ## 每次日报
-- 最新运行日期：2026-08-24
-- 运行时间：2026-08-24 20:45:10 UTC
+- 最新运行日期：2026-08-25
+- 运行时间：2026-08-25 21:01:47 UTC
 - 运行状态：成功
-- 本次总论文数：4
-- 精读区：1
+- 本次总论文数：3
+- 精读区：0
 - 速读区：3
 
 ### 今日简报（AI）
-今日精读多模态目标检测新方法，速读覆盖激光雷达配准、自然场景骨架检测与地理空间模型。最值得关注的是《SuppreSensing》提出的特征重校准与差异增强策略，显著提升多模态检测效果。建议下一步深入探索该方法的跨场景泛化能力。
-- 详情：[/202608/24/README](/202608/24/README)
+今日速读3篇论文，均聚焦遥感与多模态视觉前沿，涵盖目标检测、影像配准与超分辨率。
+
+最值得关注：多模态检测新框架与大型光学卫星影像自校准配准，二者均获7.0分，实用性强。
+
+下一步建议：若关注工程落地，可优先精读A2DINOv3，其在多源数据协同检测上更易迁移应用。
+- 详情：[/202608/25/README](/202608/25/README)
 
 ### 精读区论文标签
-1. [SuppreSensing: Expert-Guided Feature Recalibration and Discrepancy Augmentation for Multimodal Object Detection](/202608/24/2608.20944v1-suppresensing-expert-guided-feature-recalibration-and-discrepancy-augmentation-for-multimodal-object-detection)  
-   标签：评分：9.0/10、query:multi-modal
-   evidence：面向遥感多模态数据融合的专家引导特征重校准方法
+- 本次无精读推荐。
 
 ### 速读区论文标签
-1. [CVSD-Reg: Cross-Modal Visual Semantic Prior Distillation for Robust LiDAR Registration](/202608/24/2608.19536v1-cvsd-reg-cross-modal-visual-semantic-prior-distillation-for-robust-lidar-registration)  
+1. [A2DINOv3: Rethinking Multi-Modal Object Detection via Socialized Collaboration](/202608/25/2608.21099v1-a2dinov3-rethinking-multi-modal-object-detection-via-socialized-collaboration)  
    标签：评分：7.0/10、query:multi-modal
-   evidence：从视觉DINOv2到LiDAR的跨模态蒸馏，直接涉及不同传感器数据融合
-2. [Depth-Dominant Skeleton Detection for Natural Scenes](/202608/24/2608.16367v1-depth-dominant-skeleton-detection-for-natural-scenes)  
-   标签：评分：6.0/10、query:multi-modal
-   evidence：深度与RGB多模态融合，可迁移但非遥感领域
-3. [MoRAX: Mobility-based Representation Augmentation for Geospatial Foundation Models](/202608/24/2608.17848v1-morax-mobility-based-representation-augmentation-for-geospatial-foundation-models)  
-   标签：评分：6.0/10、query:multi-modal
-   evidence：利用移动数据增强地理空间基础模型，属于跨源融合，与多模态遥感数据融合相关
+   evidence：面向多模态融合的目标检测框架，可迁移至遥感数据融合
+2. [Self-Calibrating Dense Displacement Fields for Reliable Co-Registration of Large Optical Satellite Imagery](/202608/25/2608.22300v1-self-calibrating-dense-displacement-fields-for-reliable-co-registration-of-large-optical-satellite-imagery)  
+   标签：评分：7.0/10、query:multi-modal
+   evidence：自校准密集位移场实现多传感器光学卫星影像可靠配准
+3. [Interpretable Landsat-to-Hyperspectral Dual Super-Resolution Without Large Matrix Inversion](/202608/25/2608.22790v1-interpretable-landsat-to-hyperspectral-dual-super-resolution-without-large-matrix-inversion)  
+   标签：评分：7.0/10、query:multi-modal
+   evidence：将多光谱Landsat影像转换为高光谱数据，弥补遥感中缺失高光谱模态的问题
 
 
 <div class="dpr-home-promo-card">

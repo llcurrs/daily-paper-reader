@@ -1,0 +1,787 @@
+Title: Self-Calibrating Dense Displacement Fields for Reliable Co-Registration of Large Optical Satellite Imagery
+
+URL Source: https://arxiv.org/pdf/2608.22300v1
+
+Published Time: Tue, 25 Aug 2026 01:03:05 GMT
+
+Number of Pages: 20
+
+Markdown Content:
+> 1
+
+# Self-Calibrating Dense Displacement Fields for Reliable Co-Registration of Large Optical Satellite Imagery 
+
+Shoukun Sun, Zhe Wang, Sanaz Salati, Jiyin Zhang, Hui Wang, and Xiaogang Ma 
+
+Abstract —Co-registration underlies nearly every multi-temporal and multi-sensor use of optical satellite imagery, and operational products still carry documented offsets well above the fraction-of-a-pixel scale at which change detection, time series, and data fusion degrade. Real image pairs differ along several axes at once (sensor response, scene content, viewing geometry, resolution, mosaic seams), and the last of these is not a single global motion. Existing tools embed a motion model and constants tuned to their development data; a pair that fits is registered precisely, while one that does not either fails to match or returns a result wrong by tens of pixels with no failure reported. Learned matchers add a GPU requirement and carry no accuracy guarantee outside their training distribution. We present SCDF (self-calibrating displacement fields), a training-free, GPU-free estimator whose motion model is the dense per-pixel displacement field itself, so no scene motion falls outside the model. A single predict–measure– filter loop runs over a resolution pyramid: the accumulated field predicts where each patch of the moving image falls in the reference, RootSIFT matching and a correlation pass measure the displacement there to sub-pixel precision, and filters whose thresholds are all calibrated on the image pair itself decide what survives. One configuration, with no per-dataset tuning, processes full 8192 2 scenes on a single CPU core. On 584 constructed-ground-truth pairs built from real Sentinel-2, Landsat-8/9, and NAIP imagery, against seven classical baselines and two zero-shot pretrained matchers, SCDF registers every pair with zero failures, reduces the best baseline’s real-pair median end-point error from 6.83 to 4.17 m, and cuts its 90th percentile from 17.8 to 7.77 m. 
+
+Index Terms —Benchmark, co-registration, dense displacement field, evaluation protocol, image registration, Landsat, NAIP, reliability, Sentinel-2. 
+
+I. I NTRODUCTION 
+
+# OPTICAL satellite images of the same area, acquired at different times or by different sensors, do not land on a common ground grid: geolocation error, terrain correction, and inconsistent ground control each leave a geometric residual. Co-registration is the task of removing this residual by estimating the correction that brings a moving image into agreement with a reference , so that content at the same pixel position lies at the same point on the ground. Performed to sub-pixel accuracy, it is a prerequisite for most multi-temporal and multi-sensor analysis: change detection, time series of surface reflectance, data fusion, and mosaicking all degrade when 
+
+Shoukun Sun, Jiyin Zhang, and Xiaogang Ma are with the Department of Computer Science, University of Idaho, Moscow, ID 83844 USA (e-mail: ssun@uidaho.edu; jiyinz@uidaho.edu; max@uidaho.edu). Zhe Wang is with the National Center for Ecological Analysis and Synthesis (NCEAS), University of California, Santa Barbara, CA 93101 USA (e-mail: zwang@nceas.ucsb.edu). Sanaz Salati is with Research Computing and Data Services (RCDS), University of Idaho, Moscow, ID 83844 USA (e-mail: ssalati@idaho.edu). Hui Wang is with the Department of Geography and Planning, Appalachian State University, Boone, NC 28608 USA (e-mail: wangh4@appstate.edu). 
+
+(Corresponding author: Xiaogang Ma.) a real pair: S2↔S2 — arrives misaligned by a tilt      
+
+> left after GeFolki (worst block): 40% of pixels >50 m o ff
+> left after SCDF (ours): median 4.6 m
+> 1× (best) 10× 100× 1000× declined
+> block median EPE ÷ best method on that block
+> Ours
+> GeFolki AROSICS SIFT+RANSAC autoRIFT RIFT RIFT2
+> ≤1.39×
+> 5.3× 408× 554×
+> declined 6/20
+> 769× 783×
+> (d) worst case across all 20 real-pair blocks (○ = this pair)
+> grids: misalignment, exaggerated ×4
+
+Fig. 1. Misalignment drawn as a warped grid, exaggerated 4×. (a) A real Sentinel-2 pair arrives misaligned by a constructed viewing tilt. (b) What GeFolki, the baseline with the lowest real-pair median error, leaves behind at its worst benchmark block. (c) What SCDF leaves on the same pair. (d) Block-median error on the 20 real-pair blocks as a ratio to the best method per block (◦ this block, × declined, right column the worst case); SCDF stays within 
+
+1.39 × everywhere. 
+
+corresponding pixels are misaligned by even a fraction of a pixel. Real products carry documented misregistration at this scale and above. Landsat-8 and Sentinel-2 imagery were temporarily misaligned by up to 38 m due to inconsistent ground control [1]; Sentinel-2 pairs from different relative orbits have exhibited misregistration up to 2.8 pixels [2]; and the Harmonized Landsat–Sentinel product reports residuals of 6–19 m even after dedicated co-registration [3]. Correcting such offsets automatically, at full scene size, for arbitrary same-optical pairs is a routine need, and in a specific sense it remains unsolved. The practical failure mode of existing tools is not imprecision but conditional validity . Each tool handles certain types of image difference and fails severely on the rest. A real pair differs along several axes at once: sensor radiometry and point-spread function, scene content between dates, viewing geometry, ground sample distance, and mosaicking seams, which correspond to no single global motion. The conditional behavior follows from the motion model each tool family embeds. Sparse feature matching fits a single global affine or arXiv:2608.22300v1 [cs.CV] 23 Aug 2026 2
+
+homography; phase-correlation grid tools assume translation within each window; optical-flow and chip-tracking methods assume a small, smooth flow within a fixed search range (Section II). Each model covers some axes and not others. On pairs its model covers, a tool is precise, and we show that essentially every method is sub-pixel there. On a difference type outside its model, it fails in one of two ways: it finds no acceptable match and returns nothing, or it returns a field that is wrong by tens of pixels, with nothing in the output flagging the failure. In our benchmark, the baseline that wins the most fixtures completes 554 of 584 problems, yet on 8 of its 20 real-pair blocks the field it returns is 10 × or more from the best result achieved on the same cells (Section V-C). The quantity that separates methods in practice is therefore not the precision they reach when their model fits, but how far wrong they go on the differences it does not cover. We call a method reliable when that worst case is bounded, and we argue that the worst case across conditions should replace peak accuracy as the primary reported axis. A second, related problem is that standard accuracy reporting does not reveal it. Per-pixel error distributions of failed or partially failed registrations are strongly bimodal: a method can register half a scene perfectly and be wrong by 100 pixels on the other half. The mean end-point error is dominated by outliers to the point of being unusable, while the median can remain sub-pixel for a field in which 44% of pixels are grossly wrong (Section IV-D). Outlier-fraction metrics are long standard in optical flow and matching benchmarks (Section II), but a fixed-threshold fraction cannot simply be transplanted: pixel sizes in our benchmark range from 0.6 to 90 m, so a one-pixel tolerance is 0.6 m of error on some pairs and 90 m on others. Our protocol instead scores each cell by order statistics of per-pixel error in meters, keeps a declined cell in the aggregate as +∞, and compares methods by their distance from the best result achieved on each fixture. Learned matchers do not resolve the reliability problem. Pretrained detector and transformer matchers lead pairwise-matching benchmarks [4]–[7], but a trained model comes with no accuracy guarantee outside its training distribution. This is conditional validity again, with the condition implicit in the training set rather than explicit in a motion model. Extending coverage to a new sensor pairing or scale ratio means pretraining or fine-tuning on representative imagery. There is a separate operational cost: the dense and semi-dense models run at small fixed working resolutions, so an 8192 2
+
+scene requires tiled inference, a GPU, and a multi-gigabyte environment. We benchmark two of them zero-shot (Section V). 
+
+Our answer : We present SCDF (self-calibrating displace-ment fields), a training-free dense co-registration method. It produces candidate correspondences recall-first, then filters them with measurement-quality gates and model-consistency tests whose thresholds are all calibrated on the image pair itself. The output is a dense per-pixel displacement field; no global motion model is imposed. The pipeline has no absolute acceptance threshold anywhere: match acceptance is gated against per-window null correlations, error gates and outlier tests are calibrated on the pair’s own residual distributions, and the final interpolator is selected by cross-validation on the pair’s own control points. One default configuration is used for all 584 benchmark cells, with no per-dataset tuning. The design predicts a results profile with no condition under which the method degrades sharply (Section III-B). 
+
+Contributions: 
+
+1) Method (C1). A three-phase dense displacement-field es-timator (coarse-to-fine patch matching; phase-correlation sub-pixel re-measurement and lattice densification be-hind self-calibrating acceptance gates; cross-validated interpolation) that is training-free, matcher-agnostic, and runs arbitrary-size scenes. 2) Evaluation methodology (C2). A benchmark of 584 cells with dense, verified-exact ground truth constructed on real multi-temporal and cross-sensor pairs (6 leg groups × 4 distortion families × 21–25 sites), and a scoring protocol built for it: errors in meters, declined cells kept in the aggregate as +∞, per-cell tail quantiles in place of any pooled mean, and a ratio-to-best statistic that measures distance from what was achievable on each fixture (Section IV). 3) Findings (C3). The worst case separates methods; precision does not. With exact ground truth, every method whose model covers a fixture reaches sub-pixel accuracy on it. On real pairs, however, every baseline has at least one block where its worst-case error is 5.3–783 × the best result achieved there, or where it declines cells; SCDF produces a field on all 584 cells, ranks top-two on 19 of 20 blocks, and its worst-case error stays within 1.39 ×
+
+of the best result everywhere. II. R ELATED WORK 
+
+Co-registration tooling splits into three families: area-based estimators, sparse features fitted to a global model, and learned matchers. Each embeds its assumptions as fixed constants somewhere, whether a motion model, a search range, or an acceptance threshold. Table I summarizes those assumptions, and Section V-B later traces every catastrophic failure in the benchmark back to the table’s motion-model column. Evaluation practice is the fourth thread, because on our data the way results are aggregated decides rankings (Section IV-D). 
+
+a) Area-based and dense methods: AROSICS [8] es-timates tie points by frequency-domain phase correlation on a regular grid and corrects with a global shift or an affine fit to the validated tie points; the COSI-Corr lineage [9] established sub-pixel image correlation for deformation measurement. autoRIFT [10] tracks dense chips under a capped search window, demonstrated on smooth glacier-velocity fields. GeFolki [11] adapts Lucas–Kanade optical flow to remote sensing with rank filtering. These tools are precise where their assumptions hold; AROSICS takes more blocks outright than any other baseline in our benchmark (Section V-B). However, each assumes translation per window or a small smooth flow, searches a fixed range, and comes with thresholds tuned per product. None re-derives its acceptance decisions from the pair at hand. 
+
+b) Sparse features with a global model: SIFT with RANSAC [12], [13] remains the canonical sparse pipeline; 3                               
+
+> TABLE I TOOL FAMILIES FOR OPTICAL CO-R EGISTRATION AND THEIR EMBEDDED MOTION MODELS
+> Family Motion model Decision constants Output Phase-correlation grids
+> AROSICS; COSI-Corr
+> translation per window, then a global shift or affine fit thresholds tuned per product tie-point grid →fitted model Dense chip tracking
+> autoRIFT
+> translation per chip, fixed search range fixed ∼25 px window, quality thresholds dense grid Optical flow
+> GeFolki
+> small, smooth flow tuned (rank filter, radii) dense per-pixel field Sparse features +model
+> SIFT+RANSAC; RIFT, RIFT2, SRIF
+> single global affine or homography ratio and inlier thresholds sparse matches →one global transform Learned matchers
+> LightGlue, LoFTR; RoMa
+> learned prior; fixed working resolution, tiled at scene scale learned weights, tuned acceptance sparse/semi-dense matches ( →
+> fitted model) SCDF (ours) none — the dense per-pixel field is the product self-calibrated per pair dense field +confidence
+
+for multimodal pairs, the RIFT family [14], [15] pairs phase-congruency detection with log-Gabor index-map descriptors, and SRIF [16] adds scale invariance on a local intensity binary transform. Whatever the matcher, the product is one global transform, which cannot represent non-global deformation: opposing mosaic-seam shifts have no homography solution. Section V-B quantifies the consequence on the seam fixture, where the gap follows from the motion model and tuning does not close it. 
+
+c) Learned matchers: Learned sparse matching over SuperPoint features (SuperGlue, LightGlue) [4], [5], [17], detector-free matching (LoFTR and its successors) [6], [18], and dense matchers (RoMa, MASt3R) [7], [19] dominate matching benchmarks. The dense and semi-dense models run at small fixed working resolutions and are memory-bound at scale; no published matcher ingests an 8192 2 scene natively, and practice at scene scale is tiled inference [20], [21]. Like any trained model, a learned matcher carries no performance guarantee outside its training distribution [22], [23]. This missing guarantee, the operational burden, and the input-size limits together motivate a training-free design. 
+
+d) Evaluation practice: Remote-sensing registration pa-pers conventionally report a checkpoint root-mean-square error, a circular error at the 90th percentile (CE90), or a mean end-point error over a handful of pairs. Matching benchmarks elsewhere rank by outlier fractions under a fixed tolerance: Fl-all in KITTI [24], mean matching accuracy on HPatches [25], [26], pose-thresholded mean average accuracy in the Image Matching Challenge [27], and success rates and matching precision in remote-sensing matching [14], [28]. None of this transfers unchanged to dense co-registration fields. When pixel size varies widely across the pairs of one benchmark, a fixed pixel tolerance means a different metric tolerance on every pair; a single diverged extrapolation dominates a mean; and a method that declines a hard pair drops out of its own average. Sections IV-D–IV-F answer these three failure modes. To our knowledge, no prior benchmark scores dense co-registration fields of large optical scenes against constructed dense truth on real pairs. III. M ETHOD 
+
+A. Problem statement and conventions 
+
+Given a reference raster REF and a moving raster MOV, the deliverable is a dense displacement field on MOV’s own pixel grid ,
+
+D[y, x ] = pcorrected geo (y, x ) − poriginal geo (y, x ) ∈ R2, (1) of shape (HMOV , W MOV , 2) , expressed in geographic units in MOV’s CRS. If the two CRSs differ, REF positions are converted to MOV’s CRS before differencing, so coordinate-system handling is contained in D and does not recur downstream. A companion valid mask marks the pixels where 
+
+D is defined; it is undefined outside the REF–MOV overlap and on nodata. Positions are anchored at pixel centers throughout. Every method in the benchmark is scored on this object and under this convention. Internally the estimator carries two more same-shape com-panions: a flag map F marking which pixels of the valid region hold a directly measured match (the rest are filled by interpolation), and a confidence map C, a single lock-quality scale shared by every point source and used by the interpolation weights, the non-maximum suppression, and the filters. 
+
+B. Design principle: bounding the worst case 
+
+A co-registration tool in production runs unattended on heterogeneous inputs. The question is therefore not how precise a method is when its assumptions hold, but whether some input regime makes it return a field wrong by hundreds of meters, with nothing marking the failure. SCDF is designed to bound that worst case, which reduces to refusing two kinds of commitment: 1) No global model. The dense field is itself the motion model: it is never passed through a homography, an affine, or any other low-dimensional transform, so there is no global assumption for a scene to violate. 2) No tuned constant. Every decision threshold is computed from the image pair being registered, at the point of use. With no absolute cutoffs to fit, the method is neither tuned for nor tuned against any particular regime. 4     
+
+> 1Shared ground
+> the overlap, and one seeded point at its center REF MOV
+> 2Where to look
+> the field so far predicts each cell’s window in REF prior MOV REF
+> 3Match
+> any matcher — keypoints, semi-dense, or dense
+> 4Filter
+> drop outliers — against the whole set, then against their neighbors next scale — the patch halves; only the field so far carries over
+
+Coarse-to-fine matching cascade    
+
+> 5Re-measure, and densify
+> each point re-measured inside its own pixel; a lattice fills the gaps
+> 6Fill
+> sparse vectors in, a dense displacement field out — cross-validated interpolator
+> 7Warp
+> MOV resampled through the dense field — identical for every method compared
+
+Post-processing 
+
+Fig. 2. How SCDF estimates the field: one seeded point 1 ; a predict–measure–filter loop 2 – 4 , repeated coarse to fine with the patch halving at each scale and only the field carrying over; a correlation pass 5 that re-measures every point and densifies the set; interpolation 6 to a dense displacement field; and the warp 7 that resamples MOV through it. Figure 3 details the measurement inside 5 .
+
+The design therefore makes a falsifiable prediction about variance across conditions rather than about peak accuracy. Specialized for nothing, the method should rarely be the single best on any one condition; but with no assumption to violate and no threshold tuned to any regime, there should be no condition on which its error degrades sharply. Section V tests this prediction; both halves hold. The remainder of the section follows Figure 2 stage by stage. For each stage, Table II records where its decision thresholds come from. 
+
+C. The cascade: one loop, repeated per level 
+
+The estimator is a single predict–measure–filter loop run over a resolution pyramid. Patch size starts at the full REF/MOV geographic overlap and halves per level down to a floor of 256 px; the field accumulated so far is the only communication between levels. 
+
+a) Initialization: The estimator computes the geographic overlap of the pair, estimates the ground-sample-distance (GSD) ratio at its center, and seeds a single zero-displacement point there. There is no exhaustive global search: every later search window is predicted from the current field, and a large initial offset is absorbed by the coarsest level, whose patch is the entire overlap. 
+
+b) Predict: Patch centers are laid out uniformly on the MOV overlap grid, and at each center a displacement prior is interpolated from all accumulated points by moving least squares (MLS), a confidence-weighted local affine model following Schaefer et al. [29]. The prior, together with a local GSD ratio, places the REF search window with margin; when the resolutions differ, the finer side is downsampled to the common grid. 
+
+c) Measure: A pluggable patch matcher (RootSIFT by default [12], [30]) produces correspondences that must survive a ratio test, a local RANSAC affine [13], and a forward/backward cycle-consistency check. Each inlier becomes a displacement sample with a confidence. The most confident candidate per pixel is committed to the estimator’s state: its displacement enters D, the pixel is flagged as measured in F , and its confidence is recorded in C; a stored match is overwritten only by a more confident one. 
+
+d) Filter: Reliability is enforced here, and at every level, so that one level’s mistakes cannot become the next level’s prior. Write {(pi, di, c i)} for the level’s accumulated points (position on the MOV grid, displacement, confidence). Three tests run in sequence. A global magnitude gate removes gross outliers first, keeping point i only if 
+
+∥di∥ ≤ med  
+
+> j
+
+∥dj ∥ + 3 ˆ σ, ˆσ = 1 .4826 MAD  
+
+> j
+
+∥dj ∥. (2) Throughout, MAD j xj = med j |xj − med k xk| is the median absolute deviation, and 1.4826 ≈ 1/Φ−1(3 /4) (Φ the standard normal CDF) is the constant that turns it into a standard-deviation estimate under Gaussian noise [31]. Eq. (2) is thus a 
+
+3σ rule built from statistics with a 50% breakdown point: a scale estimated by mean and standard deviation would itself be corrupted by the outliers the gate is meant to remove. The main test is a leave-one-out (LOO) consistency test. The question it puts to every point is: had this measurement never been made, what displacement would the surrounding matches predict here, and does the measurement agree? A true field is locally smooth, so a correct match is predictable from the matches around it, while a false correspondence lands at a value no smooth field through its neighbors can explain. The point’s own value is therefore withheld from the fit (the leave-one-out construction), 5     
+
+> TABLE II SELF -C ALIBRATION AUDIT : E VERY DECISION THRESHOLD AND ITS SOURCE
+
+Stage — the decision it makes Where its threshold comes from Global magnitude filter — is this displacement grossly out of family? 
+
+med + 3 ˆ σ of the displacement magnitudes at this level ,
+
+ˆσ = 1 .4826 ×MAD 
+
+LOO local-affine filter — is this point inconsistent with its own 12 neighbors? 
+
+med + 3 .5 ˆ σ of this level’s own studentized residual distribution 
+
+Response gate — did this window pair lock, or is the peak spurious? the maximum of K=8 null correlations of the same REF window against far-away MOV windows, recomputed for every window 
+
+Error gate — do the aligned windows agree well enough for this pair? a quantile of the pair’s own error distribution (q=0 .5 re-measuring, 0.4
+
+densifying) 1
+
+Fill interpolator — which of 7 interpolators suits this scene? 5-fold cross-validation over the pair’s own control points Fixed by design, and not thresholds on measured quantities: 
+
+Match acceptance — ratio test and cycle check Lowe ratio 0.75, forward/backward error ≤ 3 px — front-end constants; the calibrated filters above carry the accuracy claims 
+
+Search geometry — pyramid, windows, lattice patch → 256 px floor, windows 128/64 px, lattice spacing 48, upsample 
+
+×32 , downsample cap 2048 px 
+
+Prior-deviation bound — how far may a measurement move from the prediction? 4 coarse px re-measuring, 3 densifying 21 Clamped to [0 .6, 0.97] as a sanity interval; the clamp binds only when the pair’s own quantile falls outside it. 2 An absolute bound, and the one place where a scale constant enters the loop: it prevents a single bad measurement from moving a point far from the prior the levels above established. 
+
+and the prediction is fitted through its k=12 nearest neighbors 
+
+Ni, each weighted by confidence and proximity, with the same weighted local affine model that MLS interpolation uses: 
+
+ˆd−i = A⋆pi + b⋆,
+
+(A⋆, b⋆) = arg min  
+
+> A,b
+
+X
+
+> j∈N i
+
+cj
+
+∥pj − pi∥2 Ap j + b − dj
+
+> 2
+
+.
+
+(3) An affine model is used instead of a neighbor average because real fields carry gradients (rotation, scale difference, terrain-induced shear) along which neighboring displacements differ linearly. An average, like any magnitude or angle heuristic, flags those points, whereas the affine fit follows the trend, so a point on a smooth gradient matches its prediction and only a point inconsistent with its own neighborhood fails. The verdict compares the point’s residual ri = ∥di − ˆd−i∥ against the residuals of all points at this level, 
+
+ri ≤ med  
+
+> j
+
+rj + 3 .5 ˆ σr , ˆσr = 1 .4826 MAD  
+
+> j
+
+rj , (4) the same robust construction as Eq. (2), now calibrated on this level’s own distribution of disagreement rather than on magnitudes. (Two refinements, both detailed in Supplement S-I: residuals are studentized for the prediction’s leverage, so sparse hull-edge neighborhoods are not over-penalized, and one Tukey-biweight pass reweights the fits so an outlying neighbor cannot corrupt the verdicts of the points around it.) Last, a deliberately small non-maximum suppression (radius 32 px) thins duplicates, keeping the highest-confidence point per neighborhood. The pipeline is recall-first throughout: produce many candidates, then delete with tests calibrated on the pair. 
+
+D. The correlation pass: re-measure and densify 
+
+The cascade ends with feature matches, only as precise as keypoint localization: 0.3–0.5 px on the coarser of the two grids, multiplied on cross-resolution pairs by the resolution ratio — at the benchmark’s most extreme pairing (1:16.7), half a coarse pixel is already ∼8 px in the product. Features also leave gaps — mosaic seams, scene borders — that the fill could only interpolate across. So after the finest level the estimator runs its predict–measure–filter loop once more, with the feature matcher replaced by direct, translation-only correlation [32]. 
+
+a) Re-measure, and densify: Re-measuring visits every matched point and estimates a correction to it with one correlation measurement, defined below, the point’s own value serving as the prediction (Figure 3). Where the measurement is accepted, its corrected displacement replaces the feature matcher’s value. Where it is rejected, the point keeps its displacement at a confidence scaled by its response (clip rule in Supplement S-I) — downweighted rather than deleted, because deletion would remove the anchors at displacement discontinuities such as mosaic seams, the structure a global model cannot represent. Densifying is the same measurement applied to new points: it visits a uniform lattice (spacing 48 px, cells that already hold a match skipped), with the MLS interpolant of the neighbors as the prediction and tighter constants (Table II), and adds a point wherever the measurement is accepted. A lattice candidate whose measurement is rejected is never added. 
+
+b) One measurement: Re-measuring and densifying call the same primitive: given a point p and a predicted displace-ment d0, it returns a corrected displacement and a verdict on whether to trust it. The prediction supplies the alignment: one window is cut from MOV around p, one from REF where 
+
+d0 says the same ground lies, and were the prediction exact 6                  
+
+> One correlation measurement
+> prediction first, then measurement: d=d0+s⋆
+> prior d0MOV REF residual s⋆
+> (small, bounded) MOV window M
+> REF window R
+> the surface Γ( s)scores every trial shift
+> s⋆
+> 0residual
+> Re-measure — every matched point
+> same points, better values — a failure keeps its value, downweighted
+> Densify — a uniform lattice
+> new points where features found nothing — a failure is never added
+> Fig. 3. The correlation pass. Left: one measurement — the accumulated field predicts where each MOV window sits in REF, the correlation surface Γ( s)
+> scores every trial shift at once, and its peak s⋆is the sub-pixel residual, added to and bounded by the prior. Right: the same primitive used twice — re-measure
+> replaces the value at every matched point, densify adds surviving points on a fresh lattice; what fails the acceptance gates (Supplement S-I) keeps its old value or is never added.
+
+the two would coincide. The offset that remains, the residual ,is what the measurement finds: the correlation surface Γ( s)
+
+scores every trial shift s at once, its peak s⋆ is the residual, and the corrected displacement is d0 + s⋆. Every correlation surface has a maximum, related windows or not, so the peak is evidence only if it passes three acceptance gates (definitions in Supplement S-I). The response gate asks whether the peak is sharp — a lone spike on a flat surface rather than the tallest of many similar waves — and sets the standard per window: the peak must beat every response the same REF window achieves against K=8 far-away MOV windows, guaranteed mismatches. The error gate asks whether the aligned windows look alike, a separate question (water agrees without locking; cross-sensor pairs lock without agreeing), with a threshold read from the batch’s own error distribution. The prior-deviation bound (Table II) rejects a residual of more than a few coarse pixels, so that no single peak can move a point far from the field around it. An accepted point takes its response as its confidence, so feature points, lattice points and future learned matchers share one lock-quality scale in C. Section V-D scores the response gate against ground truth. The merged set then passes the global and LOO filters of Section III-C once more. 
+
+E. Fill by cross-validated interpolation 
+
+The remaining unmeasured pixels are filled by interpolating the control points, and no single interpolator can be expected to dominate across scenes: thin-plate splines [33] suit dense elastic fields, low-α MLS structured ones, inverse-distance weighting sparse noisy sets. So this choice, too, is refused as a constant and is cross-validated on the pair’s own control points. The points are split at random into five folds, one split shared by all seven candidates (an MLS k/α family, IDW, TPS), and each candidate predicts every point from the four folds that exclude it. The score is the mean Euclidean error of these held-out predictions against the measured displacements — no ground truth is consulted. The winner refits all points and fills the field. 
+
+F. Warp 
+
+The field is the product; warping is downstream of it, with no estimation inside. The corrected coordinates xgeo + D[. . . , 0] 
+
+and ygeo +D[. . . , 1] are attached to MOV as GDAL geolocation arrays, and gdal.Warp resamples through them, nearest-neighbor by default, leaving radiometry untouched. Every benchmark method, ours and the baselines alike, is rendered through this same call, so warp quality never confounds the comparison. IV. B ENCHMARK AND EVALUATION PROTOCOL 
+
+The benchmark is built from real satellite imagery: Sentinel-2, Landsat-8/9, and NAIP acquisitions over 60 sites sampled worldwide, assembled into six groups of image pairs that range from a same-scene pair to a five-year temporal gap and a 1:16.7 resolution ratio. Real pairs come with no dense displacement truth, so we inject known distortions into these pairs and score each method against the injected field. The result is 584 constructed pairs ( cells ), each run by ten methods, giving 5840 runs whose artifacts are all frozen and re-scorable. 
+
+A. Sites and image pairs 
+
+All imagery is sourced automatically from Microsoft Plan-etary Computer [34] and used at original digital numbers, with no radiometric normalization anywhere in the pipeline. Scenes are 8192 2 crops at the finer sensor’s GSD (67 Mpx); the Landsat half of leg b4 is 2731 2 at its native 30 m. Sites (Figure 4) are drawn by global random sampling under two acceptance rules on ESA WorldCover 2021 composition [35]: an anti-homogeneity gate (largest class at most 90% of the crop, at least two classes above 2%) that rejects only fully monotonous scenes such as open desert or ice sheets, and a non-overlap rule keeping crop centers at least one footprint apart. Weak-texture sites (water-dominated, semi-arid) are deliberately kept, because they are where matchers fail in practice and sampling them away would improve every method’s apparent accuracy. Same-sensor pairs additionally pass per-crop cloud/nodata quality control (thresholds in Supplement S-IV). Table III lists the six pair groups ( legs ). One leg distorts a single source — a scene scored against its own distorted copy 7                                                                        
+
+> TABLE III BENCHMARK COMPOSITION : T HE SIX LEGS AND THEIR 584 C ELLS
+> MOV px (m) Leg REF MOV (distorted) GSD ∆tSites Cells A1/2/4 A3 E1/b1 S2 2024-07, 10 m same scene 1:1 —25 100 10 30 E2/b1 S2 2024-07 S2 2024-01 (cross-season) 1:1 ∼0.5yr 25 100 10 30 E2/b2 S2 2024-07 S2 2023-07 1:1 ∼1yr 25 100 10 30 E2/b3 S2 2024-07 S2 2019-07 1:1 ∼5yr 25 100 10 30 E2/b4 S2 10 m Landsat-8/9 30 m 1:3 ≤50 d25 100 30 90 E2/b5 S2 10 m NAIP 0.6 m 1:16.7 1–2 yr 21 84 0.6 1.8 Total 146 584
+> MOV px (m): the meter size of one MOV pixel, under A1/A2/A4 and under A3 (which coarsens MOV ×3). S2 × S2 (25) S2 × L8/9 (25) S2 × NAIP (21)
+> Fig. 4. The 60 benchmark sites, marked by the image pairs acquired over them. A site shared between the Sentinel-2 and Landsat legs shows as a dot inside a ring; NAIP is a US program, so its sites are CONUS-only.
+
+(experiment E1, defined next). Three legs form a temporal-realism gradient of real Sentinel-2 pairs, the same site revisited across half a year (summer–winter), one year, and five years; every pair shares its relative orbit , enforced at fetch time. The last two legs are cross-sensor: Sentinel-2 against Landsat-8/9 acquired within 30 days (1:3 GSD ratio), and against 0.6 m NAIP aerial imagery within 15 days (1:16.7). Throughout the paper, one cell is one (experiment, leg, construction, site), a single constructed pair; one block is one (experiment, leg, construction), the 21–25 sites that share a fixture. There are 584 cells in 24 blocks, scored by ten methods in Section V. 
+
+B. Constructed ground truth on real pairs 
+
+A pair to be co-registered differs from its reference by more than the displacement to be recovered. Acquisitions months or years apart see a changed surface (season, vegetation, water); a different sensor brings its own radiometry, blur, and noise; a different platform changes viewing angle and pixel size; upstream processing leaves artifacts of its own, mosaic seams among them. Real pairs, however, carry no per-pixel displacement truth. The benchmark therefore injects a known displacement field into a real scene and scores predictions against the injected field, so that the truth is known exactly while the imagery, with all the differences above, stays real. The four families of Section IV-C mirror those differences; they do not follow a single motion model, as homography benchmarks do [26]. Two experiment types share the four families and differ in the base pair. E1 builds MOV from REF itself: the pair differs by exactly the injected distortion, so the ground truth, the entire REF ↔MOV displacement, is exact and gives an uncontaminated floor. E2 distorts the moving half of a real pair: the genuine differences stay in the imagery, and the truth is only the added field. Its five legs sweep these differences (cross-season to five-year revisit gaps, resolution gaps of 1:3 and 1:16.7, spaceborne against airborne; Table III), so E2 is the closer model of deployment. The price of realism is the pair’s pre-existing misalignment 
+
+r0, which is not part of the constructed truth and floors the accuracy E2 can certify. The floor is identical for every method, so the comparison stays fair. Literature documents the floor on four of the five legs: same-relative-orbit Sentinel-2 pairs average 0.2–0.4 px misregistration [2], [36] ( r0 ≈ 3–5 m on b1– b3), and Landsat Collection-2 is harmonized to the Sentinel-2 Global Reference Image to below 6 m CE90 [37], small against b4’s 30 m pixel. On b5 the floor is undocumented, so it supports 
+
+ranking only. E1 and E2 are never pooled; Section V-A shows they answer different questions. 
+
+C. The four distortion families 
+
+Each construction isolates, in controlled form, one of the differences a real pair accumulates; together they range from geometry a single global model absorbs exactly (A2) to geometry none fits (A4).  
+
+> •
+
+A1 — sensor (radiometry and PSF): each band is tone-remapped on its own raw value scale (a γ = 1 .6 curve with random per-band gain and bias), blurred by a σ = 2 px Gaussian emulating an MTF difference, and re-noised at 4% of the band scale. Geometry is untouched, so the truth is exactly zero.  
+
+> •
+
+A2 — viewing angle (homography): the perspective change of an off-nadir acquisition, applied as a projective warp that moves the four scene corners by i.i.d. uniform offsets of up to 0.02 N (≈ 164 px).  
+
+> •
+
+A3 — resolution: the grid change of a cross-GSD pair. The mover is the nodata-aware area average of the base 8
+
+onto a 3× coarser grid at the same geolocation, so the truth is exactly zero on the new grid.  
+
+> •
+
+A4 — non-global deformation (seam): the discontinuity of a real mosaic, in which the left and right halves shift in opposite directions by 0.006 N (±49 px) across a smooth transition band, plus a weak smooth elastic residual ( ∼0.4 px). Seam-dominated by design, it admits no single global affine or homography solution. A construction is applied to the base raster (the source scene in E1, the real mover in E2) as a pixel-space displacement field with bilinear resampling; the injected field, expressed in map units on the mover’s own grid, is the ground truth (the convention of Eq. (1)). Magnitudes are fixed fractions of the scene side N (N = 8192 in the pixel figures above), one seed drives all random draws, and the reference is never touched. We verify ground-truth exactness by checking that the stored truth reproduces each constructed mover exactly. Equations, parameters, the validity rule, and the verification procedure are in Supplement S-III. 
+
+D. The scoring rule 
+
+The rule by which the frozen matrix is condensed into a comparison changes the winner on this data, consistent with registration evaluation elsewhere, where protocol choices alone shift measured error by up to 33 × for a fixed matcher [21]. We therefore state the rule; each clause repairs a specific way the obvious choice gives a wrong answer. Within one cell we compute the per-pixel endpoint error (EPE) ∥Dpred − Dgt ∥ [38] over valid pixels and summarize it by its median and 90th percentile (p90). Write em(c) for method m’s per-cell median. Across cells, a block score is 
+
+Em(B) = median  
+
+> c∈B
+
+em(c),em(c) = + ∞ if m produced no field on c. (5) 
+
+a) Errors are in meters, never in MOV pixels: A MOV pixel is 0.6 m at one extreme of the benchmark and 90 m at the other (Table III). Pooled in pixels, the same metric error would therefore enter the aggregate with a 150 × different weight depending on the cell it came from; in meters, every cell counts equally. 
+
+b) Cross-cell aggregation is the median, never the mean: 
+
+Per-cell error is unbounded, so a single diverged cell can inflate a mean (or RMS) arbitrarily far, leaving nothing meaningful to compare; the median is unaffected. The failure tail is reported instead by each cell’s own p90, itself aggregated across cells by the same median. This median per-cell p90 accompanies every reported median in Section V. 
+
+c) A cell with no field scores +∞ and is still aggregated: 
+
+Dropping unanswered cells would score each method only on the cells it answered, rewarding failure: on one leg a method answered 18 of 84 cells and, with the other 66 removed, ranked first. Kept as +∞, declines need no penalty constant: because every reported aggregate is a cross-cell median, a method’s entry reads FAIL exactly when it declines more than half of the cells it covers, in both the median and the median per-cell p90. 
+
+E. Baselines and fairness 
+
+Seven training-free baselines span the classical families: SIFT+RANSAC [12], [13], AROSICS [8], autoRIFT [10], GeFolki [11], RIFT [14], RIFT2 [15], and SRIF [16]. All run at official or published defaults on identical inputs, and are scored by the identical evaluator. SCDF likewise runs one configuration (Table II) on all 584 cells. RIFT and RIFT2 are faithful ports of the official MATLAB code, retaining the authors’ FSC outlier rejection; SRIF is reimplemented from its paper because no source is published. Our port proved non-functional and is therefore excluded from all rankings ,reported only for completeness and flagged throughout ( †;Supplement S-II). Two pretrained matchers, SuperPoint+LightGlue [5], [17] and LoFTR [6], were run zero-shot over the full matrix under a documented adaptation layer (Supplement S-VI). They are reported on E1 only (Table IV) and are not ranked against the training-free methods: they are not drop-in substitutes (a GPU, per-image normalization, tiling), and their correspondences are densified through our own global homography path, so ranking them as complete methods would attribute our adaptation layer’s limits to them. 
+
+F. The ratio to the best 
+
+Beyond the block scores of Equation (5), the paper’s central claim of a bounded worst case needs a statistic that compares a method to what was achievable on each fixture rather than to an absolute standard. We use the ratio to the best method on the same block, 
+
+Rm(B) = Em(B)  min  
+
+> m′
+
+Em′ (B), (6) and its per-cell analogue rm(c) = em(c)/ min m′ em′ (c). Both need no threshold, so no method is penalized on a block where every method struggles, and the unknown b5 floor cancels. Their limitation is that neither can tell “all methods succeeded” from “all methods failed” without the absolute table alongside, which is why both are always reported next to meters. The per-cell form is used on E2 only : seven E1 cells have a best of exactly zero, since the zero-displacement constructions admit a method returning an exactly identity field, and the denominator degenerates there. V. R ESULTS 
+
+All numbers come from the frozen 5840-run matrix, scored once under the rule of Section IV-D. We first establish what the two experiments respectively measure (Section V-A), then show that every baseline is a specialist with a cliff (Section V-B) and that SCDF has no cliff and, as the same design predicts, no peak either (Section V-C). 
+
+A. What each experiment measures 
+
+Tables IV and V answer different questions; E1 and E2 are not two difficulty levels of one test. In Table IV, wherever a construction does not violate a method’s assumptions the block median lies between 0.06 and 7.1 m, which the leg’s GSD (10 m; 30 m under the 3×-coarser A3) puts at 0.006–0.31 px, 9
+
+TABLE IV E1, THE STRUCTURAL TEST : B LOCK MEDIAN / P90 EPE ( M)
+
+Block median / p90 EPE (m) Overall Cells Method A1 radiom. A2 homog. A3 resol. A4 seam median / p90 (m) scored SCDF (ours) 0.80 / 1.85 0.50 / 1.03 0.96 / 1.47 0.57 / 1.02 0.63 / 1.27 100/100 GeFolki 2.21 / 3.97 0.56 / 1424 1.17 / 2.04 0.26 / 0.64 1.02 / 3.73 100/100 AROSICS 0.39 / 0.72 874.5 / 1561 0.28 / 0.48 528.6 / 741.3 1.29 / 4.07 99/100 SIFT+RANSAC 0.67 / 1.59 0.06 / 0.50 7.11 / 7.51 446.2 / 907.1 2.53 / 7.03 100/100 autoRIFT 3.06 / 7.15 579.3 / 1276 1.83 / 2.65 FAIL 4.02 / 28.0 78/100 RIFT 13.4 / 31.6 285.9 / 983.9 2.00 / 2.62 467.7 / 945.5 49.6 / 343 100/100 RIFT2 7.59 / 9.31 729.1 / 2045 2.00 / 2.44 484.7 / 975.3 19.8 / 29.9 100/100 SRIF † 39933 / 61501 773.1 / 1980 3.64 / 4.66 482.5 / 976.5 489 / 979 100/100 
+
+Zero-shot pretrained matchers (Section IV-E); not ranked against the above 
+
+LoFTR 0.49 / 0.87 0.40 / 0.56 3.50 / 4.43 455.6 / 912.3 1.54 / 3.42 100/100 SuperPoint+LightGlue 3.03 / 7.66 1.00 / 2.24 1.22 / 1.83 467.6 / 919.8 1.84 / 5.03 100/100              
+
+> Each entry: block median / p90 EPE. Median =the block score of Equation 5; p90 =the median per-cell p90 , the cross-cell median of each cell’s own per-pixel p90 (Section IV-D). 25 sites per block, exact ground truth, leg b1 throughout; 1 px =10 m on this leg (30 m under A3).
+> Bold =best block median in column. FAIL =the block median falls on declined cells; †excluded from ranking.
+
+TABLE V E2, THE REALISM TEST : B LOCK MEDIAN / P90 EPE ( M) BY LEG AND BY CONSTRUCTION 
+
+by leg (median / p90, m) by construction (median / p90, m) Method b1 b2 b3 b4 b5 A1 A2 A3 A4 0.5 yr 1 yr 5 yr ×LS ×NAIP radiom. homog. resol. seam SCDF (ours) 3.26 / 6.58 2.44 / 4.54 5.10 / 7.60 11.5 / 19.1 4.67 / 7.77 4.37 / 7.85 4.07 / 7.62 3.89 / 6.62 4.36 / 9.25 GeFolki 6.57 / 17.1 4.65 / 11.0 7.38 / 16.2 13.7 / 55.9 5.43 / 9.34 5.67 / 11.1 13.0 / 1366 7.07 / 15.5 4.73 / 9.72 AROSICS 19.1 / 69.6 15.6 / 44.5 15.8 / 69.4 80.3 / 378 8.13 / 15.6 4.01 / 4.92 823.5 / 1511 4.48 / 6.24 482.1 / 534.3 SIFT+RANSAC 9.23 / 19.0 6.87 / 10.1 11.5 / 16.8 39.2 / 74.8 2032 / 3292 8.53 / 17.1 6.69 / 9.39 11.2 / 19.6 458.4 / 918.5 autoRIFT 491 / 1105 491 / 1103 241 / 275 14.1 / 30.2 FAIL 7.48 / 12.5 587.9 / 1284 4.72 / 7.94 FAIL RIFT 129 / 570 111 / 714 167 / 606 119 / 375 2400 / 4583 48.4 / 92.3 287.1 / 1066 6.97 / 11.4 470.6 / 951.0 RIFT2 287 / 957 123 / 972 320 / 972 271 / 783 2443 / 3801 40.3 / 54.2 795.2 / 2013 7.76 / 11.9 484.5 / 978.5 SRIF † 32504 / 53441 689 / 1524 20016 / 29530 592 / 1230 2660 / 4247 41097 / 64243 1901 / 3100 16.7 / 21.2 501.7 / 985.1 Native floor r0 (lit.) ≈3–5 ≈3–5 ≈3–5 <6 —            
+
+> Each entry: block median / p90 EPE; p90 =the median per-cell p90 , the cross-cell median of each cell’s own per-pixel p90 (Section IV-D). 484 real-pair cells; the 20 individual blocks marginalised here are in Figure 6. Bold =best block median in column; FAIL =the block median falls on declined cells; †excluded from ranking. Native floor r0is each pair’s pre-existing misregistration as documented in literature (Section IV-B): same-relative-orbit Sentinel-2 pairs average 0.2–0.4 px ( ≈3–5 m) [2], [36]; Landsat Collection-2 is registered to the Sentinel-2 GRI to below 6 m CE90 [37]; b5’s floor is undocumented (—), so its column ranks fairly but its absolute level is not an accuracy claim.
+
+sub-pixel for every method. With exact ground truth and no real content change, precision is not scarce, so nothing in E1 ranks methods by it. E1 is a structural test. It separates which assumption violation is fatal to which method, and its large entries indicate a model class with no solution rather than a poor score: AROSICS at 874 m on A2, SIFT+RANSAC at 446 m on A4. E2 applies the same four constructions to real pairs (Table V). Genuine content change now enters the matching, and each pair’s native misregistration r0 affects every score identically (Section IV-B). Here precision is scarce, and the ranking is meaningful. SCDF spans 2.4–11.5 m across the five legs and 3.9–4.4 m across the four constructions, and GeFolki, the steadiest baseline, spans 4.7–13.7 m by leg. Every other baseline loses at least one leg or construction; these are the cliffs Section V-B examines. 
+
+B. Every baseline is a specialist, and every specialist has a cliff 
+
+Figure 6 colors all 24 blocks by how far each method is from the best result obtained on that block. Read by row, every 0.01 0.1 1 10 100 
+
+per-pixel endpoint error (MOV px, log) 
+
+> 025 50 75 100
+> % of pixels below error  Ours · median 0.05 px
+> SIFT+RANSAC · median 0.03 px GeFolki · median 0.07 px AROSICS · median 108 px
+> 1 px
+
+Fig. 5. Per-pixel EPE ECDFs of four methods on one cell (E1/b1 · A2 ·
+
+africa_south_1 ). The axis is in MOV pixels because the figure stays inside a single cell; 1 px = 10 m on this leg. 
+
+baseline row contains at least one dark block, and each dark block corresponds to a mechanism the benchmark was built to expose. 10 Ours                              
+
+> GeFolki AROSICS SIFT+RANSAC autoRIFT RIFT RIFT2 SRIF
+> LoFTR LightGlue
+> A1 A2 A3 A4
+> leg b1
+> E1 — exact ground truth
+> zero-shot
+> Ours
+> GeFolki AROSICS SIFT+RANSAC autoRIFT RIFT RIFT2 SRIF
+> A1 A2 A3 A4 A1 A2 A3 A4 A1 A2 A3 A4 A1 A2 A3 A4 A1 A2 A3 A4
+> b1 · 0.5 yr b2 · 1 yr b3 · 5 yr b4 · ×Landsat b5 · ×NAIP
+> E2 — real pairs
+> no fi eld produced
+> 1× (best) 10× 100× 1000×
+> block median EPE ÷ best on that block
+> Fig. 6. All 24 blocks, each method colored by its ratio to the best result on that block ( Rm(B), Equation (6)); absolute meters are in Tables IV and V. Hatched: no field produced (a different outcome from a large error).
+> •
+
+SIFT+RANSAC is the most accurate method in the paper on E1/A2, at 0.062 m (0.006 of a pixel, the bold A2 entry of Table IV), because A2 is a homography and a homography is exactly its model. The same model is 446 m wrong on E1/A4 and 7.1 m on E1/A3 (same table), and 458 m on E2/A4 (Table V). The method is not weak; its accuracy depends on whether the construction satisfies its single assumption.  
+
+> •
+
+AROSICS wins two of E1’s four blocks (bold in Table IV) and six of E2’s twenty, more block wins than any method except SCDF. It is also 823 m off on E2/A2 and 482 m on E2/A4 (Table V), and it is ≥ 10 × from the best in 8 of 20 E2 blocks; the E2 win and ≥ 10 × counts are the placement columns of Table VI. Per-window translation estimation is accurate where the deformation is a translation and has no representation for anything else.  
+
+> •
+
+GeFolki is the most consistent baseline (worst block 5.3 ×,never ≥ 10 × off; Table VI) and wins E1/A4. Its weakness is a partial-failure geometry: on E1/A2 its block median is 0.559 m while its per-cell p90 reaches 1424 m (the 0.56 / 1424 entry of Table IV), i.e. it registers the low-displacement center of the warp accurately and diverges at the corners. This is the behavior Figure 5 was drawn from.  
+
+> •
+
+RIFT and RIFT2 are 48 m and 40 m on the E2 radio-metric axis (the A1 column of Table V), an order of magnitude behind methods with no radiometric design goal: their phase-congruency descriptors target cross-modal contrast reversal, a different problem from the gain/bias/blur perturbation of a same-optical pair. 
+
+The A4 seam, and autoRIFT’s search window : A4 shifts the two halves of the scene in opposite directions, so no single global transform has a solution, and the numbers are categorical rather than graded. On E2’s three same-sensor legs the global-model methods are at 430–615 m while the two dense methods resolve the same cells to 2.3–5.2 m (the per-leg blocks behind Table V’s A4 marginals, mapped in Figure 6). No parameter can close that factor of roughly 100, because the failure is mathematical. autoRIFT is the informative exception: it is a dense method, but it searches within a fixed 25 px window (the package default), and its A4 behavior follows that envelope rather than the difficulty of the cell. It declines 94 of 96 A4 cells on the 
+
+8192 2 legs, where the seam offset is ±49 px (these declines are the A4 FAIL entries of Tables IV and V), and completes 
+
+25 of 25 on E2/b4-A4, where the Landsat mover’s 2731 2 grid puts the same offset at ±16 px, inside the window. On that one block it is the best method in the benchmark at 8.84 m; Supplement S-II confirms the envelope reading with a grid-size cross-check. A design envelope is legitimate, but it is a commitment: correct use means sizing the search window per dataset, from prior knowledge of how large the displacement can be, so autoRIFT’s reliability depends on the kind of hand-set constant that SCDF is built not to carry. 
+
+C. A bounded worst case, and no peak 
+
+Table VI is the paper’s central result, and its two panels have to be read together, because the design of Section III-B predicted both. On E1 (the upper panel of Table VI), SCDF is best in none of the four blocks. It places second, third, second and fourth (read down the block columns of Table IV); AROSICS, SIFT+RANSAC and GeFolki each take a block. Yet SCDF has the lowest overall median (0.63 m against GeFolki’s 1.02 m) and the lowest p90 (1.27 m against 3.73 m; the Overall columns). SCDF leads without winning a block, as the only method that is never far off: its worst block is 8.0 × the best result on that block (the worst ratio column), which is E1/A2, where the best result is SIFT’s exact-model 0.062 m and SCDF’s 0.500 m is still one-twentieth of a pixel (the A2 column of Table IV). Two methods have no block ≥ 10 × from the best; the other eight have two to four (the ≥ 10 × column). 11      
+
+> TABLE VI PLACEMENT ACROSS BLOCKS : T HE BOUNDED WORST CASE
+
+Cells Overall (m) Placement across blocks Method scored median p90 best in top-2 in worst ratio ≥ 10 × in 
+
+E1 — 100 cells, 4 blocks, exact ground truth SCDF (ours) 100/100 0.63 1.27 0 2 8.0 × 0GeFolki 100/100 1.02 3.73 1 1 8.9 × 0AROSICS 99/100 1.29 4.07 2 2 13993 × 2SIFT+RANSAC 100/100 2.53 7.03 1 1 1697 × 2autoRIFT 78/100 4.02 28.0 0 0 FAIL 2RIFT2 100/100 19.8 29.9 0 0 11665 × 3RIFT 100/100 49.6 343 0 0 4575 × 3SRIF † 100/100 489 979 0 0 101302 × 4
+
+zero-shot, not ranked (Section IV-E) 
+
+LoFTR 100/100 1.54 3.42 0 2 1733 × 2LightGlue 100/100 1.84 5.03 0 0 1779 × 2
+
+E2 — 484 cells, 20 blocks, real pairs SCDF (ours) 484/484 4.17 7.77 10 19 1.39 × 0
+
+GeFolki 484/484 6.83 17.8 1 7 5.3 × 0AROSICS 455/484 12.1 21.1 6 9 408 × 8SIFT+RANSAC 477/484 15.5 27.2 1 3 554 × 7autoRIFT 334/484 40.0 300 2 2 FAIL 9RIFT 484/484 214 793 0 0 769 × 13 RIFT2 484/484 480 975 0 0 783 × 13 SRIF † 484/484 2275 3658 0 0 16699 × 16          
+
+> Overall p90 =the median per-cell p90 : the cross-cell median of each cell’s own per-pixel p90 (Section IV-D).
+> Worst ratio = max BRm(B), Equation (6): the method’s worst block relative to the best score achieved there. FAIL =a block median falls on declined cells; †excluded from ranking.
+
+On E2 (the lower panel), the same property becomes decisive, because with 20 blocks there are many more occasions for a catastrophic failure. SCDF is best in 10 of 20 blocks, top-two in 
+
+19 of 20 , and its worst block is 1.39 × the best available result. That block is E2/b4-A4, where the method it trails is autoRIFT inside the one grid geometry that fits its search window. For comparison, the best baseline’s worst block is 5.3 ×; AROSICS, which wins six blocks, is 408 × off on another; SIFT+RANSAC 554 ×; RIFT and RIFT2 are ≥ 10 × from the best in 13 of 20 blocks each. SCDF produced a field on 584 of 584 cells; autoRIFT declined 172, AROSICS 30, SIFT+RANSAC 7 (the cells-scored column, E1 and E2 panels summed). Figure 7 shows the same property at cell resolution, where it cannot be an artifact of block averaging. SCDF is within 2× of the best available answer on 89.9% of the 484 E2 cells and within 5 × on 97.7%; GeFolki reaches 58.3% and 84.3%, AROSICS 48.1% and 56.6%. Only 1.2% of SCDF’s cells are more than 10 × from the best, against 10.1% for GeFolki and 41.3% for AROSICS. The claim this supports is narrower than “most accurate” and, we think, more useful. When any competent method’s assumptions hold, it is at least as precise as SCDF: on E1 all of them are sub-pixel, and on E2 six blocks go to AROSICS. No other method is free of a fixture on which it is catastrophically wrong. For an unattended pipeline over heterogeneous inputs, where the operator cannot know in advance which fixture each pair resembles and cannot inspect every output, that property determines whether the tool is usable. The bound is a property of blocks; individual cells can still fail. On two open-water sites, east_asia_12 (b1/A1, b3/A1) 10 0 10 1 10 2 10 3 10 4 
+
+> per-cell median EPE ÷ best method's on that cell
+> 0.0 0.2 0.4 0.6 0.8 1.0
+> fraction of the 484 E2 cells
+> Ours GeFolki AROSICS SIFT+RANSAC autoRIFT RIFT RIFT2 SRIF
+> Fig. 7. ECDF over the 484 E2 cells of each method’s per-cell median EPE divided by the best obtained on that same cell ( rm(c), Section IV-F). Left is better; dotted line: 2 ×; declined cells enter at the right edge, producing the plateaus below 1.0. E1 is omitted: seven of its cells have a best of exactly zero.
+
+and south_asia_9 (b3/A4), SCDF fails catastrophically, at 15.9–73.5 km, and these three of the 484 E2 cells carry 92.9% of its total E2 error sum. Section VI-B states the design limit this failure family exposes, together with the fallback. 
+
+D. What the components buy a) The measurement stack is a backstop: Taken one at a time, no stage carries the precision: removing any single stage of the correlation pass and fill costs at most 3.5% on the typical cell (Table VII). Removing all three at once costs 17.1% on 12                                                                         
+
+> TABLE VII FACTORIAL ABLATION OF THE MEASUREMENT STACK ON A STRATIFIED
+> 60-C ELL SUBSET
+> Block score (m) Ratio Configuration median p90 median p90 Full stack 2.832 4.809 1.000 1.000
+> −sub-pixel re-measurement 2.828 5.093 0.974 1.003
+> −lattice densification 2.899 5.484 1.014 1.093
+> −cross-validated fill 2.838 4.830 1.035 1.079
+> −all three 3.713 7.615 1.171 1.410
+> Ratio: geometric mean of per-cell variant / full-stack error, on the per-cell median and p90; >1means removing stages costs accuracy. The remaining corners and interactions: Supplement S-V. TABLE VIII SINGLE -C ORE RUNTIME ON E2/ B3
+> Method n/ 40 Median (s) Min–max (s) SIFT+RANSAC 40 29 12–45 autoRIFT 30 73 12–98 AROSICS 40 150 57–1911 SRIF †40 316 139–538 RIFT 40 330 48–394 SCDF (ours) 40 963 96–1540 GeFolki 40 992 111–1260 RIFT2 40 2174 173–2884
+> 10 sites ×A1–A4; 8192 2inputs ( 2731 2for A3); successful cells only; autoRIFT’s ten missing cells are its A4 failures. †Excluded from ranking.
+
+the typical cell and 41.0% on the per-cell tail, and the joint effect exceeds the sum of the three individual effects by 14.7% (Supplement S-V). The stages are mutually substitutable, each worth little alone because the others compensate, so a one-at-a-time ablation measures marginal value in a redundant set rather than contribution. The stack pays where matches are imprecise: without it the A1 radiometric cells are 1.53 ×/1.83 × worse (median/p90) while the A2 homography cells move 1.004 ×,and on every split the tail moves more than the median. No knockout changes whether a cell is registered: every variant, the all-off corner included, produced a field on all 60 cells (Supplement S-V). The bounded worst case of Section V-C therefore does not come from any stage the ablation can remove. It comes from the skeleton (the recall-first policy, the leave-one-out filter, the null-calibrated response gate, the confidence weighting), the components Section III-B predicted, since they have no constant to be wrong about. Although the skeleton cannot be switched off, its response gate can be scored on its own: labeled against dense ground truth on one cell’s densification lattice, the per-window rule of Section III-D separates correct locks from false ones and matches an oracle-tuned fixed threshold with no tuning (ROC and operating point in Supplement S-V). 
+
+E. Computational cost 
+
+Estimating a dense displacement field is the expensive regime, and SCDF’s cost is typical of it (Table VIII): a median of 963 s per 8192 2 scene (67 Mpx), on par with GeFolki (992 s) and well under RIFT2 (2174 s). Sparse global-model pipelines are far cheaper: SIFT+RANSAC completes the same scenes in 29 s, and autoRIFT needs 73 s because it searches only the fixed window of Section V-B. The cost is flat across the full-size constructions and is dominated by the K=8 null correlations and the dense correlation lattice. For comparability, every method in Table VIII is pinned to a single CPU core; in practice all of them can spread across cores, and SCDF parallelizes trivially over patches ( ∼5× wall-clock reduction with 8 workers, bit-identical results), though no optimization was attempted for this paper. VI. D ISCUSSION 
+
+A. Guidance for practice 
+
+When a pair’s regime is known in advance, the specialist that matches it is the right tool, as our own tables show. A guar-anteed same-sensor, purely translational pair suits AROSICS, which is ∼6× faster than SCDF and as precise (the A1/A3 columns of Table IV); a pair known to be globally projective suits SIFT+RANSAC (0.062 m on E1/A2); a displacement known to be small lets autoRIFT’s window be sized to it, and inside that window it is the best method we measured (E2/b4-A4). Prior knowledge can equally be spent on tuning, since window sizes, grid spacings and model orders are the constants it sets well. On a well-characterized dataset a tuned specialist is a legitimate choice, and sometimes the better one. SCDF is built for the complementary case, common under unattended processing: heterogeneous or uninspected inputs whose regime nobody certifies. There the specialists fail without warning, returning fields hundreds of meters wrong with nothing in the output flagging the failure (Section V-B), and no constant can be set correctly for a regime that is unknown. Every gate in SCDF calibrates on the pair at hand, so there is no constant to set. What transfers to unseen data is the bounded worst case of Table VI, not a win on any individual block. For evaluation practice our recommendation is independent of our method and is stated in Section IV-D. 
+
+B. Limitations of the method a) Open water: The catastrophic cells of Section V-C localize to open-water-dominated scenes. Open water is a known difficulty for image matching in general and is not particular to SCDF, because it carries no persistent structure to match. The behavior at the cliff is particular to SCDF: on the worst site the gates correctly detect the collapse (42 of 433 points verify), but downweighting cannot recover a field in which no anchor is reliable. A principled fallback, reverting toward the zero-displacement seed when pair-level verification collapses, is future work; under the +∞ rule of Section IV-D a declared non-answer scores the same as a catastrophic field, so the fallback would improve the product without improving our score. 
+
+b) Cost and scope: Runtime is unoptimized single-core ( ∼16 min per 8192 2 scene serially; Section V-E). All development and evaluation used same-optical, same-band-family pairs. Cross-modal registration is untested but not excluded: the matcher is a plug point (Section III-C), though we claim nothing beyond the tested regime. 13 
+
+C. Limitations of the benchmark, and disclosures 
+
+All accuracy numbers in this paper rest on constructed ground truth. The constructions are verified exact and are ap-plied to real imagery, but each leg’s native floor (Section IV-B) bounds what its numbers can claim: the b1–b3 floor ( ≈3– 5 m) is taken from literature rather than measured per pair; b4’s is documented only as a bound ( < 6 m CE90); b5’s is undocumented, so its columns rank methods but support no absolute accuracy claim. Three further disclosures follow, the first two detailed in Supplement S-II. autoRIFT’s A4 failure is a design-envelope limit, confirmed by a grid-size cross-check. SRIF is a non-functional reimplementation and is excluded from every ranking. And single low-texture cells can swing 2–7 × under sub-half-pixel perturbations, which is why no single cell is ever cited as evidence. VII. C ONCLUSION 
+
+We presented SCDF, a training-free dense displacement-field method for co-registration of large optical satellite images in which every acceptance decision self-calibrates from the image pair (per-window null-correlation gates, pair-quantile error gates, studentized local-affine outlier tests, and cross-validated interpolator selection), under one default configuration. Across 584 constructed-ground-truth registration problems on real imagery, precision separates the methods far less than the worst case does: with exact ground truth every method is sub-pixel unless the fixture falls outside its deformation model or its search envelope. On real pairs SCDF produces a field on every cell and is never more than 1.39 × from the best result on any block, while every baseline is somewhere 5.3–783 ×
+
+off or declines cells. On non-global deformation the difference is structural, because every global-model method (classical or zero-shot-learned with global densification) is hundreds of meters wrong on cells that dense fields resolve to a few meters. Standard mean/median-EPE reporting does not expose any of this. For dense co-registration we propose scoring in meters by order statistics that keep declined cells, read next to distance-from-best on each fixture. Future work: a principled fallback for pairs whose verifica-tion collapses (open-water scenes); learned matchers behind the same self-calibrating gates; manual-checkpoint evaluation on undistorted cross-sensor pairs as the held-out anchor; true multimodal extension; and runtime engineering, which was out of scope here. The matcher interface is a plug point, and a dense learned matcher operating tile-wise could supply anchors where RootSIFT cannot. 
+
+a) Data and code availability: The source imagery, the site polygons with their WorldCover composition, and the scripts that regenerate every constructed pair and its ground truth are archived at https://doi.org/10.5281/zenodo.21900160. The implementation of SCDF is at https://github.com/TitorX/ geocoreg. The benchmark is regenerable end to end from public Planetary Computer collections, since each construction is deterministic given the archived scripts. REFERENCES [1] J. Storey, D. P. Roy, J. Masek, F. Gascon, J. Dwyer, and M. Choate, “A note on the temporary misregistration of Landsat-8 Operational Land Imager (OLI) and Sentinel-2 Multi Spectral Instrument (MSI) imagery,” 
+
+Remote Sensing of Environment , vol. 186, pp. 121–122, 2016. [2] S. Skakun, J.-C. Roger, E. F. Vermote, J. G. Masek, and C. O. Justice, “Automatic sub-pixel co-registration of Landsat-8 Operational Land Imager and Sentinel-2A Multi-Spectral Instrument images using phase correlation and machine learning based mapping,” International Journal of Digital Earth , vol. 10, no. 12, pp. 1253–1269, 2017. [3] M. Claverie, J. Ju, J. G. Masek, J. L. Dungan, E. F. Vermote, J.-C. Roger, S. V. Skakun, and C. Justice, “The Harmonized Landsat and Sentinel-2 surface reflectance data set,” Remote Sensing of Environment , vol. 219, pp. 145–161, 2018. [4] P.-E. Sarlin, D. DeTone, T. Malisiewicz, and A. Rabinovich, “SuperGlue: Learning feature matching with graph neural networks,” in Proc. IEEE/CVF Conf. Computer Vision and Pattern Recognition (CVPR) ,2020, pp. 4937–4946. [5] P. Lindenberger, P.-E. Sarlin, and M. Pollefeys, “LightGlue: Local feature matching at light speed,” in Proc. IEEE/CVF Int. Conf. Computer Vision (ICCV) , 2023. [6] J. Sun, Z. Shen, Y. Wang, H. Bao, and X. Zhou, “LoFTR: Detector-free local feature matching with transformers,” in Proc. IEEE/CVF Conf. Computer Vision and Pattern Recognition (CVPR) , 2021. [7] J. Edstedt, Q. Sun, G. Bökman, M. Wadenbäck, and M. Felsberg, “RoMa: Robust dense feature matching,” in Proc. IEEE/CVF Conf. Computer Vision and Pattern Recognition (CVPR) , 2024. [8] D. Scheffler, A. Hollstein, H. Diedrich, K. Segl, and P. Hostert, “AROSICS: An automated and robust open-source image co-registration software for multi-sensor satellite data,” Remote Sensing , vol. 9, no. 7, p. 676, 2017. [9] S. Leprince, S. Barbot, F. Ayoub, and J.-P. Avouac, “Automatic and precise orthorectification, coregistration, and subpixel correlation of satellite images, application to ground deformation measurements,” IEEE Transactions on Geoscience and Remote Sensing , vol. 45, no. 6, pp. 1529–1558, 2007. [10] Y. Lei, A. Gardner, and P. Agram, “Autonomous repeat image feature tracking (autoRIFT) and its application for tracking ice displacement,” 
+
+Remote Sensing , vol. 13, no. 4, p. 749, 2021. [11] G. Brigot, E. Colin-Koeniguer, A. Plyer, and F. Janez, “Adaptation and evaluation of an optical flow method applied to coregistration of forest remote sensing images,” IEEE Journal of Selected Topics in Applied Earth Observations and Remote Sensing , vol. 9, no. 7, pp. 2923–2939, 2016. [12] D. G. Lowe, “Distinctive image features from scale-invariant keypoints,” 
+
+International Journal of Computer Vision , vol. 60, no. 2, pp. 91–110, 2004. [13] M. A. Fischler and R. C. Bolles, “Random sample consensus: A paradigm for model fitting with applications to image analysis and automated cartography,” Communications of the ACM , vol. 24, no. 6, pp. 381–395, 1981. [14] J. Li, Q. Hu, and M. Ai, “RIFT: Multi-modal image matching based on radiation-variation insensitive feature transform,” IEEE Transactions on Image Processing , vol. 29, pp. 3296–3310, 2020. [15] J. Li, P. Shi, Q. Hu, and Y. Zhang, “RIFT2: Speeding-up RIFT with a new rotation-invariance technique,” arXiv preprint arXiv:2303.00319 ,2023. [16] J. Li, Q. Hu, and Y. Zhang, “Multimodal image matching: A scale-invariant algorithm and an open dataset,” ISPRS Journal of Photogram-metry and Remote Sensing , vol. 204, pp. 77–88, 2023. [17] D. DeTone, T. Malisiewicz, and A. Rabinovich, “SuperPoint: Self-supervised interest point detection and description,” in Proc. IEEE/CVF Conf. Computer Vision and Pattern Recognition Workshops (CVPRW) ,2018. [18] Y. Wang, X. He, S. Peng, D. Tan, and X. Zhou, “Efficient LoFTR: Semi-dense local feature matching with sparse-like speed,” in Proc. IEEE/CVF Conf. Computer Vision and Pattern Recognition (CVPR) , 2024. [19] V. Leroy, Y. Cabon, and J. Revaud, “Grounding image matching in 3D with MASt3R,” in Computer Vision – ECCV 2024 , 2024. [20] L. Li, L. Han, Y. Ye, Y. Xiang, and T. Zhang, “Deep learning in remote sensing image matching: A survey,” ISPRS Journal of Photogrammetry and Remote Sensing , vol. 225, 2025. [21] I. Corley, A. Stoken, and G. Berton, “Are pretrained image matchers good enough for SAR-optical satellite registration?” in Proc. IEEE/CVF CVPR Workshops (Image Matching Workshop) , 2026, pp. 78–87, arXiv:2604.10217. 14 
+
+[22] X. Shen, Z. Cai, W. Yin, M. Müller, Z. Li, K. Wang, X. Chen, and C. Wang, “GIM: Learning generalizable image matcher from internet videos,” in Proc. Int. Conf. Learning Representations (ICLR) , 2024. [23] X. He, H. Yu, S. Peng, D. Tan, Z. Shen, H. Bao, and X. Zhou, “MatchAnything: Universal cross-modality image matching with large-scale pre-training,” arXiv preprint arXiv:2501.07556 , 2025. [24] M. Menze and A. Geiger, “Object scene flow for autonomous vehicles,” in Proc. IEEE Conf. Computer Vision and Pattern Recognition (CVPR) ,2015, pp. 3061–3070. [25] M. Dusmanu, I. Rocco, T. Pajdla, M. Pollefeys, J. Sivic, A. Torii, and T. Sattler, “D2-Net: A trainable CNN for joint description and detection of local features,” in Proc. IEEE/CVF Conf. Computer Vision and Pattern Recognition (CVPR) , 2019, pp. 8084–8093. [26] V. Balntas, K. Lenc, A. Vedaldi, and K. Mikolajczyk, “HPatches: A benchmark and evaluation of handcrafted and learned local descriptors,” in Proc. IEEE Conf. Computer Vision and Pattern Recognition (CVPR) ,2017. [27] Y. Jin, D. Mishkin, A. Mishchuk, J. Matas, P. Fua, K. M. Yi, and E. Trulls, “Image matching across wide baselines: From paper to practice,” 
+
+International Journal of Computer Vision , vol. 129, pp. 517–547, 2021. [28] Y. Ye, L. Bruzzone, J. Shan, F. Bovolo, and Q. Zhu, “Fast and robust matching for multimodal remote sensing image registration,” IEEE Transactions on Geoscience and Remote Sensing , vol. 57, no. 11, pp. 9059–9070, 2019. [29] S. Schaefer, T. McPhail, and J. Warren, “Image deformation using moving least squares,” ACM Transactions on Graphics , vol. 25, no. 3, pp. 533– 540, 2006. [30] R. Arandjelovi´ c and A. Zisserman, “Three things everyone should know to improve object retrieval,” in Proc. IEEE Conf. Computer Vision and Pattern Recognition (CVPR) , 2012, pp. 2911–2918. [31] P. J. Rousseeuw and C. Croux, “Alternatives to the median absolute deviation,” Journal of the American Statistical Association , vol. 88, no. 424, pp. 1273–1283, 1993. [32] M. Guizar-Sicairos, S. T. Thurman, and J. R. Fienup, “Efficient subpixel image registration algorithms,” Optics Letters , vol. 33, no. 2, pp. 156–158, 2008. [33] F. L. Bookstein, “Principal warps: Thin-plate splines and the decom-position of deformations,” IEEE Transactions on Pattern Analysis and Machine Intelligence , vol. 11, no. 6, pp. 567–585, 1989. [34] Microsoft Open Source, M. McFarland, R. Emanuele, D. Morris, and T. Augspurger, “microsoft/PlanetaryComputer,” Zenodo, 2022. [35] D. Zanaga, R. Van De Kerchove, D. Daems, W. De Keersmaecker, C. Brockmann, G. Kirches, J. Wevers, O. Cartus, M. Santoro, S. Fritz 
+
+et al. , “ESA WorldCover 10 m 2021 v200,” Zenodo, 2022. [36] L. Yan, D. P. Roy, Z. Li, H. K. Zhang, and H. Huang, “Sentinel-2A multi-temporal misregistration characterization and an orbit-based sub-pixel registration methodology,” Remote Sensing of Environment , vol. 215, pp. 495–506, 2018. [37] R. Rengarajan, M. J. Choate, M. N. Hasan, and A. Denevan, “Co-registration accuracy between Landsat-8 and Sentinel-2 orthorectified products,” Remote Sensing of Environment , vol. 301, p. 113947, 2024. [38] S. Baker, D. Scharstein, J. P. Lewis, S. Roth, M. J. Black, and R. Szeliski, “A database and evaluation methodology for optical flow,” International Journal of Computer Vision , vol. 92, no. 1, pp. 1–31, 2011. SUPPLEMENTARY MATERIAL 1
+
+# Supplementary Material for: Self-Calibrating Dense Displacement Fields for Reliable Co-Registration of Large Optical Satellite Imagery 
+
+Shoukun Sun, Zhe Wang, Sanaz Salati, Jiyin Zhang, Hui Wang, and Xiaogang Ma 
+
+This supplement collects implementation constants, baseline configurations and audit disclosures, construction and data-pipeline details, the component studies (gate ROC, factorial ablation), and the zero-shot deep-learning baseline details. Section, table, and figure numbers here are prefixed with “S”; references of the form “main-text Sect. IV-B” point to the main text. S-I. M ETHOD IMPLEMENTATION DETAILS AND CONSTANTS 
+
+A. Internal constants 
+
+Table S1 lists the internal constants of the pipeline. None of them is exposed as user configuration, and all are identical for every one of the 584 benchmark cells. 
+
+TABLE S1 INTERNAL CONSTANTS OF THE SCDF P IPELINE 
+
+Stage Constant Value Pyramid initial patch size overlap size schedule halve per level minimum patch size 256 px center skip rule skip if patch already holds ≥ 5 matches Matching Lowe ratio threshold 0.75 local RANSAC affine, patch-level cycle consistency forward/backward, max error 3 px cross-resolution cap 2048 px per side resize inverse center-correct, psrc = ( pdst + 0 .5) s − 0.5, realized ratio s
+
+Per-level filters global magnitude MAD gate k = 3 
+
+LOO local-affine neighbors 12 robust reweight one Tukey-IRLS pass ( c = 4 .685 )leverage correction residuals scaled by 1/p1 + g2, g2 = P 
+
+> j
+
+a2 
+
+> j
+
+over the LOO prediction weights LOO threshold med + 3 .5 · 1.4826 · MAD of pair residuals NMS radius 32 px (keep highest confidence) Finest level re-measurement window 128 coarse px densification window 64 coarse px lattice spacing 48 coarse px correlation upsampling 32 × (≈ 1/32 coarse px) null correlations per window K = 8 
+
+response gate response > max of the window’s K nulls error gate quantile of the pair’s own error distribution ( q = 0 .5
+
+re-measuring, 0.4 densifying), clamped to [0 .6, 0.97] 
+
+gate failures matched points downweighted by clip( ρ/ med ρacc , 0.1, 1) ;lattice candidates never added prior-deviation bound 4 coarse px re-measuring, 3 densifying Confidence C feature points ratio-test confidence × reprojection confidence correlation-measured points measured lock quality: response ρ, clipped to [0 .05 , 0.95] 
+
+consumers MLS weights (priors and fill), NMS order, filter weights, gate-failure downweight Fill cross-validation 5-fold over the pair’s control points candidate interpolators 7 (MLS k/α family, IDW, TPS) Warp geolocation arrays center-anchored, PIXEL_OFFSET = 0 .5
+
+resampling nearest-neighbor (original DN) SUPPLEMENTARY MATERIAL 2
+
+B. Leave-one-out filter: two refinements 
+
+The leave-one-out (LOO) local-affine filter of main-text Sect. III-C predicts each matched point’s displacement from its 
+
+k = 12 nearest matched neighbors (self excluded), with the same distance- and confidence-weighted affine model the MLS prior uses (main-text Eq. (3)), and tests the residual against main-text Eq. (4). Two refinements keep that test honest. 
+
+Leverage studentization The LOO prediction is linear in the neighbor values. With the weights of main-text Eq. (3) normalized to wj , the weighted centroid p∗ = P 
+
+> j
+
+wj pj , centered offsets ˆpj = pj − p∗, and moment matrix A = P 
+
+> j
+
+wj ˆpj ˆp⊤ 
+
+> j
+
+, the closed-form solution evaluated at pi is ˆd−i = P 
+
+> j
+
+aj dj with aj = wj
+
+ 1 + ( pi − p∗)⊤A−1 ˆpj
+
+, so the prediction’s noise scales with g = ( P 
+
+> j
+
+a2 
+
+> j
+
+)1/2. Interior points have small g; a point at the hull edge or in a sparse area, whose fit extrapolates, has 
+
+g several times larger, and a threshold calibrated on the interior bulk would cut such valid high-leverage points. Residuals are therefore scaled by 1/p1 + g2 before the threshold is set. A neighborhood whose affine system is degenerate (collinear neighbors) falls back to the weighted mean, with g2 = P 
+
+> j
+
+w2 
+
+> j
+
+.
+
+One robust reweighting pass An outlier corrupts the fits of its neighbors , inflating their residuals, and at a displacement discontinuity the two sides corrupt each other. After a first pass, each neighbor’s weight is multiplied by the Tukey biweight of its own first-pass residual, (1 − u2)2 for |u| < 1 and 0 otherwise, with u = rj /(c ˆσr ), c = 4 .685 and ˆσr the robust scale (1.4826 MAD ) of the first-pass residuals; the fits are then recomputed once. Only a point that remains inconsistent with a cleaned neighborhood stays above threshold. 
+
+C. Correlation-pass formalism 
+
+Formal definitions for the correlation measurement of main-text Sect. III-D; window sizes, the upsampling factor, and K are in Table S1. The two windows cover the same ground extent, the finer one area-downsampled to the coarse grid, so every quantity below is in coarse pixels. Both windows are mean-removed and Hann-tapered, ˜M = ( M − ¯M ) ⊙ h and likewise ˜R;the taper suppresses the DFT’s wrap-around seam. Every candidate shift s is scored at once by the correlation surface 
+
+Γ( s) = X
+
+> u
+
+˜R(u) ˜M (u + s) = F−1 bR ⊙ cM (s), (S1) where the right-hand side — the correlation theorem, with b· the 2-D DFT — is how the surface is evaluated. The residual is its peak, 
+
+s⋆ = arg max 
+
+> s
+
+Γ( s), (S2) located to 1/32 px by re-evaluating Eq. (S1) on an upsampled grid in a small neighborhood of the integer peak — a matrix-multiply DFT over that neighborhood only [1]; the windows themselves are never upsampled. The two gate quantities are byproducts of the same transform products. The response 
+
+ρ = max  
+
+> s
+
+F−1
+
+ bR ⊙ cM
+
+bR ⊙ cM
+
+ (s) (S3) is the peak of the phase-only correlation: every frequency votes on the shift with unit weight, so unanimous agreement piles into a single spike ( ρ → 1) while ambiguous, self-similar content spreads it flat. The error 
+
+ϵ =
+
+
+
+1 − Γ( s⋆)2  ∥ ˜R∥2 ∥ ˜M ∥21/2
+
+(S4) is the normalized mismatch left after the best alignment: ρ measures whether the lock is unique, ϵ whether the windows look alike — two stretches of open water look alike but lock nowhere, while a sharp cross-sensor lock is unique though radiometrically nothing alike, which is why the main text gates the two axes separately. The three acceptance gates of main-text Sect. III-D are, with constants from Table S1: the response gate ,
+
+ρ > max  
+
+> k=1 ,...,K
+
+ρnull  
+
+> k
+
+, (S5) where ρnull  
+
+> k
+
+is the response of the same REF window against the MOV window of another measurement in the batch, K=8 
+
+partners drawn at row-major index distance >n/ 4 so that their content is unrelated (the gate is skipped when the batch holds fewer than 16 windows); the error gate , ϵ ≤ clip( Qq (ϵ), 0.6, 0.97) with Qq the q-quantile over the batch ( q = 0 .5
+
+re-measuring, 0.4 densifying) — an absolute bound would be meaningless, since good cross-sensor locks sit near ϵ ≈ 0.9; and the prior-deviation bound , |s⋆x|, |s⋆y | ≤ 4 coarse px re-measuring and 3 densifying. A measurement failing any of the three is rejected outright, never clipped. Both data-driven thresholds are computed only after the whole batch is measured. In the gate-failure downweight of Table S1, ρacc denotes the responses of the windows accepted in the same pass, so a failed point’s confidence is scaled by its response relative to the accepted median. SUPPLEMENTARY MATERIAL 3
+
+S-II. B ASELINE CONFIGURATIONS AND AUDIT DISCLOSURES 
+
+A. Configurations 
+
+All baselines run at official or published defaults, on identical inputs, scored by the identical evaluator. Single-CPU execution is enforced at each method’s entry point (OpenCV/BLAS/OpenMP thread pools set to 1; AROSICS CPUs =1; autoRIFT 
+
+MultiThread =0), verified at 99.7% single-core occupancy during the runtime measurement.  
+
+> •
+
+SIFT+RANSAC (OpenCV): 8000 features, Lowe ratio 0.75, RANSAC reprojection threshold 5 px, single global homography evaluated densely on MOV’s grid.  
+
+> •
+
+AROSICS : default global + local tie-point grid, window/grid sizes at the package’s adaptive defaults.  
+
+> •
+
+autoRIFT : official minimal configuration — chip sizes 32–64 px and chip-grid spacing 32 px (the class defaults), oversampling ratio 64 (the one value the official script overrides), search limit 25 px (the package default), sparse chip displacements interpolated to the full MOV grid.  
+
+> •
+
+RIFT / RIFT2 : faithful function-by-function ports of the official MATLAB code (phase congruency, FAST-on-moment-map keypoints, maximum-index-map descriptors; patch size 96, 5000 keypoints), retaining the authors’ FSC outlier rejection (affine for RIFT, similarity for RIFT2) rather than substituting RANSAC.  
+
+> •
+
+SRIF : reimplemented from the paper (no source is published; the authors provide only a Windows executable); paper Table-3 parameters. See the disclosure below.  
+
+> •
+
+GeFolki : the official ONERA Python implementation, adopted unmodified, at its defaults. The four ported methods (RIFT, RIFT2, SRIF, GeFolki) share one input preparation step that warps REF onto MOV’s exact grid first. All methods emit a dense field on MOV’s full grid; no method warps its own output — rendering for image-space scoring is one shared routine. 
+
+B. Disclosure: SRIF port is non-functional 
+
+Our SRIF reimplementation produces invalid geometry even on near-identity input: on an E1/b1 A1 cell (radiometric-only distortion, true offset ≈ 0) it fits a homography with a ≈ 99 ◦ rotation, scale 0.68, and a 7259 px translation from 3 inliers (cell median EPE ≈ 42 km); its frozen per-leg block medians span 0.49–32.5 km, with 32.5 km on a same-GSD leg. This does not represent the published SRIF algorithm — it is a defect of our port (the paper omits at least one parameter we had to guess). SRIF rows are therefore retained in tables for completeness, flagged †, and excluded from every ranking, claim, and aggregate in the paper. 
+
+C. Disclosure: autoRIFT’s A4 failure is its design envelope 
+
+autoRIFT fails most A4 cells because the A4 seam displacement ( ±0.006 · max( H, W )) exceeds its official fixed 25 px search window. When the true displacement is outside the window, the NCC finds no peak, the refinement collapses the search limit to zero, the chip grid returns NaN, and the wrapper reports a (correct) failure — the mechanism the tool’s own documentation describes. The grid-size cross-check confirms the mechanism: on the 8192 2 legs autoRIFT completes 3/25 (E1/b1) and 2/96 (E2) A4 cells, whereas on E2/b4 the crops are 2731 2, the seam is only ±16 px — inside the window — and it completes 25/25. autoRIFT was designed for small, smooth glacier-velocity fields; A4 is outside its envelope at official defaults. We deliberately did not retune search_limit : that would break the published-defaults protocol. (E2/b5 is a whole-leg pathology for autoRIFT — 0/21 completions on A1/A2/A4, 18/21 on A3 — recorded as failures, not dropped cells.) S-III. C ONSTRUCTION DETAILS AND GROUND -TRUTH VERIFICATION 
+
+A. Formalism, equations, and parameters 
+
+All four constructions share one formalism. Let B denote the base raster (the source scene in E1, the real mover in E2), a square of side N px, and let φ be the affine pixel-to-map transform of the constructed mover’s grid. A geometric construction is a pixel-space displacement field u; the mover M and its ground truth follow as 
+
+M (p) = B p − u(p), Dgt (p) = φ p − u(p) − φ(p), (S6) with bilinear sampling of B, so the truth is a map-unit field on the mover’s own grid — exactly the convention of main-text Eq. (1). A mover pixel is valid only if its full bilinear footprint is in bounds and touches no nodata sample. Distortions act on raw sample values and preserve dtype and nodata; the reference is never touched. All magnitudes are fixed fractions of N , and all random draws use one fixed seed, so every site receives the identical realization; parenthetical pixel values below instantiate 
+
+N = 8192 . 
+
+> •
+
+A1 (radiometric + PSF; ground truth ≡ 0). u ≡ 0. Each band b is tone-remapped on its own raw value scale sb (the band’s valid-pixel 98th percentile), blurred, and re-noised: 
+
+Mb = Gσ ∗
+
+h
+
+sb
+
+ gb (Bb/s b)γ + βb
+
+i
+
++ εb, εb ∼ N  0, (0 .04 sb)2, (S7) SUPPLEMENTARY MATERIAL 4
+
+with tone exponent γ = 1 .6, per-band gain gb ∼ U (0 .80 , 1.20) and bias βb ∼ U (−0.06 , 0.06) , and Gσ a σ = 2 px Gaussian emulating an MTF difference, computed as a normalized convolution over valid samples so that nothing bleeds across nodata; the result is clipped to the native dtype.  
+
+> •
+
+A2 (global homography). u(p) = p − H−1p, i.e. M (p) = B(H−1p), where the homography H (acting in homogeneous coordinates) maps the four scene corners onto themselves plus i.i.d. U(−τ, τ )2 offsets, τ = 0 .02 N (≈ 164 px at 8192 2); the same inverse homography that warps the image generates the ground-truth field.  
+
+> •
+
+A3 (downsampling). A grid change rather than a displacement: M is the nodata-aware area average of B onto a coarse grid of side N ′ = round( N/ 3) , and the geotransform uses the exact realized factor N/N ′ — under which the zero-displacement ground truth is rigorously exact (MOV pixel-center positions match the INTER_AREA content centroids to 0.0 m). Under the nominal factor 3 the zero truth would acquire a linear ramp reaching ≈ 0.33 MOV px at the far edge; an early version wrote exactly that, was fixed before the benchmark freeze, and all frozen data use the exact factor.  
+
+> •
+
+A4 (seam-dominated non-global deformation). A mosaic seam plus a weak elastic residual, 
+
+u(p) = δ tanh 
+
+ x − N/ 2
+
+N/ 16 
+
+
+
+ˆx + e(p), δ = 0 .006 N, (S8) so the left and right halves shift in opposite directions by δ (±49 px at 8192 2) across a smooth tanh transition band. The elastic residual e is generated as per-axis white noise of standard deviation 24 px on a 16 ×-downsampled grid and Gaussian-smoothed with a kernel proportional to image size — the smoothing attenuates the effective amplitude to 
+
+≈ 0.41 px at 8192 2 (≈ 1.19 px at 2731 2). For every construction the stored ground truth was verified against the constructed image: resampling the base with the ground-truth field reconstructs the constructed mover with 0.0 error for A2 and A4 (seam discontinuities land identically in image and field); A1’s truth is zero by definition on an untouched grid; A3’s zero-truth is exact under the realized factor. Nodata footprints propagate conservatively into the valid masks. S-IV. S ITE SAMPLING AND DATA PIPELINE 
+
+Sites are sampled globally by area-weighted random draws over continental land boxes (cosine-latitude corrected; ocean points are rejected naturally by the absence of WorldCover tiles). Each candidate’s ESA WorldCover 2021 v200 composition [2] is probed over the tier’s representative crop footprint ( ≈ 82 km window for the Sentinel-2/Landsat tier, ≈ 5 km for the NAIP tier, decimated to ≈ 100 m), and accepted iff (i) the largest class covers ≤ 90% and (ii) at least two of the seven main classes exceed 2% (“anti-homogeneity”), with a set-level target of ≥ 10 sites per class; built-up never dominates an 82-km window and is under-covered (4–5 sites) — an intrinsic gap we disclose. Accepted sites keep a minimum center separation of one footprint side (twice the probe half-window), so crops never overlap. Per-site class fractions are stored in the released site polygons. All imagery is fetched from Microsoft Planetary Computer [3] STAC collections (Sentinel-2 L2A, Landsat Collection 2 L2, NAIP), reading cloud-optimized GeoTIFFs remotely. Pair rules: scene-level cloud <10% ; Sentinel-2 multi-temporal pairs must share the MGRS tile and the relative orbit (the hard geometric constraint protecting the L1 floor; cross-orbit pairs are excluded outright); candidates are sorted by cloud cover and walked until both crops pass quality control (crop-level invalid fraction 
+
+≤ 20% from the SCL layer for Sentinel-2 — cloud shadow, medium/high-probability cloud, cirrus, snow — the QA band for Landsat, and all-zero nodata for NAIP). Time windows: E2/b1 reference 2024-07 ±60 d versus mover 2024-01 ±75 d; E2/b2 2023-07 ±90 d; E2/b3 2019-07 ±150 d; E2/b4 Sentinel-2 and Landsat-8/9 each within ±30 d of 2024-07, picked independently, so realized pair gaps run 0–50 d (median 16 d); E2/b5 Sentinel-2 within ±15 d of 2024-07, paired with each site’s single-vintage NAIP mosaic — the year with maximal tile coverage over the site within 2017–2024, realized as 2022 (11 sites) or 2023 (10), same-year tiles only to avoid cross-vintage seams. The b5 pairs therefore carry 0.7–2.1 yr (median 1.9 yr) of landscape change on top of the modality gap. S-V. C OMPONENT STUDIES : GATE ROC AND FACTORIAL ABLATION 
+
+A. Response-gate ROC 
+
+Figure S1 scores the response gate against dense ground truth on one of the probe cells on which it was selected. Each densification-lattice window is labeled good (EPE ≤ 0.5 coarse px) or junk ( >1.5) from the ground truth, for scoring only; the gate’s accept/reject decisions are scored as true- and false-positive rates and compared with the ROC curve of an absolute response floor swept over its full range. The gate accepts 71% of the good windows and 6% of the junk ones (TPR 0.71 / FPR 0.06), a point on the frontier of the swept floor: with no tuning, it matches what a floor tuned on this cell’s own ground truth could achieve. Parity without tuning, not dominance, is the claim. Panel (a) shows why a single floor cannot do the same: the per-window standard spans 0.14–1.13 across windows, so a smooth window is held to a higher bar than a textured one. SUPPLEMENTARY MATERIAL 50.0 0.2 0.4 0.6 0.8 1.0           
+
+> per-window null-max response (its own junk standard)
+> 0.0 0.2 0.4 0.6 0.8 1.0
+> observed response
+> ACCEPT region (observed > null-max) REJECT region
+> (a) the decision, per window — accept i ff observed > null-max
+> junk lock (EPE > 1.5 px) n=156 good lock (EPE ≤ 0.5 px) n=185
+> 0.0 0.2 0.4 0.6 0.8 1.0 false-positive rate (junk accepted) 0.0 0.2 0.4 0.6 0.8 1.0 true-positive rate (good accepted)
+> (0.06, 0.71)
+> (b) ROC — the gate is chosen by measurement, not taste
+> absolute response fl oor (swept) per-window null gate
+> Gate uses only in-method quantities (response + per-window nulls); ground truth labels good/junk for scoring only. Smooth windows self-raise their own null standard, so a high-response false lock is still rejected.
+
+Fig. S1. The response gate scored against dense ground truth, on the 342 measurable densification-lattice windows of one cell (E2/b4 ·A3 ·africa_south_8 ). Ground truth labels windows good/junk for scoring only — the gate sees none of it. (a) The per-window accept rule. (b) The gate’s operating point against the frontier traced by sweeping an absolute response floor. 
+
+B. Factorial ablation of the measurement stack 
+
+Design: a full 23 factorial that switches each of the three stages of the measurement stack on or off — sub-pixel re-measurement, lattice densification, and cross-validated fill, hereafter re-measurement , densification , and fill — giving eight variants from V0 (all on, the shipped configuration) to V7 (all off), each run on the same stratified 60-cell subset (first sites per leg in sweep order × all four constructions; 12 cells per leg group). Cells are not independent — each site recurs across legs and constructions — so the paired Wilcoxon p values throughout this section are read as descriptive strength, not literal error rates; the main text reports no significance statistics. Table S2 gives the eight corners (V0–V3 and V7 are main-text Table VII, without the p columns). Removing any one stage costs at most 3.5% on the median; removing all three costs 17.1% on the median and 41.0% on p90, with every two-stage knockout in between. No stage carries the precision alone. 
+
+TABLE S2 THE EIGHT CORNERS OF THE FACTORIAL : B LOCK SCORES AND PAIRED RATIOS TO V0 
+
+Block score (m) Paired on median Paired on p90 Variant Stages off median p90 ratio p ratio p
+
+V0 — (full stack) 2.832 4.809 1.000 — 1.000 —V1 re-measurement 2.828 5.093 0.974 0.81 1.003 0.15 V2 densification 2.899 5.484 1.014 0.091 1.093 1.8 × 10 −5
+
+V3 fill 2.838 4.830 1.035 0.0034 1.079 1.5 × 10 −5
+
+V4 re-measurement + densification 3.250 6.212 1.039 0.0014 1.171 1.4 × 10 −7
+
+V5 densification + fill 2.957 5.944 1.065 5.3 × 10 −4 1.218 2.2 × 10 −9
+
+V6 re-measurement + fill 3.120 5.938 1.061 1.7 × 10 −4 1.161 1.8 × 10 −8
+
+V7 all three 3.713 7.615 1.171 5.2 × 10 −7 1.410 5.4 × 10 −11 
+
+Ratio: geometric mean over the 60 cells of per-cell variant/V0, on the per-cell median and on the per-cell p90; >1 means switching the stages off costs accuracy. p: paired Wilcoxon over the 60 cells. All variants registered all 60 cells at the same median coverage (0.947). 
+
+Table S3 decomposes the same runs into main effects and pairwise interactions. All three main effects are positive on both responses ( p ≤ 0.010 ), including re-measurement, whose one-at-a-time row V1 shows nothing (0.974, p=0 .81 ) because densification and fill cover for it: with both gone, removing it costs 10.0%. All three interactions are positive — each stage is worth more when the others are absent — and the joint effect exceeds the sum of the three single-stage effects by 14.7% (p=1 .7 × 10 −9). The stages are substitutes, not additive contributors; the redundancy the main text asserts is measured here. Table S4 splits the all-off cost V7/V0 by construction and by leg (no clean-cell conditioning). The stack pays where matches are imprecise: the radiometric axis A1 loses most without it ( 1.53 × median, 1.83 × p90), since radiometric difference is what makes feature localization imprecise and all three stages attack exactly that, and the 1:3 cross-resolution leg b4 is the most damaged leg on the median ( 1.29 ×; 1.50 × on p90). A2 pays nothing (1.004): homography matches are already precise, and re-measuring them only adds noise — V1 on A2 is 0.887 median, 0.874 p90, the one place where switching re-measurement off helps. That A1 ↑/A2 ↓ cancellation is what the pooled V1 row averages to null. b5 moves least (1.053) but is r0-confounded (main-text Sect. IV-B) and uninformative here. SUPPLEMENTARY MATERIAL 6    
+
+> TABLE S3 MAIN EFFECTS AND INTERACTIONS OF THE THREE STAGES
+
+Median p90 Term Pairs, off/on ratio p ratio p
+
+main: re-measurement V1/V0, V4/V2, V6/V3, V7/V5 1.030 0.010 1.075 3.0 × 10 −5
+
+main: densification V2/V0, V4/V1, V5/V3, V7/V6 1.053 2.1 × 10 −5 1.150 1.8 × 10 −8
+
+main: fill V3/V0, V5/V2, V6/V1, V7/V4 1.075 2.3 × 10 −9 1.138 3.0 × 10 −11 
+
+interaction: re-measurement × densification V4/V2, V7/V5 vs. V1/V0, V6/V3 1.063 1.3 × 10 −5 1.072 8.3 × 10 −4
+
+interaction: re-measurement × fill V6/V3, V7/V5 vs. V1/V0, V4/V2 1.063 1.1 × 10 −6 1.077 1.1 × 10 −5
+
+interaction: densification × fill V5/V3, V7/V6 vs. V2/V0, V4/V1 1.025 1.2 × 10 −4 1.036 8.5 × 10 −5
+
+joint vs. combined single-stage effects (V1–V3) V7/V0 vs. V1/V0, V2/V0, V3/V0 1.147 1.7 × 10 −9 1.191 3.8 × 10 −7        
+
+> Per-cell contrasts on log error, geometric mean over the 60 cells; p: paired Wilcoxon of the per-cell contrasts against zero. Pairs: a main effect averages the per-cell log ratios of its four off/on pairs; an interaction is the average over the pairs before “vs.” minus the average over those after; the joint row is V7/V0 minus the sum of the three single-stage contrasts. Ratios are arithmetic transforms of Table S2 (exact before rounding); pvalues are not. TABLE S4 WHERE THE STACK MATTERS : V7/V0 BY CONSTRUCTION AND BY LEG
+
+A1 A2 A3 A4 b1 b2 b3 b4 b5 V7/V0 on median 1.527 1.004 1.106 1.110 1.171 1.223 1.137 1.292 1.053 V7/V0 on p90 1.831 1.108 1.499 1.298 1.449 1.502 1.326 1.501 1.263 
+
+> Geometric mean of per-cell V7/V0 over the split’s cells, on the per-cell median and p90.
+
+Reliability is overwhelmingly — not entirely — unmoved. Under the 0.90 sub-pixel-fraction diagnostic (a cell counts as clean when at least 90% of its pixels have EPE under one MOV pixel; a supplement-only classification, since the main text defines no success threshold), the clean-rate is 0.717 for every variant except the two deepest knockouts (V4: 0.683, V7: 0.667, i.e. 2 and 3 cells): no single-stage knockout flips any cell. The worst single-cell degradation grows with knockout depth — 1.57 ×
+
+(V1), 2.38 × (V4), 3.49 × (V7) — and V0 beats V7 on 46 of 60 cells. The stages are precision components, not reliability components. S-VI. Z ERO -SHOT DEEP -LEARNING BASELINES 
+
+SuperPoint +LightGlue (official repository weights superpoint_v1 , superpoint_lightglue_v0-1 ) and LoFTR (outdoor weights via kornia 0.8.3 [4]) run strictly zero-shot, with published pretrained weights, default inference settings, and no fine-tuning or domain adaptation. Both models take single-channel 8-bit input and are memory-bound far below the 8192 2 scene size, while the benchmark rasters are multi-band UInt16. The shared adaptation layer therefore (i) collapses the bands to grayscale by an unweighted mean, (ii) rescales each image to 8 bits by a 2–98th-percentile stretch computed over its valid samples, with nodata excluded from the statistics and written as black, and (iii) cuts REF and MOV into co-located tiles. When the two rasters already share a pixel grid (like A1/2/4) the tiles are cut directly; otherwise (like A3) REF is first resampled onto MOV’s grid by bilinear interpolation, after which corresponding content falls in the same tile up to the pair’s actual misregistration, which the tile overlap absorbs. LightGlue uses 2048 2 tiles with 256 px overlap (25 tiles per 8192 2 pair); LoFTR uses 1024 2 tiles with 128 px overlap (81 tiles), because its dense coarse attention is memory-bound in tile area. Tile-local matches are aggregated to full-image coordinates and densified by the same global-homography estimation as SIFT +RANSAC. REFERENCES [1] M. Guizar-Sicairos, S. T. Thurman, and J. R. Fienup, “Efficient subpixel image registration algorithms,” Optics Letters , vol. 33, no. 2, pp. 156–158, 2008. [2] D. Zanaga, R. Van De Kerchove, D. Daems, W. De Keersmaecker, C. Brockmann, G. Kirches, J. Wevers, O. Cartus, M. Santoro, S. Fritz et al. , “ESA WorldCover 10 m 2021 v200,” Zenodo, 2022. [3] Microsoft Open Source, M. McFarland, R. Emanuele, D. Morris, and T. Augspurger, “microsoft/PlanetaryComputer,” Zenodo, 2022. [4] E. Riba, D. Mishkin, D. Ponsa, E. Rublee, and G. Bradski, “Kornia: An open source differentiable computer vision library for PyTorch,” in Proc. IEEE/CVF Winter Conf. Applications of Computer Vision (WACV) , 2020.
