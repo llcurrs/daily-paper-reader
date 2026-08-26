@@ -6,34 +6,32 @@
 </div>
 
 ## 每次日报
-- 最新运行日期：2026-08-25
-- 运行时间：2026-08-25 21:01:47 UTC
+- 最新运行日期：2026-08-26
+- 运行时间：2026-08-26 20:47:25 UTC
 - 运行状态：成功
-- 本次总论文数：3
-- 精读区：0
+- 本次总论文数：4
+- 精读区：1
 - 速读区：3
 
 ### 今日简报（AI）
-今日速读3篇论文，均聚焦遥感与多模态视觉前沿，涵盖目标检测、影像配准与超分辨率。
-
-最值得关注：多模态检测新框架与大型光学卫星影像自校准配准，二者均获7.0分，实用性强。
-
-下一步建议：若关注工程落地，可优先精读A2DINOv3，其在多源数据协同检测上更易迁移应用。
-- 详情：[/202608/25/README](/202608/25/README)
+今日精读1篇、速读3篇，聚焦多模态学习与自动驾驶感知；最值得关注的是《自适应层级表征联盟》提出的多模态融合新思路，以及《方差引导空间注意力融合》对传感器退化场景的鲁棒性提升；后续可延伸关注多模态情感识别中的缺失模态恢复方法。
+- 详情：[/202608/26/README](/202608/26/README)
 
 ### 精读区论文标签
-- 本次无精读推荐。
+1. [Adaptive Hierarchical Representation Alliance for Multimodal Learning](/202608/26/2608.22863v1-adaptive-hierarchical-representation-alliance-for-multimodal-learning)  
+   标签：评分：8.0/10、query:multi-modal
+   evidence：分层共享-私有专家框架，显式处理多模态学习中的缺失输入，可迁移至遥感缺失模态场景
 
 ### 速读区论文标签
-1. [A2DINOv3: Rethinking Multi-Modal Object Detection via Socialized Collaboration](/202608/25/2608.21099v1-a2dinov3-rethinking-multi-modal-object-detection-via-socialized-collaboration)  
+1. [Variance-Guided Spatial Attention Fusion for Robust End-to-End Driving under Asymmetric Sensor Degradation](/202608/26/2608.24366v1-variance-guided-spatial-attention-fusion-for-robust-end-to-end-driving-under-asymmetric-sensor-degradation)  
    标签：评分：7.0/10、query:multi-modal
-   evidence：面向多模态融合的目标检测框架，可迁移至遥感数据融合
-2. [Self-Calibrating Dense Displacement Fields for Reliable Co-Registration of Large Optical Satellite Imagery](/202608/25/2608.22300v1-self-calibrating-dense-displacement-fields-for-reliable-co-registration-of-large-optical-satellite-imagery)  
+   evidence：非对称传感器退化下的鲁棒融合，通过方差引导空间注意力直接处理缺失模态
+2. [EVEREST:Endogenous Vision-Language Reinforcement Reasoning Exploration for Urban Socio-Semantic Segmentation](/202608/26/2608.24640v1-everestendogenous-vision-language-reinforcement-reasoning-exploration-for-urban-socio-semantic-segmentation)  
    标签：评分：7.0/10、query:multi-modal
-   evidence：自校准密集位移场实现多传感器光学卫星影像可靠配准
-3. [Interpretable Landsat-to-Hyperspectral Dual Super-Resolution Without Large Matrix Inversion](/202608/25/2608.22790v1-interpretable-landsat-to-hyperspectral-dual-super-resolution-without-large-matrix-inversion)  
-   标签：评分：7.0/10、query:multi-modal
-   evidence：将多光谱Landsat影像转换为高光谱数据，弥补遥感中缺失高光谱模态的问题
+   evidence：融合卫星影像与语言提示进行城市分割，属于多模态遥感数据融合
+3. [TTSD-FAR: Test-Time Self-Distillation with Fisher-Anchored Restoration for Missing-Modality Emotion Recognition in LVLMs](/202608/26/2608.18386v1-ttsd-far-test-time-self-distillation-with-fisher-anchored-restoration-for-missing-modality-emotion-recognition-in-lvlms)  
+   标签：评分：6.0/10、query:multi-modal
+   evidence：多模态学习中处理缺失模态的测试时方法
 
 
 <div class="dpr-home-promo-card">
