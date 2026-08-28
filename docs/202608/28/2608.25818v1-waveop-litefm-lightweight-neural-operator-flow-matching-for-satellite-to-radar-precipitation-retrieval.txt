@@ -1,0 +1,617 @@
+Title: WaveOp-LiteFM: Lightweight Neural-Operator Flow Matching for Satellite-to-Radar Precipitation Retrieval
+
+URL Source: https://arxiv.org/pdf/2608.25818v1
+
+Published Time: Thu, 27 Aug 2026 01:21:52 GMT
+
+Number of Pages: 17
+
+Markdown Content:
+> JOURNAL OF L ATEX CLASS FILES, VOL. 14, NO. 8, AUGUST 2021 1
+
+# WaveOp-LiteFM: Lightweight Neural-Operator Flow Matching for Satellite-to-Radar Precipitation Retrieval 
+
+Chunlei Shi, Yecheng Zhang, Yufeng Zhu, Dan Niu, Yichao Dong, Yongchao Feng, and Junming Hou 
+
+Abstract —Satellite-to-radar (S2R) retrieval refers to estimating ground-based radar precipitation from geostationary satellite observations, enabling precipitation monitoring in regions with limited radar coverage. While recent generative flow matching models have greatly advanced retrieval quality, they face acritical trade-off: pixel-space formulations suffer from prohibitive computational costs of attention-based U-Net velocity networks, whereas latent-space modeling often sacrifices fine precipitation details or struggles with sparse targets. To break this dilemma, we propose WaveOp-LiteFM, a lightweight neural operator flow matching framework for S2R retrieval. Our approach introduces a novel velocity backbone built upon the fundamental spectral-local-wavelet (SLW) block, enabling efficient and stable modeling of flow matching in pixel-space. Specifically, the SLW block disentangles precipitation features into three distinct frequency regimes: (i) the spectral branch captures large-scale stratiform organization;(ii) the local branch models short-range interac-tions; and (iii) the Wavelet branch enhances sharp structures while suppressing noisy high-frequency responses. Building on this, an input-adaptive gating mechanism dynamically fuses the features from three functional branches. Furthermore, a skip gate efficiently reintegrates encoder features via additive fusion within the decoder, circumventing the costly channel concatenation in conventional U-Net architectures. Experiments on SEVIR and southeast China datasets show that WaveOp-LiteFM achieves state-of-the-art retrieval while substantially reducing computa-tional costs. Beyond benchmark evaluation, large-area inference over China, such as the recent Typhoon Bavi case, demonstrates that WaveOp-LiteFM maintains reliable retrieval quality in large-scale real-world scenarios. 
+
+Index Terms —Satellite-to-radar retrieval, flow matching, lightweight neural operators, spectral-local-wavelet modeling. 
+
+I. I NTRODUCTION 
+
+Satellite-based radar retrieval is crucial for synthesizing radar-like precipitation products for short-range warning, flood monitoring, aviation weather, and convective-storm analysis [1]. However, ground radar networks often suffer from limited spatial coverage, terrain blockage, range effects, heterogeneous quality control, and operational gaps [2, 3]. Geostationary           
+
+> This work was supported by the Heavy Rainfall Research Foundation of China (No. BYKJ2025M14), China Meteorological Administration Xiong’an Atmospheric Boundary Layer Key Laboratory (No. 2025LABL-B12), and by the National Natural Science Foundation of China (62374031, 62331009), and by NSFC-Jiangsu Province (BK20240173). ( Corresponding author: Dan Niu, Yongchao Feng and Junming Hou. )Chunlei Shi, Yufeng Zhu, Yichao Dong and Dan Niu are with the Depart-ment of Automation, Southeast University, Nanjing 210096, China (e-mail: danniu1@163.com). Yecheng Zhang is with the Department of Architecture, Tsinghua Uni-versity, Beijing 100084, China. Yongchao Feng is with the State Key Laboratory of Virtual Reality Technology and Systems, Beihang University, Beijing 100191, China (e-mail: 230238514@seu.edu.cn). Junming Hou is with the State Key Laboratory of Millimeter Waves, School of Information Science and Engineering, Southeast University, Nanjing 210096, China (e-mail: junming hou@seu.edu.cn).
+
+satellites provide frequent wide-area observations from visible, infrared, and lightning-related channels, making a practical solution to extend radar-like precipitation monitoring beyond radar coverage. Despite this operational value, satellite-to-radar retrieval has received less attention than radar extrap-olation and general precipitation nowcasting [4]. Furthermore, real-world deployment demands models that can efficiently process large-scale regional grids under operational or edge-computing constraints while preserving fine-scale convective cores and sharp precipitation boundaries. Deep neural networks have become common tools for precipitation nowcasting, satellite-radar fusion, and weather retrieval [5–9]. Deterministic convolutional or transformer-based models provide efficient direct mappings, but they often produce overly smooth precipitation fields and weaken localized convective cores. Recent diffusion and flow-based models improve retrieval sharpness by learning generative pre-cipitation distributions [10–13]. However, in high-resolution regional deployment, pixel-space generative samplers repeat-edly evaluate velocity or score networks, and conventional U-Net backbones become especially expensive because dense feature processing and skip concatenation are performed at every sampling step (Fig. 1a). To alleviate the memory, storage, and computational bur-den of high-resolution weather modeling, recent studies have increasingly shifted weather forecasting, nowcasting, and gen-erative modeling from pixel space to compact latent or com-pressed representations [14–16]. These methods reduce the spatial resolution of the modeled state and can lower repeated sampling or prediction cost. For satellite-to-radar retrieval, however, the effectiveness of latent-space modeling depends critically on preserving spatially sparse and localized precip-itation structures [17]. In practice, we observed that a more aggressive latent operator-flow variant can become difficult to optimize for sparse precipitation fields, especially on SEVIR VIL, where the model may prefer diffuse or background-dominated predictions. Existing alternatives therefore leave an unresolved trade-off: pixel-space generative models preserve precipitation details but are computationally heavy, whereas aggressive latent transport improves efficiency at the risk of losing localized radar structure (Fig. 1b). To address this challenge, we propose WaveOp-LiteFM, a spectral-local-wavelet operator flow matching model. Con-cretely, WaveOp-LiteFM parameterizes the conditional flow matching velocity field with a three-branch operator block. A Fourier spectral branch models broad precipitation orga-nization and long-range dependencies; a depthwise separable local branch captures convective cells and local boundaries; and a Haar wavelet threshold branch learns to shrink noisy arXiv:2608.25818v1 [cs.MM] 26 Aug 2026 JOURNAL OF L ATEX CLASS FILES, VOL. 14, NO. 8, AUGUST 2021 2(a) Heavy  unet  flow backbone is costly  (b) Latent -space flow collapse  (c)  Ours:Pixel -space  flow 
+
++ lightweight operator     
+
+> Repeated velocity × 𝑁 step
+> Unet
+> Skip concat
+> +full conv
+> High res. feature
+> High sampling FLOPs
+> High res. feature
+> Latent
+> compression
+> × N step
+> Sparse cores fade
+> Weak heavy -threshold skill
+> Adaptive
+> gates
+> fusion
+> High -freq.
+> detail
+> Local
+> convective
+> Large -scale
+> organization
+> Spectral
+> Local
+> Wavelet
+> Pixel -space
+> CFM
+> Mutil -scale Operator
+> lightweight
+> velocity
+> bocbone
+> × N step
+> GFLOPs/sample
+> 664.8
+> 99.2
+> Unet
+> FM Ours
+
+Fig. 1: Comparison of generative satellite-to-radar retrieval paradigms. (a) Heavy pixel-space U-Net flow is accurate but costly; (b) latent-space flow is efficient but may smooth sparse precipitation cores; and (c) WaveOp-LiteFM keeps pixel-space supervision with lightweight spectral-local-wavelet operators. high-frequency coefficients while preserving radar-like details. Building on these complementary operators, adaptive gates select the useful mixture of branches for each feature map. Meanwhile, gated additive skip fusion in the decoder avoids expensive skip concatenation. The resulting fully convolutional architecture can be applied to different spatial sizes, while operational large-area inference can be handled through patch stitching (Fig. 1c). Our contributions are summarized as fol-lows:  
+
+> •
+
+We propose WaveOp-LiteFM, a lightweight neural-operator flow matching framework for satellite-to-radar precipitation retrieval that enables high-fidelity pixel-space modeling while significantly improving computa-tional efficiency.  
+
+> •
+
+We introduce a principled spectral-local-wavelet (SLW) block that disentangles precipitation representations into complementary frequency regimes, with adaptive dual-gating mechanisms enabling dynamic feature fusion and efficient skip connections.  
+
+> •
+
+Beyond achieving state-of-the-art performance on stan-dard benchmarks, we further demonstrate the model’s scalability and robustness in large-scale real-world sce-narios through tiled inference over the recent Typhoon Bavi in China. II. R ELATED WORK 
+
+a) Precipitation nowcasting and satellite-radar re-trieval.: Deep learning has become a standard tool for pre-cipitation nowcasting, from convolutional recurrent models to attention, transformer, diffusion, and loss-driven designs [10, 18–23]. Large-scale systems such as DGMR, MetNet, and NowcastNet further show that learned precipitation models can operate at practically relevant scales [7–9, 24]. Efficiency-oriented nowcasting has also been studied via physically correlated channel grouping in lightweight U-Nets [25]. Unlike radar extrapolation, satellite-to-radar retrieval must infer radar-like intensity and convective cores from indirect satellite evidence; we reduce the repeated velocity-network evaluations required by pixel-space generative retrieval. 
+
+b) Generative and latent-space weather modeling.: Dif-fusion, flow matching, and rectified flow models learn gen-erative precipitation distributions through denoising or neural velocity fields, with flow matching offering a stable regression-style objective and efficient ODE sampling [10–13]. Latent diffusion, cascaded latent models, weather autoencoders, and latent generative priors reduce high-resolution generation cost by operating on compact states before decoding [14–16, 26, 27]. We instead keep conditional flow matching in pixel space for direct supervision of sparse precipitation, and reduce cost through the velocity-network design. 
+
+c) Operator and frequency-domain precipitation model-ing.: Neural operators learn mappings between functions and have been widely used in Fourier or adaptive Fourier forms for partial differential equations and data-driven weather forecast-ing [28–30]. Frequency-domain objectives and decompositions are also effective for precipitation because average pixel losses often smooth intense, localized echoes [23, 31]. Motivated by these observations, WaveOp-LiteFM integrates spectral, local, and wavelet operators into a conditional radar-retrieval velocity network, enabling multi-scale precipitation modeling within pixel-space flow matching. III. M ETHOD 
+
+A. Problem Formulation 
+
+For each retrieval case, let c ∈ RCc×H×W denote the satellite observation and y ∈ RCy ×H×W denote the radar-like precipitation target. In the southeast China dataset, c
+
+contains two infrared channels and y is a reflectivity-like field. In SEVIR, c contains visible, IR069, IR107, and lightning channels, and y is VIL. The task is to learn a conditional generative mapping 
+
+ˆy ∼ pθ (y | c), (1) that converts indirect cloud and convection signatures into a radar-like field. This mapping has two conflicting require-ments. First, it must retain direct supervision on sparse high-intensity precipitation, since small displacements or over-smoothing can strongly affect threshold skill. Second, it must remain efficient when the same sampler is applied many times or deployed on large regional grids. JOURNAL OF L ATEX CLASS FILES, VOL. 14, NO. 8, AUGUST 2021 3Down       
+
+> Down
+> Up
+> Up
+> SLW
+> block
+> SLW
+> block
+> SLW
+> block
+> SLW
+> block
+> SLW
+> block
+> SLW
+> block
+> Sin/cos
+> Flow time t
+> Bottleneck
+> 2xSWL block
+> Skip Gate
+> Skip Gate
+> 𝐹 = 𝑥 + 𝑔𝑎𝑡𝑒 ∗ 𝑠𝑘𝑖𝑝
+> Adaptive Gate
+> Fusion
+> GAP+1X1 Conv
+> +softmax
+> Residual
+> Add
+> Wavelet branch
+> Haar DWT+learnable
+> shrinkage+IDWT
+> High -frequency VIL detail
+> convective structure
+> global organization
+> Up C3x3
+> Conv
+> Skip
+> Heavy Unet
+> C3x3
+> Conv
+> Skip
+> Our skip gate
+> gate( 𝜎 )
+> Proj Up
+> Lower memory, fewer params
+> Large -domain inference
+> Spectral disable at high resolution
+
+(a)  Pixel -space  Conditional  Flow Matching  (b)  WaveOp -LiteFM:lightweight  velocity network ( ≈ 𝟐. 𝟔𝑴 𝒑𝒂𝒓𝒂𝒎𝒔 )
+
+(C) Spectral -Local -Wavelet (SLW) Block  (d) Euler sampling & Large -domain inference 
+
+Fig. 2: Overview of the WaveOp-LiteFM. Pixel-space conditional flow matching provides direct radar-field supervision, while spectral-local-wavelet operators replace the heavy U-Net velocity backbone and use adaptive branch and skip gates to capture complementary precipitation structures with reduced decoder computation. 
+
+B. Framework Overview 
+
+WaveOp-LiteFM separates the pixel-space generative ob-jective from the velocity-network parameterization. Fig. 2 gives the overall architecture. The generative process remains in pixel space for direct precipitation supervision, while the heavy U-Net velocity backbone is replaced by a lightweight operator-style encoder-decoder. Given a noisy precipitation state yt, a flow time t, and a satellite condition c, the network predicts 
+
+vθ (yt, t, c ) = Dθ (Eθ ([ yt, c ]) , ϕ (t)) , (2) where Eθ and Dθ denote the compact encoder and decoder, 
+
+[·, ·] is channel concatenation, and ϕ(t) is the flow-time embedding. The encoder-decoder is built from spectral-local-wavelet (SLW) blocks that model storm-scale organization, local convective interaction, and boundary-sensitive details. 
+
+C. Pixel-Space Conditional Flow Matching 
+
+To avoid latent-space degeneration on sparse precipitation targets, WaveOp-LiteFM performs conditional flow matching directly in pixel space. This keeps the transport objective tied to radar intensity and location before introducing the lightweight velocity parameterization. We use a rectified-flow-style conditional flow matching objective. For a target radar field y1 and Gaussian noise y0 ∼ N (0 , I ), we sample 
+
+t ∈ (0 , 1) and construct the linear probability path 
+
+yt = (1 − t)y0 + ty 1. (3) where yt is the interpolated precipitation state between the noise sample y0 and target radar field y1. The corresponding conditional velocity is 
+
+ut = y1 − y0. (4) where ut gives the target transport direction from noise to radar observation. The satellite-conditioned velocity network is optimized by 
+
+LFM = Ey0,y 1,t 
+
+h
+
+∥vθ (yt, t, c ) − ut∥22
+
+i
+
+. (5) where vθ (yt, t, c ) is the satellite-conditioned velocity predic-tion. At inference, sampling starts from y0 ∼ N (0 , I ) and uses Euler integration, 
+
+yk+1 = yk + ∆ t v θ (yk, t k, c ) (6) where tk = k/K , ∆t = 1/K , and K is the number of sampling steps. We keep the main transport in pixel space to preserve direct supervision on precipitation intensity and location. 
+
+D. Spectral-Local-Wavelet Operator Block 
+
+The SLW block is designed to retain the stability of pixel-space flow matching while reducing the cost of high-resolution velocity evaluation. Instead of using high-channel U-Net con-volutions, it couples three lightweight and complementary operators for global organization, local convective interaction, JOURNAL OF L ATEX CLASS FILES, VOL. 14, NO. 8, AUGUST 2021 4
+
+and high-frequency boundary detail. Given F ∈ RC×H′×W ′
+
+,an SLW block can be written as 
+
+SLW( F, t ) = F + hθ (Γ t[Fmix ]) ,
+
+Fmix = X
+
+> b∈{ sp ,loc ,wav }
+
+αb(F) Ob,θ (F). (7) where Ob,θ denotes the spectral, local, or wavelet operator, and 
+
+αb(F) is its input-dependent branch weight. Γt denotes FiLM-style flow-time modulation, and hθ is the output projection before the residual update. 
+
+a) Spectral branch.: To capture broad precipitation or-ganization, we design a Fourier spectral branch. This choice is motivated by frequency-domain precipitation modeling, where low-frequency spectral components encode large-scale intensity layout and organized storm structure [2, 31]. The branch first compresses channels with a 1 × 1 bottleneck, applies Fourier convolution on retained low-frequency modes, and projects the result back to the block width: 
+
+bZo(k) = X
+
+> i
+
+Rθ,io (k) bXi(k), k ∈ K , (8) where bX = F(Pin F), Fsp = Pout F−1(bZ), K is the retained low-frequency mode set, and Rθ contains learned complex mode-wise channel-mixing weights. It is enabled from lower-resolution encoder levels, where global spectral mixing is more cost-effective. 
+
+b) Local branch.: To preserve convective-scale locality, we use a depthwise separable local branch. It provides short-range spatial mixing for compact cells and boundary adjust-ments without the cost of dense convolutions: 
+
+Floc = P1×1(D3×3(F)) . (9) where D3×3 is a depthwise convolution and P1×1 is a point-wise projection. 
+
+c) Wavelet branch.: To emphasize sharp meteorological boundaries and localized radar texture, we design a Haar wavelet branch. This follows the frequency-decoupling obser-vation in WaveC2R that wavelet high-frequency components are sensitive to precipitation edges and fine-scale details [32]. The branch decomposes the feature map, shrinks unstable high-frequency responses, and reconstructs the result: 
+
+(L, H 1, H 2, H 3) = DWT( F), (10) 
+
+˜Hi = sign( Hi) max( |Hi| − τθ , 0) , (11) 
+
+Fwav = IDWT( L, ˜H1, ˜H2, ˜H3). (12) where L is the low-frequency Haar component, Hi are the three high-frequency components, and τθ is a learned channel-wise threshold. This branch suppresses unstable high-frequency responses while retaining localized radar texture and sharp echo boundaries. 
+
+d) Adaptive branch fusion and time modulation.: The three operators contribute differently across precipitation regimes: stratiform systems require more global organization, whereas compact convection relies more on local and wavelet details. Instead of using a fixed fusion rule, the SLW block predicts an input-dependent branch gate: 
+
+(αsp , α loc , α wav ) = softmax( g(GAP( F))) , (13) 
+
+Fmix = αsp Fsp + αloc Floc + αwav Fwav . (14) where αsp , αloc , and αwav are softmax-normalized weights predicted from global pooled features. After branch fusion, the flow time t modulates the mixed feature, 
+
+˜Fmix = Fmix ⊙ (1 + sθ (ϕ(t))) + bθ (ϕ(t)) , (15) where sθ (ϕ(t)) and bθ (ϕ(t)) are feature-wise scale and shift terms generated from the flow-time embedding. The final block output is residual: 
+
+Fout = F + hθ ( ˜Fmix ). (16) 
+
+E. Lightweight Encoder-Decoder 
+
+To further reduce velocity-network cost while preserving en-coder details, we replace the high-channel skip concatenation of conventional U-Nets with gated additive skip fusion. This design complements the compact SLW blocks: SLW reduces feature-transformation cost, and the skip gate controls detail injection without increasing decoder channel width. WaveOp-LiteFM uses a compact encoder-decoder with channel multi-pliers (1 , 2, 4) and base width 40. The input to the network is the channel-wise concatenation of the current noisy state and the satellite condition. Each down block performs a 1 × 1
+
+projection, one spectral-local-wavelet block, and depthwise downsampling. The bottleneck contains two spectral-local-wavelet blocks, where spectral mixing is cheapest and has the largest effective field of view. The decoder implements this skip fusion as 
+
+Fup = Px(U (F)) , Fskip = Ps(S), (17) 
+
+G = σ(Pg ([ Fup , Fskip ])) , (18) 
+
+Ffused = Fup + G ⊙ Fskip . (19) where S is the encoder skip feature, U is bilinear upsampling, 
+
+Px and Ps align channel width, and Pg predicts the skip gate G. The skip gate controls encoder-detail injection during upsampling, while the branch gate selects operators inside each SLW block. The main savings come from the narrow encoder-decoder, depthwise local operators, and additive gated skip fusion. 
+
+F. Large-Area Tiled Inference Protocol 
+
+For domains beyond the training crop, WaveOp-LiteFM is evaluated convolutionally on overlapping tiles and assembled into a continuous retrieval field. This is supported by its spatial operators, including convolution, Fourier convolution, Haar transform, and interpolation, without learned absolute positional embeddings or fixed-length token sequences. In the China-scale case, tile predictions are merged by Hann-window weighted stitching; the tile size, overlap, and blending details are provided in the Appendix. This protocol supports grid-size flexible inference within memory limits, but does not imply distribution-free generalization across regions, sensors, seasons, or precipitation regimes. JOURNAL OF L ATEX CLASS FILES, VOL. 14, NO. 8, AUGUST 2021 5
+
+TABLE I: Quantitative comparison with the controlled pixel-space flow baseline on SE China and SEVIR. MAE s is reported on the dataset target scale. Heavy-threshold scores use 35 dBZ for SE China and encoded VIL@219 for SEVIR; higher is better except for GFLOPs, MAE s, and LPIPS. Improv. reports the relative gain of WaveOp-LiteFM over LiteFM-UNet following each metric direction. The best score in each column is highlighted in green.                                                                          
+
+> Dataset Method Params ↓GFLOPs/sample ↓MAE s↓PSNR ↑SSIM ↑LPIPS ↓CSI-heavy ↑POD-heavy ↑HSS-heavy ↑
+> SE China LiteFM-UNet 5.54M 10116.6 3.010 19.58 0.555 0.368 0.094 0.122 0.168 WaveOp-LiteFM 2.61M 1500.9 2.725 20.31 0.578 0.343 0.146 0.197 0.250
+> Improv. +52.9% +85.2% +9.5% +3.7% +4.1% +6.8% +55.3% +61.5% +48.8% SEVIR LiteFM-UNet 5.54M 664.8 12.342 21.25 0.523 0.201 0.133 0.222 0.233 WaveOp-LiteFM 2.61M 99.2 11.985 21.32 0.548 0.192 0.151 0.289 0.260
+> Improv. +52.9% +85.1% +2.9% +0.3% +4.8% +4.5% +13.5% +30.2% +11.6%
+
+TABLE II: Quantitative comparison with broader satellite-to-radar retrieval baselines on SE China and SEVIR. CSI@mod. denotes 20 dBZ for SE China and encoded VIL@160 for SEVIR, while CSI@heavy denotes 35 dBZ and encoded VIL@219, respectively. Time denotes SE China inference latency in ms/sample. The best score in each column is highlighted in green, and the second-best score is underlined.                                                                                                                                                 
+
+> Method SE China SEVIR Params (M) ↓Time ↓Avg.CSI ↑CSI-M ↑CSI-H ↑Avg.HSS ↑SSIM ↑MAE ↓Avg.CSI ↑CSI-M ↑CSI-H ↑Avg.HSS ↑LPIPS ↓
+> AA-TransUNet (2022) 39.88 6.7 0.189 0.234 0.075 0.275 0.539 2.980 0.301 0.317 0.095 0.437 0.318 Earthformer (2022) 8.68 13.4 0.206 0.264 0.060 0.297 0.555 2.864 0.293 0.304 0.069 0.422 0.360 SmaAt-UNet (2021) 4.02 3.6 0.161 0.203 0.070 0.233 0.501 3.498 0.292 0.313 0.055 0.420 0.362 DiffCast (2024) 46.25 3302.8 0.223 0.263 0.106 0.322 0.590 2.681 0.310 0.321 0.126 0.448 0.236 Pix2Pix (2024) 31.36 7.4 0.229 0.267 0.132 0.334 0.523 2.979 0.240 0.269 0.014 0.355 0.349 MeanFlow (2025) 107.80 22.3 0.197 0.241 0.092 0.292 0.498 3.086 0.200 0.177 0.044 0.299 0.300 Arrow (2025) 3.36 160.79 0.198 0.232 0.097 0.295 0.549 3.101 0.213 0.218 0.080 0.326 0.405 Weather-RF (2026) 3.07 388.27 0.265 0.315 0.142 0.385 0.550 2.912 0.282 0.290 0.123 0.415 0.206 LiteFM-UNet (2026) 5.54 416.30 0.200 0.237 0.094 0.298 0.555 3.010 0.299 0.311 0.133 0.435 0.201 WaveOp-LiteFM (Ours) 2.61 429.22 0.270 0.318 0.146 0.392 0.578 2.725 0.306 0.315 0.151 0.445 0.192
+
+Fig. 3: Study-region overview for the two satellite-to-radar retrieval settings. IV. E XPERIMENTS 
+
+A. Datasets and Protocol 
+
+Datasets. We train and test WaveOp-LiteFM on two satellite-based radar retrieval benchmarks: a southeast China satellite-to-reflectivity dataset and the public SEVIR satellite-to-VIL dataset (Fig. 3) [33]. We further conduct large-area infer-ence over China for deployment-oriented qualitative analysis. Detailed dataset and inference settings are provided in the Appendix. 
+
+Baselines. LiteFM-UNet serves as a controlled pixel-space flow baseline that shares the same objective and sampler with WaveOp-LiteFM but uses a conventional U-Net velocity back-bone. We also compare with representative CNN/transformer architectures (AA-TransUNet [34], Earthformer [22], SmaAt-UNet [35]), generative baselines (DiffCast [36], Pix2Pix [37], MeanFlow [38]), and recent weather-specific models (Ar-row [39], Weather-RF [13]). 
+
+Evaluation Protocol. Following the evaluation protocol of WaveC2R [32], we report image quality, threshold skill, qual-itative cases, model size, hook-based FLOPs, and runtime; dataset details, thresholds, and implementation settings are provided in the Appendix. 
+
+B. Main Comparison 
+
+Quantitative Comparison. Table I compares WaveOp-LiteFM with LiteFM-UNet to isolate the effect of replacing the U-Net velocity backbone under the same pixel-space flow objective and sampler. Across both datasets, WaveOp-LiteFM markedly reduces parameters and sampling FLOPs while maintaining or improving reconstruction quality, especially at heavy-precipitation thresholds where localized convective cores are most sensitive to smoothing. Table II further shows a favorable quality-efficiency balance against representative CNN, transformer, GAN, diffusion, flow, and weather-specific baselines, while using the fewest parameters among the gener-ative baselines. These results indicate that lightweight velocity parameterization can preserve pixel-space retrieval fidelity while improving the quality-efficiency trade-off for radar-like precipitation reconstruction. 
+
+Threshold Skill and Qualitative Retrieval. Because radar retrieval is dominated by weak or non-precipitating pixels, average image metrics can obscure performance on convective JOURNAL OF L ATEX CLASS FILES, VOL. 14, NO. 8, AUGUST 2021 6
+
+Fig. 4: Comparison of efficiency, reconstruction quality, and threshold robustness on SE China and SEVIR. The radar plots show the efficiency-quality trade-off and the average and high-intensity event detection performance for each dataset. All metrics are direction-aware normalized such that larger radial values consistently indicate better performance. Input Frames                     
+
+> VIS 6.9 𝝁𝒎 Light
+> Diffcast AA -TransU Earthformer Smaat -Unet ARROW 10.7 𝝁𝒎 WaveC2R Pix2pix
+> IR 016 31 59 74 100 133 160 181 219 255
+> MeanFlow Weather -RF Ours GT
+
+Fig. 5: Qualitative main-experiment comparison on the SEVIR satellite-to-VIL benchmark. The panels compare satellite conditions, ground-truth VIL, model predictions, and absolute-error maps for representative storm cases. They complement the threshold metrics by showing spatial displacement, intensity underestimation, and false precipitation spread. cores. Fig. 4 therefore summarizes threshold skill and effi-ciency, with the full CSI, FAR, POD, and HSS values reported in the Appendix. WaveOp-LiteFM maintains strong high-threshold skill while preserving a compact efficiency profile, indicating that the lightweight backbone does not simply trade heavy-precipitation fidelity for lower cost. Fig. 5 shows representative SEVIR cases. Compared with the baselines, WaveOp-LiteFM better preserves compact pre-cipitation cores and sharp echo boundaries, consistent with the high-threshold skill reported above. 
+
+C. Efficiency 
+
+For flow-based retrieval, inference cost is dominated by repeated velocity-network evaluations during Euler sampling. In the controlled comparison, WaveOp-LiteFM uses 52.9% fewer trainable parameters than LiteFM-UNet and reduces hook-based sampling FLOPs by about 6.7× on both SE China and SEVIR (Table I). These gains reflect the compact SLW backbone and gated additive skip fusion; Fig. 4 summarizes the quality-efficiency trade-off. Additional quantitative effi-ciency metrics are provided in the Appendix. JOURNAL OF L ATEX CLASS FILES, VOL. 14, NO. 8, AUGUST 2021 7FY4B  C9  (IR062)  FY4B  C13  (IR108)  Our retrieval  GPM IMERG reference 
+
+Fig. 6: Large-area Typhoon Bavi case over China at 00:00 UTC on 11 July 2026, spanning 70 .0◦E– 135 .0◦E and 15 .0◦N– 
+
+54 .0◦N. From left to right: FY-4B IR062, FY-4B IR108, WaveOp-LiteFM retrieval, and GPM IMERG reference. TABLE III: Ablation study on the SEVIR dataset. The best score is highlighted in green, and the second-best score is underlined.                                                                  
+
+> Variant Params GFLOPs/sample Time (ms) ↓PSNR ↑SSIM ↑LPIPS ↓Avg.CSI ↑Avg.HSS ↑CSI@219 ↑HSS@219 ↑
+> WaveOp-LiteFM (Ours) 2.61M 99.15 36.03 21.32 0.548 0.192 0.306 0.445 0.151 0.260
+> w/o spectral 1.11M 94.43 35.48 20.53 0.528 0.178 0.302 0.440 0.132 0.238 w/o wavelet 2.37M 71.89 27.90 21.22 0.529 0.197 0.285 0.418 0.116 0.207 w/o gates 2.54M 86.57 39.67 21.43 0.518 0.196 0.293 0.427 0.114 0.203 Input Frames
+> VIS Light IR069
+> GT
+> GT
+> Pre |GT -Pre|
+> IR107
+> 𝐶𝑆𝐼@219 = 0.150 𝐶𝑆𝐼@219 = 0.132 𝐶𝑆𝐼@219 = 0.116 𝐶𝑆𝐼@219 = 0.114
+> Ours w/o spectral w/o wavelet w/o gates
+
+Fig. 7: Qualitative ablation study on the SEVIR dataset. Retrieval and absolute-error maps are shown for the same storm event under the full model and its ablated variants. 
+
+D. China-scale Large-Area Inference Case 
+
+Finally, we assess whether the trained model can be applied to a domain larger than the training crop without apparent tiling artifacts. Fig. 6 shows a China-scale Typhoon Bavi case generated by overlapping tiled inference and Hann-window weighted stitching. The FY-4B infrared inputs, stitched radar-like retrieval, and GPM IMERG reference exhibit broadly con-sistent large-scale precipitation organization. Because GPM IMERG and the retrieval target differ in sensing physics and product definition, this case is used as a qualitative deployment check rather than a pixel-wise benchmark. 
+
+E. Ablation Studies 
+
+To verify the role of each architectural component, we conduct controlled ablations on the public SEVIR benchmark. Table III and Fig. 7 show that the complete WaveOp-LiteFM achieves the strongest threshold skill and the best SSIM among the ablated variants, while retaining a compact sam-pling profile. The wavelet branch is most important for high-frequency radar details and intense-core skill, while adaptive gates improve robustness across precipitation morphologies. Although removing the spectral branch lowers parameter count and LPIPS, it weakens high-threshold skill, supporting the role of spectral mixing in storm-scale organization. Detailed ablation settings are provided in the Appendix. V. C ONCLUSION 
+
+In this work, we address the compute bottleneck of pixel-space generative satellite-to-radar retrieval with WaveOp-LiteFM, a lightweight neural-operator flow matching frame-work. WaveOp-LiteFM preserves the stable pixel-space con-ditional flow objective and replaces the heavy U-Net velocity backbone with spectral-local-wavelet operator blocks. The spectral branch models storm-scale organization, the depth-wise local branch captures short-range convective interac-tions, and the wavelet branch emphasizes high-frequency echo boundaries and radar details. Adaptive branch gating and gated additive skip fusion further reduce redundant processing while preserving encoder information. Experiments on the public SEVIR and southeast China benchmarks show that WaveOp-LiteFM achieves strong radar retrieval skill and perceptual quality with lower sampling cost. JOURNAL OF L ATEX CLASS FILES, VOL. 14, NO. 8, AUGUST 2021 8
+
+REFERENCES 
+
+[1] F. Han, X. Zhang, J. Yao, F. Lu, X. Xu, A. A. Anwar, and P. Chen, “Llm-augmented multimodal radar reflectivity retrieval with cross-satellite transfer learning,” Journal of Big Data , 2026. [2] S. An, Y. Kim, D. Cho, and Y.-G. Ham, “Toward spatially sharper precipitation prediction via global-local frequency guidance,” npj Climate and Atmospheric Sci-ence , 2026. [3] J. Si, X. Li, H. Chen, and L. Han, “A novel cnn-based radar reflectivity retrieval network using geostationary satellite observations,” IEEE Geoscience and Remote Sensing Letters , vol. 21, pp. 1–5, 2023. [4] C. Shi, J. Hou, Y.-L. Wei, J. Wang, Y. Zhang, Y. Dong, W. Ren, and D. Niu, “Langretrieval: Language-guided self-evolving satellite-to-radar retrieval via csi-driven re-ward,” arXiv preprint arXiv:2606.09486 , 2026. [5] Y. Qin, J. Cao, T. Wang, Y. Yin, L. Li, S. Xiang, Y. Zhang, and R. Zimmermann, “Srdiff: A cross-modal diffusion model for satellite-to-radar translation in pre-cipitation nowcasting,” IEEE Transactions on Geoscience and Remote Sensing , 2026. [6] B. Wu, W. Chen, S. Liu, Z. Shang, H. Wang, L. Sun, and L. Chen, “Mocast: Learning turbulent motions un-der physical guidance for precipitation nowcasting,” in 
+
+Proceedings of the AAAI Conference on Artificial Intel-ligence , vol. 40, no. 19, 2026, pp. 15 950–15 958. [7] S. Ravuri, K. Lenc, M. Willson, D. Kangin, R. Lam, P. Mirowski, M. Fitzsimons, M. Athanassiadou, S. Kashem, S. Madge et al. , “Skilful precipitation nowcasting using deep generative models of radar,” 
+
+Nature , vol. 597, no. 7878, pp. 672–677, 2021. [8] L. Espeholt, S. Agrawal, C. Sønderby, M. Ku-mar, J. Heek, C. Bromberg, C. Gazen, R. Carver, M. Andrychowicz, J. Hickey et al. , “Deep learning for twelve hour precipitation forecasts,” Nature communica-tions , vol. 13, no. 1, pp. 1–10, 2022. [9] Y. Zhang, M. Long, K. Chen, L. Xing, R. Jin, M. I. Jordan, and J. Wang, “Skilful nowcasting of extreme precipitation with nowcastnet,” Nature , vol. 619, no. 7970, pp. 526–532, 2023. [10] Z. Gao, X. Shi, B. Han, H. Wang, X. Jin, D. Maddix, Y. Zhu, M. Li, and Y. B. Wang, “Prediff: Precipitation nowcasting with latent diffusion models,” Advances in Neural Information Processing Systems , vol. 36, pp. 78 621–78 656, 2023. [11] Y. Lipman, R. T. Q. Chen, H. Ben-Hamu, M. Nickel, and M. Le, “Flow matching for generative modeling,” in 
+
+International Conference on Learning Representations ,2023. [12] X. Liu, C. Gong, and Q. Liu, “Flow straight and fast: Learning to generate and transfer data with rectified flow,” in International Conference on Learning Repre-sentations , 2023. [13] J. Schusterbauer, J. Wiese, N. Stracke, T. Phan, and B. Ommer, “Probabilistic precipitation nowcasting with rectified flow transformers,” in Proceedings of the IEEE/CVF Conference on Computer Vision and Pattern Recognition , 2026, pp. 25 742–25 756. [14] J. Leinonen, U. Hamann, D. Nerini, U. Germann, and G. Franch, “Latent diffusion models for generative pre-cipitation nowcasting with accurate uncertainty quantifi-cation,” arXiv preprint arXiv:2304.12891 , 2023. [15] S. Zhao, F. Liu, X. Zhang, H. Chen, T. Han, J. Gong, R. Tao, P. Xiao, L. Bai, and W. Ouyang, “Transforming weather data from pixel to latent space,” arXiv preprint arXiv:2503.06623 , 2025. [16] Y. Wang and D. Visioni, “Longwang: Zero-shot global spatiotemporal precipitation downscaling with a la-tent generative prior,” arXiv preprint arXiv:2605.17603 ,2026. [17] X. Chen, K. Feng, N. Liu, B. Ni, Y. Lu, Z. Tong, and Z. Liu, “Rainnet: A large-scale imagery dataset and benchmark for spatial precipitation downscaling,” 
+
+Advances in Neural Information Processing Systems ,vol. 35, pp. 9797–9812, 2022. [18] X. Shi, Z. Chen, H. Wang, D.-Y. Yeung, W.-K. Wong, and W.-c. Woo, “Convolutional lstm network: A machine learning approach for precipitation nowcasting,” Ad-vances in neural information processing systems , vol. 28, 2015. [19] X. Shi, Z. Gao, L. Lausen, H. Wang, D.-Y. Yeung, W.-k. Wong, and W.-c. Woo, “Deep learning for precipitation nowcasting: A benchmark and a new model,” Advances in neural information processing systems , vol. 30, 2017. [20] Y. Wang, M. Long, J. Wang, Z. Gao, and P. S. Yu, “Predrnn: Recurrent neural networks for predictive learn-ing using spatiotemporal lstms,” Advances in neural information processing systems , vol. 30, 2017. [21] C. Bai, F. Sun, J. Zhang, Y. Song, and S. Chen, “Rain-former: Features extraction balanced network for radar-based precipitation nowcasting,” IEEE Geoscience and Remote Sensing Letters , vol. 19, pp. 1–5, 2022. [22] Z. Gao, X. Shi, H. Wang, Y. Zhu, Y. B. Wang, M. Li, and D.-Y. Yeung, “Earthformer: Exploring space-time transformers for earth system forecasting,” Advances in Neural Information Processing Systems , vol. 35, pp. 25 390–25 403, 2022. [23] C.-W. Yan, S. Q. Foo, V. H. Trinh, D.-Y. Yeung, K.-H. Wong, and W.-K. Wong, “Fourier amplitude and correla-tion loss: Beyond using l2 loss for skillful precipitation nowcasting,” Advances in Neural Information Processing Systems , vol. 37, pp. 100 007–100 041, 2024. [24] C. K. Sønderby, L. Espeholt, J. Heek, M. De-hghani, A. Oliver, T. Salimans, S. Agrawal, J. Hickey, and N. Kalchbrenner, “Metnet: A neural weather model for precipitation forecasting,” arXiv preprint arXiv:2003.12140 , 2020. [25] C. Wang, B. Sang, Q. He, and S. Han, “Phygroup-unet: Dynamic physically-correlated channel grouping in a lightweight unet for efficient precipitation nowcasting,” 
+
+IEEE Transactions on Geoscience and Remote Sensing ,2026. [26] J. Gong, L. Bai, P. Ye, W. Xu, N. Liu, J. Dai, X. Yang, and W. Ouyang, “Cascast: Skillful high-resolution pre-JOURNAL OF L ATEX CLASS FILES, VOL. 14, NO. 8, AUGUST 2021 9
+
+cipitation nowcasting via cascaded modelling,” arXiv preprint arXiv:2402.04290 , 2024. [27] C. Li, X. Ling, Q. Yang, M. Chen, F. Qin, and Y. Huang, “Extreme precipitation nowcasting using multi-task latent diffusion models,” IEEE Transactions on Geoscience and Remote Sensing , 2025. [28] Z. Li, N. B. Kovachki, K. Azizzadenesheli, K. Bhat-tacharya, A. Stuart, A. Anandkumar et al. , “Fourier neu-ral operator for parametric partial differential equations,” in International Conference on Learning Representa-tions , 2021. [29] J. Guibas, M. Mardani, Z. Li, A. Tao, A. Anandkumar, and B. Catanzaro, “Adaptive fourier neural operators: Efficient token mixers for transformers,” arXiv preprint arXiv:2111.13587 , 2021. [30] J. Pathak, S. Subramanian, P. Harrington, S. Raja, A. Chattopadhyay, M. Mardani, T. Kurth, D. Hall, Z. Li, K. Azizzadenesheli et al. , “Fourcastnet: Aglobal data-driven high-resolution weather model us-ing adaptive fourier neural operators,” arXiv preprint arXiv:2202.11214 , 2022. [31] K. Lin, B. Zhang, D. Yu, W. Feng, S. Chen, F. Gao, X. Li, and Y. Ye, “Alphapre: Amplitude-phase disentanglement model for precipitation nowcasting,” in Proceedings of the Computer Vision and Pattern Recognition Confer-ence , 2025, pp. 17 841–17 850. [32] C. Shi, H. Xu, Y. Li, Y.-L. Wei, Y. Feng, Y. Zhang, and D. Niu, “Wavec2r: Wavelet-driven coarse-to-refined hierarchical learning for radar retrieval,” in Proceedings of the AAAI Conference on Artificial Intelligence , vol. 40, no. 11, 2026, pp. 8951–8959. [33] M. Veillette, S. Samsi, and C. Mattioli, “Sevir: A storm event imagery dataset for deep learning applications in radar and satellite meteorology,” Advances in Neural Information Processing Systems , vol. 33, pp. 22 009– 22 019, 2020. [34] A. Yang, “Aa-transunet: Attention augmented transunet for nowcasting tasks,” in International Joint Conference on Neural Networks , 2022, pp. 1–8. [35] K. Trebing, T. Stanczyk, S. Mehrkanoon, and C. Shi, “Smaat-unet: Precipitation nowcasting using a small attention-unet architecture,” Pattern Recognition Letters ,vol. 145, pp. 178–186, 2021. [36] D. Yu, X. Li, Y. Ye, B. Zhang, C. Luo, K. Dai, R. Wang, and X. Chen, “Diffcast: A unified framework via residual diffusion for precipitation nowcasting,” in Proceedings of the IEEE/CVF Conference on Computer Vision and Pattern Recognition , 2024, pp. 27 758–27 767. [37] S. Akter, “Generative ai: A pix2pix-gan-based machine learning approach for robust and efficient lung segmen-tation,” arXiv preprint arXiv:2412.10826 , 2024. [38] Z. Geng, M. Deng, X. Bai, J. Z. Kolter, and K. He, “Mean flows for one-step generative modeling,” arXiv preprint arXiv:2505.13447 , 2025. [39] J. Tian, Y. Ding, R. Xu, H. Miao, C. Guo, and B. Yang, “Arrow: An adaptive rollout and routing method for global weather forecasting,” arXiv preprint arXiv:2510.09734 , 2025. JOURNAL OF L ATEX CLASS FILES, VOL. 14, NO. 8, AUGUST 2021 10 
+
+APPENDIX 
+
+This supplementary material provides additional dataset and baseline details in Sec. A, implementation and training details in Sec. B, and evaluation details in Sec. C. It also includes qualitative retrieval and large-area deployment cases in Secs. E and F, together with diagnostic figures, detailed threshold and efficiency results, ablation analysis, and tiled-inference details in Secs. D, G, H, and I. 
+
+A. Datasets, Baselines, and Study Regions 
+
+Baselines. The controlled baseline is LiteFM-UNet, which uses the same pixel-space conditional flow objective, 20-step Euler sampler, data splits, and evaluation code as WaveOp-LiteFM, but retains a conventional U-Net velocity backbone. This comparison isolates the effect of replacing the velocity network with the proposed lightweight spectral-local-wavelet operator backbone. For broader context, we also compare with representative CNN and transformer retrieval models, gener-ative baselines, one-step flow models, and recent weather-specific models, including Arrow and Weather-RF. 
+
+Datasets. We evaluate WaveOp-LiteFM on two satellite-to-radar retrieval benchmarks. The southeast China benchmark uses FY-4B infrared satellite observations as conditions and radar-derived reflectivity-like fields as targets on the native 
+
+500 × 500 regional grid. The SEVIR benchmark uses vis-ible, infrared, and lightning observations to retrieve VIL at 
+
+128 × 128 resolution, following the public storm-event setting. Both benchmarks use the same conditional flow formulation and deterministic Euler sampler unless otherwise specified. Table IV summarizes these dataset settings. 
+
+Study regions. Figure 8 summarizes the three spatial do-mains used in the paper. The SEVIR domain provides a public U.S. storm-event benchmark for multi-source satellite-to-VIL retrieval. The southeast China domain (100 .0◦E– 
+
+120 .0◦E, 20 .0◦N– 40 .0◦N) evaluates FY-4B-to-radar retrieval in the regional setting used for the main benchmark, where preserving localized convective echoes on the native grid is the primary concern. The China-scale domain is used only for deployment-oriented qualitative inference: the FY-4B mosaic spans 70 .0◦E– 135 .0◦E and 15 .0◦N– 54 .0◦N at 0.04 ◦ spacing, which is substantially larger than the training crop and is processed by overlapping tiled inference. 
+
+B. Implementation and Training Protocol 
+
+WaveOp-LiteFM configuration. All WaveOp-LiteFM exper-iments use the same velocity backbone. The backbone has base width 40, channel multipliers (1 , 2, 4) , a 192-dimensional flow-time embedding, Fourier mode budget (10 , 10) , spectral ratio 4, gated branch fusion, and gated additive skip fusion. The spectral branch is enabled from the second encoder level onward, so the most expensive high-resolution feature maps are handled by local and wavelet operators while global mixing is applied at lower spatial resolutions. The Haar wavelet branch is enabled in the full model and removed only in the corresponding ablation. 
+
+Training protocol. For the reported WaveOp-LiteFM runs on both datasets, the model is trained with AdamW using learning rate 2 × 10 −4, weight decay 10 −4, betas (0 .9, 0.95) , and gradient clipping at 1.0. Training runs for 200k optimization steps in the reported final experiments. Samples are generated periodically during training for qualitative monitoring, and checkpoints are saved every 5k steps. The conditional flow path uses a linear interpolation be-tween Gaussian noise and the radar target. The flow-time variable is clipped with ϵ = 10 −4 for numerical stability, and no additional interpolation noise is added in the current con-figuration. At inference, all reported deterministic evaluations use 20 Euler steps unless stated otherwise. The optimization behavior of LiteFM-UNet, LiteOpFlow, WaveOp-LiteFM, and the two 2026 baselines is shown in Figure 9, which is used only as a convergence diagnostic. 
+
+C. Evaluation Protocol 
+
+Evaluation follows the image-quality and threshold-skill protocol used in WaveC2R [32] and is performed on fixed held-out splits for each dataset. The evaluation code reports image-level metrics, threshold contingency scores, model size, FLOPs estimates, and wall-clock inference time. For south-east China, predictions are mapped to a 0–70 dBZ scale and evaluated at thresholds {10 , 20 , 25 , 30 , 35 }. For SEVIR, predictions are mapped to the encoded VIL scale and evaluated at thresholds {16 , 74 , 133 , 160 , 181 , 219 }. Table V lists the dataset-specific scaling conventions, thresholds, and metric groups. Let ˆY and Y denote the scaled prediction and target fields on a common evaluation grid, and let Ω be the set of valid pixels with N = |Ω|. For the southeast China setting, 
+
+ˆY = 70ˆ y and Y = 70 y are interpreted on the dBZ-like scale. For SEVIR, ˆY = 255ˆ y and Y = 255 y are interpreted on the encoded VIL scale. The image-level error metrics are computed over Ω as 
+
+MSE = 1
+
+N
+
+X
+
+> p∈Ω
+
+ ˆYp − Yp
+
+2
+
+, (20) 
+
+MAE = 1
+
+N
+
+X
+
+> p∈Ω
+
+ˆYp − Yp , (21) 
+
+RMSE = √MSE . (22) Peak signal-to-noise ratio is reported as 
+
+PSNR = 10 log 10 
+
+ R2
+
+MSE 
+
+
+
+, (23) where R is the dynamic range of the evaluation scale, namely 
+
+R = 70 for southeast China and R = 255 for SEVIR. SSIM and LPIPS are computed on the normalized [0 , 1] fields used by the neural model, so that structural similarity and perceptual distance are not affected by the dataset-specific reporting scale. For a threshold τ , binary event fields are obtained from the scaled variables: 
+
+ˆE(τ ) 
+
+> p
+
+= 1{ ˆYp ≥ τ }, E(τ ) 
+
+> p
+
+= 1{Yp ≥ τ }. (24) JOURNAL OF L ATEX CLASS FILES, VOL. 14, NO. 8, AUGUST 2021 11 
+
+TABLE IV: Dataset and configuration summary for the Model 4 experiments. The two datasets share the same WaveOp-LiteFM training code and differ only in condition channels, target product, and evaluation scale. 
+
+Dataset Conditions Target Eval. scale Image size Split protocol SE China IR069, IR107 reflectivity-like field 0–70 dBZ native 500 × 500 JSON split files SEVIR VIS, IR069, IR107, LGHT VIL 0–255 encoded VIL 128 × 128 date-based split 
+
+Fig. 8: Appendix study-region overview for the public SEVIR benchmark, the Southeast China regional benchmark ( 100 .0◦E– 
+
+120 .0◦E, 20 .0◦N– 40 .0◦N), and the China-scale inference domain ( 70 .0◦E– 135 .0◦E, 15 .0◦N– 54 .0◦N). The Southeast China setting uses FY-4B infrared satellite channels to retrieve a reflectivity-like precipitation field on a native regional grid, while the SEVIR setting uses visible, infrared, and lightning channels over the United States to retrieve VIL. The China-scale domain is used for deployment-oriented tiled inference. TABLE V: Appendix testing thresholds and reported metric groups.               
+
+> Dataset Evaluation scale Thresholds Image metrics Threshold metrics Southeast China 0–70 dBZ target scale at na-tive 500 ×500 resolution 10, 20, 25, 30, and 35 dBZ MSE, MAE, RMSE, PSNR, SSIM, LPIPS CSI, POD, FAR, HSS at each threshold SEVIR Encoded VIL target scale at
+> 128 ×128 resolution 16, 74, 133, 160, 181, and 219 en-coded VIL units MSE, MAE, RMSE, PSNR, SSIM, LPIPS CSI, POD, FAR, HSS at each threshold
+
+The contingency counts are 
+
+Hτ = X
+
+> p∈Ω
+
+1{ ˆE(τ ) 
+
+> p
+
+= 1 , E (τ ) 
+
+> p
+
+= 1 }, (25) 
+
+Mτ = X
+
+> p∈Ω
+
+1{ ˆE(τ ) 
+
+> p
+
+= 0 , E (τ ) 
+
+> p
+
+= 1 }, (26) 
+
+Fτ = X
+
+> p∈Ω
+
+1{ ˆE(τ ) 
+
+> p
+
+= 1 , E (τ ) 
+
+> p
+
+= 0 }, (27) 
+
+Cτ = X
+
+> p∈Ω
+
+1{ ˆE(τ ) 
+
+> p
+
+= 0 , E (τ ) 
+
+> p
+
+= 0 }. (28) Here Hτ , Mτ , Fτ , and Cτ denote hits, misses, false alarms, and correct negatives. The threshold scores are then 
+
+CSI τ = Hτ
+
+Hτ + Mτ + Fτ
+
+, (29) 
+
+POD τ = Hτ
+
+Hτ + Mτ
+
+, (30) 
+
+FAR τ = Fτ
+
+Hτ + Fτ
+
+, (31) 
+
+HSS τ = 2( Hτ Cτ − Mτ Fτ )(Hτ + Mτ )( Mτ + Cτ ) + ( Hτ + Fτ )( Fτ + Cτ ) .
+
+(32) Lower values are better for MSE, MAE, RMSE, LPIPS, FAR, parameter count, FLOPs, and inference time; higher values are better for PSNR, SSIM, CSI, POD, HSS, and throughput. JOURNAL OF L ATEX CLASS FILES, VOL. 14, NO. 8, AUGUST 2021 12 
+
+Fig. 9: Training-loss convergence of the two 2026 baselines, Arrow and Weather-RF, together with LiteFM-UNet, LiteOpFlow, and the proposed WaveOp-LiteFM. LiteOpFlow denotes the Model 3 latent/operator-flow variant considered during model development. Curves are shown for the southeast China and SEVIR settings. The thick curves are smoothed training losses and the faint curves show the logged raw losses, using a logarithmic vertical axis. The plot is intended as an optimization diagnostic rather than a validation-performance curve. 
+
+Fig. 10: Appendix multi-metric capability profiles for Arrow, Weather-RF, Model 1 LiteFM-UNet, and Model 4 WaveOp-LiteFM. Each axis is normalized within the corresponding dataset so that larger values indicate better performance or lower cost. 
+
+D. Diagnostic Figures 
+
+Figure 10 provides a normalized multi-metric capability profile for the main evaluated models. The goal of this radar view is to summarize whether a method is balanced across reconstruction quality, high-threshold precipitation skill, and computational cost, rather than strong only on one metric. Because the axes are normalized within each dataset and cost-oriented axes are direction-adjusted, the plot should be read as a relative diagnostic; the exact values are reported in the tables. Figure 11 expands the comparison beyond the controlled flow baseline and visualizes the broader set of CNN, trans-former, generative, flow, and weather-specific baselines used in the main paper. The heatmap is useful because these baselines differ substantially in metric scale, model size, and retrieval behavior. The cell text retains the raw value, while the color highlights within-metric ranking, making it easier to identify whether a method’s apparent strength comes from image-level averages, threshold skill, perceptual quality, or parameter efficiency. JOURNAL OF L ATEX CLASS FILES, VOL. 14, NO. 8, AUGUST 2021 13 
+
+Fig. 11: Appendix heatmap for the broader baseline comparison on the southeast China and SEVIR settings. Cell text gives the raw metric value, while colors are normalized within each metric column with the correct direction of preference. This visualization complements the numerical comparison by making the relative strengths of the external baselines, LiteFM-UNet, and WaveOp-LiteFM easier to inspect across accuracy, threshold skill, perceptual quality, and parameter count. 
+
+Fig. 12: Appendix threshold-skill curves. The curves show raw CSI values at the evaluated precipitation thresholds for the southeast China and SEVIR settings. This view complements the threshold-score table by showing how skill changes from light to intense precipitation levels. Figure 12 shows the CSI variation across precipitation thresholds instead of reporting only a single averaged event score. This is important for satellite-to-radar retrieval because weak or non-precipitating pixels dominate the image domain, whereas intense localized echoes are sparse and more sensitive to smoothing and displacement. The curves therefore provide a direct check of whether the model preserves skill as the event definition moves from light precipitation to heavier convective structures. Figure 13 separates reconstruction error from sampling cost. In pixel-space flow matching, inference requires repeated velocity-network evaluations, so quality should be interpreted together with per-sample FLOPs and parameter count. This plot makes the quality-efficiency trade-off visible in a form that complements the main radar summary and clarifies whether reduced model size is accompanied by a meaningful change in retrieval quality. Figure 14 summarizes the SEVIR ablation results used to interpret the proposed spectral-local-wavelet backbone. The heatmap compares the full model with variants that remove the spectral branch, remove the wavelet branch, or disable gated fusion, while keeping the training and sampling protocol fixed. It is intended to connect empirical changes in quality, threshold skill, and efficiency back to the architectural components, rather than to serve as an additional baseline ranking table. These diagnostic plots are not intended to replace the numerical tables. They provide a compact visual check that the conclusions are not driven by a single metric and should JOURNAL OF L ATEX CLASS FILES, VOL. 14, NO. 8, AUGUST 2021 14 
+
+Fig. 13: Appendix quality-efficiency trade-off. Each point compares RMSE against per-sample computational cost, with marker size proportional to parameter count. This view makes the efficiency motivation behind Model 4 visible alongside the 2026 baselines. 
+
+Fig. 14: Appendix SEVIR ablation heatmap. Cell text gives the raw metric value, while color gives the within-column normalized score so that quality and efficiency metrics can be inspected in one panel. Weather-RF and Model 1 are included as reference baselines before the architectural ablations. be read together with Appendix Tables VI and VII, which provide the exact values used for comparison. 
+
+E. Southeast China Qualitative Cases 
+
+Figure 15 provides additional qualitative examples for the southeast China satellite-to-reflectivity task. These cases are evaluated on the native 500 × 500 regional grid rather than on a resized benchmark grid, so they are intended to show whether the model preserves spatial organization at the res-olution used by the operational-style retrieval setting. The displayed panels compare the infrared satellite conditions, the reference reflectivity-like target, model predictions, and absolute-error fields. We use these examples to inspect three failure modes that are not fully captured by average image metrics: displacement of convective cores, underestimation of locally intense precipitation, and false precipitation spread in weakly precipitating cloud regions. The case-level evidence complements the threshold scores because high-threshold CSI and POD are sensitive to small spatial shifts in compact convective cells. 
+
+F. Large-Area China Inference Case 
+
+Figure 16 shows a stitched large-area inference example over China for Typhoon Bavi at 00:00 UTC on 11 July 2026. The FY-4B input domain covers 70 .0◦E– 135 .0◦E and 15 .0◦N– 
+
+54 .0◦N at 0.04 ◦ spacing, corresponding to a 975 × 1625 grid after arranging latitude from north to south. This domain is substantially larger than the native southeast China evaluation grid and is used to test whether the fully convolutional operator backbone can be applied through tiled inference without JOURNAL OF L ATEX CLASS FILES, VOL. 14, NO. 8, AUGUST 2021 15 Input Frames                   
+
+> Diffcast AA -TransUnet Earthformer Smaat -Unet ARROW Ours Pix2pix Hvmunet
+> 010 15 20 25 30 35 40 45 50 55 60 65 70
+> Weather -RF GT
+> 202309010030 UTC
+> 202309090600 UTC
+> 202309100830 UTC
+
+Fig. 15: Qualitative main-experiment comparison on the Southeast China ( 100 .0◦E– 120 .0◦E, 20 .0◦N– 40 .0◦N) satellite-to-reflectivity dataset. The panels compare satellite infrared conditions, reference reflectivity-like targets, model predictions, and absolute-error maps, providing a case-level view of displacement and intensity errors on the native regional grid. visually obvious stitching artifacts. The top row reports the two infrared inputs used by the southeast China model, and the bottom row compares the stitched WaveOp-LiteFM radar-like retrieval with a same-time GPM IMERG precipitation field. Because IMERG and the radar-like retrieval are different pre-cipitation products with different sensing physics and retrieval assumptions, this case is not used for pixel-wise scoring. Instead, it provides an independent qualitative check that the retrieved precipitation organization remains meteorologically plausible under a broader spatial deployment setting. 
+
+G. Detailed Threshold and Efficiency Results 
+
+The main paper uses the radar summary plot to avoid du-plicating large numerical tables. For completeness, Appendix Table VI reports the full threshold contingency scores, and Ap-pendix Table VII reports the detailed efficiency measurements used to construct the main radar view. The main comparison table in the paper should be read together with these Appendix tables. On southeast China, the 20-step sampling cost changes from 10116.6 GFLOPs/sample for LiteFM-UNet to 1500.9 for WaveOp-LiteFM, while the trainable parameters change from 5.54M to 2.61M. On SEVIR, the corresponding cost changes from 664.8 to 99.2 GFLOPs/sample. For the heavy-event rows in the main table, the southeast China threshold is 35 dBZ and the SEVIR threshold is encoded VIL@219. These values are not repeated in the main text so that the main experiment narrative can focus on the scientific interpretation: whether the lightweight operator backbone preserves sparse intense precipitation skill while reducing repeated velocity-network computation. 
+
+H. Ablation Design 
+
+The ablation study isolates three architectural choices in WaveOp-LiteFM. The first ablation removes the spectral branch, testing whether low-frequency operator mixing is necessary under the SEVIR setting. The second removes the wavelet threshold branch, testing the contribution of explicit high-frequency shrinkage. The third disables gated fusion, test-ing whether input-adaptive branch and skip mixing improves the quality-efficiency trade-off. All ablation models retain the same optimizer, data split, flow objective, and sampler as the full model. Appendix Figure 14 summarizes these variants across quality, threshold skill, and efficiency metrics, providing a compact diagnostic view of how each architectural component affects the final retrieval behavior. 
+
+I. Tiled Large-Area Inference Protocol 
+
+WaveOp-LiteFM is fully convolutional apart from Fourier and Haar operations that can be evaluated on arbitrary spatial grids within memory limits. For regions larger than the training crop or GPU memory budget, large-area retrieval is performed by overlapping tiled inference followed by stitching. The 2026 FY-4B large-area input covers 70 .0◦E– 135 .0◦E and 15 .0◦N– 
+
+54 .0◦N at 0.04 ◦ spacing, giving a 975 × 1625 grid after the north-to-south latitude ordering is applied. The two normalized infrared channels are denoted by c ∈ [0 , 1] 2×H×W . We use square patches of size P = 512 with overlap O = 128 , so the stride is S = P − O = 384 . Let I be the set of upper-left patch coordinates (i, j ) generated by this stride rule, with an additional terminal patch added when needed so that the full grid is covered. For each patch coordinate (i, j ), the satellite condition and initial noise are cropped from the same full-domain tensors, 
+
+cij = Cij (c), zij = Cij (z), (33) where Cij (·) extracts the P × P window whose upper-left coordinate is (i, j ). The noise tensor z ∼ N (0 , I ) is sampled once over the padded full domain. Using a single global noise realization avoids changing the stochastic initial con-dition independently from tile to tile. Each patch is sampled with the same Euler flow-matching solver used in the main experiments, 
+
+x(k+1)  
+
+> ij
+
+= x(k) 
+
+> ij
+
++ ∆ t v θ
+
+
+
+x(k) 
+
+> ij
+
+, t k, c ij 
+
+
+
+, x(0)  
+
+> ij
+
+= zij , (34) for K = 20 steps in the default full run. The resulting patch prediction is denoted by ˆyij ∈ [0 , 1] 1×P ×P .To suppress tile-edge discontinuities, overlapping predic-tions are blended with a separable Hann window. Let h ∈ RPJOURNAL OF L ATEX CLASS FILES, VOL. 14, NO. 8, AUGUST 2021 16 
+
+FY-4B IR069 FY-4B IR107 
+
+WaveOp-LiteFM retrieval GPM IMERG reference 
+
+Fig. 16: Appendix large-area inference example for Typhoon Bavi over China at 00:00 UTC on 11 July 2026, using an FY-4B domain spanning 70 .0◦E– 135 .0◦E and 15 .0◦N– 54 .0◦N. The top row shows the two FY-4B infrared inputs, and the bottom row compares the stitched WaveOp-LiteFM radar-like retrieval with the corresponding GPM IMERG precipitation field at the same UTC time. This case is selected to illustrate the large-scale precipitation organization associated with Bavi, a recent intense typhoon case. Although GPM and the radar-like retrieval are different precipitation products and are not used here for pixel-wise scoring, the broadly similar precipitation organization provides an independent qualitative check that the large-area inference produces meteorologically plausible structures. be the one-dimensional Hann window clipped by a small floor, and define 
+
+w(u, v ) = max( hu, ϵ ) max( hv , ϵ ), ϵ = 0 .05 . (35) The stitched normalized retrieval is computed by weighted ac-cumulation. For each full-domain pixel (p, q ), we accumulate 
+
+A(p, q ) = X
+
+> (i,j )∈I
+
+1(p,q )∈Ωij wij (p, q ) ˆ yij (p − i, q − j), (36) 
+
+B(p, q ) = X
+
+> (i,j )∈I
+
+1(p,q )∈Ωij wij (p, q ), (37) where wij (p, q ) = w(p − i, q − j). The final stitched field is 
+
+ˆy(p, q ) = A(p, q )/B (p, q ), (38) where Ωij is the spatial support of the patch. After stitching, the padded margins are removed and the output is clipped to [0 , 1] . For visualization and threshold interpretation, the normalized field is mapped to a reflectivity-like scale by 
+
+ˆZ(p, q ) = 70 ˆ y(p, q ). (39) This procedure is a deployment mechanism rather than a claim of distribution-free generalization. When the target re-gion, season, sensor geometry, or precipitation regime changes, performance should be revalidated with the same threshold and image metrics used in the main experiments. Figure 16 provides the corresponding large-area qualitative example, pairing the two FY-4B inputs and the stitched retrieval with a same-time GPM IMERG reference field. JOURNAL OF L ATEX CLASS FILES, VOL. 14, NO. 8, AUGUST 2021 17 
+
+TABLE VI: Threshold-based performance comparison across event intensities. SE China thresholds use reflectivity Z ≥ τ after 0–70 dBZ scaling, while SEVIR thresholds use encoded VIL ≥ τ .
+
+SE China 
+
+Z ≥ 10 dBZ Z ≥ 20 dBZ Z ≥ 30 dBZ Z ≥ 35 dBZ Method CSI ↑ FAR ↓ POD ↑ HSS ↑ CSI ↑ FAR ↓ POD ↑ HSS ↑ CSI ↑ FAR ↓ POD ↑ HSS ↑ CSI ↑ FAR ↓ POD ↑ HSS ↑
+
+LiteFM-UNet 0.325 0.380 0.406 0.417 0.237 0.470 0.300 0.347 0.147 0.606 0.191 0.247 0.094 0.708 0.122 0.167 Arrow 0.313 0.393 0.392 0.402 0.232 0.491 0.299 0.340 0.151 0.633 0.205 0.252 0.097 0.735 0.133 0.173 Weather-RF 0.367 0.342 0.453 0.467 0.315 0.423 0.409 0.444 0.218 0.557 0.300 0.347 0.142 0.656 0.195 0.244 WaveOp-LiteFM 0.375 0.330 0.459 0.477 0.318 0.390 0.400 0.450 0.224 0.531 0.301 0.356 0.146 0.640 0.197 0.250 
+
+SEVIR 
+
+VIL ≥ 16 VIL ≥ 74 VIL ≥ 160 VIL ≥ 219 
+
+Method CSI ↑ FAR ↓ POD ↑ HSS ↑ CSI ↑ FAR ↓ POD ↑ HSS ↑ CSI ↑ FAR ↓ POD ↑ HSS ↑ CSI ↑ FAR ↓ POD ↑ HSS ↑
+
+LiteFM-UNet 0.656 0.231 0.816 0.732 0.465 0.360 0.630 0.591 0.311 0.488 0.443 0.467 0.133 0.751 0.222 0.233 Arrow 0.397 0.559 0.800 0.399 0.349 0.411 0.461 0.467 0.218 0.537 0.292 0.350 0.080 0.853 0.149 0.146 Weather-RF 0.628 0.235 0.778 0.707 0.445 0.338 0.576 0.573 0.290 0.527 0.429 0.441 0.123 0.778 0.218 0.218 WaveOp-LiteFM 0.648 0.241 0.816 0.723 0.468 0.344 0.620 0.595 0.315 0.500 0.460 0.471 0.151 0.761 0.289 0.260 
+
+TABLE VII: Efficiency measurements for Model 1, Arrow, Weather-RF, and Model 4 with 20-step sampling. FLOPs are hook-based estimates from the implemented architecture and are reported from the current evaluation outputs. 
+
+Dataset Method Input size Params GFLOPs/forward GFLOPs/sample Time (ms) ↓ SSIM ↑ Sampling steps SE China  Model 1 LiteFM-UNet 500 × 500 5.54M 505.83 10116.57 416.30 0.555 20 Arrow 500 × 500 3.36M 90.99 1819.70 160.79 0.549 20 Weather-RF 500 × 500 3.07M 149.99 2999.78 388.27 0.550 20 WaveOp-LiteFM 500 × 500 2.61M 75.05 1500.94 429.22 0.578 20 SEVIR  Model 1 LiteFM-UNet 128 × 128 5.54M 33.24 664.79 32.25 0.523 20 Arrow 128 × 128 7.82M 9.16 183.29 20.11 0.248 20 Weather-RF 128 × 128 4.51M 15.35 307.03 30.83 0.518 20 WaveOp-LiteFM 128 × 128 2.61M 4.96 99.15 36.03 0.548 20

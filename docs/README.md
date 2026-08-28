@@ -6,32 +6,44 @@
 </div>
 
 ## 每次日报
-- 最新运行日期：2026-08-26
-- 运行时间：2026-08-26 20:47:25 UTC
+- 最新运行日期：2026-08-28
+- 运行时间：2026-08-28 04:08:11 UTC
 - 运行状态：成功
-- 本次总论文数：4
-- 精读区：1
-- 速读区：3
+- 本次总论文数：7
+- 精读区：0
+- 速读区：7
 
 ### 今日简报（AI）
-今日精读1篇、速读3篇，聚焦多模态学习与自动驾驶感知；最值得关注的是《自适应层级表征联盟》提出的多模态融合新思路，以及《方差引导空间注意力融合》对传感器退化场景的鲁棒性提升；后续可延伸关注多模态情感识别中的缺失模态恢复方法。
-- 详情：[/202608/26/README](/202608/26/README)
+今日速读7篇论文，精读0篇，方向集中在医疗AI与遥感多模态分析。  
+最值得关注的是《Multimodal Prompt Learning with Irregular EHRs》与《Mapping Woody Vegetation》两篇，均获7分，前者面向重症监护鲁棒监测，后者提升植被制图的数据效率与精度。  
+建议普通读者优先了解多模态融合在医疗和遥感中的应用，后续可深入精读高分论文。
+- 详情：[/202608/28/README](/202608/28/README)
 
 ### 精读区论文标签
-1. [Adaptive Hierarchical Representation Alliance for Multimodal Learning](/202608/26/2608.22863v1-adaptive-hierarchical-representation-alliance-for-multimodal-learning)  
-   标签：评分：8.0/10、query:multi-modal
-   evidence：分层共享-私有专家框架，显式处理多模态学习中的缺失输入，可迁移至遥感缺失模态场景
+- 本次无精读推荐。
 
 ### 速读区论文标签
-1. [Variance-Guided Spatial Attention Fusion for Robust End-to-End Driving under Asymmetric Sensor Degradation](/202608/26/2608.24366v1-variance-guided-spatial-attention-fusion-for-robust-end-to-end-driving-under-asymmetric-sensor-degradation)  
+1. [Multimodal Prompt Learning with Irregular EHRs for Robust Monitoring of Critical Care Patients](/202608/28/2608.21941v1-multimodal-prompt-learning-with-irregular-ehrs-for-robust-monitoring-of-critical-care-patients)  
    标签：评分：7.0/10、query:multi-modal
-   evidence：非对称传感器退化下的鲁棒融合，通过方差引导空间注意力直接处理缺失模态
-2. [EVEREST:Endogenous Vision-Language Reinforcement Reasoning Exploration for Urban Socio-Semantic Segmentation](/202608/26/2608.24640v1-everestendogenous-vision-language-reinforcement-reasoning-exploration-for-urban-socio-semantic-segmentation)  
+   evidence：面向缺失模态场景的多模态提示学习框架，可迁移至遥感缺失模态任务
+2. [Mapping Woody Vegetation from Multi-Source Imagery and Prediction Fusion for Enhanced Data Efficiency and Accuracy](/202608/28/2608.26471v1-mapping-woody-vegetation-from-multi-source-imagery-and-prediction-fusion-for-enhanced-data-efficiency-and-accuracy)  
    标签：评分：7.0/10、query:multi-modal
-   evidence：融合卫星影像与语言提示进行城市分割，属于多模态遥感数据融合
-3. [TTSD-FAR: Test-Time Self-Distillation with Fisher-Anchored Restoration for Missing-Modality Emotion Recognition in LVLMs](/202608/26/2608.18386v1-ttsd-far-test-time-self-distillation-with-fisher-anchored-restoration-for-missing-modality-emotion-recognition-in-lvlms)  
+   evidence：多源遥感影像融合
+3. [RSFusionDet: Underwater RGB-Sonar Multimodal Object Detection](/202608/28/2608.25367v1-rsfusiondet-underwater-rgb-sonar-multimodal-object-detection)  
    标签：评分：6.0/10、query:multi-modal
-   evidence：多模态学习中处理缺失模态的测试时方法
+   evidence：RGB与声呐多模态融合检测，传感器融合方法可迁移至遥感多模态融合
+4. [Semi-Supervised Adaptation of Vision-Language Models for Image Classification](/202608/28/2608.25485v1-semi-supervised-adaptation-of-vision-language-models-for-image-classification)  
+   标签：评分：6.0/10、query:multi-modal
+   evidence：视觉-语言模型适配用于遥感场景分类
+5. [Asymmetric Cross-Modal Fine-Grained Visual Categorization: ACF-Net and the BirdPro Benchmark](/202608/28/2608.25520v1-asymmetric-cross-modal-fine-grained-visual-categorization-acf-net-and-the-birdpro-benchmark)  
+   标签：评分：6.0/10、query:multi-modal
+   evidence：针对跨模态不对称/缺失对应关系的深度学习方法，可迁移至遥感缺失模态分类
+6. [WaveOp-LiteFM: Lightweight Neural-Operator Flow Matching for Satellite-to-Radar Precipitation Retrieval](/202608/28/2608.25818v1-waveop-litefm-lightweight-neural-operator-flow-matching-for-satellite-to-radar-precipitation-retrieval)  
+   标签：评分：6.0/10、query:multi-modal
+   evidence：跨模态卫星到雷达反演，学习缺失雷达模态
+7. [Mitigating Strong-Modality Collapse in Multimodal Learning via Inverted Asymmetric Fusion](/202608/28/2608.26879v1-mitigating-strong-modality-collapse-in-multimodal-learning-via-inverted-asymmetric-fusion)  
+   标签：评分：6.0/10、query:multi-modal
+   evidence：提出反向非对称融合以缓解强模态坍缩，可迁移至遥感多模态融合
 
 
 <div class="dpr-home-promo-card">
