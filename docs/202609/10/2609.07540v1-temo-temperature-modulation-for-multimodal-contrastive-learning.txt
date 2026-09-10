@@ -1,0 +1,686 @@
+Title: TeMo: Temperature Modulation for Multimodal Contrastive Learning
+
+URL Source: https://arxiv.org/pdf/2609.07540v1
+
+Published Time: Wed, 09 Sep 2026 02:24:53 GMT
+
+Number of Pages: 15
+
+Markdown Content:
+# TeMo: Temperature Modulation for Multimodal Contrastive Learning 
+
+## Dhimitrios Duka 1 Bernt Schiele 1 Hilde Kuehne 2,3 Anna Kukleva 1  
+
+> 1MPI for Informatics, SIC 2Tuebingen AI Center/University of Tuebingen 3MIT-IBM Watson AI Lab
+
+## Abstract 
+
+Contrastive learning approaches achieve strong perfor-mance by training models to bring similar samples closer while pushing dissimilar samples apart. A crucial com-ponent of contrastive learning is the temperature hyper-parameter τ , which controls the penalty strength applied to negative samples. However, most existing methods ei-ther fix this hyperparameter or learn a global value during training. In this paper, we introduce TeMo, Temperature Modulation framework, a similarity-based modulation ap-proach that adaptively adjusts the temperature for each positive-negative pair according to their similarity, en-abling more fine-grained multimodal contrastive learn-ing. Our approach seamlessly integrates temperature-modulated multimodal and unimodal losses with the stan-dard multimodal contrastive loss by gradually transitioning between them. This design allows the model to capture both coarse- and fine-grained semantics at different training stages. Extensive experiments demonstrate that each com-ponent of TeMo consistently enhances performance across diverse zero-shot retrieval and classification tasks, estab-lishing new state-of-the-art results. 
+
+## 1. Introduction 
+
+Contrastive Learning (CL) has become one of the most rel-evant self-supervised representation learning paradigms, al-lowing the training of high performing models on large amounts of unlabeled data. It facilitates the learning of ro-bust unimodal [2, 14] and multimodal [5, 31, 44, 50] rep-resentations by encouraging matching pairs to be close in the embedding space, while pushing nonmatching pairs far-ther apart. One of the most important parameters that affect the structure of the learned representations is the tempera-ture τ . In unimodal learning, τ plays a key role in control-ling the spread of concepts [21, 42]: a higher temperature tolerates semantically similar samples and forms coarser, group-wise clusters, whereas a lower temperature sharpens the objective into a more uniform, instance-level represen-tation space that preserves fine-grained per-sample detail. In multimodal learning, however, τ mainly controls the so-called modality gap [24, 42] that separates the vision and language modalities. Varying the temperature directly af-fects the gap: a high temperature closes it and can even eliminate it, whereas a lower temperature drives the modal-ities farther apart [24]. Whereas in this work, we integrate both multimodal and unimodal losses within a unified tem-perature modulation framework, enabling fine-grained con-trol over the learning dynamics of both multimodal and uni-modal representations. We show that this joint modulation not only enhances alignment between modalities by reduc-ing the modality gap, but also improves the structure of uni-modal embeddings. Most of the existing methods [3, 14, 26, 31, 40] use a global learnable temperature parameter shared across all pairs. Consequently, the model seeks an overall balance among different semantic classes by applying similar repul-sive forces to diverse negative samples. However, in certain scenarios, such as long-tail datasets, it is more desirable to allow fine-grained control over local structures and under-represented classes in the embedding space [21]. Building on this, variable temperature schemes have been proposed to improve representation learning based on temperature al-ternations [18, 19, 21, 23, 30, 42, 43, 53]. To this end, we propose Temperature Modulation (TeMo), a novel multimodal contrastive learning framework that leverages combined multimodal and unimodal tem-perature modulation to enhance multimodal representation learning. Unlike prior methods that use a globally assigned temperature [21, 30, 42], TeMo adaptively modulates the temperature for each positive-negative pair individually. The per-pair temperature strategy enables more precise con-trol over the contrastive objective, allowing the model to dynamically adjust its learning signals based on the similar-ity of individual paired samples. Additionally, temperature-modulated unimodal losses improve local structure within each modality. We integrate the modulated multimodal and unimodal contrastive losses into a standard CL framework through progressive scheduling. This scheduling enables the model to initially capture instance-level semantic details using a lower temperature, while our adaptive temperature modulation gradually guides sample representations toward coarser semantic groupings. 1arXiv:2609.07540v1 [cs.CV] 7 Sep 2026 We evaluate TeMo on two standard tasks: multimodal zero-shot retrieval on MSCOCO and Flickr30k, and zero-shot classification across a diverse set of datasets, in-cluding CIFAR10, CIFAR100, and ImageNet-1k, with models pretrained on CC3M or CC12M. Across tasks and datasets, TeMo consistently outperforms existing temperature-adaptation baselines. We summarize our con-tributions as follows: • We propose TeMo, a novel temperature modulation framework for multimodal contrastive learning, which in-troduces a per pair temperature modulation based on the similarity of each pair for both unimodal and multimodal losses, enabling more precise control over the learned rep-resentation space; • We show that combining multimodal and unimodal con-trastive losses is particularly effective when used with our temperature modulation approach; • We provide an in-depth evaluation of the characteristics of the proposed system and show that TeMo outperforms prior temperature adaptation approaches on zero-shot re-trieval and classification benchmarks. 
+
+## 2. Related Work 
+
+Unimodal CL learns robust representations from single modalities (e.g., images or text) by aligning augmented views of the same input using the InfoNCE loss [28]. Prominent methods include MoCo [3, 14], which maintains a momentum-based queue for negatives, and SimCLR [2], which utilizes samples from the same training batch. The performance of unimodal CL depends on the number of negative samples [16, 47, 51]. In our approach, we adopt the batch-wise negative sampling strategy of SimCLR. 
+
+Multimodal CL extends contrastive learning to multiple modalities, such as images and texts, aiming to align cor-responding pairs and distinguish them from unrelated ones. Methods like CLIP [31] optimize a cross-modal InfoNCE objective and demonstrate remarkable generalization in downstream tasks such as zero-shot retrieval and classifi-cation. Recent work proposes a wide range of enhance-ments: DeCLIP [22] and SLIP [26] incorporate vision-specific unimodal self-supervision; CWCL [38] proposes a new loss function that uses continuous, rather than bi-nary, similarity scores; FILIP [45] and DeFILIP [6] intro-duce fine-grained late interaction between the two modali-ties; CyCLIP [11] enforces geometric consistency through the usage of two additional objectives on top of the stan-dard InfoNCE loss; SigLIP [50] and SigLIP2 [41] ex-plore alternative contrastive objectives; SoftCLIP [10] re-laxes the strict one-to-one alignment assumption by intro-ducing soft cross-modal targets derived from intra-modal similarities; SILC [27] enhances representation quality via self-distillation; LaCLIP [9] leverages language-centric augmentation and TULIP [40] enhances fine-grained vi-sual understanding while preserving semantic alignment by combining generative data augmentation, intra-modal contrastive learning, and reconstruction-based regulariza-tion. In our work, we integrate multimodal and unimodal contrastive losses through a novel temperature modulation framework. 
+
+Temperature in CL has also received considerable atten-tion, and recent work [18, 19, 21, 23, 30, 42, 43, 53] has shown that the temperature parameter τ plays a cru-cial role in shaping the embedding space in both unimodal and multimodal contrastive learning. In the unimodal set-ting, [42] showed that a low temperature concentrates the contrastive objective on hard negatives, while a high tem-perature distributes the objective more evenly across nega-tives, tolerating semantically similar samples and encour-aging the formation of larger clusters [21]. Temperature therefore provides an implicit form of hardness weight-ing at the loss level, complementary to explicit hard neg-ative mining, which instead changes the sampling distribu-tion by favoring difficult examples [33]. A global τ , how-ever, applies the same weighting to all pairs and couples the treatment of positive and negative pairs, motivating ap-proaches that adapt or remove the temperature parameter. In this direction, Temperature Schedules [21] replace a fixed 
+
+τ with a cosine schedule that alternates between instance-and group-wise discrimination, while MM-TS [37] extends temperature scheduling to multimodal contrastive learning by dynamically adjusting the temperature during training and adapting its magnitude to the local data distribution. DySTreSS [25] instead sets a pairwise temperature as a cosine function of similarity; MACL [15] makes temper-ature alignment-aware; Dynamic Temperature Scaling [18] derives instance-level temperatures for negative pairs using a frozen auxiliary encoder; and Temperature-Free CL [19] removes the temperature hyperparameter altogether by re-placing the usual scaling of similarity logits with a mono-tone log-odds mapping. Beyond its role in hardness weight-ing, temperature also influences the modality gap in multi-modal contrastive learning, with [46] providing theoretical insights into this relationship. Building on these findings, we extend per-pair, similarity-driven temperature modula-tion to the multimodal setting and combine it with self-supervision to explicitly address the modality gap without introducing additional training stages. 
+
+## 3. Method 
+
+We introduce TeMo , a contrastive learning framework that assigns similarity-conditioned temperatures to individual sample pairs and progressively incorporates them into mul-timodal contrastive training. We first introduce the notation and contrastive objectives underlying our framework. We then present the proposed temperature modulation mecha-nism, show how it is applied to both unimodal and multi-2modal pairs, and finally combine them objectives through a progressive training schedule. 
+
+Overview. TeMo augments standard multimodal con-trastive learning with pair-specific temperature modula-tion that is introduced progressively over the course of training. At the beginning of training, learning is dom-inated by a fixed-temperature symmetric InfoNCE objec-tive, which establishes an initial cross-modal alignment and organizes the global embedding space. As training progresses, TeMo gradually increases the contribution of temperature-modulated objectives defined over both cross-modal and within-modality pairs. Rather than applying a single temperature to all pairs in a minibatch, these objectives assign a temperature according to the similarity of each anchor–candidate pair. In partic-ular, less similar pairs receive lower temperatures, whereas more similar pairs receive higher temperatures, sharpening or softening their corresponding contrastive logits. By in-troducing this modulation progressively, TeMo first learns a stable global representation structure before increasingly emphasizing finer pairwise relationships within and across modalities. An overview of the framework is shown in Fig-ure 1. 
+
+Notation. Let D = (In, T n)Mn=1 denote a multimodal dataset of M paired image–text samples. For a minibatch of size B, we encode the images and texts into the repre-sentations V = ( v1, . . . , vB ) and T = ( t1, . . . , tB ), re-spectively. For each image Ii, we sample an augmented view ˜Ii ∼ A (Ii), and for each text Ti, we generate an LLM-based paraphrase ˜Ti. We denote the representations of the augmented samples by eV = (˜ v1, . . . , ˜vB ) and eT =(˜ t1, . . . , ˜tB ). For any representation x, we denote its ℓ2-normalized form by ¯x = x/∥x∥2. The cosine similarity between two representations x and y is c(x, y) = ⟨¯x, ¯y⟩,with c(x, y) ∈ [−1, 1] .
+
+3.1. Preliminaries 
+
+Contrastive Loss. We adopt InfoNCE [28] as the under-lying contrastive objective. Let xi be an anchor, Y =
+
+{yj }Bj=1 a candidate set, and yi ∈ Y its corresponding positive. Let ci,j = c(xi, yj ) denote the cosine simi-larity between the anchor and candidate j, and let τ i =(τi, 1, . . . , τ i,B ) denote the temperatures associated with the 
+
+B anchor–candidate pairs. The InfoNCE loss for anchor xi
+
+is given by:             
+
+> I(xi,Y;τi) = −log exp ( ci,i /τ i,i )
+> PBj=1 exp ( ci,j /τ i,j ).(1)
+
+Standard InfoNCE applies the same fixed or learnable temperature τ0 to every pair, such that τ i = τ01B , where 
+
+1B is a vector of ones of length B. This shared-temperature formulation serves as the basis of standard contrastive train-ing. TeMo generalizes it by allowing the temperature to vary across individual anchor–candidate pairs. 
+
+Unimodal Contrastive Loss. We first express the stan-dard contrastive objective within a single modality. Let 
+
+X = {xi}Bi=1 denote a batch of embeddings from one modality and eX = {˜xi}Bi=1 its augmented counterpart, where ˜xi forms the positive pair for xi. The correspond-ing fixed-temperature unimodal objective is given by:      
+
+> LX2X
+> 
+> X,eX;τ0
+> 
+> = 1
+> B
+> BX
+> i=1
+> I
+> 
+> xi,eX;τ01B
+> 
+> ,(2)
+
+where X represents either modality. In particular, 
+
+(X, eX) = ( V, eV) defines the image-to-image objective, while (X, eX) = ( T, eT) defines the corresponding text-to-text objective. 
+
+Multimodal Contrastive Loss. Extending the con-trastive formulation across modalities, we define the fixed-temperature multimodal objective in both the image-to-text and text-to-image directions:                 
+
+> LI2T (V,T;τ0) = 1
+> B
+> BX
+> i=1
+> I(vi,T;τ01B),
+> LT2I (T,V;τ0) = 1
+> B
+> BX
+> i=1
+> I(ti,V;τ01B).
+> (3)
+
+Following standard multimodal contrastive learning, we average the two directions to obtain the symmetric objec-tive: 
+
+LMM = 12 (LI2T + LT2I ) . (4) The fixed-temperature objective supplies TeMo’s initial training signal, but applies the same temperature to every pair. To refine the resulting representation, we next condi-tion the temperature on the similarity of each pair. 
+
+3.2. Temperature Modulation Framework 
+
+Temperature Modulation. The central component of TeMo is a similarity-dependent mapping that assigns a sep-arate temperature to each anchor–candidate pair. Let si,j =
+
+> 12
+
+ 1 + c(xi, yj ) ∈ [0 , 1] be the cosine similarity rescaled to the unit interval. The temperature assigned to each pair 
+
+(xi, yj ) is given by: 
+
+τ X2Y  
+
+> i,j
+
+(xi, yj ) = τmin + τα
+
+√si,j , (5) where τmin > 0 specifies the minimum temperature and 
+
+τα ≥ 0 controls the range of modulation, so that τ X2Y  
+
+> i,j
+
+∈
+
+[τmin , τ min + τα]. Because the mapping from similarity to temperature is monotonically increasing, less similar pairs are assigned lower temperatures, whereas more sim-ilar pairs receive higher temperatures. Consequently, TeMo modifies the sharpness of the contrastive logits on a pair-by-pair basis rather than applying the same scaling uniformly throughout the minibatch. 3Similarity Matrix 
+
+> Similarity Values
+> Temperature Matrix
+> Temperature Values
+
+𝜆( ) Temperature Modulation 
+
+> Dynamic Temperature
+
+## 𝜆( ) 
+
+> Step 1
+> Fixed Temperature
+> Step 2
+> ⊙⊙
+> ⊙
+> Unimodal Paths
+> Inverse-Temp. Scaling
+
+𝑇𝑖 
+
+෨𝑇𝑖  
+
+> Text Encoder
+> a cat resting
+> on a chair
+> a cat sitting
+> on a chair
+> ORIGINAL AUGMENTED
+
+𝐼𝑖 
+
+ሚ𝐼𝑖  Vision Encoder  
+
+> ORIGINAL AUGMENTED
+
+ℒ𝑇𝑒𝑀𝑜 
+
+ℒM−I2I 
+
+ℒM−T2T 
+
+ℒI2T , ℒT2I 
+
+ℒM−I2T, ℒM−T2I 
+
+IMAGE/TEXT PAIRS Figure 1. High-level overview of TeMo. A batch of image–text pairs and their augmentations is processed by a vision encoder and a text encoder to obtain embeddings Ii, ˜Ii, Ti, and ˜Ti. A fixed-temperature branch computes the standard cross-modal objective LMM .In parallel, similarity matrices for image-to-text, text-to-image, image-to-image, and text-to-text pairs are passed through the temperature modulation mechanism, which maps similarities in [0 , 1] to temperatures in [τmin , τ min + τα]. The resulting temperatures are used to compute the modulated cross-modal loss LM-MM and the unimodal losses LM-I2I and LM-T2T . Finally, a quadratic scheduler progressively shifts the training objective from the standard contrastive loss toward the temperature-modulated losses, yielding the final objective LTeMo .
+
+Applying Equation (5) to every pair formed by two em-bedding sets X = {xi}Bi=1 and Y = {yj }Bj=1 produces the temperature matrix: 
+
+TX2Y =
+
+h
+
+τ X2Y 
+
+> i,j
+
+iBi,j =1 
+
+. (6) 
+
+The i-th row τ X2Y  
+
+> i
+
+= ( τ X2Y  
+
+> i, 1
+
+, . . . , τ X2Y  
+
+> i,B
+
+) therefore con-tains all temperatures used when xi acts as the anchor. This formulation can be applied directly to both within-modality and cross-modal contrastive objectives. 
+
+Unimodal Temperature Modulation. We first apply the pair-specific temperatures within each modality. For a batch 
+
+X and its augmented counterpart eX, we form the temper-ature matrix TX2X = τ X2X 
+
+> i,j
+
+Bi,j =1 , whose entries follow Eq. 5 applied to the pair (xi, ˜xj ). Replacing the shared tem-perature in Eq. 2 with the corresponding row of this matrix yields the modulated unimodal objective: 
+
+LM-X2X 
+
+
+
+X, eX; TX2X 
+
+
+
+= 1
+
+B
+
+> B
+
+X
+
+> i=1
+
+I
+
+
+
+xi, eX; τ X2X 
+
+> i
+
+
+
+. (7) 
+
+Applying it per modality gives the image and text ob-jectives LM-I2I = LM-X2X (V, eV; TI2I ) and LM-T2T =
+
+LM-X2X (T, eT; TT2T ), where TI2I and TT2T are formed analogously from the image and text embeddings and their augmentations. These objectives encourage each modality to preserve the semantics shared between a sample and its augmentation, while letting the strength of each contrastive interaction depend on its similarity. 
+
+Multimodal Temperature Modulation. The same mecha-nism applies across modalities. The cross-modal tempera-ture matrix TI2T = τ I2T 
+
+> i,j
+
+Bi,j =1 has entries following Eq. 5 applied to the pair (vi, tj ), and the reverse direction uses its transpose, TT2I = T ⊤
+
+> I2T
+
+. Replacing the shared temperature in the multimodal objective with the pair-specific tempera-tures yields the directional losses: 
+
+LM-I2T (V, T; TI2T ) = 1
+
+B
+
+> B
+
+X
+
+> i=1
+
+I
+
+
+
+vi, T; τ I2T 
+
+> i
+
+
+
+,
+
+LM-T2I (T, V; TT2I ) = 1
+
+B
+
+> B
+
+X
+
+> i=1
+
+I
+
+
+
+ti, V; τ T2I 
+
+> i
+
+
+
+,
+
+(8) 
+
+which we average, as in the fixed-temperature case, into the 4symmetric modulated multimodal objective: 
+
+LM-MM = 12 (LM-I2T + LM-T2I ) . (9) Together, the modulated multimodal and unimodal terms cover all pairwise relationships in TeMo: image–text, image–image, and text–text. We collect them into a single modulated objective, 
+
+LMOD = LM-MM + LM-I2I + LM-T2T . (10) 
+
+TeMo Objective. Applying all modulated objectives from the start of training would tie their pair-specific weighting to similarities produced by encoders whose representations are not yet reliable. TeMo therefore phases them in over the course of training. Let t ∈ [0 , 1] be the normalized training step; the complete objective balances the standard multimodal loss with the modulated one, 
+
+LTeMo (t) = α(t) LMM + β(t) LMOD , (11) with weights α(t) = (1 − t)2 and β(t) = t2. At t = 0 
+
+the objective reduces to the standard multimodal loss LMM ,letting the encoders establish an initial cross-modal rep-resentation before any pair-specific modulation; as t in-creases, the fixed-temperature term decays quadratically while the modulated term grows, until at t = 1 training is driven entirely by LMOD . This schedules a gradual shift from global cross-modal organization toward finer pairwise refinement: the modulated multimodal term continues to sharpen image–text alignment, while the image–image and text–text terms structure each modality around the seman-tics preserved under its augmentations. We summarize the full training procedure as pseudocode in Appendix 6. 
+
+## 4. Experiments 
+
+We evaluate TeMo on zero-shot cross-modal retrieval and image classification. We first describe the experimental setup and compare TeMo with existing contrastive and temperature-based approaches. We then ablate the indi-vidual components of the proposed objective and conclude with an analysis of the training dynamics and learned rep-resentation space. 
+
+Datasets. We pretrain on Conceptual Captions using CC3M [36] ( ∼2.9M image–text pairs) and its larger exten-sion CC12M [1] ( ∼12M pairs). For zero-shot retrieval, we evaluate on the Karpathy test splits [17] of MSCOCO and Flickr30k [48], following prior work [11, 49]. For zero-shot classification, we evaluate on CIFAR-10, CIFAR-100 [20], and ImageNet-1k [7], and on a broader 17-dataset suite from CLIP Benchmark [4] covering distribution shifts, fine-grained, and specialized domains. 
+
+Evaluation. Zero-shot retrieval is evaluated using Re-call@K for K ∈ { 1, 5, 10 } in both the image-to-text and text-to-image directions, with the complete results reported in the supplementary. For zero-shot classification, we report Top-K accuracy for K ∈ { 1, 3, 5} on CIFAR-10, CIFAR-100, and ImageNet-1k, and Top-1 accuracy across the 17 CLIP Benchmark datasets. Following the standard CLIP protocol, class names are used as textual prompts, and each image is assigned to the class whose text representation has the highest similarity to its image representation. 
+
+Baselines. We compare TeMo against fixed, scheduled, and adaptive temperature methods, as well as recent contrastive-learning variants. For the InfoNCE baseline, we use a fixed temperature of τ = 0.01 , following [30]. For the temperature-scheduling baseline (TS ∗), our multimodal adaptation of Temperature Schedules [21], we vary the tem-perature within τ ∈ [0 .01 , 0.05] across five training periods. For SLIP [26], we use a learnable temperature initialized at 
+
+0.07 . We further extend DySTreSS [25] to the multimodal setting and re-implement CWCL [38], for which no public implementation is available; both are trained using the same optimization settings and backbone architectures as TeMo. For a fair comparison with SoftCLIP [10], we additionally train both the InfoNCE baseline and TeMo from scratch on CC3M. For MM-TS [37], we use the results reported in the original paper. 
+
+Implementation Details. For experiments on CC3M, we initialize the vision and text encoders independently rather than from a jointly pretrained CLIP model, following [30]. We use either an ImageNet-1k-pretrained ResNet-50 [13] or ViT-B/16 [8] as the vision encoder and a pretrained Distil-BERT [34] as the text encoder. For CC12M, we build upon the official SLIP [26] implementation and train the encoders from scratch. For text augmentation, we pre-generate five paraphrases for each caption using a PEGASUS [52] model fine-tuned for paraphrasing and uniformly sample one vari-ant at each training step. For TeMo, we set τmin = 0 .01 
+
+and τα = 0 .04 in Eq. 5, resulting in temperatures within 
+
+[0 .01 , 0.05] . We keep τmin fixed and treat only τα as a tun-able hyperparameter. We use a batch size of 2048 for CC3M and 4096 for CC12M. 
+
+4.1. Comparison with State of the Art 
+
+Table 1 compares TeMo with prior methods on zero-shot retrieval and classification across both backbone architec-tures. TeMo achieves consistently strong retrieval perfor-mance across datasets and architectures. With ResNet-50, it improves over InfoNCE by +1.64/+1.76% on MSCOCO and +2.04/+2.40% on Flickr30k in IR@1/TR@1, respec-tively. TeMo also outperforms all temperature-based base-lines evaluated in our study: TS [21], DySTreSS [25], CWCL [38], and MM-TS [37]. Relative to MM-TS, the most closely related multimodal temperature-scheduling approach to ours, TeMo improves IR@1/TR@1 by +2.08/+1.96% on MSCOCO and +2.66/+1.70% on 5Backbone Method MSCOCO Flickr30k CIFAR-10 CIFAR-100 
+
+IR@1 TR@1 IR@1 TR@1 Top-1 Top-3 Top-1 Top-3 RN50 [13] InfoNCE 21.64 28.60 42.12 53.60 53.78 81.76 25.08 42.09 TS ∗ [21] 22.01 28.20 42.90 53.30 51.61 82.03 28.53 45.21 DySTreSS ∗ [25] 19.38 26.70 36.70 49.30 56.95 85.49 33.29 52.55 CWCL ∗ [38] 14.83 23.50 28.70 41.40 57.92 80.84 28.46 46.72 MM-TS [37] 21.20 28.40 41.50 54.30 – – – –TeMo (ours) 23.28 30.36 44.16 56.00 64.04 89.85 37.52 57.48 
+
+ViT-B/16 [8] InfoNCE 21.88 28.98 42.54 54.10 70.55 90.21 44.53 61.41 TS ∗ [21] 21.45 27.32 41.02 49.90 72.02 91.65 47.13 65.45 DySTreSS ∗ [25] 20.67 26.26 39.36 49.70 73.41 92.15 47.02 65.64 CWCL ∗ [38] 18.84 28.44 37.90 48.10 85.85 95.18 62.02 78.63 
+
+TeMo (ours) 22.87 28.80 45.28 55.60 81.54 94.47 53.62 70.39 Table 1. Zero-shot cross-modal retrieval and classification. Models are trained on CC3M; higher is better for all metrics. Retrieval on MSCOCO and Flickr30k is reported using R@1 (%), with IR and TR denoting Text →Image retrieval and Image →Text retrieval, respec-tively. Zero-shot classification on CIFAR-10/100 reports Top-1 and Top-3 accuracy (%). Best results are shown in bold and second-best results are underlined; our method is highlighted. TS ∗, DySTreSS ∗, and CWCL ∗ denote our multimodal adaptations/implementations of [21], [25], and [38], respectively. 
+
+Flickr30k. These improvements also transfer across archi-tectures: while TS degrades when moving from ResNet-50 to ViT-B/16, TeMo maintains consistently strong retrieval performance across both backbones. A similar trend is observed for zero-shot classification. Relative to InfoNCE, TeMo improves Top-1 accuracy by +10.26/+12.44% on CIFAR-10/CIFAR-100 with ResNet-50 and by +10.99/+9.09% with ViT-B/16. Although CWCL attains higher classification accuracy with ViT-B/16, this is accompanied by substantially lower retrieval performance; for instance, its Flickr30k IR@1 is 7.38% lower than that of TeMo. TeMo therefore provides a more balanced perfor-mance across both tasks, combining strong retrieval results with competitive zero-shot classification accuracy. The benefits of TeMo persist when extending the eval-uation to ImageNet-1k and increasing the pretraining scale. On ImageNet-1k, TeMo achieves 34.79% Top-1 and 48.32% Top-3 accuracy, outperforming both InfoNCE and TS (Table 2). We further compare against SoftCLIP us-ing the improvement over each method’s corresponding In-foNCE baseline, since differences in experimental setup lead to different absolute baseline accuracies. SoftCLIP re-ports an improvement of +2.00 percentage points, whereas TeMo trained from scratch on CC3M achieves +2.23 points (Table 3). Scaling pretraining from CC3M to CC12M fur-ther increases TeMo’s performance to 41.76% Top-1 and 63.05% Top-3 (Table 2), surpassing InfoNCE, TS, and SLIP. These results indicate that the improvements intro-duced by TeMo persist when scaling to a larger pretraining dataset. 
+
+Method CC3M CC12M 
+
+Top-1 Top-3 Top-1 Top-3 InfoNCE 28.00 40.23 35.48 54.80 TS ∗ [21] 29.01 42.17 38.90 59.02 SLIP [26] – – 39.77 59.42 TeMo (ours) 34.79 48.32 41.76 63.05 
+
+Table 2. Zero-shot classification on ImageNet-1k. Top-1 and Top-3 accuracy (%) of ViT-B/16 models pretrained on CC3M and CC12M. TS ∗ denotes our multimodal adaptation of Temperature Schedules [21]. 
+
+Method Top-1 ∆ vs. InfoNCE 
+
+InfoNCE † 16.90 –SoftCLIP † 18.90 +2.00 InfoNCE 14.39 –TeMo (ours) 16.62 +2.23 
+
+Table 3. Absolute-gain comparison with SoftCLIP on ImageNet-1k. Top-1 accuracy (%) for ViT-B/16 models trained from scratch on CC3M. Since absolute baselines differ across ex-perimental setups, we compare each method’s improvement over its corresponding InfoNCE baseline ( ∆). †Results are taken from the SoftCLIP paper. 
+
+4.2. Ablations 
+
+Table 4 ablates the main components of the TeMo objective (Eq. 11), including multimodal temperature modulation, unimodal supervision, and progressive scheduling. Row a) denotes the standard InfoNCE baseline, while row g) corre-sponds to the complete TeMo objective. 6Base Mod. U.L. Sch. MSCOCO Flickr30k                                                                       
+
+> IR@1 TR@1 IR@1 TR@1 a) ✓–––21.64 28.60 42.12 53.60 b) –✓––18.32 25.36 36.16 45.00 c) ✓–✓†–20.65 25.44 39.16 50.10 d) ✓✓––20.09 27.54 40.12 52.20 e) ✓✓–✓21.74 28.58 44.02 54.90 f) ✓✓✓–21.90 29.38 42.84 54.80 g) ✓✓✓✓23.28 30.36 44.16 56.00
+> Table 4. Loss-component ablation. Retrieval performance (%) under different combinations of training objectives. Base: standard InfoNCE loss LMM ;Mod.: modulated multimodal loss LM-MM ; U.L.: additional unimodal losses; Sch.: progres-sive scheduler blending LMM with the modulated objectives.
+> †Unimodal objectives are applied without temperature modula-tion.
+
+Multimodal Modulation. We first isolate the effect of mul-timodal temperature modulation by training with LM-MM 
+
+alone in row b). Compared with the standard InfoNCE objective in row a), performance decreases across all re-trieval metrics, suggesting that applying pair-specific tem-perature modulation from the beginning of training can in-terfere with the formation of the initial cross-modal struc-ture. We hypothesize that this behavior is related to hard negatives. Since highly similar pairs are assigned higher temperatures, the contrastive penalty associated with such negatives is softened, which may limit their separation from the anchor before a meaningful representation space has been established. 
+
+Impact of Standard Unimodal Losses. To disentangle the contribution of unimodal supervision from that of temper-ature modulation, row c) augments the InfoNCE baseline with standard, non-modulated unimodal objectives. This configuration performs below the baseline in row a) across all retrieval metrics, indicating that unimodal supervision alone does not improve cross-modal alignment in our set-ting. Prior work typically introduces unimodal supervi-sion for a single modality, such as language rewrites in La-CLIP [9] or image self-supervision in SLIP [26]. Jointly op-timizing separate objectives for both modalities may instead alter the optimization dynamics of the shared embedding space and interfere with cross-modal alignment. As shown by the full TeMo objective in row g), these unimodal objec-tives become beneficial when combined with pair-specific temperature modulation and progressive scheduling. 
+
+Multimodal Modulation and Progressive Scheduling. 
+
+We next examine how the standard multimodal objective 
+
+LMM interacts with its temperature-modulated counterpart 
+
+LM-MM . Combining the two objectives with fixed weights in row d) does not improve upon the InfoNCE baseline in row a). In contrast, introducing the same modulated objective progressively through the proposed scheduler in row e) substantially improves over the fixed-weight formu-lation, yielding gains of +1.65/+1.04% on MSCOCO and +3.90/+2.70% on Flickr30k in IR@1/TR@1, respectively. The same trend is observed when unimodal objectives are included, with row g) consistently improving over its un-scheduled counterpart in row f). We attribute this behavior to the complementary roles of the objectives over the course of training. During the early stages, the scheduler places greater emphasis on LMM ,whose low fixed temperature provides a strong contrastive signal for separating anchors from negatives. As the repre-sentation space becomes more structured, the contribution of the temperature-modulated objectives increases, allow-ing pair-specific temperatures to refine the learned semantic relationships. The improvements from row d) to row e) and from row f) to row g) therefore demonstrate the importance of introducing temperature modulation progressively rather than assigning it a fixed contribution throughout training. 
+
+Unimodal Modulation. Finally, we assess the contribu-tion of the temperature-modulated unimodal objectives by comparing the scheduled multimodal variant in row e) with the complete TeMo objective in row g). Adding LM-I2I and 
+
+LM-T2T further improves performance across all retrieval metrics, with gains of +1.54/+1.78% on MSCOCO and +0.14/+1.10% on Flickr30k in IR@1/TR@1, respectively. Together with the degradation observed when standard uni-modal objectives are used without modulation in row c), these results indicate that the benefit of unimodal supervi-sion depends on how it is integrated into the contrastive ob-jective. The complete TeMo formulation in row g) achieves the strongest overall retrieval performance, improving over the InfoNCE baseline in row a) by +1.64/+1.76% on MSCOCO and +2.04/+2.40% on Flickr30k. The same trend extends beyond retrieval. Across the 17 CLIP Benchmark datasets, row g) achieves a macro-average Top-1 accuracy of 26.98%, compared with 22.54% for the InfoNCE baseline in row a), corresponding to an improve-ment of +4.44 percentage points. The per-dataset results are reported in Table 8. 
+
+4.3. Representation and Training Dynamics 
+
+Temperature Convergence. To better understand the be-havior of the proposed modulation, we track the average temperature assigned to positive and negative pairs within each minibatch throughout training, as shown in Figure 2. Both exhibit an initial decrease, followed by gradual sta-bilization as the contribution of the modulated objectives increases. By the end of training, positive pairs consis-tently receive higher temperatures than negative pairs, re-flecting the higher similarity of aligned image–text pairs under the proposed mapping. To verify that this behavior is not induced by the cosine-annealing learning-rate sched-70 10000 20000 30000 40000      
+
+> Step
+> 0.030 0.036 0.042
+> Avg. Per Batch Temp.  Positive Samples Avg. Temp.
+> 010000 20000 30000 40000
+> Step
+> Negative Samples Avg. Temp.
+> Fixed LR Cosine Annealing LR
+
+Figure 2. Convergence of batch-wise temperatures. Average temperatures assigned to positive and negative pairs converge to-ward stable values during training under both cosine-annealed and fixed learning-rate schedules. MSCOCO Flickr30K CC3M    
+
+> Datasets 0.00 0.25 0.50 0.75 Modality Gap
+> Modality Gap
+> CIFAR10 CIFAR100
+> Datasets 45 60 75 90 Accuracy (%)
+> k-NN@1 InfoNCE InfoNCE + Mod. InfoNCE TeMo
+
+Figure 3. Modality gap and k-NN@1 evaluation. Left: modality gap across evaluation datasets. Right: k-NN@1 accuracy of the learned visual representations on CIFAR-10 and CIFAR-100. 
+
+ule, we repeat the experiment using a fixed learning rate and observe the same convergence pattern. This suggests that the stabilization of the temperatures arises from the learned representation structure rather than from the learning-rate schedule. 
+
+Modality Gap and k-NN Evaluation. We further ana-lyze the influence of the unimodal objectives on both cross-modal alignment and the structure of the individual repre-sentation spaces. Following [24], we measure the modal-ity gap and evaluate the visual representations using k-NN classification (Figure 3). We compare the standard InfoNCE baseline with variants incorporating multimodal modula-tion and unimodal objectives. Introducing the unimodal objectives improves k-NN accuracy, indicating a stronger visual representation space, whereas multimodal tempera-ture modulation alone has only a limited effect on visual representation quality. The complete TeMo objective addi-tionally yields the smallest modality gap among the evalu-ated variants, suggesting improved cross-modal alignment. These observations are consistent with the component abla-tion in Table 4. 
+
+Distribution of Image–Text Similarity. Figure 4 exam-ines the similarity distributions of positive and negative image–text pairs on the CC3M validation set. Before fine-tuning, the two distributions overlap substantially, indicat-ing limited separation between aligned and non-aligned pairs. Training with InfoNCE shifts the positive distribu-−0.50 −0.25 0.00 0.25 0.50 0.75        
+
+> Similarity
+> 02468
+> Density
+> Negative Pairs
+> −0.50 −0.25 0.00 0.25 0.50 0.75
+> Similarity
+> Positive Pairs
+> Initial distribution Final (InfoNCE) Final (TeMo)
+
+Figure 4. Normalized distributions of image–text similarity on the CC3M validation set for negative (left) and positive (right) pairs. Red denotes the distributions before fine-tuning, blue after InfoNCE training, and green after training with TeMo. 
+
+tion toward higher similarities; however, the negative distri-bution also shifts in the same direction, leaving a consider-able region of overlap between hard negatives and positive pairs. In contrast, TeMo shifts positive pairs toward higher similarities while moving negative pairs toward lower sim-ilarities, thereby increasing the separation between the two distributions. The resulting representation space exhibits a clearer margin between positive and negative pairs. We pro-vide a more detailed analysis of robustness to noisy positive pairs in Appendix 11. Overall, these results indicate that TeMo produces a more discriminative cross-modal repre-sentation space, consistent with the improvements observed in retrieval and zero-shot classification. 
+
+## 5. Conclusions 
+
+In this work, we proposed TeMo, a Temperature Modulation method for multimodal Contrastive Learning, which aims to improve the standard multimodal contrastive learning objective. First, we introduced an adaptive per-pair temperature modulation method, where the temperature for each training sample is adapted based on its local neigh-borhood in the embedding space. This allows the model to adjust the pushing force of each contrastive pair more ef-fectively, adapting it to the respective neighborhood. Next, we extended this idea to the unimodal domain by integrat-ing temperature modulation into the unimodal contrastive losses. These components are then combined into a uni-fied modulated contrastive loss formulation, which further reinforces representation learning within each modality. Fi-nally, we blended the modulated contrastive loss with the original InfoNCE objective with the progressive scheduling. This combination enables learning of instance-level details using a lower temperature, while our adaptive modulation framework gradually enables coarser semantic grouping. Our results demonstrate consistent improvements across re-trieval on MSCOCO and Flickr30K and zero-shot classi-fication on a diverse set of datasets, including CIFAR10, CIFAR100, and ImageNet-1k, as well as across evaluation metrics, highlighting the effectiveness of our method. 8References 
+
+[1] Soravit Changpinyo, Piyush Sharma, Nan Ding, and Radu Soricut. Conceptual 12M: Pushing web-scale image-text pre-training to recognize long-tail visual concepts. In CVPR ,pages 3558–3568, 2021. 5 [2] Ting Chen, Simon Kornblith, Mohammad Norouzi, and Ge-offrey Hinton. A simple framework for contrastive learning of visual representations. In ICML , pages 1597–1607, 2020. 1, 2 [3] Xinlei Chen, Haoqi Fan, Ross Girshick, and Kaiming He. Improved baselines with momentum contrastive learning. 
+
+arXiv preprint arXiv:2003.04297 , 2020. 1, 2 [4] Mehdi Cherti and Romain Beaumont. CLIP benchmark, 2025. 5 [5] Mehdi Cherti, Romain Beaumont, Ross Wightman, Mitchell Wortsman, Gabriel Ilharco, Cade Gordon, Christoph Schuh-mann, Ludwig Schmidt, and Jenia Jitsev. Reproducible scal-ing laws for contrastive language-image learning. In CVPR ,pages 2818–2829, 2023. 1 [6] Yufeng Cui, Lichen Zhao, Feng Liang, Yangguang Li, and Jing Shao. Democratizing contrastive language-image pre-training: A CLIP benchmark of data, model, and supervi-sion. arXiv preprint arXiv:2203.05796 , 2022. 2 [7] Jia Deng, Wei Dong, Richard Socher, Li-Jia Li, Kai Li, and Li Fei-Fei. ImageNet: A large-scale hierarchical image database. In CVPR , pages 248–255, 2009. 5 [8] Alexey Dosovitskiy, Lucas Beyer, Alexander Kolesnikov, Dirk Weissenborn, Xiaohua Zhai, Thomas Unterthiner, Mostafa Dehghani, Matthias Minderer, Georg Heigold, Syl-vain Gelly, Jakob Uszkoreit, and Neil Houlsby. An image is worth 16x16 words: Transformers for image recognition at scale. In ICLR , 2021. 5, 6 [9] Lijie Fan, Dilip Krishnan, Phillip Isola, Dina Katabi, and Yonglong Tian. Improving CLIP training with language rewrites. NeurIPS , 36:35544–35575, 2023. 2, 7, 13 [10] Yuting Gao, Jinfeng Liu, Zihan Xu, Tong Wu, Enwei Zhang, Ke Li, Jie Yang, Wei Liu, and Xing Sun. SoftCLIP: Softer cross-modal alignment makes CLIP stronger. In AAAI , pages 1860–1868, 2024. 2, 5 [11] Shashank Goel, Hritik Bansal, Sumit Bhatia, Ryan Rossi, Vishwa Vinay, and Aditya Grover. CyCLIP: Cyclic con-trastive language-image pretraining. NeurIPS , 35:6704– 6719, 2022. 2, 5 [12] Tiancheng Gu, Kaicheng Yang, Xiang An, Ziyong Feng, Dongnan Liu, Weidong Cai, and Jiankang Deng. RWKV-CLIP: A robust vision-language representation learner. In 
+
+Proceedings of the 2024 Conference on Empirical Methods in Natural Language Processing , pages 4799–4812, 2024. 14 [13] Kaiming He, Xiangyu Zhang, Shaoqing Ren, and Jian Sun. Deep residual learning for image recognition. In CVPR ,pages 770–778, 2016. 5, 6 [14] Kaiming He, Haoqi Fan, Yuxin Wu, Saining Xie, and Ross Girshick. Momentum contrast for unsupervised visual rep-resentation learning. In CVPR , pages 9729–9738, 2020. 1, 2[15] Zizheng Huang, Haoxing Chen, Ziqi Wen, Chao Zhang, Huaxiong Li, Bo Wang, and Chunlin Chen. Model-aware contrastive learning: Towards escaping the dilemmas. In 
+
+ICML , pages 13774–13790, 2023. 2 [16] Yannis Kalantidis, Mert Bulent Sariyildiz, Noe Pion, Philippe Weinzaepfel, and Diane Larlus. Hard negative mixing for contrastive learning. In NeurIPS , pages 21798– 21809. Curran Associates, Inc., 2020. 2 [17] Andrej Karpathy and Li Fei-Fei. Deep visual-semantic align-ments for generating image descriptions. In CVPR , pages 3128–3137, 2015. 5 [18] Bulat Khaertdinov, Stylianos Asteriadis, and Esam Ghaleb. Dynamic temperature scaling in contrastive self-supervised learning for sensor-based human activity recognition. IEEE Transactions on Biometrics, Behavior, and Identity Science ,4(4):498–507, 2022. 1, 2 [19] Bum Jun Kim and Sang Woo Kim. Temperature-free loss function for contrastive learning. Neural Networks , 204: 109222, 2026. 1, 2 [20] Alex Krizhevsky. Learning multiple layers of features from tiny images. Technical report, University of Toronto, Toronto, Ontario, 2009. 5 [21] Anna Kukleva, Moritz B¨ ohle, Bernt Schiele, Hilde Kuehne, and Christian Rupprecht. Temperature schedules for self-supervised contrastive methods on long-tail data. In ICLR ,2023. 1, 2, 5, 6, 12 [22] Yangguang Li, Feng Liang, Lichen Zhao, Yufeng Cui, Wanli Ouyang, Jing Shao, Fengwei Yu, and Junjie Yan. Su-pervision exists everywhere: A data efficient contrastive language-image pre-training paradigm. In ICLR , 2022. 2 [23] Zheng Li, Xiang Li, Lingfeng Yang, Borui Zhao, Renjie Song, Lei Luo, Jun Li, and Jian Yang. Curriculum tempera-ture for knowledge distillation. In AAAI , pages 1504–1512, 2023. 1, 2 [24] Victor Weixin Liang, Yuhui Zhang, Yongchan Kwon, Serena Yeung, and James Y Zou. Mind the gap: Understanding the modality gap in multi-modal contrastive representation learning. NeurIPS , 35:17612–17625, 2022. 1, 8 [25] Siladittya Manna, Soumitri Chattopadhyay, Rakesh Dey, Umapada Pal, and Saumik Bhattacharya. Dynamically scaled temperature in self-supervised contrastive learning. 
+
+IEEE Transactions on Artificial Intelligence , 6(6):1502– 1512, 2025. 2, 5, 6, 12 [26] Norman Mu, Alexander Kirillov, David Wagner, and Sain-ing Xie. SLIP: Self-supervision meets language-image pre-training. In ECCV , pages 529–544, 2022. 1, 2, 5, 6, 7, 12 [27] Muhammad Ferjad Naeem, Yongqin Xian, Xiaohua Zhai, Lukas Hoyer, Luc Van Gool, and Federico Tombari. SILC: Improving vision language pretraining with self-distillation. In ECCV , pages 38–55, 2024. 2 [28] Aaron van den Oord, Yazhe Li, and Oriol Vinyals. Repre-sentation learning with contrastive predictive coding. arXiv preprint arXiv:1807.03748 , 2018. 2, 3 [29] Maxime Oquab, Timoth´ ee Darcet, Th´ eo Moutakanni, Huy V. Vo, Marc Szafraniec, Vasil Khalidov, Pierre Fernandez, Daniel Haziza, Francisco Massa, Alaaeldin El-Nouby, Mido Assran, Nicolas Ballas, Wojciech Galuba, Russell Howes, 
+
+9Po-Yao Huang, Shang-Wen Li, Ishan Misra, Michael Rab-bat, Vasu Sharma, Gabriel Synnaeve, Hu Xu, Herv´ e J´ egou, Julien Mairal, Patrick Labatut, Armand Joulin, and Piotr Bo-janowski. DINOv2: Learning robust visual features without supervision. TMLR , 2024. 11 [30] Zi-Hao Qiu, Siqi Guo, Mao Xu, Tuo Zhao, Lijun Zhang, and Tianbao Yang. To cool or not to cool? Temperature network meets large foundation models via DRO. In ICML , pages 41604–41643, 2024. 1, 2, 5 [31] Alec Radford, Jong Wook Kim, Chris Hallacy, Aditya Ramesh, Gabriel Goh, Sandhini Agarwal, Girish Sastry, Amanda Askell, Pamela Mishkin, Jack Clark, et al. Learn-ing transferable visual models from natural language super-vision. In ICML , pages 8748–8763, 2021. 1, 2 [32] Nils Reimers and Iryna Gurevych. Sentence-BERT: Sen-tence embeddings using siamese BERT-networks. In Pro-ceedings of the 2019 conference on empirical methods in nat-ural language processing and the 9th international joint con-ference on natural language processing (EMNLP-IJCNLP) ,pages 3982–3992, 2019. 12 [33] Joshua David Robinson, Ching-Yao Chuang, Suvrit Sra, and Stefanie Jegelka. Contrastive learning with hard negative samples. In ICLR , 2021. 2 [34] Victor Sanh, Lysandre Debut, Julien Chaumond, and Thomas Wolf. DistilBERT, a distilled version of BERT: smaller, faster, cheaper and lighter. arXiv preprint arXiv:1910.01108 , 2019. 5 [35] Christoph Schuhmann, Romain Beaumont, Richard Vencu, Cade Gordon, Ross Wightman, Mehdi Cherti, Theo Coombes, Aarush Katta, Clayton Mullis, Mitchell Worts-man, et al. LAION-5B: An open large-scale dataset for train-ing next generation image-text models. NeurIPS , 35:25278– 25294, 2022. 14 [36] Piyush Sharma, Nan Ding, Sebastian Goodman, and Radu Soricut. Conceptual captions: A cleaned, hypernymed, im-age alt-text dataset for automatic image captioning. In Pro-ceedings of the 56th Annual Meeting of the Association for Computational Linguistics (Volume 1: Long Papers) , pages 2556–2565, 2018. 5 [37] Siarhei Sheludzko, Dhimitrios Duka, Bernt Schiele, Hilde Kuehne, and Anna Kukleva. MM-TS: Multi-modal tempera-ture and margin schedules for contrastive learning with long-tail data. In WACV , pages 7376–7386. IEEE, 2026. 2, 5, 6, 12 [38] Rakshith Sharma Srinivasa, Jaejin Cho, Chouchang Yang, Yashas Malur Saidutta, Ching-Hua Lee, Yilin Shen, and Hongxia Jin. CWCL: Cross-modal transfer with continu-ously weighted contrastive loss. NeurIPS , 36:78496–78513, 2023. 2, 5, 6, 12 [39] Quan Sun, Yuxin Fang, Ledell Wu, Xinlong Wang, and Yue Cao. EVA-CLIP: Improved training techniques for CLIP at scale. arXiv preprint arXiv:2303.15389 , 2023. 14 [40] Zineng Tang, Long Lian, Seun Eisape, Xudong Wang, Roei Herzig, Adam Yala, Alane Suhr, Trevor Darrell, and David M. Chan. TULIP: Contrastive image-text learning with richer vision understanding. In ICCV Workshops , pages 4326–4336, 2025. 1, 2, 14 [41] Michael Tschannen, Alexey Gritsenko, Xiao Wang, Muham-mad Ferjad Naeem, Ibrahim Alabdulmohsin, Nikhil Parthasarathy, Talfan Evans, Lucas Beyer, Ye Xia, Basil Mustafa, et al. SigLIP 2: Multilingual vision-language en-coders with improved semantic understanding, localization, and dense features. arXiv preprint arXiv:2502.14786 , 2025. 2, 14 [42] Feng Wang and Huaping Liu. Understanding the behaviour of contrastive loss. In CVPR , pages 2495–2504, 2021. 1, 2, 13 [43] Pei-Hsin Wang, Sheng-Iou Hsieh, Shih-Chieh Chang, Yu-Ting Chen, Jia-Yu Pan, Wei Wei, and Da-Chang Juan. Con-textual temperature for language modeling. arXiv preprint arXiv:2012.13575 , 2020. 1, 2 [44] Hu Xu, Saining Xie, Xiaoqing Ellen Tan, Po-Yao Huang, Russell Howes, Vasu Sharma, Shang-Wen Li, Gargi Ghosh, Luke Zettlemoyer, and Christoph Feichtenhofer. Demystify-ing CLIP data. In ICLR , 2024. 1 [45] Lewei Yao, Runhui Huang, Lu Hou, Guansong Lu, Minzhe Niu, Hang Xu, Xiaodan Liang, Zhenguo Li, Xin Jiang, and Chunjing Xu. FILIP: Fine-grained interactive language-image pre-training. In ICLR , 2022. 2 [46] Can Yaras, Siyi Chen, Peng Wang, and Qing Qu. Explaining and mitigating the modality gap in contrastive multimodal learning. In Conference on Parsimony and Learning , pages 1365–1387. PMLR, 2025. 2 [47] Chun-Hsiao Yeh, Cheng-Yao Hong, Yen-Chi Hsu, Tyng-Luh Liu, Yubei Chen, and Yann LeCun. Decoupled contrastive learning. In ECCV , pages 668–684, 2022. 2 [48] Peter Young, Alice Lai, Micah Hodosh, and Julia Hocken-maier. From image descriptions to visual denotations: New similarity metrics for semantic inference over event descrip-tions. Transactions of the Association for Computational Linguistics , 2:67–78, 2014. 5 [49] Zhuoning Yuan, Yuexin Wu, Zi-Hao Qiu, Xianzhi Du, Lijun Zhang, Denny Zhou, and Tianbao Yang. Provable stochas-tic optimization for global contrastive learning: Small batch does not harm performance. In ICML , pages 25760–25782, 2022. 5 [50] Xiaohua Zhai, Basil Mustafa, Alexander Kolesnikov, and Lucas Beyer. Sigmoid loss for language image pre-training. In ICCV , pages 11975–11986, 2023. 1, 2, 14 [51] Chaoning Zhang, Kang Zhang, Trung X Pham, Axi Niu, Zhi-nan Qiao, Chang D Yoo, and In So Kweon. Dual temperature helps contrastive learning without many negative samples: Towards understanding and simplifying MoCo. In CVPR ,pages 14441–14450, 2022. 2 [52] Jingqing Zhang, Yao Zhao, Mohammad Saleh, and Peter J. Liu. PEGASUS: Pre-training with extracted gap-sentences for abstractive summarization. In ICML , pages 11328– 11339, 2020. 5 [53] Oliver Zhang, Mike Wu, Jasmine Bayrooti, and Noah Good-man. Temperature as uncertainty in contrastive learning. 
+
+arXiv preprint arXiv:2110.04403 , 2021. 1, 2 
+
+10 TeMo: Temperature Modulation for Multimodal Contrastive Learning 
+
+# Supplementary Material 
+
+In the supplementary material, we first present the full TeMo training algorithm (Sec. 6). We then provide ex-tended versions of the main-paper tables, covering state-of-the-art comparisons on retrieval and classification, the loss-component ablations on both tasks, and k-NN evaluation of the visual representations. We further include additional analyses: a connection between TeMo and the alignment and uniformity framework, its effect on the smoothness of the objective, the role of the similarity source (model-derived versus expert-derived), the robustness of TeMo to false positives, and a discussion of its limitations. 
+
+## 6. TeMo Algorithm 
+
+Algorithm 1 TeMo algorithm 
+
+Require: I - batch of images; T - batch of texts; ˜I - batch of augmented images; ˜T - batch of augmented texts; 
+
+τ0 - fixed baseline temperature; t - normalized training step ( t ∈ [0 , 1] ); τmin - minimum temperature; τα -temperature scaling factor.  
+
+> 1:
+
+for (I, T,˜I, ˜T) in loader do  
+
+> 2:
+
+# Standard multimodal contrastive losses  
+
+> 3:
+
+LI2T ← I (I, T, τ 0) 
+
+> 4:
+
+LT2I ← I (T, I, τ 0) 
+
+> 5:
+
+LMM ← 12 (LI2T + LT2I ) 
+
+> 6: 7:
+
+# Modulated multimodal losses  
+
+> 8:
+
+TI2T ← τmin + τα
+
+ps(I, T) 
+
+> 9:
+
+TT2I ← T ⊤ 
+
+> I2T
+> 10:
+
+LM-I2T ← I (I, T, TI2T ) 
+
+> 11:
+
+LM-T2I ← I (T, I, TT2I ) 
+
+> 12:
+
+LM-MM ← 12 (LM-I2T + LM-T2I ) 
+
+> 13: 14:
+
+# Modulated unimodal losses  
+
+> 15:
+
+TI2I ← τmin + τα
+
+q
+
+s(I,˜I) 
+
+> 16:
+
+TT2T ← τmin + τα
+
+q
+
+s(T, ˜T) 
+
+> 17:
+
+LM-I2I ← I (I,˜I, TI2I ) 
+
+> 18:
+
+LM-T2T ← I (T, ˜T, TT2T ) 
+
+> 19: 20:
+
+# Quadratic scheduler  
+
+> 21:
+
+α ← (1 − t)2, β ← t2 
+
+> 22: 23:
+
+# Final TeMo loss  
+
+> 24:
+
+LTeMo ← α · L MM + β · (LM-MM + LM-I2I + LM-T2T ) 
+
+> 25:
+
+end for 
+
+Here s(A, B) denotes the matrix of pairwise normalized similarities between two sets, and all operations are applied elementwise. 
+
+## 7. Comparison to State-Of-The-Art 
+
+Tables 5 and 6 show a more detailed comparison with state-of-the-art models on zero-shot retrieval and zero-shot classification tasks. In addition to the metrics reported in the main paper, we also report R@5, R@10, and R-Mean (the average of the image-to-text and text-to-image) on MSCOCO and Flickr30k, as well as Top-3 and Top-5 ac-curacy on CIFAR-10, CIFAR-100, and ImageNet-1k. TeMo consistently delivers the strongest performance across every metric. 
+
+## 8. Ablations on Loss Components 
+
+We provide the full component ablation on both evalua-tion tasks. Table 7 extends the retrieval ablation with R@1, R@5, R@10, and R-Mean on MSCOCO and Flickr30k, and Table 8 reports the same configurations on zero-shot Top-1 classification across the 17 CLIP Benchmark datasets. The results confirm the trend from the main paper: adding each component improves performance, and the full model, which combines the modulated multimodal and unimodal losses with the progressive scheduler, performs best on the large majority of metrics and datasets. 
+
+## 9. k-NN Evaluation on Visual Representations 
+
+Table 9 reports k-NN accuracy on the visual embeddings, the tabular counterpart of Figure 3, extended with k-NN@10 alongside k-NN@1. Consistent with the main pa-per, the unimodal losses are the component that drives this metric: every configuration that includes them improves the visual neighborhood structure markedly over those that do not, raising CIFAR10 k-NN@1 from around 73% to roughly 80%. TeMo attains the best accuracy on three of the four metrics and remains competitive on the fourth, con-firming that its gains extend to the geometry of the visual space and not only to cross-modal alignment. 
+
+## 10. Effect of the Similarity Source 
+
+We ask whether the temperature modulation benefits from similarity matrices produced by external expert encoders rather than by the model itself. For images, we extract patch-level features with DINOv2-Small [29] and average them into a global embedding per image, from which we compute the image-to-image (I2I) similarity matrix. For 11 Backbone Method MSCOCO IR MSCOCO TR R-Mean Flickr30k IR Flickr30k TR R-Mean                                                                                                                                                                                                                                            
+
+> R@1 R@5 R@10 R@1 R@5 R@10 R@1 R@5 R@10 R@1 R@5 R@10 RN50 InfoNCE 21.64 45.77 57.47 28.60 53.90 66.56 45.66 42.12 68.84 78.76 53.60 81.30 88.90 68.92 TS ∗[21] 22.01 45.51 57.50 28.20 54.62 66.80 45.77 42.90 69.92 79.48 53.30 81.10 89.10 69.30 DySTreSS ∗[25] 19.38 42.34 54.27 26.70 52.24 64.02 43.16 36.70 64.98 75.66 49.30 77.80 87.10 65.26 DySTreSS Shifted ∗[25] 19.31 42.53 54.33 25.12 50.38 62.52 42.37 37.22 65.22 75.88 45.70 76.00 85.00 64.17 CWCL ∗(τ=0 .01 ) [38] 14.17 34.02 45.97 21.74 47.00 59.98 37.15 27.72 55.58 67.94 40.20 68.90 80.20 56.76 CWCL ∗(τ=0 .05 ) [38] 14.83 35.43 47.31 23.50 47.54 59.96 38.09 28.70 57.30 68.98 41.40 69.80 79.70 57.65 MM-TS [37] 21.20 ––28.40 –––41.50 ––54.30 –––TeMo (ours) 23.28 47.48 59.62 30.36 56.82 67.92 47.58 44.16 73.26 81.84 56.00 82.70 90.80 71.46
+> ViT-B/16 InfoNCE 21.88 45.60 57.35 28.98 55.62 67.76 46.20 42.54 69.00 77.74 54.10 81.70 89.40 69.08 TS ∗[21] 21.45 44.31 55.61 27.32 53.14 65.88 44.62 41.02 68.86 78.68 49.90 80.90 88.60 67.99 DySTreSS ∗[25] 20.67 43.91 56.01 26.26 51.40 64.50 43.79 39.36 66.40 76.72 49.70 78.30 87.50 66.33 DySTreSS Shifted ∗[25] 21.33 44.80 56.82 25.40 52.20 64.66 44.20 40.74 68.64 78.90 49.90 77.40 85.50 66.85 CWCL ∗(τ=0 .01 ) [38] 17.90 39.87 52.02 26.12 51.94 64.98 42.14 36.62 64.98 74.86 49.00 78.40 86.90 65.13 CWCL ∗(τ=0 .05 ) [38] 18.84 41.12 53.59 28.44 54.48 66.80 43.88 37.90 67.06 77.56 48.10 79.00 88.20 66.30 TeMo (ours) 22.87 46.66 58.88 28.80 55.48 67.66 46.73 45.28 73.14 81.58 55.60 82.60 89.50 71.28
+
+Table 5. Extended retrieval comparison (extension of Table 1). Retrieval accuracy (%) on MSCOCO and Flickr30k, reporting R@1/5/10 in both directions and R-Mean, the average over image-to-text and text-to-image recall. DySTreSS ∗, DySTreSS Shifted ∗, and CWCL ∗
+
+denote our multimodal adaptations/implementations of [25] and [38]. 
+
+Dataset Backbone Method CIFAR10 CIFAR100 IN-1k 
+
+Top-1 Top-3 Top-5 Top-1 Top-3 Top-5 Top-1 Top-3 Top-5 
+
+CC3M RN50 InfoNCE 53.78 81.76 90.38 25.08 42.09 50.40 30.70 43.31 48.34 TS ∗ [21] 51.61 82.03 92.08 28.53 45.21 52.57 31.86 45.25 50.38 TeMo (ours) 64.04 89.85 95.99 37.52 57.48 65.97 37.47 50.98 55.93 
+
+ViT-B/16 InfoNCE 70.55 90.21 95.50 44.53 61.41 68.13 28.00 40.23 45.15 TS ∗ [21] 72.02 91.65 96.03 47.13 65.45 72.17 29.01 42.17 47.20 TeMo (ours) 81.54 94.47 98.08 53.62 70.39 76.30 34.79 48.32 53.53 CC12M ViT-B/16 InfoNCE 65.18 89.40 96.22 37.12 57.34 65.42 35.48 54.80 62.54 TS ∗ [21] 71.31 91.28 96.31 39.29 60.69 69.60 38.91 59.02 67.27 SLIP [26] 68.50 89.27 94.59 45.08 66.38 74.57 39.77 63.05 67.08 TeMo (ours) 78.63 92.42 96.42 45.24 66.49 74.36 41.76 63.05 71.41 
+
+Table 6. Extended zero-shot classification (extension of Tables 1 and 2). Top-K accuracy (%) on CIFAR10, CIFAR100, and ImageNet-1k for K ∈ { 1, 3, 5}, with models pretrained on CC3M and CC12M. TS ∗ is our multimodal adaptation of Temperature Schedules [21]. 
+
+text, we obtain sentence embeddings from all-roberta-large-v1 [32] and use them for the text-to-text (T2T) similarity matrix. We evaluate three variants: modulating with the I2I expert only, the T2T expert only, and both together. As shown in Tables 10 and 11, expert similarities im-prove over the InfoNCE baseline on most metrics, con-firming that similarity-conditioned modulation is beneficial regardless of its source. All expert variants are nonethe-less outperformed by TeMo, which derives its similarities directly from the model’s own embeddings. TeMo thus achieves stronger results without any external encoder or added computation, underscoring its effectiveness and effi-ciency as a self-contained approach. 
+
+## 11. Robustness to False Positives 
+
+TeMo learns to down-weight false positives, i.e., image– caption pairs that are labeled as matching in the dataset but are in fact mismatched. Figures 5 and 6 illustrate this on the distribution of positive-pair similarities. At the low-similarity end of Figure 5, the captions do not describe their images; these are genuine false positives, and TeMo assigns them low scores. At the high-similarity end, the pairs are strongly aligned and are scored accordingly. The standard deviation of the positive-pair scores is larger for TeMo than for InfoNCE, indicating that TeMo reinforces truly mean-ingful associations while suppressing the influence of noisy labels. 12 Base Mod. U.L. Sch. MSCOCO IR MSCOCO TR R-Mean Flickr30k IR Flickr30k TR R-Mean 
+
+R@1 R@5 R@10 R@1 R@5 R@10 R@1 R@5 R@10 R@1 R@5 R@10 
+
+✓ – – – 21.64 45.77 57.47 28.60 53.90 66.56 45.66 42.12 68.84 78.76 53.60 81.30 88.90 68.92 – ✓ – – 18.32 40.85 52.79 25.36 50.60 62.70 41.77 36.16 65.16 74.78 45.00 75.60 84.70 63.57 
+
+✓ – ✓† – 20.65 43.81 55.85 25.44 51.86 64.02 43.61 39.16 67.46 78.06 50.10 78.00 86.30 66.51 
+
+✓ ✓ – – 20.09 44.45 56.55 27.54 53.40 65.22 44.68 40.12 67.32 77.24 52.20 80.90 87.70 67.58 
+
+✓ ✓ – ✓ 22.44 46.06 58.07 29.92 57.00 67.98 46.91 43.24 70.56 79.40 54.50 82.50 89.80 70.00 
+
+✓ ✓ ✓ – 21.90 46.10 58.25 29.38 56.54 68.62 46.80 42.84 71.70 80.94 54.80 80.80 89.20 70.05 
+
+✓ ✓ ✓ ✓ 23.28 47.48 59.62 30.36 56.82 67.92 47.58 44.16 73.26 81.84 56.00 82.70 90.80 71.46 
+
+Table 7. Extended loss-component ablation (extension of Table 4). Retrieval accuracy (%) on MSCOCO and Flickr30k under different training configurations; our full model (last row) is highlighted, best per column in bold. Base: InfoNCE loss LMM ; Mod.: modulated multimodal loss LM-MM ; U.L.: additional unimodal losses; Sch.: progressive scheduler. †Unimodal objectives are applied without tem-perature modulation.                                                                                                                                                        
+
+> Base Mod. U.L. Sch. Zero-shot classification (Top-1 Acc. %) Avg
+> C10 C100 C211 DTD ESAT GTSRB FGVCA IN-S IN-A IN-R IN-O FLO PETS PCAM MNIST F101 IN1k
+> ✓–––53.78 25.08 1.28 24.20 17.34 8.11 1.14 19.19 7.12 39.01 37.20 14.34 21.32 49.84 13.30 20.29 30.70 22.54 –✓––50.85 29.08 1.08 19.41 16.04 7.73 0.87 19.18 8.16 38.78 36.95 12.31 16.89 50.69 11.50 20.61 31.10 21.84
+> ✓–✓†–61.96 34.22 1.58 23.35 29.73 6.48 1.05 21.11 7.89 39.68 41.70 11.46 17.71 57.24 6.03 17.74 36.74 24.45
+> ✓✓––51.64 29.06 1.10 21.75 12.38 8.14 1.29 19.90 7.69 39.18 39.25 14.57 20.85 52.29 10.34 19.18 31.69 22.37
+> ✓✓–✓49.28 26.27 1.34 23.56 22.90 8.76 1.17 20.91 8.45 42.01 39.70 14.77 21.83 54.94 10.01 20.67 32.94 23.50
+> ✓✓✓–60.92 34.90 1.54 26.22 16.26 9.60 1.71 24.17 9.19 44.01 45.40 12.93 18.42 61.81 8.61 20.99 37.04 25.51
+> ✓✓✓✓64.04 37.52 1.68 27.29 25.61 9.14 1.08 25.17 9.81 44.42 46.55 13.04 21.91 61.51 10.50 22.00 37.47 26.98
+
+Table 8. Loss-component ablation on zero-shot classification. Top-1 accuracy (%) across 17 datasets for the configurations of Table 7; 
+
+Avg is the mean over the 17 datasets. Base: InfoNCE LMM ; Mod.: modulated multimodal loss LM-MM ; U.L.: additional unimodal losses; Sch.: scheduler. †Unimodal objectives are applied without temperature modulation. Datasets: C10/C100 = CIFAR10/100, C211 = Coun-try211, DTD = Describable Textures, ESAT = EuroSAT, GTSRB = Traffic Signs, FGVCA = FGVC-Aircraft, IN-S/A/R/O = ImageNet-Sketch/A/R/O, FLO = Flowers-102, PETS = Oxford-IIIT Pets, PCAM = PatchCamelyon, MNIST = MNIST, F101 = Food-101, IN1k = ImageNet-1k. 
+
+## 12. Connection to Alignment and Uniformity 
+
+TeMo can be understood as a dynamic mechanism that bal-ances the alignment and uniformity of the representation by adaptively modulating the temperature τ . Following [42], a low temperature sharpens the gradients that repel dissim-ilar pairs and thus promotes global uniformity, whereas a high temperature relaxes the penalty on highly similar pairs and thus favors alignment. TeMo applies this trade-off at the level of individual pairs: dissimilar pairs receive low temperatures to spread the space, and similar pairs receive high temperatures to preserve their semantic proximity. The progressive scheduler turns this into a coarse-to-fine pro-cess. Early in training, the temperature is fixed and low, expanding the embedding space and preventing representa-tion collapse; later, per-pair modulation is activated to refine local neighborhoods and consolidate the semantic clusters formed earlier, without over-separating related concepts. Our ablations support this ordering: enforcing modulation before a uniform structure is established degrades perfor-mance (Table 4, row b), confirming the need to progress from uniformity to alignment. 
+
+## 13. Effect on the Smoothness of the Objective 
+
+Temperature modulation also acts as a data-dependent reg-ularizer that smooths the contrastive objective. With a fixed low temperature, high-similarity negative pairs pro-duce very sharp gradients that form steep regions in the loss landscape and can destabilize training. Because TeMo raises the temperature as similarity grows, it locally soft-ens the softmax over these high-similarity pairs, dampening their gradient magnitude and preventing the explosive up-dates that hard negatives would otherwise cause. 
+
+## 14. Limitations 
+
+Our experiments are constrained by both batch size and pre-training dataset scale. Due to limited resources, we train with a maximum batch size of 4096 and only pretrain on CC3M and CC12M, with the latter being the largest dataset we use. In contrast, many recent works rely on significantly larger batch sizes (e.g., LaCLIP and LaSLIP [9] at 8192, 13 Base Mod. U.L. Sch. CIFAR10 CIFAR100 
+
+k-NN@1 k-NN@10 k-NN@1 k-NN@10 
+
+✓ – – – 73.40 77.29 50.59 53.27 – ✓ – – 68.66 72.98 44.72 48.61 
+
+✓ – ✓† – 80.69 83.88 56.40 60.83 
+
+✓ ✓ – – 73.43 77.43 50.36 53.87 
+
+✓ ✓ – ✓ 72.14 76.13 49.44 52.55 
+
+✓ ✓ ✓ – 80.27 83.69 56.18 59.68 
+
+✓ ✓ ✓ ✓ 80.70 83.89 57.04 60.65 
+
+Table 9. k-NN evaluation on visual representations (tabular version of Figure 3). k-NN@1 and k-NN@10 accuracy (%) on CIFAR10 and CIFAR100 under different training configurations. Base: InfoNCE loss LMM ; Mod.: modulated multimodal loss LM-MM ; U.L.: additional unimodal losses; Sch.: scheduler. †Unimodal objectives are applied without temperature modulation. 
+
+Method MSCOCO IR MSCOCO TR R-Mean Flickr30k IR Flickr30k TR R-Mean 
+
+R@1 R@5 R@10 R@1 R@5 R@10 R@1 R@5 R@10 R@1 R@5 R@10 InfoNCE 21.64 45.77 57.47 28.60 53.90 66.56 45.66 42.12 68.84 78.76 53.60 81.30 88.90 68.92 Text Expert 22.01 45.84 57.63 28.76 55.48 67.22 46.16 42.46 69.64 79.12 53.10 81.50 88.90 69.12 Vision Expert 21.87 45.47 57.30 28.60 56.00 67.38 46.10 41.58 68.88 78.24 53.20 80.30 87.40 68.71 Text & Vision Expert 21.93 45.55 57.52 29.56 55.96 67.46 46.33 41.00 69.12 78.82 54.10 80.50 89.00 68.75 TeMo (ours) 23.28 47.48 59.62 30.36 56.82 67.92 47.58 44.16 73.26 81.84 56.00 82.70 90.80 71.46 
+
+Table 10. Retrieval results with expert-informed similarities. Retrieval performance (%) on MSCOCO and Flickr30k using expert-informed similarity matrices for temperature modulation. Our method is highlighted; best per column in bold, second best underlined. 
+
+and large-scale models such as EvaCLIP [39], SigLIP [50], SigLIP2 [41], and TULIP [40] with 30k–170k) as well as much larger and more diverse pretraining datasets (e.g., YFCC15M [12], LAION [35], or merged multi-billion scale datasets). Since performance is highly sensitive to both batch size and data scale, our results with TeMo should be viewed as competitive under constrained settings, rather than directly comparable to large-batch, large-data meth-ods. 
+
+Method CIFAR10 CIFAR100 
+
+Top-1 Top-3 Top-5 Top-1 Top-3 Top-5 InfoNCE 53.78 81.76 90.38 25.08 42.09 50.40 Text Expert 51.09 79.45 88.51 24.56 41.00 49.67 Vision Expert 54.12 83.90 93.67 30.09 47.16 56.01 Text & Vision Expert 54.95 83.00 93.61 26.77 43.45 52.00 TeMo (ours) 64.04 89.85 95.99 37.52 57.48 65.97 
+
+Table 11. Zero-shot classification with expert-derived similar-ities. Top-K accuracy (%) on CIFAR10 and CIFAR100 when the temperature modulation uses expert-derived similarity matrices. Our method is highlighted; best per column in bold, second best underlined. 
+
+## 15. LLM Usage 
+
+A large language model was used to improve the clarity and readability of the paper. All edits were reviewed and ap-proved by the authors. 14 Figure 5. Similarity distribution of positive pairs. TeMo separates semantically aligned pairs from mismatched ones. Additional examples are provided in Figure 6. 0.00 0.25 0.50 0.75 1.00 
+
+Similarity 
+
+> InfoNCE TeMo
+
+Caption: unfortunately not for sale anymore     
+
+> 0.00 0.25 0.50 0.75 1.00
+
+Similarity 
+
+> InfoNCE TeMo
+
+Caption: we’ve only discovered percent of the ocean who knows what’s in the rest of it     
+
+> 0.00 0.25 0.50 0.75 1.00
+
+Similarity 
+
+> InfoNCE TeMo
+
+Caption: spare noses and tails for the cars 
+
+Figure 6. Examples of false-positive image–caption pairs. InfoNCE assigns high similarity to these mismatched examples, whereas TeMo assigns consistently lower scores, indicating improved discrimination and robustness to label noise. 
+
+15

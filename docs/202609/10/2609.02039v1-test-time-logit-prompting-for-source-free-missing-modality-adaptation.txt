@@ -1,0 +1,470 @@
+Title: Test-Time Logit Prompting for Source-Free Missing Modality Adaptation
+
+URL Source: https://arxiv.org/pdf/2609.02039v1
+
+Published Time: Thu, 03 Sep 2026 00:28:21 GMT
+
+Number of Pages: 9
+
+Markdown Content:
+# Test-Time Logit Prompting for Source-Free Missing Modality Adaptation 
+
+## Taixi Chen Nancy Guo ∗
+
+School of Computing State University of New York at Binghamton {tchen51, nguo1}@binghamton.edu 
+
+Abstract 
+
+Vision-language models (VLMs) have achieved remarkable performance by leveraging complementary information from large-scale image-text pairs. However, missing-modality in-puts are commonly encountered during real-world deployment, often leading to significant performance degradation. Exist-ing methods primarily enhance model robustness by learning modality compensation strategies from source training data. However, their reliance on source training data makes them dif-ficult to apply when original data are unavailable due to privacy, storage, or accessibility constraints, such as clinical applica-tions and personalized AI services. This raises an important yet underexplored question: can VLMs be efficiently adapted at test time for visual recognition with missing modalities with-out accessing source training data? To this end, we propose Test-Time Logit Prompting (TLP), a lightweight source-free test-time adaptation framework for visual recognition with missing modalities. To address missing-induced prediction shifts, TLP optimizes logit prompts with uncertainty-aware adjustment and modality-complete consistency regularization, adaptively adjusting prediction confidence while preserving semantic consistency. Extensive experiments across diverse vision-language benchmarks demonstrate that TLP consistently enhances recognition performance under missing-modality sce-narios, achieving up to 8% improvements while requiring only hundreds of tunable parameters and a few test-time optimiza-tion steps. 
+
+## Introduction 
+
+Vision-language models (VLMs) have demonstrated remark-able performance by leveraging complementary information from large-scale image-text pairs (Radford et al. 2021), achiev-ing impressive results across various vision-language tasks, including image captioning (Iashin and Rahtu 2020; Sarto et al. 2023), cross-modal retrieval (Radford et al. 2021; Kim, Son, and Kim 2021; Jiang and Ye 2023), and visual question answering (Zhang, Zhang, and Xu 2023; Sima et al. 2024). Despite these advances, real-world deployments frequently encounter missing-modality inputs caused by privacy con-straints, sensor failures, or incomplete data collection (Lee et al. 2023; Hu et al. 2024). The absence of certain modalities can disrupt the learned cross-modal alignment in VLMs, resulting in significant performance degradation (Ma et al. 
+
+> ∗
+
+Corresponding author. Frozen Learnable 
+
+> Embedding
+> Layer 0
+> Layer N
+> Task Head
+> ...
+> Prediction
+> Prompt
+> Traning data
+> Embedding
+> Layer 0
+> Layer N
+> Task Head
+> ...
+> Test data
+> Test-time logit prompting
+> Prediction
+> Ours Existing Source-Dependent Methods
+> Generate data
+> Possible approach
+> Joint learning module
+
+Figure 1: Comparison of the missing-modality adaptation paradigms. Existing source-dependent methods rely on train-ing data for modality generation, prompt learning, or repre-sentation learning, whereas TLP adapts frozen VLMs at test time by optimizing lightweight logit prompts. 2022). Therefore, developing robust multimodal learning frameworks that can reliably handle diverse missing-modality scenarios has become a critical challenge. As illustrated in Figure 1, existing methods mainly address this challenge through source-dependent strategies, including cross-modal generation (Wang, Cui, and Li 2023; Meng et al. 2024), joint representation learning (Ma et al. 2022; Wu et al. 2024b; Wang et al. 2023), and prompt learning (Lee et al. 2023; Hu et al. 2024; Zhang et al. 2025). These approaches have effectively improved model robustness by learning or recovering missing-modality information using source train-ing data. Despite their effectiveness, this source-dependent paradigm assumes continuous access to source training data, which is often impractical in real-world deployment scenar-ios due to privacy restrictions, storage limitations, or data accessibility constraints (Liang, Hu, and Feng 2020; Xiao and Snoek 2024), especially in privacy-sensitive applications such as healthcare systems, personalized AI services, and edge devices. This naturally raises an important question: can VLMs fur-arXiv:2609.02039v1 [cs.CV] 2 Sep 2026 Bob and best friends Andreas and Simon lead vastly different lives; Andreas           
+
+> The Mob sets the dancing against the vibrant backdrop of Miami. Emily a
+> Complete:( x,x)1
+> m11
+> m2
+> Text-only:( x,)2
+> m1x~2
+> m2
+> Image-only:( ,x)x~3
+> m1
+> 3
+> m2
+
+...  
+
+> Frozen Learnable
+
+output logit MSE uniform logit 
+
+for specific missing case 
+
+adjusted logit 
+
+Nearest modality-complete  logit 
+
+Image-only 
+
+Text-only 
+
+Complete     
+
+> KL (dynamic)
+> Bob and best friend
+
+... finds 
+
+Text Embedding Image Embedding 
+
+Layer 0 Layer 0 
+
+Layer 1 Layer 1 
+
+Layer N Layer N Task Head 
+
+... ... 
+
+Test-time logit prompting Prediction 
+
+Logit prompt pool 
+
+Input Figure 2: Overview of Test-Time Logit Prompting (TLP). Given a frozen VLM, TLP introduces missing-aware logit prompts to directly adapt the decision space under different missing-modality conditions. During inference, the corresponding logit prompt is selected according to modality availability and optimized through uncertainty-aware adjustment and modality-complete consistency regularization. The optimized prompt adjusts the original logits for final prediction, enabling efficient source-free missing-modality adaptation without updating the backbone. ther improve missing-modality robustness at test time without accessing source training data? To answer this question, we propose Test-Time Logit Prompting (TLP), a lightweight source-free adaptation framework that directly adjusts the decision space of frozen VLMs during inference. Specifically, instead of adapting input-level prompts or model parameters with source training data, TLP introduces lightweight missing-aware prompts in the logit space and optimizes them online with frozen VLMs to dynamically ad-just predictions under different missing-modality conditions. Considering that missing modalities can introduce both confi-dence bias and semantic inconsistency in the prediction space, TLP balances uncertainty adjustment and modality-complete consistency regularization through efficient logit-level adapta-tion, enabling reliable prediction adjustment while preserving semantic information from modality-complete references. Ex-tensive experiments on diverse vision-language benchmarks demonstrate the effectiveness and efficiency of TLP under var-ious missing-modality scenarios. TLP consistently improves recognition performance with only hundreds of tunable pa-rameters and a few test-time optimization steps. Moreover, it can be readily integrated with existing training-based prompt learning methods to provide further performance gains. Our contributions are summarized as follows: 
+
+• We introduce a source-free test-time adaptation perspec-tive for missing-modality recognition, enabling VLMs to improve during inference without accessing source training data. 
+
+• We propose Test-Time Logit Prompting (TLP), which enables decision-space adaptation by optimizing missing-aware logit prompts with uncertainty-aware adjustment and modality-complete consistency regularization. 
+
+• Extensive experiments demonstrate that TLP achieves consistent improvements across diverse missing-modality scenarios with only hundreds of parameters and can seam-lessly enhance existing training-based methods. 
+
+## Related Works 
+
+Missing-Modality in Multi-modal Learning. Despite the remarkable progress in multimodal learning (Yuan, Li, and Zhao 2025; Li et al. 2022; Guo and Gu 2025; Chen, Chen, and Guo 2025; Chen, Cheung, and Zhang 2026; Chen and Che-ung 2025), maintaining robustness under missing-modality scenarios remains challenging due to incomplete multimodal information and disrupted cross-modal alignment (Yuan, Li, and Zhao 2025; Wu et al. 2024a; Lee et al. 2023). Exist-ing methods for missing-modality learning can be broadly categorized into cross-modal generation (Wang, Cui, and Li 2023; Meng et al. 2024; Lang et al. 2025), joint representation learning (Ma et al. 2022; Wu et al. 2024b; Wang et al. 2023), and prompt learning (Lee et al. 2023; Lu et al. 2025; Hu et al. 2024; Zhang et al. 2025; Chen and Guo 2026). Cross-modal generation methods recover missing information by reconstructing missing modalities from observed ones (Meng et al. 2024; Wang, Cui, and Li 2023), with recent efforts leveraging auxiliary knowledge from complete samples for improved recovery (Lang et al. 2025). Joint representation learning methods (Wu et al. 2024b; Wang et al. 2023) mitigate missing-modality effects by learning shared latent spaces or modality-invariant representations. Recently, prompt learning has emerged as an efficient alternative (Lee et al. 2023; Zhang et al. 2025), adapting models through learnable prompts with limited parameter updates. Despite their effectiveness, exist-ing methods mainly enhance robustness during training and rely on source data. In contrast, TLP explores source-free test-time adaptation to improve missing-modality recognition during inference. 
+
+Test-Time Adaptation. Test-time adaptation (TTA) aims to improve model performance during inference by adapting models to test-time distributions without accessing source training data (Wang et al. 2020). Existing methods mainly address distribution shifts by updating normalization statis-tics (Schneider et al. 2020; Nado et al. 2020), optimizing model parameters (Lee et al. 2013), or adapting lightweight modules (Song et al. 2023). However, most existing TTA methods focus on modality-complete settings, leaving test-time adaptation under missing-modality scenarios largely unexplored. Unlike prior methods that adapt internal model components, TLP performs lightweight adaptation directly in the logit space, enabling efficient missing-modality recogni-tion with frozen VLMs. 
+
+## Proposed Method 
+
+Problem Formulation 
+
+We first formulate the source-free test-time adaptation setting for missing-modality recognition considered in this paper. Without loss of generality, we consider a vision-language model with two modalities, including image modality m1
+
+and text modality m2. Given a source-trained multimodal model fθ , the original training dataset is inaccessible during adaptation, and only unlabeled test samples are available. Under missing-modality scenarios, the test dataset can be represented as Dt = {D ct , Dm1 
+
+> t
+
+, Dm2 
+
+> t
+
+}, where Dct =
+
+{(xm1 
+
+> i
+
+, x m2 
+
+> i
+
+)}Nc 
+
+> i=1
+
+denotes samples with complete modali-ties, while Dm1 
+
+> t
+
+= {(xm1 
+
+> i
+
+)}N1 
+
+> i=1
+
+and Dm2 
+
+> t
+
+= {(xm2 
+
+> i
+
+)}N2
+
+> i=1
+
+represent samples where only modality m1 or m2 is avail-able, respectively. Following previous missing-modality meth-ods (Lee et al. 2023; Hu et al. 2024), dummy inputs ˜xm1
+
+and ˜xm2 (e.g., empty text or blank images) are introduced to maintain the input format of VLMs. Therefore, incom-plete samples can be rewritten as ˜Dm1 
+
+> t
+
+= {(xm1 
+
+> i
+
+, ˜xm2 )}N1
+
+> i=1
+
+and ˜Dm2 
+
+> t
+
+= {(˜ xm1 , x m2 
+
+> i
+
+)}N2
+
+> i=1
+
+, forming the unified test-time dataset ˜Dt = {D ct , ˜Dm1 
+
+> t
+
+, ˜Dm2 
+
+> t
+
+}.Under this setting, the goal is to improve the performance of the source-trained model on incomplete test samples without accessing the original training data or test labels. 
+
+Overall Pipeline 
+
+Figure 2 illustrates the overall framework of the proposed Test-Time Logit Prompting (TLP). Given a source-trained vision-language model, TLP aims to adapt model predictions under missing-modality scenarios while keeping the entire backbone frozen. Following common vision-language architectures, we adopt CLIP (Radford et al. 2021) as the backbone, which consists of separate image and text encoders. Specifically, the input image and text are first transformed into token sequences through their corresponding pre-trained embedding layers and then processed by frozen modality-specific encoders to obtain multimodal representations. Unlike conventional adaptation methods that update input prompts or model parameters, TLP introduces lightweight missing-aware prompts in the logit space and only optimizes these decision-space parameters during inference: 
+
+P∗ = arg min  
+
+> P
+
+L( ˜Dt; θ, P), (1) where θ denotes the frozen VLM parameters, P represents the learnable logit prompt pool, and L is the source-free adap-tation objective defined on unlabeled test samples. We next present the detailed design of our test-time logit prompting mechanism. 
+
+Test-Time Logit Prompting 
+
+Given a test sample ˜xi from the unified test dataset ˜Dt, which may contain complete or dummy-filled missing modalities, the frozen VLM produces the original prediction logits: 
+
+zi = fθ (˜ xi), (2) where zi ∈ RC and C denotes the number of classes. In-stead of adapting input representations or updating model parameters, TLP introduces lightweight missing-aware logit prompts to directly adjust the decision space. Specifically, we define a logit prompt pool P = {Pc, P m1 , P m2 } correspond-ing to complete, m1-available, and m2-available modality conditions, respectively. Each logit prompt P ∈ RC contains class-wise learnable parameters for prediction adjustment. For each test sample, the corresponding prompt pi ∈ P is selected according to its modality availability and added to the original logits: 
+
+ˆzi = zi + pi, (3) where ˆzi represents the adjusted logits used for final predic-tion. During test-time adaptation, the backbone parameters θ
+
+remain frozen, and only the logit prompts in P are optimized. Source-Free Prompt Optimization 
+
+Since source data and test labels are unavailable during adaptation, optimizing the logit prompt pool P requires ef-fective self-supervised objectives. To this end, we introduce uncertainty-aware adjustment and prototype-guided regular-ization to adapt predictions under different missing-modality conditions. Missing modalities can lead to unreliable predictions by causing the model to produce over-confident outputs with limited modality information. To alleviate this issue, we encourage the adjusted predictions to maintain appropriate uncertainty by reducing their deviation from a uniform distri-bution. Specifically, given the adjusted logits ˆzi, the predicted probability distribution is computed as: 
+
+qi = Softmax(ˆ zi). (4) The uncertainty-aware adjustment objective is formulated as: 
+
+Lu = 1
+
+N
+
+> N
+
+X
+
+> i=1
+
+1
+
+C
+
+> C
+
+X
+
+> j=1
+
+(qji − uj )2, (5) where N denotes the number of test samples used for adap-tation, and u ∈ RC denotes the uniform distribution over C
+
+classes, with each element uj = 1 
+
+> C
+
+.However, relying only on uncertainty adjustment may over-look the semantic structure learned by the original VLM, as pushing predictions toward a uniform distribution can weaken discriminative information. To preserve semantic con-sistency during adaptation, we introduce modality-complete consistency regularization by leveraging complete-modality samples as reliable anchors. For each missing-modality sample, we first identify its nearest modality-complete neighbor within the test batch according to the original prediction distribution: 
+
+k = arg min 
+
+> j∈D ct
+
+d(qi, q cj ), (6) where qcj denotes the prediction distribution of a complete-modality sample. The selected complete-modality prediction is used as the semantic anchor: 
+
+qai = qck. (7) Then, we minimize the distribution discrepancy between the adjusted prediction and its corresponding anchor: 
+
+Lc = 1
+
+N
+
+> N
+
+X
+
+> i=1
+> C
+
+X
+
+> j=1
+
+(qai )j log (qai )j
+
+qji
+
+. (8) To balance the complementary objectives of uncertainty adjustment and modality-complete consistency, the overall optimization objective of TLP is defined as: 
+
+L = Lu + αLc, α = 1
+
+C , (9) where C denotes the number of classes. The weighting factor 
+
+α is introduced to adaptively control the contribution of the modality-complete consistency constraint. As the number of classes increases, the prediction space becomes more com-plex, making nearest-neighbor matching more challenging and potentially reducing the reliability of selected anchors. Therefore, setting α = 1 
+
+> C
+
+reduces the influence of poten-tially unreliable anchors while maintaining effective semantic guidance from modality-complete samples. During test-time adaptation, only the logit prompt pool P is optimized by min-imizing L, while all parameters of the VLM remain frozen, resulting in efficient and lightweight adaptation After test-time optimization, the learned logit prompts are applied to adjust predictions according to the modality condition of each test sample. Specifically, the corresponding prompt pi ∈ P is selected and added to the original logits to obtain the final prediction: 
+
+ˆyi = arg max  
+
+> c
+
+Softmax(ˆ zi)c. (10) Since TLP only optimizes class-level logit prompts while keeping the entire VLM frozen, the number of trainable parameters is only |P| × C, enabling efficient adaptation with minimal computational overhead. 
+
+## Experiment 
+
+Experiment Settings 
+
+Datasets. Following previous missing-modality learning works (Lee et al. 2023; Hu et al. 2024; Zhang et al. 2025), we evaluate our method on three widely used vision-language benchmark datasets. MM-IMDb (Arevalo et al. 2017) is a multimodal movie genre classification dataset containing 25,959 samples with paired movie posters and textual descriptions. Since each movie can belong to multiple genres, it is formulated as a multi-label classification task. UPMC Food-101 (Wang et al. 2015) contains noisy image-text pairs collected from the web across 101 food categories, which is used for multimodal food classification. Hateful Memes (Kiela et al. 2020) is a multimodal hateful content detection dataset consisting of over 10,000 image-text pairs, where both visual and textual information are required for accurate classification. 
+
+Implementation Details. We adopt CLIP (Radford et al. 2021) with a ViT-B/16 (Dosovitskiy et al. 2020) image encoder as the vision-language backbone. Input images are resized to 224 × 224 , and text inputs are processed using the CLIP tokenizer with a maximum sequence length of 77. Following previous missing-modality settings (Lee et al. 2023; Hu et al. 2024; Zhang et al. 2025), unavailable modalities are replaced with dummy inputs to maintain a consistent multimodal input format. During test-time adaptation, all parameters of the image encoder, text encoder, and task head remain frozen, and only the proposed logit prompt pool P is optimized. For each missing-modality condition, we introduce a class-level logit prompt with dimension C, resulting in only 3C
+
+trainable parameters. We optimize the logit prompts using the AdamW optimizer with a learning rate of 1 × 10 −2 and perform adaptation for K optimization steps. For integration with training-based prompt learning methods, TLP is directly applied to their trained models without modifying the original training procedures. All experiments are conducted on a single NVIDIA RTX A6000 GPU with a batch size of 32. Table 1: Comparison with the baseline on MM-IMDb (Arevalo et al. 2017), UPMC Food-101 (Wang et al. 2015), and Hateful Memes (Kiela et al. 2020) under different missing-modality conditions with missing rate η = 70% . “Time (s)” denotes the total adaptation time over the test set with one optimization step. Ours (1) and Ours (5) indicate TLP with 1 and 5 test-time optimization steps, respectively. The best results are highlighted in bold .
+
+Datasets Missing rate η
+
+Train Test Time (s) Baseline Ours (1) Ours (5) ‘ Image Text Image Text MM-IMDb (F1-Macro) 70% 100% 30% 100% 30% 52.45 44.76 46.91 53.05 
+
+30% 100% 30% 100% 50.55 48.78 51.11 53.75 
+
+65% 65% 65% 65% 48.90 46.41 48.62 52.41 
+
+Food101 (Accuracy) 70% 100% 30% 100% 30% 87.21 72.97 73.78 75.45 
+
+30% 100% 30% 100% 85.43 78.37 79.55 80.88 
+
+65% 65% 65% 65% 90.85 74.65 75.68 77.05 
+
+Hateful Memes (AUROC) 70% 100% 30% 100% 30% 2.95 61.49 62.26 64.51 
+
+30% 100% 30% 100% 3.05 60.51 60.98 62.07 
+
+65% 65% 65% 65% 2.81 61.52 61.80 62.61 10% 30% 50% 70% 90% 
+
+> Missing rate
+> 0.45 0.50 0.55 0.60
+> F1-Macro
+> Baseline Ours
+
+(a) Missing Text 10% 30% 50% 70% 90%  
+
+> Missing rate
+> 0.50 0.52 0.54 0.56 0.58 0.60 0.62 0.64
+> F1-Macro
+> Baseline Ours
+
+(b) Missing Image 10% 30% 50% 70% 90%  
+
+> Missing rate
+> 0.48 0.50 0.52 0.54 0.56 0.58 0.60 0.62 0.64
+> F1-Macro
+> Baseline Ours
+
+(c) Missing Both 
+
+Figure 3: Generalizability analysis of TLP under different test-time missing rates on the MM-IMDb dataset (Arevalo et al. 2017). The source model is trained with complete modalities and evaluated under varying missing-modality ratios, where TLP is directly applied during inference without accessing source data. (a) Missing-text evaluation. (b) Missing-image evaluation. (c) Mixed missing evaluation with both text-only and image-only samples. 
+
+Missing Modality Setting. Following previous missing-modality learning works (Lee et al. 2023; Hu et al. 2024; Zhang et al. 2025), we evaluate models under different modality-missing scenarios. The missing rate η is defined as the proportion of samples with incomplete modalities. For vision-language tasks with image and text modalities, we consider three settings: missing-text, missing-image, and mixed missing. In the missing-text or missing-image setting, 
+
+η of samples contain only one available modality, while the remaining (1 − η) samples retain complete modalities. In the mixed missing setting, η 
+
+> 2
+
+of samples are text-only, η
+
+> 2
+
+are image-only, and the remaining (1 − η) samples contain both modalities. This protocol can be extended to scenarios with M modalities, where each incomplete case is sampled proportionally based on ηM 2−2 , while (1 − η) of samples remain modality-complete. 
+
+Baselines and Metrics. We evaluate TLP under two set-tings. First, we apply TLP to the frozen VLM backbone to validate its effectiveness for source-free test-time adaptation. Second, to evaluate its plug-and-play capability, we integrate TLP with representative training-based missing-modality prompt learning methods, including: (1) MMP (Lee et al. 2023), which introduces missing-aware prompts to enhance multimodal representations; (2) DCP (Hu et al. 2024), which models prompt correlations and cross-layer interactions for ro-bust feature learning; and (3) SyP (Zhang et al. 2025), which combines instance-aware features with learnable prompts through an adaptive prompting mechanism. Following prior works (Lee et al. 2023; Hu et al. 2024; Zhang et al. 2025), we report F1-Macro for multi-label classification on MM-IMDb (Arevalo et al. 2017), top-1 classification accuracy for recognition performance on UPMC Food-101 (Wang et al. 2015), and Area Under the Receiver Operating Characteristic Curve (AUROC) for hateful content detection on Hateful Memes (Kiela et al. 2020). 
+
+Experiment Results 
+
+Main results of comparison with baseline. We first focus on studying the robustness of VLMs against modality incom-pleteness at test time without accessing source training data. The primary baseline is the source-trained VLM obtained under each missing-rate setting, which is directly evaluated on test samples with the same missing rate without any test-time adaptation. Since TLP keeps the entire backbone frozen and only optimizes lightweight logit prompts during inference, the performance improvement over this baseline directly reflects the benefit of source-free decision-space adaptation. As shown in Table 1, TLP consistently improves SyP SyP + Ours 10% 30% 50% 70% 90% 
+
+> Missing rate
+> 0.52 0.54 0.56 0.58 0.60
+> F1-Macro
+
+(a) Missing Text 10% 30% 50% 70% 90%  
+
+> Missing rate
+> 0.52 0.54 0.56 0.58 0.60
+> F1-Macro
+
+(b) Missing Image 10% 30% 50% 70% 90%  
+
+> Missing rate
+> 0.50 0.52 0.54 0.56 0.58 0.60
+> F1-Macro
+
+(c) Missing Both DCP DCP + Ours 10% 30% 50% 70% 90% 
+
+> Missing rate
+> 0.52 0.54 0.56 0.58 0.60
+> F1-Macro
+
+(d) Missing Text 10% 30% 50% 70% 90%  
+
+> Missing rate
+> 0.52 0.54 0.56 0.58 0.60
+> F1-Macro
+
+(e) Missing Image 10% 30% 50% 70% 90%  
+
+> Missing rate
+> 0.50 0.52 0.54 0.56 0.58 0.60
+> F1-Macro
+
+(f) Missing Both MMP MMP + Ours 10% 30% 50% 70% 90% 
+
+> Missing rate
+> 0.52 0.54 0.56 0.58
+> F1-Macro
+
+(g) Missing Text 10% 30% 50% 70% 90%  
+
+> Missing rate
+> 0.52 0.54 0.56 0.58 0.60
+> F1-Macro
+
+(h) Missing Image 10% 30% 50% 70% 90%  
+
+> Missing rate
+> 0.52 0.54 0.56 0.58 0.60
+> F1-Macro
+
+(i) Missing Both 
+
+Figure 4: Plug-and-play evaluation of TLP with existing missing-modality methods on MM-IMDb (Arevalo et al. 2017). MMP (Lee et al. 2023), DCP (Hu et al. 2024), and SyP (Zhang et al. 2025) are trained and evaluated under corresponding missing-modality settings, while TLP is directly applied during inference without retraining. the performance of source-trained VLMs across different missing-modality scenarios without accessing source data. With only one test-time optimization step, TLP already brings clear improvements over the baseline (e.g., from 44.76% to 46.91%) while requiring only 3-90 seconds for adaptation. Increasing the optimization steps to five further enhances the performance, achieving improvements of up to 8% compared with the non-adapted baseline. These results demonstrate that TLP can efficiently en-hance the missing-modality robustness of VLMs through lightweight test-time adaptation. Notably, TLP achieves more substantial improvements on the challenging MM-IMDb dataset, where complex multi-label prediction requires effec-tive utilization of incomplete multimodal information, further highlighting the benefit of decision-space adaptation. 
+
+Generalization Analysis. To evaluate the generalization ability of TLP under changing missing-modality conditions, we conduct experiments where the source model is trained with complete modalities and evaluated under different test-time missing rates on the MM-IMDb dataset. As shown in Figure 3, TLP consistently outperforms the baseline across all missing scenarios, including missing text, missing image, and mixed missing settings, with missing rates ranging from 10% to 90%. The performance gains demonstrate that TLP can ef-fectively adapt complete-trained VLMs to unseen missing-modality conditions without accessing source data or updating model parameters. Notably, missing text causes more severe performance degradation on MM-IMDb, indicating that tex-tual information plays a critical role in this dataset. Even under this challenging scenario, TLP achieves substantial im-provements over the baseline and maintains consistent gains as the missing rate increases. These results demonstrate that decision-space adaptation effectively improves the robustness of VLMs against varying degrees of modality incompleteness. 
+
+Plug-and-play Evaluation. To further evaluate the com-patibility of TLP with existing missing-modality learning methods, we integrate TLP with representative training-based prompt learning approaches, including MMP (Lee et al. 2023), DCP (Hu et al. 2024), and SyP (Zhang et al. 2025). Since these methods also adopt prompting mechanisms for missing-modality adaptation, they provide suitable testbeds for eval-uating the plug-and-play capability of TLP. These methods are first trained under corresponding missing-modality set-tings, and TLP is directly applied during inference without modifying their original training procedures. As shown in Figure 4, incorporating TLP consistently im-proves the performance of all compared methods across dif-ferent missing scenarios and missing rates. This demonstrates that TLP can provide complementary benefits to existing training-based approaches by further adapting predictions at test time. Notably, the improvements remain stable and even become more pronounced as the missing rate increases, indicating that lightweight logit-level adaptation effectively enhances robustness under severe modality incompleteness. These results highlight the potential of TLP as a general plug-and-play test-time adaptation framework for missing-modality recognition. 
+
+Ablation Analysis. We conduct ablation experiments to investigate the contribution of each optimization objective in TLP. As shown in Table 2, removing both objectives leads to inferior performance, demonstrating the necessity of source-free optimization for adapting logit prompts under missing-modality scenarios. Introducing either uncertainty-aware adjustment loss Lu or modality-complete consistency loss Lc improves the performance, validating the effectiveness of both components. Specifically, Lu provides significant improvements on MM-IMDb (Arevalo et al. 2017) and Food101 (Wang et al. 2015) by adjusting prediction uncertainty and alleviating bi-ased confidence caused by incomplete modality information. Meanwhile, Lc effectively preserves semantic consistency by aligning missing-modality predictions with their nearest modality-complete references, leading to clear improvements especially on Hateful Memes (Kiela et al. 2020). By jointly optimizing these two objectives, TLP achieves the best perfor-mance across all benchmarks, demonstrating that uncertainty adjustment and semantic consistency provide complementary guidance for source-free logit prompt adaptation. 
+
+Efficiency. We further analyze the efficiency of TLP in terms of trainable parameters and adaptation cost. Unlike existing prompt learning methods that optimize input-level prompts or additional modules, TLP keeps the entire VLM backbone frozen and only updates the logit prompt pool P
+
+during inference. Since each logit prompt contains only C
+
+class-wise parameters, TLP introduces merely 3C learnable parameters for different missing-modality conditions. As shown in Table 1, TLP achieves consistent improvements with only a few test-time optimization steps. Even with a single adaptation step, TLP effectively improves recognition performance while requiring only limited adaptation time.  
+
+> (a) Missing Text (b) Missing Both
+
+Figure 5: Visualization analysis of TLP-adapted logit distri-butions on Food101 (Wang et al. 2015) using t-SNE under different missing-modality scenarios. 
+
+Lu Lc MM-IMDb Food101 Hateful Memes 
+
+✓ ✓ 52.41 76.98 62.61 
+
+✓ 52.26 76.77 61.55 
+
+✓ 46.74 75.03 62.50 46.41 74.65 61.52 Table 2: Ablation study of different optimization objectives in TLP on three benchmarks. Bold represents the best results. These results demonstrate that TLP provides an efficient source-free adaptation solution for missing-modality recogni-tion with minimal computational overhead. For example, TLP completes one-step adaptation within 3-90 seconds across different datasets while achieving noticeable gains. 
+
+Visualization Analysis. As shown in Figure 5, we visualize the TLP-adapted logit distributions using t-SNE. Under dif-ferent missing-modality scenarios, the adapted logits exhibit clear clustering structures in the decision space, indicating that TLP effectively preserves discriminative information through lightweight logit-level adaptation without updating the VLM backbone. 
+
+## Conclusion 
+
+In this paper, we investigate source-free test-time adaptation for missing-modality recognition in vision-language models. We propose Test-Time Logit Prompting (TLP), a lightweight adaptation framework that improves frozen VLMs by optimiz-ing missing-aware prompts directly in the logit space without accessing source training data. To achieve reliable prediction adjustment, TLP introduces uncertainty-aware adjustment and modality-complete consistency regularization, enabling effec-tive adaptation under different missing-modality conditions while preserving semantic information. Extensive experi-ments on multiple vision-language benchmarks demonstrate that TLP consistently enhances missing-modality robustness with only a few optimization steps and hundreds of tunable parameters. Furthermore, TLP can be seamlessly integrated with existing training-based methods, highlighting its poten-tial as an efficient plug-and-play framework for real-world incomplete multimodal scenarios. References 
+
+Arevalo, J.; Solorio, T.; Montes-y Gómez, M.; and González, F. A. 2017. Gated multimodal units for information fusion. 
+
+arXiv preprint arXiv:1702.01992 .Chen, T.; Chen, J.; and Guo, N. 2025. UAM: A Unified Attention-Mamba Backbone of Multimodal Framework for Tumor Cell Classification. arXiv preprint arXiv:2511.17355 .Chen, T.; and Cheung, Y.-m. 2025. TYrPPG: Uncomplicated and Enhanced Learning Capability rPPG for Remote Heart Rate Estimation. arXiv preprint arXiv:2511.05833 .Chen, T.; Cheung, Y.-m.; and Zhang, Y. 2026. CADM: Cluster-Customized Adaptive Distance Metric for Categorical Data Clustering. In ICASSP 2026-2026 IEEE International Conference on Acoustics, Speech and Signal Processing (ICASSP) , 2561–2565. IEEE. Chen, T.; and Guo, N. 2026. Learning from Reliable Latent Prompts for Visual Recognition with Missing Modalities. 
+
+arXiv preprint arXiv:2606.30597 .Dosovitskiy, A.; Beyer, L.; Kolesnikov, A.; Weissenborn, D.; Zhai, X.; Unterthiner, T.; Dehghani, M.; Minderer, M.; Heigold, G.; Gelly, S.; et al. 2020. An image is worth 16x16 words: Transformers for image recognition at scale. arXiv preprint arXiv:2010.11929 .Guo, Y.; and Gu, X. 2025. Mmrl: Multi-modal representation learning for vision-language models. In Proceedings of the Computer Vision and Pattern Recognition Conference ,25015–25025. Hu, L.; Shi, T.; Feng, W.; Shang, F.; and Wan, L. 2024. Deep correlated prompting for visual recognition with missing modalities. Advances in Neural Information Processing Systems , 37: 67446–67466. Iashin, V.; and Rahtu, E. 2020. Multi-modal dense video captioning. In Proceedings of the IEEE/CVF conference on computer vision and pattern recognition workshops , 958–959. Jiang, D.; and Ye, M. 2023. Cross-modal implicit relation reasoning and aligning for text-to-image person retrieval. In 
+
+Proceedings of the IEEE/CVF conference on computer vision and pattern recognition , 2787–2797. Kiela, D.; Firooz, H.; Mohan, A.; Goswami, V.; Singh, A.; Ringshia, P.; and Testuggine, D. 2020. The hateful memes challenge: Detecting hate speech in multimodal memes. Ad-vances in neural information processing systems , 33: 2611– 2624. Kim, W.; Son, B.; and Kim, I. 2021. Vilt: Vision-and-language transformer without convolution or region supervision. In 
+
+International conference on machine learning , 5583–5594. PMLR. Lang, J.; Hong, R.; Cheng, Z.; Zhong, T.; Wang, Y.; and Zhou, F. 2025. REDEEMing Modality Information Loss: Retrieval-Guided Conditional Generation for Severely Modal-ity Missing Learning. In Proceedings of the 31st ACM SIGKDD Conference on Knowledge Discovery and Data Mining V. 2 , 1241–1252. Lee, D.-H.; et al. 2013. Pseudo-label: The simple and efficient semi-supervised learning method for deep neural networks. In Workshop on challenges in representation learning, ICML ,volume 3, 896. Atlanta. Lee, Y.-L.; Tsai, Y.-H.; Chiu, W.-C.; and Lee, C.-Y. 2023. Multimodal prompting with missing modalities for visual recognition. In Proceedings of the IEEE/CVF Conference on Computer Vision and Pattern Recognition , 14943–14952. Li, L. H.; Zhang, P.; Zhang, H.; Yang, J.; Li, C.; Zhong, Y.; Wang, L.; Yuan, L.; Zhang, L.; Hwang, J.-N.; et al. 2022. Grounded language-image pre-training. In Proceedings of the IEEE/CVF conference on computer vision and pattern recognition , 10965–10975. Liang, J.; Hu, D.; and Feng, J. 2020. Do we really need to access the source data? source hypothesis transfer for unsupervised domain adaptation. In International conference on machine learning , 6028–6039. PMLR. Lu, A.; Li, C.; Zhao, J.; Tang, J.; and Luo, B. 2025. Modality-missing RGBT tracking: Invertible prompt learning and high-quality benchmarks. International Journal of Computer Vision , 133(5): 2599–2619. Ma, M.; Ren, J.; Zhao, L.; Testuggine, D.; and Peng, X. 2022. Are multimodal transformers robust to missing modality? In 
+
+Proceedings of the IEEE/CVF conference on computer vision and pattern recognition , 18177–18186. Meng, X.; Sun, K.; Xu, J.; He, X.; and Shen, D. 2024. Multi-modal modality-masked diffusion network for brain mri synthesis with random modality missing. IEEE Transactions on Medical Imaging , 43(7): 2587–2598. Nado, Z.; Padhy, S.; Sculley, D.; D’Amour, A.; Lakshmi-narayanan, B.; and Snoek, J. 2020. Evaluating prediction-time batch normalization for robustness under covariate shift. 
+
+arXiv preprint arXiv:2006.10963 .Radford, A.; Kim, J. W.; Hallacy, C.; Ramesh, A.; Goh, G.; Agarwal, S.; Sastry, G.; Askell, A.; Mishkin, P.; Clark, J.; et al. 2021. Learning transferable visual models from natural language supervision. In International conference on machine learning , 8748–8763. PmLR. Sarto, S.; Barraco, M.; Cornia, M.; Baraldi, L.; and Cuc-chiara, R. 2023. Positive-augmented contrastive learning for image and video captioning evaluation. In Proceedings of the IEEE/CVF conference on computer vision and pattern recognition , 6914–6924. Schneider, S.; Rusak, E.; Eck, L.; Bringmann, O.; Brendel, W.; and Bethge, M. 2020. Improving robustness against common corruptions by covariate shift adaptation. Advances in neural information processing systems , 33: 11539–11551. Sima, C.; Renz, K.; Chitta, K.; Chen, L.; Zhang, H.; Xie, C.; Beißwenger, J.; Luo, P.; Geiger, A.; and Li, H. 2024. Drivelm: Driving with graph visual question answering. In European conference on computer vision , 256–274. Springer. Song, J.; Lee, J.; Kweon, I. S.; and Choi, S. 2023. Ecotta: Memory-efficient continual test-time adaptation via self-distilled regularization. In Proceedings of the IEEE/CVF Conference on Computer Vision and Pattern Recognition ,11920–11929. Wang, D.; Shelhamer, E.; Liu, S.; Olshausen, B.; and Dar-rell, T. 2020. Tent: Fully test-time adaptation by entropy minimization. arXiv preprint arXiv:2006.10726 .Wang, H.; Chen, Y.; Ma, C.; Avery, J.; Hull, L.; and Carneiro, G. 2023. Multi-modal learning with missing modality via shared-specific feature modelling. In Proceedings of the IEEE/CVF conference on computer vision and pattern recog-nition , 15878–15887. Wang, X.; Kumar, D.; Thome, N.; Cord, M.; and Precioso, F. 2015. Recipe recognition with large multimodal food dataset. In 2015 IEEE International Conference on Multimedia & Expo Workshops (ICMEW) , 1–6. IEEE. Wang, Y.; Cui, Z.; and Li, Y. 2023. Distribution-consistent modal recovering for incomplete multimodal learning. In 
+
+Proceedings of the IEEE/CVF International Conference on Computer Vision , 22025–22034. Wu, R.; Wang, H.; Chen, H.-T.; and Carneiro, G. 2024a. Deep multimodal learning with missing modality: A survey. arXiv preprint arXiv:2409.07825 .Wu, Z.; Zheng, J.; Ren, X.; Vasluianu, F.-A.; Ma, C.; Paudel, D. P.; Van Gool, L.; and Timofte, R. 2024b. Single-model and any-modality for video object tracking. In Proceedings of the IEEE/CVF conference on computer vision and pattern recognition , 19156–19166. Xiao, Z.; and Snoek, C. G. 2024. Beyond model adaptation at test time: A survey. arXiv preprint arXiv:2411.03687 .Yuan, Y.; Li, Z.; and Zhao, B. 2025. A survey of multimodal learning: Methods, applications, and future. ACM Computing Surveys , 57(7): 1–34. Zhang, X.; Zhang, F.; and Xu, C. 2023. Vqacl: A novel visual question answering continual learning setting. In Proceedings of the IEEE/CVF Conference on Computer Vision and Pattern Recognition , 19102–19112. Zhang, Z.; Dai, L.; Lin, Q.; Diao, Y.; Jin, G.; Guo, Y.; Zhang, J.; and Hao, X. 2025. Synergistic prompting for robust visual recognition with missing modalities. In Proceedings of the IEEE/CVF International Conference on Computer Vision ,1881–1890.
