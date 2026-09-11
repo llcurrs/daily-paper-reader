@@ -1,0 +1,506 @@
+Title: When Fusion Fails: Corruption-Aware Rebalanced Fusion for Multi-Modal Medical Image Segmentation
+
+URL Source: https://arxiv.org/pdf/2609.10261v1
+
+Published Time: Thu, 10 Sep 2026 01:13:17 GMT
+
+Number of Pages: 9
+
+Markdown Content:
+# When Fusion Fails: Corruption-Aware Rebalanced Fusion for Multi-Modal Medical Image Segmentation 
+
+# Yuchen Pei 
+
+ycpei@ccnu.edu.cn Central China Normal University Wuhan, China 
+
+# Xiaoyu Hu 
+
+xiaoyu_hu@mails.ccnu.edu.cn Central China Normal University Wuhan, China 
+
+# Yixiong Zou 
+
+yixiongz@hust.edu.cn Huazhong University of Science and Technology Wuhan, China 
+
+# Dingwen Hu 
+
+20231110467@stu.gzucm.edu.cn Guangzhou University of Chinese Medicine Guangzhou, China 
+
+# Hui Chu 
+
+chuhui2019@163.com Guangzhou University of Chinese Medicine Guangzhou, China 
+
+# Yutao Ma 
+
+ytma@ccnu.edu.cn Central China Normal University Wuhan, China 
+
+# Shijun Qiu ✉
+
+qiushijun1961@gzucm.edu.cn The First Affiliated Hospital of Guangzhou University of Chinese Medicine Guangzhou, China 
+
+# Gang Li ✉
+
+gang_li@med.unc.edu University of North Carolina, Chapel Hill Chapel Hill, United States 
+
+## Abstract 
+
+Multi-modal medical image segmentation leverages complemen-tary diagnostic information, yet fusion can underperform single-modality baselines when spatially aligned inputs differ in quality. Here, "corruption" primarily denotes resolution-induced degrada-tion rather than misalignment or complete modality absence, while synthetic noise is evaluated only as an auxiliary setting. We identify a critical optimization-inference inconsistency: degraded modalities can receive weak training updates yet substantially affect predic-tions, indicating active interference with fusion. We attribute this failure to resampling-induced feature corruption and optimization bias, where noisy features propagate through skip connections and encourage unreliable modality selection. We therefore pro-pose CoReFuse-Med, a Corruption-aware Rebalanced Fusion frame-work that suppresses corruption during feature transmission and rebalances modality contributions during high-level fusion. Experi-ments on EPVS, BraTS, and WMH, including multiple Z-axis slice-retention ratios and an auxiliary noise test, demonstrate improved accuracy and robustness under modality-quality discrepancies. Our code is available at https://github.com/lrever/CoReFuse. 
+
+## CCS Concepts 
+
+• Computing methodologies → Image segmentation ; • Ap-plied computing → Health informatics .
+
+## Keywords 
+
+Multi-modal medical image segmentation, Modality-quality dis-crepancy, Corruption-aware fusion, Modality imbalance 
+
+ACM Reference Format: 
+
+Yuchen Pei, Xiaoyu Hu, Yixiong Zou, Dingwen Hu, Hui Chu, Yutao Ma, Shijun Qiu, and Gang Li. 2026. When Fusion Fails: Corruption-Aware Rebal-anced Fusion for Multi-Modal Medical Image Segmentation. In Proceedings 
+
+> This work is licensed under a Creative Commons Attribution 4.0 International License.
+> MM ’26, Rio de Janeiro, Brazil
+> © 2026 Copyright held by the owner/author(s). ACM ISBN 979-8-4007-2213-4/2026/11 https://doi.org/10.1145/3767308.3836234
+
+of the 34th ACM International Conference on Multimedia (MM ’26), Novem-ber 10–14, 2026, Rio de Janeiro, Brazil. ACM, New York, NY, USA, 9 pages. https://doi.org/10.1145/3767308.3836234 
+
+## 1 Introduction 
+
+Multi-modal medical image segmentation (MMIS) has emerged as a cornerstone of modern computer-aided diagnosis, leveraging the synergistic potential of diverse imaging sequences to enhance pre-dictive accuracy and clinical robustness [8, 22, 28]. This is because different modalities of images can capture distinct lesion features that do not overlap, thereby jointly improving the definition of the target and achieving better performance compared to single-modal imaging [5, 12, 15, 23, 26]. Acknowledging the inherent challenges of cross-modal inte-gration, recent literature has extensively addressed explicit forms of heterogeneity. These include spatial misalignment in different modalities [3, 10], missing modalities [16], and intensity variations across acquisition protocols [12]. Despite their methodological di-versity, these approaches share a common conceptual paradigm: 
+
+fusion failure arises from incomplete or misaligned informa-tion . This perspective has led to a research landscape dominated by alignment, completion, and robust aggregation strategies. However, we identify a distinct and largely unexplored failure mode: fusion degradation caused by modality-quality mis-match even when modalities are spatially aligned . In real-world clinical acquisition, imaging sequences are often captured at different resolutions due to practical constraints such as scan time and patient motion [11]. Although standard resampling aligns all modalities into a shared spatial grid, making them appear compat-ible, we observe a counter-intuitive phenomenon: multi-modal fusion can underperform single-modality baselines despite successful alignment . As shown in Fig. 1, on the Enlarged Perivas-cular Spaces (EPVS) MRI dataset with inherent resolution discrep-ancies (T1: high-resolution; FLAIR/T2: sparse axial slices), multi-modal fusion underperforms the T1 single-modality baseline. This observation shows that additional modalities are not necessarily beneficial when their quality is substantially mismatched, raising a fundamental question: why does fusion degrade rather than improve performance under aligned quality discrepancies? arXiv:2609.10261v1 [cs.CV] 9 Sep 2026 MM ’26, November 10–14, 2026, Rio de Janeiro, Brazil Yuchen Pei et al. 
+
+Figure 1: Illustration of multi-modal fusion perfor-mance. Left: Visual comparison of high-resolution T1, low-resolution T2, and FLAIR modalities. Right: Quan-titative results showing a performance drop in standard architectures when transitioning from T1-only inputs to multi-modal inputs. 
+
+To answer this question, we conduct a systematic analysis from both structural and optimization perspectives. Our empirical find-ings reveal a critical inconsistency: degraded modalities can exhibit substantial predictive impact despite comparatively weak gradient contributions. This indicates that degraded modalities are neither simply ignored nor reliably exploited; instead, they can substan-tially bias the decision-making process of the fusion model. We further identify the root cause of this failure as the inter-play between feature corruption and optimization bias . First, resolution discrepancies introduce resampling-induced noise into low-quality modalities, which is subsequently propagated through skip connections and contaminates the fused feature space. Second, under such corrupted inputs, the network tends to adopt a greedy optimization shortcut, over-relying on cleaner modalities while sup-pressing ambiguous but informative signals from degraded ones. This interplay prevents stable cross-modal reasoning, causing the model to collapse into a noisy and biased modality selection process. This analysis leads to a key insight: effective multi-modal fusion under resolution discrepancy conditions requires disentangling two fundamentally coupled challenges, preventing noise propagation and correcting modality-level optimization bias . This inspires us to design a corruption-aware fusion network, rather than relying only on the attention-based interactions adopted by current works [24, 27]. Existing methods primarily focus on feature interaction under the assumption of clean inputs, but overlook modality reliability, allow-ing noise to propagate and bias to accumulate. Based on this insight, we propose CoReFuse-Med , a corruption-aware rebalanced fusion framework for imbalanced multi-modal medical image segmentation. Instead of directly enhancing feature interaction, our approach explicitly separates the fusion process into two stages: (1) mitigating feature corruption before fusion to ensure reliable representations, and (2) rebalancing modality contributions during high-level reasoning to avoid biased optimiza-tion. This design enables the model to leverage complementary information more effectively under severe resolution discrepancies. To sum up, our primary contributions are as follows: 
+
+• To the best of our knowledge, we are the first to identify fusion failure under spatially aligned modality-quality dis-crepancies, where resolution-induced degradation disrupts cross-modal integration. 
+
+• Gradient and occlusion analyses reveal an optimization– inference inconsistency in which degraded modalities re-ceive weak updates yet strongly affect predictions. 
+
+• We propose CoReFuse-Med that disentangles fusion into two steps, which suppresses shallow feature corruption and rebalances modality contributions during high-level reason-ing, enabling reliable multi-modal interaction. 
+
+• Experiments on EPVS, BraTS, and WMH datasets across different modality-corruption settings demonstrate that our method consistently achieves robust performance. 
+
+## 2 Related Work 
+
+Feature Corruption under Resolution Discrepancy. Most multi-modal segmentation networks adopt U-shaped architectures with skip connections to preserve spatial details [26, 30]. While effective for homogeneous inputs, this design implicitly assumes that fea-tures transferred from encoder to decoder are reliable. However, in clinical settings, modalities often exhibit significant resolution dis-crepancies [11]. Resampling introduces structured high-frequency noise into low-quality modalities, which is subsequently propagated through skip connections and contaminates the fused process. Existing multi-modal fusion methods primarily focus on enhanc-ing feature interaction, such as attention-based mechanisms [21, 25] or resolution-robust operators [19]. These approaches implicitly assume clean and compatible inputs, and therefore tend to am-plify, rather than suppress, noise-contaminated signals under cross-resolution conditions. In contrast, our work explicitly attenuates resampling-induced corruption and mitigates its propagation dur-ing feature transmission. 
+
+Optimization Bias in Imbalanced Multi-modal Learning. 
+
+Another line of work addresses modality imbalance, where differ-ent modalities contribute unequally due to missing or degraded inputs [2, 6, 17]. It has been shown that deep networks exhibit a greedy optimization tendency [20], over-relying on dominant modalities while suppressing others, a phenomenon often referred to as modality competition. Recent advances seek to rebalance these dynamics via prototype-based guidance [2], self-distillation [14], or data-level augmenta-tion [16, 18, 20, 29]. However, these methods fundamentally treat modality discrepancy as an issue of data availability or optimization scheduling. They operate under the implicit assumption that the provided modality features are inherently reliable, even if they are weak or incomplete. We argue that this assumption fails in clinical scenarios characterized by resolution discrepancies. In such cases, degraded modalities are not merely under-optimized, and they are intrinsically corrupted by resampling-induced noise. Hence, they fail to address the coupled effect of feature corruption and optimiza-tion bias, where noise-contaminated features further exacerbate modality imbalance during training. Our work instead tackles this problem from a feature-space perspective, jointly suppressing cor-ruption and rebalancing modality contributions during fusion. When Fusion Fails: Corruption-Aware Rebalanced Fusion for Multi-Modal Medical Image Segmentation MM ’26, November 10–14, 2026, Rio de Janeiro, Brazil 
+
+## 3 Problem Analysis 3.1 An Unexpected Finding: Fusion Failure under Aligned Quality Mismatch 
+
+We observe a counter-intuitive phenomenon under spatially aligned modality-quality mismatch: additional modalities do not necessar-ily improve performance when their quality differs substantially, although complementary modalities are generally expected to ben-efit segmentation [22, 26]. As shown in Fig. 1, on the IH EPVS dataset with inherent resolution discrepancies (T1: high-resolution; FLAIR/T2: only 10% axial slices), multi-modal fusion underperforms the single-modality baseline. Specifically, fusing all three modalities yields a DSC of 0.695, which is 1.14% lower than using T1 alone (0.703). This observation shows that additional modalities are not automatically beneficial under severe quality mismatch, raising a fundamental question: why does fusion degrade rather than enhance the result? 
+
+Notably, existing multi-modal fusion methods [22, 28] do not reveal or explain this phenomenon, as they assume isotropic, high-quality, and well-aligned inputs. This gap motivates our systematic analysis: why does fusion fail when it should help? 
+
+## 3.2 Hidden Noise in Cross-resolution Multi-modal Data 
+
+We hypothesize that the root cause lies in the resampling-induced noise arising from cross-resolution discrepancies. To quantitatively characterize this effect in the latent feature space, we introduce the 
+
+Feature Contrast-to-Noise Ratio (F-CNR), which quantifies the separability between lesion signals and background noise. Given an intermediate feature map 𝐹 ∈ R𝐶 ×𝐷 ×𝐻 ×𝑊 and a cor-responding lesion mask, we compute channel-wise F-CNR by con-trasting mean activation in lesion ( 𝜇 sig ,𝑗 ) and background ( 𝜇 bg ,𝑗 ), normalized by the background standard deviation: F-CNR 𝑗 = |𝜇 sig ,𝑗 − 𝜇 bg ,𝑗 |
+
+𝜎 bg ,𝑗 + 𝜖 (1) where 𝜎 bg ,𝑗 reflects channel-wise background noise. The final F-CNR is averaged across channels. A higher F-CNR indicates that lesion-related features are more separable from noise-dominated background activations. As shown in Fig. 2, the input branches exhibit significant quality disparity. 
+
+Our Findings. The F-CNR of T1 is 3.4 × higher than that of FLAIR, indicating that resolution discrepancy leads to fundamen-tally different signal-to-noise characteristics across modalities. No-tably, low-resolution modalities (e.g., FLAIR and T2) exhibit elevated background standard deviation 𝜎 bg , suggesting that their feature responses are strongly affected by resampling artifacts. Importantly, the resampling-induced corruption analyzed here is 
+
+not stochastic , but structurally induced during resolution alignment. As a result, it systematically corrupts feature representations at early stages and propagates through skip connections into deeper layers. Ground Truth  Ours(med)  mmformer  Swin -UNETR    
+
+> Mednext 3D U -Net Hnosgexs Ours
+> ED ET NCR
+
+T1  T2  Flair   
+
+> F-CNR = 1.0283 F-CNR = 0.4301 F-CNR = 0.2980
+
+Figure 2: Visualization of shallow features extracted by in-dependent encoders. The T1 modality exhibits high F-CNR and preserves complete structural features, whereas T2 and FLAIR show a significant drop in F-CNR alongside severe structural degradation. 
+
+## 3.3 Fusion Network Takes a Greedy Shortcut 
+
+To understand how noise affects cross-modal fusion, we analyze modality contributions during training via gradient-based attribu-tion. In 3D U-Net, T1 dominates optimization with 77.4% of gradient contribution, while FLAIR and T2 contribute only 13.1% and 9.5%, respectively. However, gradient contribution alone does not reflect the true importance of each modality. We therefore perform modality-wise occlusion to measure ac-tual predictive impact, as shown in Table 1. Removing either T1 or FLAIR leads to a similarly large performance drop (DSC ↓70.2%), whereas removing T2 results in only minor degradation. This dis-crepancy indicates that optimization signals are misaligned with actual predictive utility under noisy multi-modal conditions. Importantly, this phenomenon is not specific to 3D U-Net. In Swin-UNETR, although gradient contributions appear more bal-anced, occlusion results still reveal substantial differences in modal-ity sensitivity (e.g., DSC ↓69.6% for T1 vs. ↓35.0% for FLAIR). This suggests that the core issue is not gradient imbalance itself, but the inconsistency between optimization signals and true modality contribution. A similar optimization–inference discrepancy is also observed on BraTS (Table 1), where gradient contributions do not consistently align with the performance drops caused by modality masking. As discussed above, degraded modalities are inherently noisy, yet most baseline models rely on U-shaped architectures with skip connections that directly propagate such features. While designed to preserve spatial details, these connections also directly propagate features from encoder to decoder. Under cross-resolution discrep-ancies, such features are often corrupted by resampling-induced noise, causing degraded modalities to introduce ambiguous and unreliable signals into the fusion process. Under these conditions, the network exhibits biased optimization dynamics. It tends to favor cleaner signals that are easier to optimize, while noisy features continue to interfere with feature integration. This interplay prevents stable cross-modal reasoning and drives the model toward a greedy shortcut, where it relies on dominant modalities instead of learning robust multi-modal fusion. MM ’26, November 10–14, 2026, Rio de Janeiro, Brazil Yuchen Pei et al. ... 
+
+> ...
+> ...
+> ...
+> ...  Bottleneck
+
+IMSH 
+
+MBCF  
+
+> Lightweight Axial -
+> Context Encoder
+> Downsampling Layer1
+> features
+> Layer2
+> features
+> Layer3
+> features
+> Layer 4
+> features
+> [16,H,W,D]
+> [32,H/2,W/2,D/2]
+> [64,H/4,W/4,D/4]
+> [128,H/8,
+> W/8,D/8]
+
+IMSH 
+
+MBCF 
+
+> Inter -Modal Spatial -
+> Scale Harmonization
+> Modality Bias
+> CalibrationFusion
+> Upsampling
+> Segmentation head
+
+Figure 3: Overview of the CoReFuse-Med Framework. Schematic of the proposed CoReFuse-Med framework, featuring a three-stream symmetric U-shaped architecture with LACE, IMSH and MBCF fusion modules. Table 1: Gradient contribution and occlusion-induced DSC drop (%) on EPVS (M1/M2/M3: T1/T2/FLAIR) and BraTS (T1ce/T2/FLAIR).                                             
+
+> Dataset Model Gradient Contribution DSC Drop after Masking M1 M2 M3 M1 M2 M3 EPVS 3D U-Net 77.4 9.5 13.1 70.2 7.8 70.2 Swin-UNETR 29.4 28.1 42.5 69.6 61.5 35.0 CoReFuse-Med 91.0 2.2 6.9 73.2 0.2 0.6 BraTS 3D U-Net 49.5 19.8 30.7 55.8 10.2 40.1 Swin-UNETR 40.1 28.8 31.2 49.7 13.0 60.1 CoReFuse-Med 42.6 31.7 25.7 27.6 6.2 12.3
+
+The BraTS analysis further shows that a similar gradient–occlusion discrepancy also occurs beyond EPVS. When multiple modalities retain task-relevant evidence, CoReFuse-Med produces a more bal-anced gradient distribution and substantially smaller occlusion drops than the baselines. Under the extreme EPVS setting, however, T2 and FLAIR retain only sparse through-plane information; their small masking drops suggest limited incremental utility under this severe degradation. The gain in this regime should therefore not be interpreted as reconstructing absent information. Instead, the method prevents contaminated features from harming the domi-nant T1 pathway while preserving any reliable complementary cues that remain. Together, the two datasets suggest that fusion is lim-ited by both the fusion mechanism and the available task-relevant evidence. 
+
+## 3.4 Conclusion and Discussion 
+
+The F-CNR results show that resampling changes the signal-to-noise characteristics of degraded modalities at shallow stages, while the gradient–occlusion analysis reveals that this corruption is ac-companied by an optimization–inference inconsistency. Skip con-nections can transmit unreliable features into the decoder, yet the optimization process tends to favor cleaner signals, leaving the final prediction sensitive to modalities that receive limited training updates. These observations motivate a two-stage solution. IMSH first limits corruption before shallow features enter the shared decod-ing pathway, and MBCF then calibrates modality contributions in deeper semantic spaces. The goal is not to reconstruct evidence that has been irreversibly removed, but to exploit the remaining complementary information without allowing degraded inputs to destabilize fusion. 
+
+## 4 Methodology 4.1 Framework Overview 
+
+We propose the CoReFuse-Med framework, which introduces a dis-entangled fusion paradigm for heterogeneous multi-modal medical image segmentation. Unlike conventional strategies that entangle modality-specific artifacts with semantic ambiguities—often leading to sub-optimal optimization—our framework explicitly separates the multi-modal interaction process to address the dual barriers identified in our analysis. As illustrated in Fig. 3, CoReFuse-Med operates hierarchically, built upon the Lightweight Axial-Context Encoder (LACE) for ef-ficient anisotropic feature extraction. In shallow layers, the Inter-Modal Spatial-Scale Harmonization (IMSH) module employs spatial-scale decomposition to isolate shared structural bases from modality-specific resampling artifacts, purifying low-level representations. In deeper semantic spaces, the Modality Bias Calibration Fusion (MBCF) module resolves semantic conflicts via joint channel calibra-tion and symmetric cross-modal attention, effectively preventing the network from over-relying on dominant modalities. 
+
+## 4.2 Lightweight Axial-Context Encoder 
+
+Clinical MRI volumes are inherently anisotropic, typically exhibit-ing high in-plane resolution but coarse through-plane spacing, which challenges standard isotropic 3D convolutions. Furthermore, deploying heavy 3D encoders for each modality branch incurs prohibitive parameter growth. To address this, we design the Light-weight Axial-Context Encoder (LACE) as our unimodal backbone (Fig. 4). LACE employs a dual-branch architecture to concurrently capture local details and direction-aware context—both critical for accurately segmenting elongated and discontinuous lesions—with minimal overhead. When Fusion Fails: Corruption-Aware Rebalanced Fusion for Multi-Modal Medical Image Segmentation MM ’26, November 10–14, 2026, Rio de Janeiro, Brazil 
+
+Specifically, the local branch utilizes a DoubleConv block to effi-ciently extract fine-grained boundaries. In parallel, the axial branch models global context. To avoid the cubic complexity of expanding 3D kernels, it factorizes the volumetric receptive field using parallel 1D strip convolutions along orthogonal axes ( 𝐷, 𝐻,𝑊 ). This explicit decomposition constructs direction-aware context paths, vital for preserving structural continuity across sparsely sampled slices. To dynamically integrate these complementary local ( X𝑙𝑜𝑐𝑎𝑙 )and axial ( X𝑎𝑥𝑖𝑎𝑙 ) representations, we employ a selective channel-attention mechanism to adaptively balance local detail preservation and global context modeling: 
+
+[W𝑙𝑜𝑐𝑎𝑙 , W𝑎𝑥𝑖𝑎𝑙 ] = Softmax (MLP (GAP (X𝑙𝑜𝑐𝑎𝑙 + X𝑎𝑥𝑖𝑎𝑙 ))) ,
+
+X𝑜𝑢𝑡 = W𝑙𝑜𝑐𝑎𝑙 ⊙ X𝑙𝑜𝑐𝑎𝑙 + W𝑎𝑥𝑖𝑎𝑙 ⊙ X𝑎𝑥𝑖𝑎𝑙 . (2) By structurally decoupling spatial extraction, LACE effectively han-dles anisotropic geometric variations while maintaining an ultra-lightweight profile compared to conventional 3D encoders. x         
+
+> Lightweight Axial -Context Encode
+> DoubleConv
+> (3D Conv ×2)
+> AxialConv Block
+> conv_d
+> (1 ×1×k)
+> conv_h
+> (k ×1×1)
+> conv_w
+> (1 ×k×1)
+> Conv3D
+> +ReLU
+> xDobleConv
+> xAxialConv
+> Linear+ReLU+Linear
+> Softmax
+> [𝑊 1,
+> 𝑊 2]Out
+> Element -wise Summation Element -wise Multiplication
+
+Figure 4: Lightweight Axial-Context Encoder. Features from DoubleConv and AxialConv branches are integrated via Selec-tive Fusion, where ⊕ and ⊗ denote element-wise summation and multiplication for generating and applying adaptive at-tention weights. 
+
+## 4.3 Inter-Modal Spatial-Scale Harmonization 
+
+As established in our problem analysis, the spatial resampling re-quired to align different resolution clinical data inevitably intro-duces aliasing artifacts in low-quality modalities. If standard early fusion (e.g., naive concatenation) is applied, these structured ar-tifacts act as physical noise, significantly degrading the pristine boundary features of the high-resolution modality. To address this, we aim to purify representations before deep semantic interaction. We propose the Inter-Modal Spatial-Scale Harmonization (IMSH) module, an efficient fusion mechanism driven by spatial-scale de-composition. Rather than relying on computationally expensive spectral transforms (e.g., FFT-based methods), IMSH achieves fea-ture decoupling via lightweight spatial filtering to isolate shared anatomical layouts from modality-specific artifacts. For multi-modal input features {X𝑚 }𝑚 ∈ { 𝑇 1,𝑇 2,𝐹 𝐿𝐴𝐼𝑅 } , IMSH operates through three streamlined stages, as illustrated in Fig. 5. First, in the spatial-scale decoupling stage, we employ a parameter-free 3D average pooling operator (AvgPool 3×3×3) as a local smooth-ing filter to extract the structural base components X𝑏𝑎𝑠𝑒 . These components capture the smooth, macroscopic anatomical layout Avgpool 
+
+> Competitor
+> Detail
+> Selector
+> …
+> …
+
+# ⊙
+
+C
+
+> Feature
+> Integrator
+
+# ⊙ Hadamard 
+
+> product
+
+𝜔 𝑖 
+
+C Concat 
+
+# ⊙
+
+> …
+> …
+
+𝑔 𝑖 
+
+> Origin feature
+> Structural Base
+> Detail Residual
+
+𝜔 1
+
+𝑔 1  
+
+> Modal
+> Separation Competitor Conv3D+Conv3D+Relu+
+> Conv3D+Softmax
+> DSConv3D+Relu+Co
+> nv3D+Sigmoid
+> Feature
+> Integrator
+> DSConv3D+BatchNor
+> m3d+Relu
+
+𝜔  Base Competition 
+
+> Weights
+
+𝑔  Residual Shared 
+
+> Gate
+> Detail
+> Selector
+> Origin
+> feature
+> Structural
+> Base
+
+## -
+
+Figure 5: Inter-Modal Spatial-Scale Harmonization. The IMSH module explicitly decouples multi-modal inputs into macroscopic structural bases and detail-sensitive residuals via spatial filtering, suppressing physical noise before deep semantic interaction. 
+
+shared across modalities. The corresponding detail-residual com-ponents X𝑟𝑒𝑠𝑖𝑑𝑢𝑎𝑙 , which contain both fine-grained structural cues and modality-specific resampling noise, are obtained via spatial subtraction: 
+
+X𝑚 𝑏𝑎𝑠𝑒 = AvgPool 3×3×3 (X𝑚 ), X𝑚 𝑟𝑒𝑠𝑖𝑑𝑢𝑎𝑙 = X𝑚 − X𝑚 𝑏𝑎𝑠𝑒 (3) Second, in the base-structure competition stage, we observe that the macroscopic structural components across modalities exhibit strong anatomical consistency. Based on this property, we design a lightweight Competitor module to dynamically aggregate them. To ensure efficiency, the module factorizes standard convolution into depthwise spatial extraction and pointwise channel mixing, followed by a Softmax-based normalization to generate adaptive fusion weights. This allows the model to selectively emphasize the most reliable anatomical layout among modalities while suppress-ing redundant macroscopic responses. Third, in the detail-residual shared gating stage, the residual components are highly inconsistent due to modality-specific re-sampling artifacts. We therefore apply a shared gating function composed of Depthwise Separable 3D Convolutions and a Sigmoid activation. This mechanism adaptively filters out uninformative resampling noise while preserving reliable boundary structures, producing refined residual representations that are robust to modal-ity degradation. Finally, the scale-specific representations are re-integrated via a single efficient DSConv3d layer to reconstruct the harmonized output representation: 
+
+X𝑜𝑢𝑡 = F𝑓 𝑖𝑛𝑎𝑙 
+
+"∑︁ 
+
+> 𝑚
+
+𝑤 𝑚 ⊙ X𝑚 𝑏𝑎𝑠𝑒 ,∑︁ 
+
+> 𝑚
+
+𝑔 𝑚 ⊙ X𝑚 𝑟𝑒𝑠𝑖𝑑𝑢𝑎𝑙 
+
+# ! 
+
+(4) MM ’26, November 10–14, 2026, Rio de Janeiro, Brazil Yuchen Pei et al. 
+
+Conventional fusion strategies entangle structural and resid-ual spatial contexts, forcing the network to simultaneously model coarse structural information and fine-grained noise. In contrast, IMSH explicitly separates the structurally consistent macroscopic base from the detail-sensitive residuals via spatial filtering, thereby mitigating cross-modal contamination. This design enables stable cross-modal fusion in shallow layers while maintaining a light-weight computational profile, making it well-suited for practical clinical settings. Avgpool 
+
+> Calibration
+> fc
+> …
+
+# ⊙
+
+> …
+> Spatial
+> Refiner
+> …
+
+C 
+
+> Query
+> generate
+> Attention
+> block
+> Spatial
+> Refiner
+> Modal
+> Separation
+
+# ⊙ Hadamard  
+
+> product
+
+C Concat 
+
+> Calibration
+> fc
+> Linear+Relu+
+> Linear+Sigmoid
+> Spatial
+> Refiner
+> Conv+Relu+
+> Conv+Sigmoid
+> Query
+> generate
+> Conv+BatchN
+> orm3d+Relu
+> Origin
+> feature
+> Fused
+> feature
+> Conv  Conv  Conv
+> X_q
+> X_all
+> X_all
+> X_q
+> Multihead
+> Attention
+> Layer
+> norm
+> Mlp
+> Residual
+> Connection
+
+Figure 6: Modality Bias Calibration Fusion. The MBCF mod-ule performs hierarchical channel and spatial calibration to resolve deep semantic conflicts between modalities. 
+
+## 4.4 Modality Bias Calibration Fusion 
+
+As feature representations propagate to deeper layers, they evolve from localized textures to abstract semantics. In this regime, con-ventional fusion strategies (e.g., concatenation or asymmetric cross-attention) tend to favor modalities with higher signal-to-noise ratio (SNR) or stronger contrast, resulting in biased feature integration. To address this issue, we propose the Modality Bias Calibration Fusion (MBCF) module, which operates on skip-connected multi-modal features at deep stages (L3–L4), and complements the shallow fusion performed by IMSH at early stages (L1–L2). MBCF performs fusion via joint channel calibration, spatial gating, and symmetric cross-modal attention (Fig. 6). 
+
+Global calibration. Global descriptors v𝑚 ∈ R𝐶 are extracted for each modality 𝑚 ∈ { 𝑇 1,𝑇 2, 𝐹 𝐿𝐴𝐼𝑅 } via global average pool-ing and concatenated into v𝑗𝑜𝑖𝑛𝑡 ∈ R3𝐶 . A shared MLP produces modality-specific channel weights: 
+
+[w𝑇 1, w𝑇 2, w𝐹 𝐿𝐴𝐼𝑅 ] = 𝜎 (MLP (v𝑗𝑜𝑖𝑛𝑡 )) (5) The calibrated features are obtained as X𝑐 𝑚 = w𝑚 ⊙ X𝑚 , where 
+
+X𝑚 denotes the intermediate skip-connected feature representation of modality 𝑚 at the current deep stage (L3–L4), and X𝑐 𝑚 denotes the calibrated representation within the same stage. Conditioning the weights on v𝑗𝑜𝑖𝑛𝑡 introduces cross-modal dependency during cali-bration, which suppresses dominance from modalities with higher SNR or contrast intensity. 
+
+Spatial gating. A 1 × 1 convolution followed by a sigmoid func-tion is applied to each calibrated feature map to obtain spatial gates 
+
+𝑔 𝑚 , yielding X𝑔 𝑚 = 𝑔 𝑚 ⊙ X𝑐 𝑚 . The gated features are concatenated and projected into a shared latent space: 
+
+Q = 𝛿 (BN (Conv 1×1 ([ X𝑔 𝑇 1, X𝑔 𝑇 2, X𝑔 𝐹 𝐿𝐴𝐼𝑅 ]))) (6) This projection maps modality-indexed features into a shared latent space while preserving structural semantics at deep semantic levels. 
+
+Symmetric cross-attention. The shared representation Q is used as query, while concatenated gated features are used as keys and values. To reduce computational cost, keys and values are downsampled via a strided depthwise convolution F𝑑𝑜𝑤𝑛 :
+
+K𝑗𝑜𝑖𝑛𝑡 = V𝑗𝑜𝑖𝑛𝑡 = F𝑑𝑜𝑤𝑛 ([ X𝑔 𝑇 1, X𝑔 𝑇 2, X𝑔 𝐹 𝐿𝐴𝐼𝑅 ]) (7) The fused representation is computed as: 
+
+X𝑓 𝑢𝑠𝑒𝑑 = Q + Softmax QK 𝑇 𝑗𝑜𝑖𝑛𝑡 
+
+√𝑑 𝑘 
+
+!
+
+V𝑗𝑜𝑖𝑛𝑡 (8) Eq. (8) defines a symmetric interaction scheme in which no single modality serves as the query and Q encodes a shared consensus representation, enabling balanced aggregation across modalities and reducing sensitivity to single-modality dominance. Here, 𝑑 𝑘 
+
+denotes the channel dimension used for scaling in the attention computation. 
+
+## 5 Experiments 5.1 Datasets and Implementation Details 
+
+To rigorously evaluate our framework under distinct modality-quality discrepancy scenarios (real-clinical anisotropy, simulated degradation, and information loss), we utilized three datasets. 
+
+Real Clinical: IH EPVS Dataset. This in-house dataset com-prises 80 multi-modal MRI scans for Enlarged Perivascular Spaces (EPVS) segmentation. It exhibits inherent clinical anisotropy: FLAIR and T2 sequences contain only 10% of the axial slices compared to the high-resolution T1 modality. 
+
+Controlled Simulation: Synthetic BraTS 2020 Dataset. Based on BraTS 2020 [9], we retain T1ce at its original resolution while preserving only 10% of the original Z-axis slices in FLAIR and T2. The degraded modalities are aligned to the T1ce reference space using FSL-based rigid registration. We further evaluate 20% and 30% slice-retention settings, with each model retrained separately under the corresponding condition. Synthetic noise ( 𝜇 = 0, 𝜎 = 0.25) is included only as an auxiliary experiment. 
+
+Information Loss: WMH Challenge Dataset. The WMH Chal-lenge dataset [7] features highly discontinuous small lesions with paired T1 and anisotropic FLAIR images. We simulate severe resolu-tion discrepancy by downsampling high-resolution T1 to match the anisotropic FLAIR resolution, evaluating robustness in challenging multi-modal fusion. 
+
+Implementation Details. Models were implemented in Py-Torch and trained on an NVIDIA RTX 3090 (24 GB). EPVS and When Fusion Fails: Corruption-Aware Rebalanced Fusion for Multi-Modal Medical Image Segmentation MM ’26, November 10–14, 2026, Rio de Janeiro, Brazil 
+
+Table 2: Quantitative comparison on the IH EPVS and Synthetic BraTS 2020 datasets. Values denote mean ± std. BraTS metrics represent the average across the whole tumor, tumor core, and enhancing tumor. Best and second-best results are bolded and underlined, respectively.    
+
+> Method IH EPVS Dataset Synthetic BraTS 2020 DSC
+
+↑ HD95 ↓ Recall ↑ Precision ↑ DSC ↑ HD95 ↓ Recall ↑ Precision ↑  
+
+> General-Purpose Backbones
+> 3D U-Net 0.7019
+
+± 0.07 8.35 ± 4.66 0.7495 ± 0.06 0.6728 ± 0.11 0.7803 ± 0.17 8.43 ± 9.59 0.7639 ± 0.19 0.8647 ± 0.12 Swin-UNETR 0.6967 ± 0.06 8.24 ± 4.29 0.7512 ± 0.05 0.6638 ± 0.11 0.8277 ± 0.10 7.03 ± 8.37 0.8358 ± 0.12 0.8588 ± 0.10 MedNeXt 0.7085 ± 0.07 8.17 ± 4.09 0.7595 ± 0.06 0.6779 ± 0.11 0.8314 ± 0.12 7.59 ± 11.29 0.8255 ± 0.13 0.8723 ± 0.08   
+
+> Specialized Multi-Modal Networks
+> HNoSegXS 0.5164
+
+± 0.07 12.56 ± 6.50 0.4273 ± 0.09 0.6814 ± 0.08 0.8051 ± 0.14 10.30 ± 12.70 0.8004 ± 0.14 0.8498 ± 0.12 MMFormer 0.5444 ± 0.09 29.81 ± 22.33 0.8481 ± 0.07 0.4102 ± 0.09 0.8225 ± 0.12 9.24 ± 11.23 0.8450 ± 0.12 0.8394 ± 0.12   
+
+> Ours (Base) 0.7322
+
+± 0.06 7.35 ± 3.90 0.7219 ± 0.11 0.7564 ± 0.05 0.8007 ± 0.10 8.21 ± 8.11 0.7649 ± 0.12 0.8638 ± 0.07   
+
+> Ours (Med) 0.7326
+
+± 0.06 7.35 ± 3.89 0.7326 ± 0.08 0.7458 ± 0.05 0.8528 ± 0.09 4.43 ± 3.07 0.8380 ± 0.11 0.8978 ± 0.06 
+
+Table 3: Quantitative comparison on the WMH Challenge dataset. Values denote mean (interval). Best and second-best results are bolded and underlined, respectively.   
+
+> Method DSC
+
+↑ HD95 ↓ IAVD ↓ Recall ↑ F1 ↑ Para. (M) GFLOPs                                                         
+
+> Leaderboard Reference
+> sysu_media (1st) 0.80 (0.78-0.82) 6.30 (4.75-7.93) 0.193 (0.165-0.224) 0.84 (0.82-0.86) 0.76 (0.73-0.78) 8.749 –
+> General-Purpose Backbones
+> 3D U-Net 0.77 (0.75-0.79) 8.24 (6.15-11.05) 0.216 (0.181-0.256) 0.75 (0.73-0.77) 0.68 (0.66-0.71) 22.583 226.585 Swin-UNETR 0.77 (0.75-0.79) 8.24 (6.50-10.27) 0.211 (0.171-0.259) 0.80 (0.78-0.82) 0.67 (0.63-0.70) 61.992 331.794 MedNeXt 0.77 (0.75-0.79) 7.26 (5.84-8.97) 0.186 (0.149-0.223) 0.71 (0.70-0.74) 0.70 (0.68-0.72) 5.542 57.923
+> Specialized Multi-Modal Networks
+> HNoSegXS 0.75 (0.72-0.77) 11.36 (8.75-14.52) 0.249 (0.207-0.299) 0.62 (0.59-0.65) 0.56 (0.53-0.58) 0.013 22.636 MMFormer 0.77 (0.75-0.79) 8.59 (6.23-11.96) 0.216 (0.173-0.258) 0.79 (0.77-0.81) 0.66 (0.63-0.69) 9.241 73.906
+> Ours (Base) 0.78 (0.76-0.80) 7.37 (5.72-9.26) 0.182 (0.150-0.217) 0.76 (0.74-0.78) 0.74 (0.72-0.76) 2.503 92.162
+> Ours (Med) 0.80 (0.77-0.81) 6.22 (4.58-8.53) 0.171 (0.139-0.205) 0.79 (0.77-0.80) 0.76 (0.74-0.78) 2.665 102.397
+
+BraTS used an 8:2 split, while WMH followed the official parti-tions. Inputs were cropped to 96 × 96 × 96, z-score normalized, and optimized with Dice/Focal loss (0.6:0.4). 
+
+## 5.2 Comparison Methods and Evaluation Metrics 
+
+To rigorously validate the fundamental effectiveness of our pro-posed mitigating feature corruption and rebalancing modality con-tributions mechanisms (IMSH and MBCF), we prioritize a transpar-ent comparison against state-of-the-art general-purpose backbones. We select leading paradigms covering pure CNN, Transformer-based, and modernized architectures—specifically 3D U-Net [1], Swin-UNETR [4], and MedNeXt [13]—equipped with standard early fusion. We also compared specialized multi-modal fusion architec-tures MMFormer [25] and HNoSegXS [19], a compact resolution-robust segmentation network. Together with the ablation study, this setup helps evaluate whether the observed gains arise from corruption suppression and modality calibration rather than model scale alone. 
+
+Architectural Versatility. To substantiate the generality and architectural agnosticism of our method, we instantiated CoReFuse-Med with two distinct configurations, differentiated by the internal structure of the DoubleConv block: Ours (Base) employs standard convolutions, while Ours (Med) integrates modernized inverted bottleneck blocks inspired by MedNeXt. 
+
+Evaluation Metrics. We report DSC, HD95, recall, and precision on EPVS and BraTS, and additionally report IAVD and F1 following the official WMH benchmark. 
+
+## 5.3 Quantitative Results and Analysis 
+
+Severe Degradation of Specialized Networks. Table 2 shows that MMFormer and HNoSegXS degrade markedly under severe resolution mismatch. On EPVS, both specialized fusion networks obtain DSC values below 0.55 and substantially larger HD95, while their boundary errors also remain high on BraTS. These results suggest that stronger cross-modal interaction alone does not guar-antee robustness when shallow representations contain resampling artifacts. In contrast, CoReFuse-Med achieves HD95 values of 7.35 on EPVS and 4.43 on BraTS, supporting the use of IMSH to filter scale-specific corruption before it enters the decoder through skip connections. 
+
+Overcoming the Greedy Shortcut. On BraTS, MedNeXt ex-hibits large boundary variance (HD95 7 .59 ±11 .29), indicating unsta-ble predictions across cases under modality degradation. CoReFuse-Med achieves the highest DSC (0.8528) together with a lower HD95 of 4 .43 ±3.07. The simultaneous improvement in overlap and bound-ary localization suggests that MBCF does more than increase av-erage accuracy: it reduces excessive dependence on the easiest modality and produces more consistent cross-modal interaction when the reliability of the inputs differs. MM ’26, November 10–14, 2026, Rio de Janeiro, Brazil Yuchen Pei et al. 
+
+Table 4: BraTS performance under varying slice-retention ratios and an auxiliary noise test. 
+
+Method Retain 30% Retain 20% Aux. Noise DSC ↑ HD95 ↓ DSC ↑ HD95 ↓ DSC ↑ HD95 ↓
+
+MedNeXt 0.850 6.69 0.839 10.16 0.811 9.75 MMFormer 0.827 8.13 0.828 9.56 0.796 10.79 Swin-UNETR 0.839 5.92 0.839 7.83 0.810 8.07 
+
+Ours (Med) 0.864 5.38 0.860 6.99 0.838 6.85 Quantitative Proof of Modality Calibration. Table 1 further shows that standard architectures exhibit strong disagreement be-tween gradient contribution and occlusion sensitivity. In EPVS, 3D U-Net loses 70.2% DSC after masking FLAIR despite its 13.1% gradient contribution, while Swin-UNETR remains highly sensi-tive to individual modalities. CoReFuse-Med suppresses severely degraded T2/FLAIR pathways on EPVS, where little recoverable evidence remains, but exhibits more balanced contributions and smaller occlusion drops on BraTS, where multiple modalities retain useful tumor cues. This contrast indicates that calibration is condi-tioned on task-relevant evidence rather than uniformly suppressing non-dominant modalities. 
+
+Resolving Semantic Ambiguity for Boundary Fidelity. On WMH (Table 3), CoReFuse-Med achieves HD95 6.22 and IAVD 0.171, compared with 8.59 and 0.216 for MMFormer and 6.30 and 0.193 for the ensemble sysu_media, demonstrating strong boundary preservation under information loss. 
+
+Model Complexity and Computational Efficiency. CoReFuse-Med uses 2.665M parameters and 102.397 GFLOPs, reducing pa-rameters by 95.7% and GFLOPs by 69.1% relative to Swin-UNETR while matching the sysu_media F1 score (0.76) with a single model. 
+
+Robustness to Varying Degradation Levels. Table 4 extends the extreme 10% setting to 20% and 30% Z-axis slice retention, with each model retrained separately under the corresponding condition. CoReFuse-Med achieves the best DSC and HD95 at both retention ratios, demonstrating consistent effectiveness across different de-grees of resolution degradation. The auxiliary noise result provides additional evidence under intensity corruption. Ground Truth  Ours  (Med)  MMFormer    
+
+> Swin -UNETR
+> Med NeXt
+> 3D U -Net HNoSegXS Ours
+> Edema Enhancing Tumor Necrotic Core
+
+Figure 7: Qualitative segmentation results on the Synthetic BraTS 2020 dataset under simulated modality degradation. Table 5: Component ablation on the EPVS dataset.                                     
+
+> Method DSC ↑HD95 ↓Recall ↑Precision ↑
+> Baseline 0.7146 ±0.07 8.19 ±4.30 0.6678 ±0.12 0.7908 ±0.06
+> Single Module Effect
+> + LACE 0.7193 ±0.07 7.81 ±4.50 0.6991 ±0.12 0.7609 ±0.06 + IMSH 0.7219 ±0.06 7.63 ±4.30 0.7082 ±0.11 0.7535 ±0.06 + MBCF 0.7210 ±0.06 7.88 ±4.40 0.7090 ±0.11 0.7499 ±0.06
+> Combined Effects
+> + LACE + IMSH 0.7287 ±0.06 7.50 ±3.75 0.7116 ±0.10 0.7607 ±0.05 + LACE + MBCF 0.7289 ±0.06 7.49 ±3.90 0.7017 ±0.11 0.7781 ±0.06
+> Ours (Base) 0.7322 ±0.06 7.35 ±3.90 0.7219 ±0.11 0.7564 ±0.05
+
+## 5.4 Qualitative Visual Analysis 
+
+Figure 7 shows that Ours (Med) better preserves irregular edema boundaries and internal tumor structures under degradation. Swin-UNETR and MMFormer tend to oversmooth peripheral regions, while HNoSegXS and 3D U-Net produce fragmented or missed sub-regions. The improvement is most visible around ambiguous transition regions and small internal structures, which are particu-larly vulnerable to resampling artifacts. Although subtle boundaries remain challenging, the proposed method reduces large fragmented or missing regions and produces more anatomically coherent pre-dictions. 
+
+## 5.5 Ablation Study 
+
+Table 5 presents the component analysis on IH EPVS. The base-line achieves relatively high precision but lower recall, indicating conservative predictions dominated by the high-resolution modal-ity. LACE improves DSC and HD95 by strengthening anisotropic contextual modeling. IMSH and MBCF provide larger recall gains by suppressing shallow resampling artifacts and calibrating deep modality interactions, respectively. Combining LACE with either fusion module further reduces boundary errors, while the complete model obtains the best DSC (0.7322) and HD95 (7.35). These results support the complementary roles of shallow spatial harmonization and high-level modality calibration. 
+
+## 6 Limitations and Future Work 
+
+Our study primarily addresses spatially aligned resolution degrada-tion rather than complete modality absence, while noise is evalu-ated only as an auxiliary setting. The in-house EPVS data cannot be released because of clinical privacy constraints, but the imple-mentation and public-dataset protocols will be provided for repro-ducibility. Future work will extend the framework to dynamically missing modalities and a broader range of acquisition artifacts. 
+
+## 7 Conclusion 
+
+We present CoReFuse-Med for multi-modal segmentation under spatially aligned modality-quality mismatch, focusing on resolution degradation. By suppressing resampling-induced feature corruption and calibrating modality contributions, CoReFuse-Med improves accuracy and stability across EPVS, BraTS, and WMH, with auxil-iary validation under noise. These results highlight the importance of modality reliability when task-relevant information is severely degraded. When Fusion Fails: Corruption-Aware Rebalanced Fusion for Multi-Modal Medical Image Segmentation MM ’26, November 10–14, 2026, Rio de Janeiro, Brazil 
+
+## Acknowledgments 
+
+This work is supported by the Postdoctoral Fellowship Program of China Postdoctoral Science Foundation (No. GZC20240577, and 2024M751063). 
+
+## References 
+
+[1] Özgün Çiçek, Ahmed Abdulkadir, Soeren S Lienkamp, Thomas Brox, and Olaf Ronneberger. 2016. 3D U-Net: learning dense volumetric segmentation from sparse annotation. In International conference on medical image computing and computer-assisted intervention . Springer, 424–432. [2] Yunfeng Fan, Wenchao Xu, Haozhao Wang, Junxiao Wang, and Song Guo. 2023. Pmr: Prototypical modal rebalance for multimodal learning. In Proceedings of the IEEE/CVF Conference on Computer Vision and Pattern Recognition . 20029–20038. [3] Kangfu Han, Dan Hu, Fenqiang Zhao, Tianming Liu, Feng Yang, and Gang Li. 2025. Incomplete multi-modal disentanglement learning with application to Alzheimer’s disease diagnosis. IEEE Transactions on Medical Imaging (2025). [4] Ali Hatamizadeh, Vishwesh Nath, Yucheng Tang, Dong Yang, Holger R Roth, and Daguang Xu. 2021. Swin unetr: Swin transformers for semantic segmentation of brain tumors in mri images. In International MICCAI brainlesion workshop .Springer, 272–284. [5] Mohammad Havaei, Axel Davy, David Warde-Farley, Antoine Biard, Aaron Courville, Yoshua Bengio, Chris Pal, Pierre-Marc Jodoin, and Hugo Larochelle. 2017. Brain tumor segmentation with deep neural networks. Medical image analysis 35 (2017), 18–31. [6] Yu Huang et al. 2022. Modality competition: What makes joint training of multi-modal network fail in deep learning?. In arXiv preprint arXiv:2203.09051 .[7] Hugo J Kuijf, J Matthijs Biesbroek, Jeroen De Bresser, Rutger Heinen, Simon An-dermatt, Mariana Bento, Matt Berseth, Mikhail Belyaev, M Jorge Cardoso, Adria Casamitjana, et al. 2019. Standardized assessment of automatic segmentation of white matter hyperintensities and results of the WMH segmentation challenge. 
+
+IEEE transactions on medical imaging 38, 11 (2019), 2556–2568. [8] Lei Li, Wangbin Ding, Liqin Huang, Xiahai Zhuang, and Vicente Grau. 2023. Multi-modality cardiac image computing: A survey. Medical image analysis 88 (2023), 102869. [9] Raghav Mehta, Angelos Filos, Ujjwal Baid, Chiharu Sako, Richard McKin-ley, Michael Rebsamen, Katrin Dätwyler, Raphael Meier, Piotr Radojewski, Gowtham Krishnan Murugesan, et al. 2022. QU-BraTS: MICCAI BraTS 2020 Challenge on Quantifying Uncertainty in Brain Tumor Segmentation–Analysis of Ranking Scores and Benchmarking Results. Journal of Machine Learning for Biomedical Imaging 2022, 026 (2022), 1–54. doi:10.59275/j.melba.2022-354b [10] Runqi Meng, Jingli Chen, Kaicong Sun, Qianqian Chen, Xiao Zhang, Ling Dai, Yuning Gu, Guangyu Wu, and Dinggang Shen. 2025. A Neighbor-sensitive Multi-modal Flexible Learning Framework for Improved Prostate Tumor Segmentation in Anisotropic MR Images. IEEE Transactions on Biomedical Engineering (2025). [11] Ghulam Muhammad, Fatima Alshehri, Fakhri Karray, Abdulmotaleb El Saddik, Mansour Alsulaiman, and Tiago H Falk. 2021. A comprehensive survey on multimodal medical signals fusion for smart healthcare systems. Information Fusion 76 (2021), 355–375. [12] Sérgio Pereira, Adriano Pinto, Victor Alves, and Carlos A Silva. 2016. Brain tumor segmentation using convolutional neural networks in MRI images. IEEE transactions on medical imaging 35, 5 (2016), 1240–1251. [13] Saikat Roy, Gregor Koehler, Constantin Ulrich, Michael Baumgartner, Jens Pe-tersen, Fabian Isensee, Paul F Jaeger, and Klaus H Maier-Hein. 2023. Mednext: transformer-driven scaling of convnets for medical image segmentation. In Inter-national Conference on Medical Image Computing and Computer-Assisted Inter-vention . Springer, 405–415. [14] Junjie Shi, Caozhi Shang, Zhaobin Sun, Li Yu, Xin Yang, and Zengqiang Yan. 2024. Passion: Towards effective incomplete multi-modal medical image segmentation with imbalanced missing rates. In Proceedings of the 32nd ACM International Conference on Multimedia . 456–465. [15] Toufique A Soomro, Lihong Zheng, Ahmed J Afifi, Ahmed Ali, Shafiullah Soomro, Ming Yin, and Junbin Gao. 2022. Image segmentation for MR brain tumor detec-tion using machine learning: a review. IEEE Reviews in Biomedical Engineering 
+
+16 (2022), 70–90. [16] Hu Wang, Congbo Ma, Jianpeng Zhang, Yuan Zhang, Jodie Avery, Louise Hull, and Gustavo Carneiro. 2023. Learnable cross-modal knowledge distillation for multi-modal learning with missing modality. In International Conference on Medical Image Computing and Computer-Assisted Intervention . Springer, 216–226. [17] Weiyao Wang, Du Tran, and Matt Feiszli. 2020. What makes training multi-modal classification networks hard?. In Proceedings of the IEEE/CVF conference on computer vision and pattern recognition . 12695–12705. [18] Yake Wei, Ruoxuan Feng, Zihe Wang, and Di Hu. 2024. Enhancing multimodal cooperation via sample-level modality valuation. In Proceedings of the IEEE/CVF Conference on Computer Vision and Pattern Recognition . 27338–27347. [19] Ken CL Wong, Hongzhi Wang, and Tanveer Syeda-Mahmood. 2025. HNOSeg-XS: Extremely Small Hartley Neural Operator for Efficient and Resolution-Robust 3D Image Segmentation. IEEE Transactions on Medical Imaging (2025). [20] Nan Wu, Stanislaw Jastrzebski, Kyunghyun Cho, and Krzysztof J Geras. 2022. Characterizing and overcoming the greedy nature of learning in multi-modal deep neural networks. In International Conference on Machine Learning . PMLR, 24043–24055. [21] Zhaohu Xing, Lequan Yu, Liang Wan, Tong Han, and Lei Zhu. 2022. NestedFormer: Nested modality-aware transformer for brain tumor segmentation. In Interna-tional conference on medical image computing and computer-assisted intervention .Springer, 140–150. [22] Hengyi Yang, Tao Zhou, Yi Zhou, Yizhe Zhang, and Huazhu Fu. 2023. Flexible fusion network for multi-modal brain tumor segmentation. IEEE journal of biomedical and health informatics 27, 7 (2023), 3349–3359. [23] Wenfang Yao, Kejing Yin, William K Cheung, Jia Liu, and Jing Qin. 2024. Drfuse: Learning disentangled representation for clinical multi-modal fusion with missing modality and modal inconsistency. In Proceedings of the AAAI conference on artificial intelligence , Vol. 38. 16416–16424. [24] Guokai Zhang, Xiaoang Shen, Yu-Dong Zhang, Ye Luo, Jihao Luo, Dandan Zhu, Hanmei Yang, Weigang Wang, Binghui Zhao, and Jianwei Lu. 2021. Cross-modal prostate cancer segmentation via self-attention distillation. IEEE Journal of Biomedical and Health Informatics 26, 11 (2021), 5298–5309. [25] Yao Zhang, Nanjun He, Jiawei Yang, Yuexiang Li, Dong Wei, Yawen Huang, Yang Zhang, Zhiqiang He, and Yefeng Zheng. 2022. mmformer: Multimodal medical transformer for incomplete multimodal learning of brain tumor segmentation. In International conference on medical image computing and computer-assisted intervention . Springer, 107–117. [26] Yao Zhang, Jiawei Yang, Jiang Tian, Zhongchao Shi, Cheng Zhong, Yang Zhang, and Zhiqiang He. 2021. Modality-aware mutual learning for multi-modal medical image segmentation. In International conference on medical image computing and computer-assisted intervention . Springer, 589–599. [27] Lifang Zhou, Yu Jiang, Weisheng Li, Jun Hu, and Shenhai Zheng. 2024. Shape-scale co-awareness network for 3D brain tumor segmentation. IEEE Transactions on Medical Imaging 43, 7 (2024), 2495–2508. [28] Tongxue Zhou, Su Ruan, and Stéphane Canu. 2019. A review: Deep learning for medical image segmentation using multi-modality fusion. Array 3 (2019), 100004. [29] Ying Zhou, Xuefeng Liang, Shiquan Zheng, Huijun Xuan, and Takatsune Kumada. 2023. Adaptive mask co-optimization for modal dependence in multimodal learning. In ICASSP 2023-2023 IEEE International Conference on Acoustics, Speech and Signal Processing (ICASSP) . IEEE, 1–5. [30] Zhiqin Zhu, Xianyu He, Guanqiu Qi, Yuanyuan Li, Baisen Cong, and Yu Liu. 2023. Brain tumor segmentation based on the fusion of deep semantics and edge information in multimodal MRI. Information Fusion 91 (2023), 376–387.

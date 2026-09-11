@@ -6,56 +6,38 @@
 </div>
 
 ## 每次日报
-- 最新运行日期：2026-09-10
-- 运行时间：2026-09-10 21:59:18 UTC
+- 最新运行日期：2026-09-11
+- 运行时间：2026-09-11 21:35:56 UTC
 - 运行状态：成功
-- 本次总论文数：12
-- 精读区：6
-- 速读区：6
+- 本次总论文数：6
+- 精读区：2
+- 速读区：4
 
 ### 今日简报（AI）
-2026-09-10日报：12篇遥感与多模态论文完成筛选，精读6篇、速读
-- 详情：[/202609/10/README](/202609/10/README)
+今日精读2篇、速读4篇，共6篇多模态融合论文，聚焦模态不确定性、可靠性校准与可解释性。最值得看的是两篇8分工作：RiVaT-Fuse用可靠性校准变分张量融合应对模态不确定性，另一篇以热传导建模提升高光谱与LiDAR联合分类的可解释性。普通读者可优先读这两篇精读，再按需浏览速读中关于深度可靠性、融合失效与UAV评估的轻量结论。
+- 详情：[/202609/11/README](/202609/11/README)
 
 ### 精读区论文标签
-1. [MEOX: Compact Multimodal Mixture-of-Experts for Earth Observation](/202609/10/2609.05351v1-meox-compact-multimodal-mixture-of-experts-for-earth-observation)  
-   标签：评分：9.0/10、query:multi-modal
-   evidence：处理缺失观测的多模态地球观测
-2. [Lightweight Adaptation of General-Purpose VLMs for Multispectral and SAR Image Understanding](/202609/10/2609.02187v1-lightweight-adaptation-of-general-purpose-vlms-for-multispectral-and-sar-image-understanding)  
+1. [RiVaT-Fuse: Reliability-Calibrated Variational Tensor Fusion for Multimodal Prediction under Modality Uncertainty](/202609/11/2609.10798v1-rivat-fuse-reliability-calibrated-variational-tensor-fusion-for-multimodal-prediction-under-modality-uncertainty)  
    标签：评分：8.0/10、query:multi-modal
-   evidence：适配通用视觉语言模型理解多光谱与SAR遥感图像
-3. [Exploring the Potential of Contrastive Language-Image Pre-training for Multi-Source Remote Sensing Data](/202609/10/2609.03391v1-exploring-the-potential-of-contrastive-language-image-pre-training-for-multi-source-remote-sensing-data)  
+   evidence：模态不确定下的变分张量融合
+2. [Toward Interpretable Multimodal Fusion: Heat Conduction Modeling for Hyperspectral and LiDAR Joint Classification](/202609/11/2609.11040v1-toward-interpretable-multimodal-fusion-heat-conduction-modeling-for-hyperspectral-and-lidar-joint-classification)  
    标签：评分：8.0/10、query:multi-modal
-   evidence：融合SAR、多光谱、高光谱等多源遥感数据
-4. [Residual Optimal Transport-Based Experts Collaboration Towards Modality-Aware Infrared-Visible Object Detection](/202609/10/2609.03516v1-residual-optimal-transport-based-experts-collaboration-towards-modality-aware-infrared-visible-object-detection)  
-   标签：评分：8.0/10、query:multi-modal
-   evidence：红外可见光融合中处理模态缺失或间歇，单流缺失仍稳健
-5. [Learning Spatial-Spectral Refinement and Calibrating Complementary Observations for Hyperspectral Image Super-Resolution](/202609/10/2609.05303v1-learning-spatial-spectral-refinement-and-calibrating-complementary-observations-for-hyperspectral-image-super-resolution)  
-   标签：评分：8.0/10、query:multi-modal
-   evidence：融合来自不同传感器的高光谱与多光谱遥感图像
-6. [LASSNet: Level-Aware Availability-Conditioned Spatial-Semantic Fusion for Brain Tumor Segmentation with Missing MRI Modalities](/202609/10/2609.06733v1-lassnet-level-aware-availability-conditioned-spatial-semantic-fusion-for-brain-tumor-segmentation-with-missing-mri-modalities)  
-   标签：评分：8.0/10、query:multi-modal
-   evidence：面向多模态影像分割的可用性条件缺失模态融合
+   evidence：融合高光谱与LiDAR遥感数据进行分类
 
 ### 速读区论文标签
-1. [MethaneFuse: Learning from Multi-Sensor Satellite Observations for Methane Plume Detection](/202609/10/2609.09762v1-methanefuse-learning-from-multi-sensor-satellite-observations-for-methane-plume-detection)  
-   标签：评分：8.0/10、query:multi-modal
-   evidence：多传感器卫星融合，观测不完整即缺失模态处理
-2. [Test-Time Logit Prompting for Source-Free Missing Modality Adaptation](/202609/10/2609.02039v1-test-time-logit-prompting-for-source-free-missing-modality-adaptation)  
+1. [When Depth Hurts: Reliability-Aware Geometry Distillation for Depth-Free RGB-D Salient Object Detection](/202609/11/2609.03378v1-when-depth-hurts-reliability-aware-geometry-distillation-for-depth-free-rgb-d-salient-object-detection)  
    标签：评分：7.0/10、query:multi-modal
-   evidence：面向缺失模态输入的测试时适配
-3. [Cross-modal learning for SAR target recognition using optical vision foundation models](/202609/10/2609.07753v1-cross-modal-learning-for-sar-target-recognition-using-optical-vision-foundation-models)  
-   标签：评分：7.0/10、query:multi-modal
-   evidence：跨模态光电-SAR遥感目标识别
-4. [Bridging Modalities and Tasks: A Unified Hierarchical ViT for SAR-to-Optical Translation and Semantic Segmentation](/202609/10/2609.04726v1-bridging-modalities-and-tasks-a-unified-hierarchical-vit-for-sar-to-optical-translation-and-semantic-segmentation)  
+   evidence：通过蒸馏处理多模态融合中缺失或不可靠模态
+2. [AAMBERS-UAV: Acquisition-Aware Multimodal Backbone Evaluation and Ranking for UAV Weedy Rice Segmentation](/202609/11/2609.05762v1-aambers-uav-acquisition-aware-multimodal-backbone-evaluation-and-ranking-for-uav-weedy-rice-segmentation)  
    标签：评分：6.0/10、query:multi-modal
-   evidence：统一分层ViT融合SAR与光学模态
-5. [TeMo: Temperature Modulation for Multimodal Contrastive Learning](/202609/10/2609.07540v1-temo-temperature-modulation-for-multimodal-contrastive-learning)  
+   evidence：融合RGB与多光谱传感器的遥感多模态骨干评估与分割
+3. [When Fusion Fails: Corruption-Aware Rebalanced Fusion for Multi-Modal Medical Image Segmentation](/202609/11/2609.10261v1-when-fusion-fails-corruption-aware-rebalanced-fusion-for-multi-modal-medical-image-segmentation)  
    标签：评分：6.0/10、query:multi-modal
-   evidence：多模态对比学习温度调制
-6. [I Don't Miss You, but I Do: Self-Explanation Faithfulness of Modality Missingness in Vision-Language Models](/202609/10/2609.07596v1-i-dont-miss-you-but-i-do-self-explanation-faithfulness-of-modality-missingness-in-vision-language-models)  
+   evidence：模态退化时融合失败的感知重平衡
+4. [Robust Multimodal Sentiment Analysis with Incomplete Modalities via Semantic-aware Completeness based Reconstruction](/202609/11/2609.10950v1-robust-multimodal-sentiment-analysis-with-incomplete-modalities-via-semantic-aware-completeness-based-reconstruction)  
    标签：评分：6.0/10、query:multi-modal
-   evidence：视觉语言模型中的模态缺失评估
+   evidence：不完整模态下缺失语义的重建
 
 
 <div class="dpr-home-promo-card">
