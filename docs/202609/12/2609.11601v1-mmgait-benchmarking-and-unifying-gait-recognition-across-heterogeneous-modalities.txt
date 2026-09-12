@@ -1,0 +1,733 @@
+Title: MMGait: Benchmarking and Unifying Gait Recognition across Heterogeneous Modalities
+
+URL Source: https://arxiv.org/pdf/2609.11601v1
+
+Published Time: Fri, 11 Sep 2026 01:14:04 GMT
+
+Number of Pages: 21
+
+Markdown Content:
+# MMGait: Benchmarking and Unifying Gait Recognition across Heterogeneous Modalities 
+
+Saihui Hou, Member, IEEE, Chenye Wang, Qingyuan Cai, Aoqi Li, Yongzhen Huang, Senior Member, IEEE 
+
+Abstract —Gait recognition is commonly studied using RGB videos or their derived silhouettes and poses. Yet human walking produces heterogeneous photometric, geometric, and motion cues that cannot be systematically examined with RGB-centered benchmarks. We present MMGait, a large-scale multi-sensor benchmark that brings visible, infrared, depth, LiDAR, and radar observations into sequence-level correspondence. It pro-vides diverse modalities spanning appearance, contours, geom-etry, motion, and body structure. Under a shared impostor-augmented protocol, we systematically evaluate single-modal recognition, cross-modal recognition via directed retrieval, and multi-modal recognition using task-specific experts. Across the evaluated settings, modality rankings vary with probe condi-tions, cross-modal alignment remains difficult, and fusion often provides complementary gains. This analysis also exposes ascalability problem: individual modalities, modality pairs, and fusion configurations are typically handled by separately trained experts. We therefore formulate Omni-Modal Gait Recognition, which unifies single-modal, cross-modal, and multi-modal recog-nition within a shared identity space. To instantiate this formu-lation, OmniGait++ uses modality-specific front ends followed by a shared identity encoder to preserve modality-dependent cues while learning comparable identity descriptors. An anchor-guided fusion module then aggregates modality subsets of varying size without requiring frame-level synchronization. A single jointly trained checkpoint operates across the three recognition settings and accommodates modality subsets of different com-positions and cardinalities. Experiments show that OmniGait++ remains competitive with task-specific experts in many shared settings and extends to higher-cardinality fusion unavailable to fixed-pair models. These results establish MMGait as a common testbed for heterogeneous gait sensing and demonstrate the feasi-bility of unified recognition under varying modality availability. 
+
+Index Terms —Gait Recognition, Heterogeneous Sensing, Cross-Modal Recognition, Multi-Modal Fusion. 
+
+I. I NTRODUCTION 
+
+Gait recognition identifies individuals from their walking patterns at a distance and without requiring explicit cooper-ation, making it attractive for non-contact biometric appli-cations [1]. Human walking is an inherently multi-faceted physical process whose identity-related cues are conveyed 
+
+Saihui Hou and Qingyuan Cai are with the School of Artificial Intelligence, Beijing Normal University, Beijing, China (e-mail: housaihui@bnu.edu.cn; caiqingyuan@mail.bnu.edu.cn). Chenye Wang is with The Hong Kong University of Science and Technol-ogy, Hong Kong, China (e-mail: chenye.wang@connect.ust.hk). Aoqi Li is with JD.com, Beijing, China (e-mail: liaoqi16@jd.com). They contributed to this work while they were with the School of Artificial Intelligence, Beijing Normal University. Yongzhen Huang is with the School of Artificial Intelligence, Beijing Normal University, Beijing, China, and also with Watrix Technology Limited Co. Ltd, Beijing, China (e-mail: huangyongzhen@bnu.edu.cn). 
+
+through appearance, body shape, three-dimensional structure, and motion. Yet most existing studies observe this process through RGB videos or their derived modalities, particularly silhouettes [2], [3] and poses [4], [5]. Despite strong per-formance in controlled and unconstrained environments [6], [7], these modalities remain different abstractions of the same projected visual source. This leaves a fundamental question: given corresponding gait sequences, how discriminative is each modality, how well can heterogeneous modalities be aligned, and to what extent can they complement one another? Existing multi-sensor benchmarks cannot adequately answer this question because their sensing breadth remains limited. Earlier datasets provide heterogeneous or non-RGB obser-vations but contain only a few hundred identities and offer sparse view coverage [8], [9]. Recent benchmarks increase the population to more than one thousand identities, but largely concentrate on RGB–LiDAR sensing [10], [11]. Consequently, photometric, geometric, and motion-related cues are rarely observed together for the same identities, walking conditions, and viewpoints, making their discriminability, redundancy, and complementarity difficult to study systematically. To overcome this bottleneck, we present MMGait , a large-scale multi-sensor gait benchmark comprising 1,015 identi-ties , five sensing streams, twelve gait modalities, ten walking directions, and three walking conditions. After quality control, MMGait contains 482,327 gait-sequence instances spanning visible and infrared (IR) appearance, body contours, dense depth, 3D point clouds, projected geometry, event-based mo-tion, and 2D/3D pose. By bringing these photometric, geomet-ric, and motion-related observations together with sequence-level correspondence, MMGait provides a common testbed for examining how heterogeneous gait cues differ, align, and complement one another. Using this common data foundation, we establish a unified, impostor-augmented protocol to evaluate heterogeneous gait sensing in three settings: single-modal recognition for stan-dalone discriminability, cross-modal recognition via directed retrieval for identity alignment, and multi-modal recognition via cue fusion for complementarity. We benchmark all twelve modalities individually and, given the rapidly growing configu-ration space, representative directed cross-modal retrieval tasks and two-modality fusion configurations using task-specific experts. Results show that robustness varies across modalities and probe conditions, cross-modal alignment remains chal-lenging and pair-dependent, and fusion often provides substan-tial gains over individual modalities. Together, these findings show that a gait modality’s utility reflects its standalone dis-criminability, cross-modal compatibility, and complementarity 1arXiv:2609.11601v1 [cs.CV] 10 Sep 2026 Multi-Covariate  
+
+> Walking Backpack Clothing
+
+Multi-View Multi-Modal            
+
+> 0°36 °72 °252 °288 °324 °
+> RGB RGB Silhouette IR Silhouette IR LiDAR Projected Depth Radar Projected Depth Radar Point Cloud LiDAR Point Cloud 2D Pose 3D Pose Event Depth
+
+⋯
+
+IR 
+
+Silhouette 
+
+Depth 
+
+Projected Depth 
+
+RGB 
+
+Silhouette 
+
+> 2D Pose
+> 3D Pose
+
+Event 
+
+Point Cloud 
+
+Point Cloud 
+
+Projected Depth 
+
+RGB Camera 
+
+IR Camera 
+
+Depth Camera 
+
+LiDAR Scanner 
+
+4D Radar System Fig. 1. Overview of MMGait. Five sensing streams provide twelve raw or derived gait modalities across ten views and three walking conditions. 
+
+with other sensing cues. This systematic evaluation also exposes a deeper scalability problem: each single modality, cross-modal pair, and fusion subset is typically handled by a separately trained expert. The number of such models grows rapidly as the supported modality set expands, making exhaustive development and deployment impractical. We therefore formulate Omni-Modal Gait Recognition , which treats the input as a set of available modalities rather than a fixed modality configuration and learns one shared identity space for single-modal recognition, cross-modal recognition, and multi-modal recognition. Its cen-tral challenge is to preserve the distinctive physical informa-tion of each modality while maintaining identity comparability as the number and composition of the available inputs change. To address this challenge, we propose OmniGait++ . Unlike conventional methods designed for a predefined modality or modality combination, OmniGait++ supports different modal-ity subsets within a unified model. Its modality-specific en-coders preserve distinctive input characteristics, while shared representation learning maps heterogeneous observations into a common identity space. When multiple modalities are available, an adaptive fusion module integrates their features and recalibrates their contributions according to the modal-ity combination. We evaluate a single jointly trained model across 9 single-modal settings, 12 directed cross-modal re-trieval tasks, and 19 variable-cardinality fusion configurations. Single-modal recognition, cross-modal recognition, and multi-modal recognition thus become different operating settings of one shared framework rather than separate models. In summary, our contributions are threefold:  
+
+> •
+
+We construct MMGait , a large-scale benchmark that contains five heterogeneous sensing streams and provides twelve gait modalities for 1,015 identities. Its dense cross-view coverage and sequence-level correspondence enable physically different gait cues to be studied within one common experimental basis.  
+
+> •
+
+We establish a common, impostor-augmented evaluation across single-modal recognition, cross-modal recognition, and multi-modal recognition. Beyond ranking individ-ual modalities, the resulting study characterizes their robustness across probe conditions, cross-modal identity compatibility, and complementary value.  
+
+> •
+
+We formulate Omni-Modal Gait Recognition and pro-pose OmniGait++ , whose shared identity learning and adaptive variable-cardinality fusion enable a single jointly trained model to support single-modal recognition, cross-modal recognition, and multi-modal recognition across different modality subsets. This article substantially extends our preliminary conference work [12] along the data, evaluation, and modeling dimen-sions. First, we re-audit the original 725-participant collection for multi-sensor recording completeness, retain recordings from 685 participants, and add data from 330 newly recorded participants, producing a 1,015-identity benchmark with im-proved data completeness. Second, we introduce an impostor-augmented evaluation protocol and re-run all single-modal, cross-modal, and multi-modal experiments on the expanded benchmark rather than reusing conference results. Third, we formulate Omni-Modal Gait Recognition and implement it by extending the pairwise OmniGait model to OmniGait++ 
+
+with adaptive variable-cardinality fusion. We also establish a 19-configuration registry for evaluating variable-cardinality 2fusion. Together, these additions provide a substantially ex-panded benchmark, a more challenging evaluation protocol, and a unified model for variable-cardinality fusion. II. R ELATED WORK 
+
+A. Gait Recognition with Diverse Modalities 
+
+Binary silhouettes remain the dominant gait modality be-cause they suppress appearance and background details while preserving body shape and motion. GaitSet treats a sequence as an unordered set [2], whereas GaitPart learns localized temporal patterns from horizontal body regions [13]. GaitGL subsequently combines global and local representations [14]. More recent studies revisit general-purpose architectures at larger scales: GaitBase establishes a strong convolutional baseline, and DeepGaitV2 examines the effect of network depth [3], [15]. Other methods improve robustness through causal analysis, motion modeling, or clothing-related repre-sentation learning [16]–[20]. Despite this progress, silhouettes depend on foreground segmentation. They also discard texture, depth, and other physical measurements. Pose modalities provide a complementary description based on body joints and their temporal dynamics. PoseGait ex-tracts identity cues from estimated 3D joint trajectories [4], while GaitGraph and GaitGraph2 model skeleton sequences as spatio-temporal graphs [21], [22]. GPGait introduces human-prior-guided pose modeling [23], and subsequent studies im-prove pose estimation or temporal representation [24], [25]. SkeletonGait instead renders poses as heatmaps, retaining spatial structure for convolutional processing [5]. Pose is com-pact and less dependent on texture, but recognition remains sensitive to estimation errors under occlusion, low resolution, or unusual viewpoints. Recent work broadens gait recognition toward appearance, spectral, temporal, geometric, and radio-frequency informa-tion. RGB retains texture and color. BigGait and BiggerGait use large vision models to extract gait-related features from RGB videos [6], [7]. Infrared imaging supplies spectrum-dependent appearance under weak visible illumination [8]. Event-based approaches emphasize temporal changes: Edino-Gait studies event representation learning [26], while Event-Gait separates high-frequency motion and shape cues [27]. Depth cameras provide dense geometry with reduced depen-dence on texture [28]. PointGait processes 3D point-cloud sequences [29], whereas LidarGait and LidarGait++ develop LiDAR-specific representations [10], [30]. Radar further cap-tures motion responses relevant to gait identification under weak visual conditions [31]. These sensing mechanisms ex-pose complementary physical properties, yet they are generally studied on separate datasets with dedicated models. Controlled comparison and joint modeling across heterogeneous sensing modalities therefore remain difficult. 
+
+B. Cross-Modal, Multi-Modal, and Unified Gait Recognition 
+
+Cross-modal gait recognition matches a probe in one modal-ity against a gallery represented in another and is typically evaluated through directed retrieval. Existing gait methods mainly study this task between cameras and LiDAR. CrossGait learns modality-shared prototypes and feature adapters [32], whereas CL-Gait uses contrastive pre-training with paired silhouettes and synthetic point clouds [33]. TCFDNet fur-ther employs text-guided feature disentanglement to separate shared identity information from modality-specific characteris-tics [34]. These methods improve 2D–3D alignment, and some also preserve within-modality recognition. Their cross-modal components, nevertheless, remain optimized for a predefined modality pair. Multi-modal gait recognition instead exploits complemen-tary observations that are simultaneously available. MMGait-Former and TriGait combine silhouette–pose cues through multi-branch architectures [35], [36]. MultiGait++ investigates shared and distinctive information in silhouettes, human pars-ing, and optical flow [37]. Beyond RGB-derived modalities, EMGaitNet integrates camera–LiDAR observations using se-mantic guidance [38]. These methods establish the value of complementary observations, but most assume a fixed pair or a small predetermined modality set. UGaitNet relaxes this assumption by accepting a variable number of grayscale, op-tical flow, depth, or silhouette inputs [39]. Its inputs, however, remain primarily camera-centric. Beyond gait recognition, person ReID provides related progress toward a common identity space across heteroge-neous inputs. All-in-One learns consistent representations from RGB, infrared, sketch, and text through a modality-aware shared model [40]. ReID5o introduces a five-modality bench-mark and expert routing for variable query combinations [41]. These studies demonstrate the feasibility of unified identity modeling, but they primarily concern appearance-based or semantic inputs. Multi-sensor gait introduces further phys-ical heterogeneity because its modalities encode spectrum-dependent appearance, geometry at different densities, sparse motion responses, or body structure. Existing methods thus cover only part of the target task space. Omni-Modal Gait Recognition instead unifies single-modal recognition, cross-modal recognition, and multi-modal recognition over variable-cardinality modality subsets within a shared identity space. 
+
+C. Gait Recognition Benchmarks 
+
+Controlled RGB benchmarks established the standard set-tings for cross-view and cross-condition gait recognition [42], [43]. CASIA-B includes normal walking, bag carrying, and clothing change across multiple views [44], whereas OU-MVLP substantially increases the population scale for cross-view evaluation [45]. CCPG emphasizes clothing varia-tion [46]. CCGR provides larger-scale cross-view and cross-condition observations [47]. Gait3D and GREW extend gait recognition to unconstrained scenes, trajectories, and pedes-trian appearances [48], [49]. These benchmarks have driven substantial progress, but their commonly used modalities are predominantly derived from RGB videos. Non-RGB and multi-sensor benchmarks broaden the sens-ing scope. CASIA-C provides thermal-infrared sequences captured at night [8], while TUM-GAID combines RGB, depth, and audio observations [9]. SUSTech1K provides syn-chronized camera–LiDAR data for point-cloud gait recogni-3TABLE I SPECIFICATIONS OF THE FIVE SENSING STREAMS AND THEIR TWELVE RAW OR DERIVED MODALITIES IN MMG AIT .                  
+
+> Sensor Range Resolution Modalities
+> RGB 0.4–10 m 1280 ×800 RGB, RGB Silhouette, 2D/3D Pose, Event IR 0.4–10 m 1280 ×700 IR, IR Silhouette Depth 0.4–10 m 1280 ×800 Depth LiDAR 0.5–100 m 128 beams Point Cloud, Projected Depth 4D Radar 0.2–170 m –Point Cloud, Projected Depth
+
+tion [10]. FreeGait extends camera–LiDAR acquisition to un-constrained outdoor trajectories [11], whereas LRGait empha-sizes synchronized long-range and cross-distance sensing [38]. These datasets demonstrate the value of cross-spectrum or 3D observations, but each covers only a limited portion of the sensor combinations encountered in heterogeneous perception systems. MMGait instead combines broader sensing diversity with dense multi-view coverage and sequence-level corre-spondence under a unified evaluation framework, enabling controlled comparison of physically different gait modalities. III. MMG AIT BENCHMARK 
+
+MMGait is a large-scale multi-sensor gait benchmark con-taining 1,015 identities and 482,327 released gait sequences. As illustrated in Fig. 1, the benchmark provides five sensing streams: RGB, depth, IR, LiDAR, and 4D radar. These streams are processed into twelve gait modalities spanning visible and IR appearance, body contours, 2D/3D pose, dense depth, 3D point clouds, projected geometry, and event-based motion. Each participant is recorded from ten walking directions under normal walking, backpack carrying, and clothing change. MMGait therefore jointly provides population scale, multi-view coverage, and sensing diversity for studying single-modal recognition, cross-modal recognition, multi-modal recognition, and unified Omni-Modal Gait Recognition. 
+
+A. Multi-Sensor Data Acquisition 
+
+Table I summarizes the sensor specifications and resulting gait modalities. The RGB and depth streams are captured using an Orbbec Gemini 2 XL RGB-D camera module [50]. The RGB stream records visible appearance, whereas the infrared-enhanced stereo depth stream captures dense body geometry with reduced dependence on texture. IR videos are recorded by an independent industrial camera operating at a 940-nm narrowband wavelength. The 940-nm wavelength was selected to reduce interference from the LiDAR laser while providing spectrum-dependent appearance under weak visible illumination. The LiDAR stream is acquired using an Ouster OS0-7 scanner [51], which records 3D point clouds. The GPAL Ares-R7861 4D radar [52] provides sparse point clouds that encode complementary spatial and motion responses. Using this acquisition system, participants walk along the five-pointed-star route shown in Fig. 2. The route produces Region of Interest    
+
+> Sensors Start & End
+> 5m 36 °
+> Region of Interest
+> Sensors Start & End
+> 5m 36 °
+> Fig. 2. Five-pointed-star route used for MMGait acquisition. The two panels show opposite traversals of five segments, together yielding ten walking directions at approximately 36 ◦intervals relative to the fixed sensing system.
+
+ten walking directions distributed over a full circle at intervals of approximately 36 ◦. Each walking direction is assigned a view label according to its orientation relative to the fixed sensing system. Each participant is recorded four times while walking the full route under three walking conditions: twice during normal walking, once while carrying a backpack, and once after a clothing change. Each full-route recording is divided into ten direction-specific gait sequences following the predefined route segments. The resulting sequences have four sequence types—NM-01 and NM-02 for normal walking, BG-01 for backpack carrying, and CL-01 for clothing change—and each sequence inherits the view label of its walking direc-tion. Participants use their own backpacks and independently change both upper and lower garments, introducing natural intra-condition diversity instead of using a single standardized accessory or outfit. During each recording, the five sensing streams observe the same participant under a common walking condition. RGB and depth originate from the same RGB-D module, whereas the IR, LiDAR, and radar streams use separate acquisition interfaces without a common hardware trigger or time base. MMGait therefore retains the native sequences and associates them at the sequence level using the identity label, sequence type, and view label, without imposing potentially inaccurate frame-level alignment. This design supports cross- and multi-modal recognition without frame-level synchronization. 
+
+B. Data Processing and Statistics 
+
+Because the sensing mechanisms and data structures dif-fer substantially, we construct a stream-specific processing pipeline for each sensing stream. The pipelines transform the raw recordings into modality-specific gait sequences while preserving the physical characteristics of individual modalities. 
+
+RGB camera. We first apply pedestrian tracking [53] to obtain human bounding boxes from RGB videos. The resulting boxes are used to crop the RGB appearance sequences. Within each box, a segmentation model extracts the corresponding binary silhouette [54]. Beyond appearance and silhouette ex-traction, the RGB videos are also used to derive pose and event data. Pose estimators generate the 2D and 3D pose sequences [55], [56], while V2E [57] converts the RGB videos into event sequences. 40 20 40 60 80 100 >=130  
+
+> Sequence Length (Frames)
+> 0.00 0.01 0.02 0.03 0.04
+> Sequence Proportion
+> 4D Radar LiDAR IR RGB Depth Fig. 3. Sequence-length distributions of MMGait across sensing streams.
+
+IR camera. Pedestrian tracking is performed independently on the IR videos to obtain human bounding boxes. The boxes are used to crop the IR appearance sequences, while pedestrian segmentation within each box produces the corresponding binary silhouettes. 
+
+Depth camera. Because RGB and depth are captured by the same RGB-D module, we transform the RGB-derived bounding boxes into depth-image coordinates and use them to crop the corresponding human depth regions. 
+
+LiDAR scanner. We first crop the LiDAR scans to the predefined region of interest covering the walking route. Ground points are removed using Patchwork++ [58], followed by density-based filtering [59] to suppress scattered noise and irrelevant objects. The filtered points form LiDAR point-cloud sequences and are further converted into 2D projected-depth maps following established LiDAR gait processing [10]. 
+
+4D radar. For the radar stream, we use the corresponding walking-area region of interest to discard off-route detec-tions. The retained sparse detections form radar point-cloud sequences, from which 2D projected-depth maps are generated using the LiDAR projection procedure described above. After the stream-specific processing described above, the resulting sequence-length distributions vary across sensing streams, as shown in Fig. 3. This variation reflects differences in acquisition rates and independently determined temporal boundaries. Consistent with the sequence-level association described in the preceding subsection, the released sequences retain their original frame counts and are not temporally resampled to a uniform length. Beyond these within-dataset statistics, Table II compares MMGait with representative gait benchmarks. Notably, MMGait complements existing bench-marks with controlled ten-direction observations from five heterogeneous sensing streams under a common identity and condition structure. 
+
+C. Unified Evaluation Protocols 
+
+We use an identity-disjoint split, with 300 identities for training and the remaining 715 for testing. To isolate the effect of gallery composition, we define two protocols that share the same probes and positive templates but differ in their non-target samples. Protocol V1 evaluates matching against a compact, view-specific normal-walking template gallery, whereas Protocol V2 evaluates robustness to a substantially larger impostor gallery. Both protocols apply to single-modal recognition, cross-modal recognition, and multi-modal recognition. Cross-modal recognition is evaluated as directed probe-to-gallery retrieval. We denote the evaluated modality configuration—a single modality, an ordered probe–gallery modality pair, or a modal-ity subset, respectively—by c. Let X (c) 
+
+> g
+
+denote the available gallery-side test instances under c. Each xi ∈ X (c) 
+
+> g
+
+has identity label yi, view label vi, and sequence type si.BG-01 and CL-01 instances in the probe-side configuration serve as queries. For a query with identity label y and a designated template view vt, its available NM-01 and NM-02 gallery-side instances with identity label y at vt are positive. Separate 10 × 10 probe-view-by-template-view matrices are constructed for BG and CL. Rank-1 accuracy and average precision (AP) are computed for each query against the protocol-specific gallery and averaged within each matrix cell. To focus on cross-view performance, the final Rank-1 accuracy and mean average precision (mAP) are obtained by uniformly averaging the off-diagonal cells. 
+
+1) Protocol V1: Template-Only Gallery: Let SNM =
+
+{NM-01 , NM-02 } denote the normal-walking sequence types. For a positive-template view vt, the gallery contains the available templates of all test identities at that view: 
+
+G(c)V1 (vt) = {xi ∈ X (c) 
+
+> g
+
+| vi = vt, s i ∈ S NM }. (1) 
+
+2) Protocol V2: Impostor-Augmented Gallery: For a query with identity label y and a positive-template view vt, Protocol V2 augments the V1 gallery with every available gallery-side instance from non-target identities, regardless of view or sequence type: 
+
+G(c)V2 (y, v t) = G(c)V1 (vt) ∪ { xi ∈ X (c) 
+
+> g
+
+| yi̸ = y}. (2) All other instances with identity label y, including normal-walking templates at other views, are excluded. Thus, the positive set remains identical to that of Protocol V1. 
+
+D. Ethics, Privacy, and Responsible Use 
+
+Consent and Pseudonymization. Participation was volun-tary, and all participants provided written informed consent before recording. The consent procedure explicitly covered the collection of multi-sensor gait data, its use in academic re-search and publications, and its release to qualified researchers. Direct personal identifiers and demographic attributes are not included in the released benchmark. Dataset annotations identify each participant only by a pseudonymous participant ID. No mapping between these IDs and participants’ real-world identities is retained. 
+
+Controlled Access and Permitted Use. MMGait is dis-tributed through an application process rather than unrestricted public download. Applicants must identify their institutional affiliation and intended research purpose and agree to the dataset license before access is granted. The license restricts the benchmark to research use and prohibits redistribution. 5TABLE II COMPARISON OF MMG AIT WITH REPRESENTATIVE GAIT -RECOGNITION BENCHMARKS .                                                                        
+
+> Dataset Year Identities Views Sequences Sensing Streams Highlights
+> CASIA-B [44] 2006 124 11 13,640 RGB Cross-View and Covariates OU-MVLP [45] 2018 10,307 14 288,596 RGB Cross-View GREW [49] 2021 26,345 882 128,671 RGB In-the-Wild Gait3D [48] 2022 4,000 39 25,309 RGB In-the-Wild CCPG [46] 2023 200 10 16,566 RGB Clothing Change CCGR [47] 2024 970 33 1,580,617 RGB Cross-Condition CASIA-C [8] 2006 153 11,530 Thermal Infrared Nighttime Thermal TUM-GAID [9] 2012 305 13,370 RGB, Depth, Audio RGB–Depth–Audio Covariates SUSTech1K [10] 2023 1,050 12 25,239 RGB, LiDAR Camera–LiDAR FreeGait [11] 2024 1,195 111,950 RGB, LiDAR Free-Trajectory
+> MMGait 2026 1,015 10 482,327 RGB, IR, Depth, LiDAR, 4D Radar Five-Stream Heterogeneous Sensing
+
+These conditions apply to both the raw sensor observations and all derived modality data. 
+
+Residual Risks and Participant Rights. Pseudonymization cannot eliminate privacy risks because sensor observations and derived modality data may retain biometric information. Users are therefore required to handle MMGait as sensitive human-subject data and comply with the access conditions throughout their research. Participants may contact the authors to request the removal of their data from subsequent releases. The authors also provide a contact channel for questions about data access and for reporting potential misuse. IV. S YSTEMATIC EVALUATION OF GAIT MODALITIES 
+
+Before introducing a unified omni-modal model, we system-atically characterize the gait modalities provided by MMGait through three complementary questions. First, how much stan-dalone identity information does each modality preserve under different probe conditions and gallery definitions? Second, to what extent can identity descriptors be compared across heterogeneous modalities? Third, when multiple modalities are jointly available, do they provide complementary information beyond what each modality provides individually? We address these questions using representative task-specific baselines. All evaluations follow the official identity-disjoint split, gallery construction, and metrics defined in Section III-C. For single-modal recognition, we report both Protocol V1 and Proto-col V2 to characterize sensitivity to the impostor-augmented gallery, whereas the cross-modal and multi-modal evaluations focus on Protocol V2. 
+
+A. Single-Modal Recognition 1) Single-Modal Baseline: Single-modal baselines are se-lected according to the data structure of each modality. For the established RGB-silhouette and pose modalities, we compare multiple specialized methods. The pose comparison includes coordinate-based methods for both 2D and 3D pose, together with the heatmap-based SkeletonGait [5] for 2D pose. For systematic coverage, DeepGaitV2-P3D [15] serves as the com-mon baseline for image-like inputs, while LidarGait++ [30] processes native LiDAR and radar point clouds. Each method– modality combination is trained independently. Table III pro-vides method-level comparisons for RGB silhouettes and poses, together with task-appropriate baselines for all twelve MMGait modalities. 
+
+2) Sensitivity to Gallery Construction: Moving from Pro-tocol V1 to Protocol V2 enlarges the gallery by adding samples from non-target identities across all available views and sequence types, while leaving the probes and positive tem-plates unchanged. The resulting performance change therefore reflects the joint effect of a larger gallery and greater view and sequence-type diversity among its impostor samples. The effect of this change depends strongly on both modal-ity and probe condition. RGB and IR appearance remain comparatively stable under BG, whereas depth and the event modality are more sensitive to the enlarged gallery. Under CL, substantial degradation occurs across nearly all modalities, indicating that the enlarged gallery particularly amplifies iden-tity ambiguity for CL probes. The magnitude of the degrada-tion nevertheless varies across modalities, revealing modality-specific sensitivity to gallery construction under Protocol V2. 
+
+3) Comparative Analysis of Gait Modalities: The lead-ing RGB-silhouette method is stable across probe conditions and protocols: DeepGaitV2-P3D consistently achieves the best Rank-1 and mAP. By contrast, the best-performing 2D pose method changes with the probe condition: SkeletonGait performs best under BG, whereas GPGait++ achieves the strongest results under CL. GPGait++ also consistently out-performs GPGait for both 2D and 3D pose. With GPGait++ held fixed, however, estimated 3D pose remains substantially below 2D pose. This gap may reflect differences in the pose representations and estimation pipelines rather than an inherent limitation of 3D body structure. Turning to modality-level comparisons, we use the best-performing method in each setting when a modality is evalu-ated with multiple methods. Across both protocols, RGB and IR appearance lead under BG, whereas LiDAR projected depth and IR appearance lead under CL. Depth also consistently outperforms RGB appearance under CL. By contrast, the event modality and both radar modalities remain comparatively weak under Protocol V2, especially for CL probes. Comparisons within individual sensing streams further show how modality-specific processing affects the retained identity information. In the RGB stream, appearance is more discrimi-native than the silhouette under BG, whereas the silhouette performs better under CL. In the IR stream, appearance consistently outperforms the silhouette; this gap may reflect both the removal of near-infrared appearance cues during bi-narization and errors introduced by IR silhouette segmentation. 6TABLE III SINGLE -MODAL RECOGNITION ON MMG AIT UNDER PROTOCOLS V1 AND V2. R ESULTS ARE REPORTED AS RANK -1 ACCURACY AND M AP (%). B OLD VALUES DENOTE THE BEST RESULT WHEN MULTIPLE METHODS ARE COMPARED FOR THE SAME MODALITY .                                                                                                                                                                                                           
+
+> Sensing Streams Modality Method Protocol V1 Protocol V2 BG CL BG CL
+> R1 mAP R1 mAP R1 mAP R1 mAP RGB Silhouette GaitSet [2] 92.7 92.3 55.7 60.0 79.4 77.9 29.9 31.9 GaitPart [13] 95.4 95.1 59.9 64.1 83.5 82.5 33.1 35.3 GaitGL [14] 94.3 93.4 57.4 61.3 73.2 73.6 24.2 27.7 GaitBase [3] 98.0 97.9 72.3 75.7 92.0 91.6 45.0 47.4 DeepGaitV2-P3D [15] 98.9 98.8 73.7 77.2 94.0 93.7 47.0 49.5
+> 2D Pose GaitGraph [21] 41.7 45.9 26.0 31.6 15.6 17.6 7.3 9.2 GaitGraph2 [22] 12.7 15.0 7.9 10.5 3.8 4.5 1.6 2.1 GaitTR [60] 66.1 68.1 47.2 51.5 37.3 38.4 21.4 23.6 GPGait [23] 74.2 74.7 48.6 52.2 42.8 44.8 21.6 24.2 GPGait++ [24] 79.5 80.0 59.8 62.7 53.4 54.3 33.7 35.7
+> SkeletonGait [5] 80.9 80.9 52.8 56.0 56.1 56.3 27.6 29.4 3D Pose GPGait [23] 35.3 38.8 22.5 26.8 7.2 10.3 3.5 5.6 GPGait++ [24] 38.2 41.6 29.6 33.6 9.9 12.9 6.8 9.4
+> RGB DeepGaitV2-P3D [15] 99.6 99.7 58.3 66.1 99.2 99.2 38.5 42.0 Event DeepGaitV2-P3D [15] 64.5 67.6 19.7 24.8 28.7 31.9 5.3 7.0 IR IR DeepGaitV2-P3D [15] 99.2 99.2 76.1 81.2 97.2 97.2 54.8 58.3 Silhouette DeepGaitV2-P3D [15] 96.2 96.0 55.5 60.4 85.4 84.6 25.5 28.3 Depth Depth DeepGaitV2-P3D [15] 93.2 93.1 73.7 76.7 72.6 73.0 42.9 45.4 LiDAR Projected Depth DeepGaitV2-P3D [15] 94.9 95.5 79.4 82.5 83.9 84.6 55.6 58.0 Point Cloud LidarGait++ [30] 93.9 94.5 75.6 80.0 81.2 81.6 52.3 54.7 4D Radar Projected Depth DeepGaitV2-P3D [15] 12.9 18.4 11.2 17.0 1.9 3.0 1.2 2.4 Point Cloud LidarGait++ [30] 26.8 34.6 23.2 31.6 5.1 7.5 3.6 5.9
+
+The preferred encoding also differs between the LiDAR and radar streams. LiDAR projected depth slightly outperforms its native point cloud, whereas the radar point cloud is stronger than its projection. This opposite pattern may reflect greater information loss when sparse radar returns are projected onto a regular image plane. Overall, no evaluated modality–model pair is uniformly superior across probe conditions and gallery protocols. Single-modal discriminability depends on the probe condition, input representation, and recognition method. Single-modal eval-uation alone, however, cannot determine whether identity descriptors are compatible across modalities or whether jointly available modalities provide complementary information. We examine these questions next through cross-modal and multi-modal recognition. 
+
+B. Cross-Modal Recognition 1) Cross-Modal Baseline: Cross-modal gait recognition matches a probe in one modality against a gallery repre-sented in another. We evaluate it as directed retrieval, with each modality serving as the probe and gallery in turn. We adopt CL-Gait [33] as the task-specific baseline, training one model for each selected unordered modality pair. Early layers are modality-specific and deeper layers are shared. The two branches are jointly optimized using identity classification and a symmetric cross-modal triplet objective. Symmetry is achieved by constructing triplets in both directions: each modality alternately supplies anchor samples, while positive and negative samples are drawn from the other modality. This objective encourages identity discrimination and cross-modal alignment simultaneously. To obtain a controlled comparison across sensing streams, we select four modalities with a compatible spatial orga-nization: RGB silhouette, IR silhouette, depth, and LiDAR projected depth. The two silhouettes provide a shared contour abstraction across visible and infrared sensing, while depth and LiDAR projected depth provide spatially compatible ge-ometric measurements. This selection uses one representative from each of four sensing streams rather than exhaustively pairing all twelve modalities. The resulting six unordered pairings cover cross-spectrum contour, contour-to-geometry, and geometry-to-geometry retrieval, corresponding to twelve directed tasks. In particular, radar projected depth is excluded because its limited standalone discriminability would make it difficult to distinguish alignment quality from modality-specific recognition failure. Radar projected depth is neverthe-less included in the subsequent multi-modal evaluation to test whether it can provide complementary cues when fused with stronger modalities. All results in this subsection are evaluated under Protocol V2. 
+
+2) Pairwise Retrieval: Table IV reports the twelve directed retrieval tasks together with pair-level and overall averages. The equal-weight Cross-Modal Avg. reaches 51 .2% Rank-1 and 52 .3% mAP under BG. Under CL, it decreases to 19 .4% 
+
+Rank-1 and 21 .9% mAP. The decline across all six modality pairs shows that clothing change further increases the difficulty of cross-modal matching. Cross-modal retrieval between RGB and IR silhouettes achieves the strongest performance, suggesting that their shared contour abstraction facilitates cross-modal matching. 7TABLE IV CROSS -MODAL RECOGNITION UNDER PROTOCOL V2 (%). T HE ARROW DENOTES PROBE -TO -GALLERY RETRIEVAL ; B IDIRECTIONAL AVG . IS THE ARITHMETIC MEAN OF THE TWO DIRECTIONS , AND CROSS -M ODAL AVG .  
+
+> EQUALLY WEIGHTS THE SIX MODALITY PAIRS . L IDAR DENOTES LIDAR
+> PROJECTED DEPTH .
+
+Cross-Modal Settings BG CL 
+
+R1 mAP R1 mAP RGB Sil. → IR Sil. 86.0 85.3 31.0 33.3 IR Sil. → RGB Sil. 83.7 83.8 28.1 31.0 
+
+Bidirectional Avg. 84.9 84.5 29.5 32.1 RGB Sil. → Depth 51.0 51.6 18.2 20.5 Depth → RGB Sil. 38.2 40.6 16.1 18.5 
+
+Bidirectional Avg. 44.6 46.1 17.2 19.5 RGB Sil. → LiDAR 59.6 60.4 24.8 27.4 LiDAR → RGB Sil. 50.8 52.3 22.5 25.0 
+
+Bidirectional Avg. 55.2 56.4 23.6 26.2 IR Sil. → Depth 39.8 41.2 10.6 12.9 Depth → IR Sil. 33.2 34.8 11.6 13.7 
+
+Bidirectional Avg. 36.5 38.0 11.1 13.3 IR Sil. → LiDAR 52.3 53.7 17.0 19.8 LiDAR → IR Sil. 47.3 47.9 17.7 19.7 
+
+Bidirectional Avg. 49.8 50.8 17.3 19.7 Depth → LiDAR 35.1 37.8 17.5 20.3 LiDAR → Depth 37.3 38.8 17.8 20.3 
+
+Bidirectional Avg. 36.2 38.3 17.6 20.3 
+
+Cross-Modal Avg. 51.2 52.3 19.4 21.9 
+
+Pairing either silhouette with a geometric modality is markedly harder. Notably, depth and LiDAR projected depth achieve comparatively strong single-modal recognition, but their bidi-rectional cross-modal Rank-1 average is only 36 .2% under BG and 17 .6% under CL. Shared geometric information and standalone discriminability are therefore insufficient to guarantee cross-modal descriptor compatibility. These results demonstrate the difficulty of cross-modal alignment for the evaluated modality pairs. We next examine whether modalities provide complementary identity information through fusion. 
+
+C. Multi-Modal Recognition 1) Multi-Modal Baseline: We evaluate jointly available modalities using the two-modality fusion strategy of Multi-Gait++ [37], implemented with two feature streams. Each modality is first processed by a separate shallow encoder, after which the two feature streams are aggregated for joint identity learning. We use RGB silhouettes as the anchor because they are widely adopted and provide an appearance-reduced structural reference based primarily on body shape and motion. Keeping the anchor fixed provides a consistent reference for comparing the anchor-relative performance gains produced by different auxiliary modalities, with each configuration pairing it with one auxiliary input. The 2D pose coordinates are rendered as joint and limb heatmaps, while LiDAR and radar denote their projected-depth modalities. We group the configurations according to the source of the auxiliary modality. Intra-sensor fusion pairs RGB silhouettes with one of three RGB-derived auxiliary inputs: 2D pose heatmaps, event sequences, or RGB appearance. This setup         
+
+> TABLE V MULTI -MODAL RECOGNITION UNDER PROTOCOL V2 (%). E ACH BLOCK FIRST LISTS THE RGB-SILHOUETTE ANCHOR . S UPERSCRIPTS DENOTE CHANGES RELATIVE TO THIS ANCHOR ;GREEN AND RED INDICATE IMPROVEMENTS AND DEGRADATIONS . T WO -S TREAM AVG .EQUALLY WEIGHTS THE EIGHT FUSION CONFIGURATIONS AND EXCLUDES THE REPEATED ANCHOR ROWS . L IDAR AND RADAR DENOTE THEIR PROJECTED -DEPTH MODALITIES .
+
+Multi-Modal BG CL 
+
+R1 mAP R1 mAP 
+
+Intra-Sensor 
+
+RGB Sil. 94.0 93.7 47.0 49.5 + Pose 94.6 +0.6 94.1 +0.4 52.3 +5.3 54.5 +5.0 
+
++ Event 93.8 −0.2 93.4 −0.3 50.5 +3.5 52.8 +3.3 
+
++ RGB 99.3 +5.3 99.4 +5.7 50.4 +3.4 53.7 +4.2 
+
+Inter-Sensor 
+
+RGB Sil. 94.0 93.7 47.0 49.5 + Depth 96.4 +2.4 96.1 +2.4 66.5 +19.5 68.2 +18.7 
+
++ LiDAR 96.6 +2.6 96.4 +2.7 66.7 +19.7 69.1 +19.6 
+
++ Radar 94.9 +0.9 94.6 +0.9 60.1 +13.1 62.2 +12.7 
+
++ IR 98.8 +4.8 98.8 +5.1 70.9 +23.9 73.4 +23.9 
+
++ IR Sil. 94.4 +0.4 93.8 +0.1 48.2 +1.2 50.6 +1.1 
+
+Two-Stream Avg. 96.1 95.8 58.2 60.6 
+
+tests whether alternative descriptions of the same visual sig-nal provide additional information. Inter-sensor fusion pairs the same anchor with depth, LiDAR projected depth, radar projected depth, IR appearance, or IR silhouettes to evaluate complementarity across physical sensing streams. Each config-uration is handled by a separately trained expert model. These pairwise expert settings provide task-specific references for comparing intra- and inter-sensor complementarity. 
+
+2) Intra- and Inter-Sensor Fusion: Table V reports the eight two-modality fusion configurations, labeled Two-Stream, under Protocol V2 and groups them into intra- and inter-sensor settings. The equal-weight Two-Stream Avg. reaches 96 .1% 
+
+Rank-1 and 95 .8% mAP under BG. Under CL, it decreases to 
+
+58 .2% Rank-1 and 60 .6% mAP. The intra-sensor results reveal condition-dependent com-plementarity among alternative representations derived from the RGB stream. The pose and event modalities contribute substantially more under CL than under BG, with event fusion slightly degrading the anchor in the latter condition. RGB appearance exhibits a different pattern: its fusion with the sil-houette substantially improves upon the anchor under BG but only marginally surpasses the already strong RGB-appearance single-modal baseline; under CL, it clearly outperforms both the anchor and the RGB-appearance baseline. All five inter-sensor fusion configurations outperform both the RGB-silhouette anchor and their corresponding auxiliary single-modal baselines. Depth, LiDAR projected depth, and IR appearance produce particularly large anchor-relative gains, indicating substantial complementarity with RGB contours un-der the selected expert baseline. Among them, IR appearance gives the best inter-sensor fusion performance. In contrast, IR silhouettes provide only limited gains, which may reflect both contour redundancy and the quality of IR silhouette extraction. Radar projected depth remains useful as an auxiliary modality 8despite its weak standalone discriminability, showing that standalone strength does not fully determine fusion value. 
+
+D. Discussion and Key Findings 
+
+Discriminability across probe conditions. The single-modal results show that no modality is uniformly superior across the probe conditions. RGB and IR appearance lead under BG, whereas IR appearance and LiDAR geometry are strongest under CL. Comparisons among alternative modalities derived from the same sensing stream suggest that input construction and encoder choice jointly affect recognition. A unified model should therefore preserve modality-specific cues rather than impose identical processing on all inputs. 
+
+Cross-modal compatibility and fusion complementarity. 
+
+Standalone discriminability, cross-modal compatibility, and fusion utility do not necessarily coincide. Depth and LiDAR projected depth perform comparatively well in single-modal recognition, yet cross-modal retrieval between them remains challenging. Conversely, radar projected depth is weak in standalone recognition but useful as an auxiliary modality under CL, whereas IR silhouettes provide limited gains and event fusion can introduce negative transfer under BG. These contrasts motivate fusion mechanisms that adapt to the avail-able modality combination rather than treating every auxiliary modality as uniformly beneficial. 
+
+Scalability of task-specific experts. Under the task-specific expert paradigm evaluated above, each individual modality, cross-modal pair, and fusion configuration is handled by a sep-arately trained model. As the number of supported modalities increases, pair-specific models grow quadratically and subset-specific fusion experts grow combinatorially, making exhaus-tive model development, storage, and deployment increasingly impractical. These findings motivate a unified model that pre-serves modality-specific cues, aligns heterogeneous modalities, and adaptively aggregates a variable subset of the supported modalities within a shared identity space. V. O MNI -M ODAL GAIT RECOGNITION 
+
+In this section, we formulate Omni-Modal Gait Recognition 
+
+to replace a growing collection of task-specific experts with one jointly trained model. The model operates with differ-ent modality inputs and supports single-modal recognition, cross-modal recognition, and multi-modal recognition. We instantiate this formulation with OmniGait++, which combines modality-aware identity encoding with anchor-guided variable-cardinality temporal fusion. 
+
+A. Problem Formulation 
+
+MMGait provides twelve heterogeneous gait modalities whose native data structures include image sequences, point clouds, and joint coordinates. As a first step toward fully omni-modal gait recognition, we focus on the nine modalities that can be expressed as image-like sequences and processed through a common network interface. Together, these modali-ties retain observations from all five sensing streams and span appearance, body contours, geometry, motion, and body struc-ture. Keeping the input structure and backbone family compa-rable allows us to isolate the central challenges of omni-modal learning—preserving modality-specific cues, aligning hetero-geneous identity descriptors, and fusing variable-cardinality inputs—without conflating them with architectural differences between image-, point-, and coordinate-based encoders. We denote this model-level modality set by M:
+
+M = {rgb_sils , rgb , ir_sils , ir ,
+
+depth , lidar_depth , radar_depth ,
+
+event , pose }.
+
+(3) Here, pose denotes 2D pose rendered as joint-and-limb heatmaps. Native LiDAR and radar point clouds are left to extensions with dedicated point-cloud encoders. Likewise, 3D pose is left to a coordinate-based encoder. For a modality m ∈ M , let Xm = {xmt }Tm 
+
+> t=1
+
+denote a gait sequence of modality-dependent length Tm. The sensing streams in MMGait have different acquisition rates and inde-pendently determined temporal boundaries. We therefore asso-ciate modality-specific sequences by identity, sequence type, and view, but do not require one-to-one frame correspondence across modalities. Let zm denote the identity descriptor obtained from one modality and zS the fused identity descriptor obtained from a modality subset S ⊆ M . The same jointly learned model is used in three operating modes: single-modal: d(zpm, zgm),
+
+cross-modal: d(zpmp , zgmg ), mp̸ = mg ,
+
+multi-modal: d(zpS , zgS ), |S| ≥ 2,
+
+(4) where superscripts p and g denote probe and gallery, respec-tively, and d(·, ·) is the descriptor distance. Cross-modal recog-nition is evaluated through directed retrieval because the probe and gallery modalities play different roles, whereas multi-modal recognition compares probe and gallery descriptors constructed from the same modality subset S.This formulation imposes three requirements on a unified model. First, it should preserve modality-specific physical cues rather than forcing heterogeneous inputs into an identical low-level representation. Second, it should make identity de-scriptors sufficiently compatible for cross-modal recognition. Third, it should adapt the contribution of each modality to the composition of S, avoiding the assumption that all modalities are uniformly beneficial. OmniGait++ addresses these requirements through a modality-specific front-end, a modality-aware shared identity encoder, and an anchor-guided temporal fusion module. 
+
+B. Overview of OmniGait++ 
+
+Figure 4 provides an overview of OmniGait++, which adopts a private-to-shared architecture to separate low-level modality adaptation from high-level identity learning. For each modality m ∈ M , a modality-specific tokenizer Tm,implemented as an input stem, first adapts the modality’s input channel structure to a common feature format. The backbone 9Shared Identity Encoding 
+
+⋮
+
+> Modality-Specific Front-End
+
+��푐  + � 푖푛�   
+
+Variable-Cardinality Temporal Fusion  
+
+> Cross-Modal:
+
+�푐 ��� 
+
+> Single-Modal:
+
+��푐  + � �푢�푖�푛 Multi-Modal: 
+
+Tokenizer Tokenizer Tokenizer Private Encoder 
+
+> (w/ Modality-Aware Norm)
+
+Q K V 
+
+> Anchor Modal Auxiliary Modals Variable-Cardinality Temporal Fusion
+
+Private Encoder Private Encoder Part-Aware Temporal Aggregation  
+
+> w/ Pool w/ Pool
+> r=1 r=R
+> w/o Pool
+> proj. & gate
+
+Shared Encoder & Head 
+
+⋮
+
+> XmX2X1
+
+⋮Fig. 4. Architecture of OmniGait++. Each modality input Xi is processed by a modality-specific tokenizer and private encoder to preserve heterogeneous low-level cues. For single- and cross-modal recognition, the private features are passed directly to the shared identity encoder and head; for multi-modal recognition, anchor-guided temporal fusion first integrates auxiliary feature sequences whose number and temporal lengths may vary. Within each horizontal region r ∈ { 1, . . . , R }, pooled anchor and auxiliary tokens form Q and K, respectively, while the unpooled auxiliary regional features form V ; the attended context is projected, gated, and added to the anchor representation. The loss block summarizes the single-modal and fused classification losses Lce s and Lce f ,together with the intra-modal, cross-modal, and fusion triplet objectives Lintra , Lcross , and Lfusion .
+
+then processes the tokenized sequence through four sequential feature-extraction stages [15]. We use s ∈ {1, 2, 3, 4} to denote the last private stage: Stages 1– s form the modality-specific encoder Epri 
+
+> m, 1: s
+
+, while the remaining stages, if any, form the shared encoder Esh  
+
+> s
+
+. Unless otherwise stated, we use 
+
+s = 3 . When s = 4 , no shared backbone stage remains, and 
+
+Esh 4 is the identity mapping. The private encoder produces 
+
+Um ∈ RC×Tm×H×W at this boundary while retaining the native temporal length Tm.For a single-modal input, the descriptor pathway is 
+
+Um = Epri 
+
+> m, 1: s
+
+ Tm(Xm), zm = H Esh  
+
+> s
+
+(Um; m), (5) where H comprises temporal pooling, horizontal part pool-ing, and part-wise feature projection following common gait-recognition practice [3]. The argument after the semicolon selects the modality-aware normalization branch, with m
+
+denoting the branch for the current single modality. Thus, the private prefix preserves modality-dependent cues, while the shared encoder and descriptor head map them through a common high-level parameterization. When multiple modalities are jointly available, let S ⊆ M 
+
+be an evaluated fusion subset containing the RGB-silhouette anchor a = rgb_sils . OmniGait++ inserts a single anchor-guided fusion module Φ at the private-to-shared boundary: 
+
+eUS = Φ  Ua, {Um}m∈S\{ a}
+
+,
+
+zS = H Esh  
+
+> s
+
+( eUS ; fusion) . (6) The module aggregates the auxiliary private features into the anchor representation, producing eUS with the anchor timeline and spatial layout. The fused feature then passes through the same shared identity encoder and descriptor head as the single-modal feature, while fusion selects a dedicated normalization branch. Sharing both Φ and the downstream pathway allows one model to process subsets with different compositions and cardinalities without configuration-specific networks. These two descriptor pathways instantiate the three oper-ating modes in Eq. (4). Single-modal recognition compares descriptors zm from the same modality. Cross-modal recogni-tion independently encodes the probe and gallery modalities and directly compares zmp with zmg without invoking Φ.Multi-modal recognition applies Φ to the same subset S on the probe and gallery sides and compares their fused descriptors 
+
+zS . All branches are learned jointly with intra-modal, cross-modal, and fusion-specific supervision. 
+
+From OmniGait to OmniGait++. The primary extension from the preliminary OmniGait model [12] to OmniGait++ is fusion scalability. OmniGait restricts each fusion input to an RGB-silhouette anchor and exactly one auxiliary modality, and therefore supports only fixed-cardinality pairwise fusion. In contrast, OmniGait++ represents the auxiliary modalities as a variable-size set and uses one shared temporal attention module to aggregate anchor-containing subsets with different compositions and cardinalities. The same fusion pathway can therefore accommodate different numbers and types of available modalities without changing the fusion architecture. In addition, OmniGait uses a shallow modality-specific front-end followed by shared backbone stages, whereas OmniGait++ extends modality-specific processing to a configurable private-to-shared boundary and applies modality-aware normalization in the shared encoder. 
+
+C. Modality-Aware Shared Identity Encoder 
+
+Heterogeneous gait observations exhibit substantially dif-ferent low-level statistics, yet their identity descriptors must remain comparable across modalities. OmniGait++ addresses this tension by decomposing its encoder into a modality-specific front-end and a shared identity-encoding pathway. The former absorbs input-dependent appearance and geometry, while the latter promotes a common high-level representa-tion through shared convolutional and projection parameters. Modality-aware normalization is inserted into the shared path-way to prevent incompatible modality statistics from being indiscriminately mixed. 10 1) Modality-Specific Front-End: The modalities in M dif-fer in channel structure and physical meaning. Silhouettes contain binary contours; RGB/IR inputs retain appearance; projected depth encodes geometry; the event modality empha-sizes motion; pose heatmaps encode body structure. Applying a common stem directly to these inputs can force the earli-est layers to account simultaneously for incompatible signal distributions. We instead associate each modality m with an independent tokenizer Tm, implemented as an input stem that maps its frames to a common feature format. The tokenized sequence is subsequently processed through Stage s by a modality-specific private encoder, producing the private feature Um in Eq. (5). All convolutional and nor-malization parameters in this private prefix are independently learned for each modality, preserving modality-dependent pat-terns before the features enter either the shared encoder or the fusion module. Meanwhile, the common output format ensures that all Um have compatible channel and spatial dimensions while retaining their native sequence lengths Tm.
+
+2) Shared Identity Encoding: After private Stage s, both single-modal features Um and fused features eUS are pro-cessed by the shared encoder Esh  
+
+> s
+
+. Its convolutional parameters are shared across modalities and fusion subsets, encouraging identity-related structures to be represented through a common set of high-level transformations. To obtain sequence-level descriptors, we first apply temporal max pooling over the valid frames and then divide the resulting feature map into horizontal parts [3]. Within each part, the average- and max-pooled responses are summed to retain both distributed and salient information. Part-specific linear projec-tions, shared across all modalities and fusion subsets, produce the final zm and zS . Sharing the encoder and part-specific projections across modalities and fusion subsets gives the three operating modes a common high-level parameterization. 
+
+3) Modality-Aware Normalization: Conventional batch nor-malization in the shared pathway would estimate one set of statistics from mixed single-modal and fused features. Such mixed statistics can obscure modality-dependent distributions. Inspired by the general principle of domain-specific batch nor-malization [61], we therefore use a modality-aware variant in the shared encoder. For a normalization key q ∈ M∪{ fusion },the operation is written as 
+
+N (x; q) = γq
+
+x − μq
+
+q
+
+σ2 
+
+> q
+
++ ϵ
+
++ βq , (7) where (μq , σ 2 
+
+> q
+
+) are running statistics specific to q. For the nine single modalities, the affine parameters are tied, (γq , β q ) = (γsingle , β single ) for q ∈ M , while the fusion branch keeps its own affine parameters. This design preserves modality-dependent feature calibration without relaxing the shared con-volutional representation into independent encoders. The same mechanism is applied to the spatial and temporal normaliza-tion layers of the shared P3D blocks [62]. In contrast, the tokenizer and private stages maintain independently learned normalization parameters for each modality. Following the BNNeck design [63], we further use modality-aware BNNecks for identity classification. Each sin-gle modality maintains its own BN statistics but uses acommon single-modal classifier, whereas all fused descriptors use a dedicated fusion BN branch and classifier: 
+
+ℓm = Csingle 
+
+ Bm(zm), ℓS = Cfusion 
+
+ Bfusion (zS ). (8) The shared single-modal classifier provides common identity supervision across modalities, while the separate fusion classi-fier accommodates the distribution shift introduced by feature aggregation. The pre-BN descriptors zm and zS remain the inputs to metric learning and retrieval. 
+
+D. Variable-Cardinality Temporal Fusion 
+
+Conventional channel-wise feature concatenation typically assumes a fixed set of input modalities and therefore requires the aggregation layer to be redesigned when the modality composition changes. It is also poorly suited to MMGait, whose sensing streams have different sequence lengths and no prescribed frame-level correspondence. We instead formulate fusion as anchor-guided temporal aggregation over a variable-size auxiliary set. This formulation fixes the output reference while allowing the number, type, and temporal extent of auxiliary observations to change across operating settings. 
+
+1) Anchor-Guided Fusion Formulation: Let S be an eval-uated fusion subset containing a = rgb_sils as the anchor. RGB silhouettes are used as the anchor because they suppress appearance variation while retaining body contours, providing a consistent spatial reference across fusion configurations. The anchor-guided temporal fusion module Φ maps the anchor feature Ua, together with the auxiliary set {Um}m∈S\{ a}, to the fused representation eUS . This representation has the same shape as Ua: the anchor determines the output timeline and feature layout, whereas the remaining modalities provide aux-iliary evidence. Because the auxiliary inputs are represented as a set rather than assigned to fixed branches, the same Φ is reused for all anchor-containing subsets. 
+
+2) Part-Aware Temporal Aggregation: Gait cues are not distributed uniformly over the human body, and the reliability of corresponding regions can differ across modalities. We therefore partition the feature height into R non-overlapping horizontal regions {Ωr }Rr=1 and perform temporal aggregation separately within each region. These fusion regions are inde-pendent of the horizontal parts used by the output head. For modality m, spatial averaging within region Ωr produces a sequence of part-aware tokens: 
+
+Tmr = Pool Ωr (Um) + em, Tmr ∈ RTm×C , (9) where em is a learnable modality embedding. It identifies the source of each token after auxiliary modalities are gathered into a common sequence. For each region, the anchor tokens form the queries, while tokens from all auxiliary modalities are concatenated along the joint modality–time dimension to form the keys. Let Umr
+
+denote the corresponding full feature map in region Ωr . The queries, keys, and values are constructed as 
+
+Qr = PQr
+
+ Nr (Tar ),
+
+Kr = Concat 
+
+> m∈S\{ a}
+
+PKr
+
+ Nr (Tmr ),
+
+Vr = Concat 
+
+> m∈S\{ a}
+
+PVr
+
+ N Vr (Umr ),
+
+(10) 11 where Nr and Pr denote the corresponding normalization and projection operators, respectively. Crucially, the anchor is excluded from both the key and value sets and participates in attention only as the query. The values retain the complete feature map inside each horizontal region rather than only its pooled token. Consequently, token similarity determines how full local feature maps from auxiliary modalities and times contribute to each anchor position. Aggregation is implemented with multi-head normalized attention [64]. For region r, its attention weights can be written compactly as 
+
+Ar = softmax ( ρr cos( Qr , Kr )) , (11) where ρr is a positive learnable scale. Cosine similarity reduces sensitivity to modality-dependent feature magnitudes, while multiple heads allow different relationships among modalities to be captured in parallel. The attended values produce an anchor-conditioned local context Cr = Ar Vr .Because auxiliary observations are concatenated along the joint modality–time dimension, this aggregation accommo-dates unequal sequence lengths without requiring frame-level correspondence. The number of anchor queries determines the temporal length of Cr , thereby aligning it with the anchor timeline. Although conditioned on the anchor queries, Cr
+
+aggregates only auxiliary values. Contexts from all regions are concatenated in their original vertical order and passed through a spatial projection O to form an auxiliary correction. The original anchor feature bypasses value aggregation and is retained through the residual path: 
+
+eUS = Ua + α O (Concat H (C1, . . . , CR)) , (12) where α ∈ R is a learnable scalar initialized to 0.1. This exclusion prevents the anchor’s self-response from competing with auxiliary evidence in the key–value set. The residual connection preserves the strong single-modal reference, while 
+
+α controls the contribution of the auxiliary correction when an auxiliary modality is noisy or weakly complementary. 
+
+E. Unified Identity Learning and Inference 
+
+Having defined the single-modal and fused descriptors, we optimize their geometry in the shared identity space with objectives aligned to the three operating modes. We first learn discriminative features within each modality, then enforce directed cross-modal alignment, and finally supervise the fused descriptors. The resulting descriptors are then directly reused by the corresponding inference modes. 
+
+1) Single-Modal Identity Learning: The nine single-modal branches are trained jointly using classification and metric objectives. As described in Eq. (8), their modality-aware BNNecks share one classifier. This exposes the classifier to every modality and encourages their normalized features to predict identity labels using a common decision space. We apply label-smoothed cross-entropy to the part-wise logits of every modality and average their contributions equally, denoting the resulting objective by Lce s .Classification alone does not explicitly constrain the re-trieval geometry of the pre-BN descriptors. We therefore addi-tionally apply a batch-all triplet objective [65] independently within each modality and average the nine losses to obtain 
+
+Lintra . This group-wise computation gives every modality equal weight and prevents cross-modal distances from being introduced into the intra-modal objective. 
+
+2) Cross-Modal Identity Alignment: The shared classifier provides an implicit connection among modalities, but does not directly optimize distances between probe and gallery descriptors from different modalities. We impose explicit cross-modal metric supervision on the four modalities used by the directed cross-modal retrieval protocol: rgb_sils ,
+
+ir_sils , depth , and lidar_depth . For each ordered pair, descriptors from the first modality serve as anchors, while same-identity and different-identity descriptors from the second modality form positives and negatives, respectively. A batch-all triplet loss is computed independently for every hori-zontal part. Reversing a pair changes the modality that supplies the anchors and therefore produces a distinct optimization direction. We optimize all twelve directions formed by the four modalities and average their losses equally to obtain 
+
+Lcross . This directly matches the directed cross-modal retrieval protocol and prevents any modality pair from dominating the shared identity space. 
+
+3) Multi-Modal Fusion Learning: The distribution of a fused descriptor differs from that of a single-modal descriptor. Fused descriptors are therefore supervised through the dedi-cated fusion BNNeck and classifier in Eq. (8). The fusion configurations processed in each training iteration share the fusion classifier, and their label-smoothed cross-entropy losses are averaged to form Lce f . Sharing this classifier encourages fused descriptors from subsets with different compositions and cardinalities to remain identity-discriminative under a common set of decision boundaries. To preserve the retrieval geometry of each fusion setting, batch-all triplets are formed separately within each training fusion configuration and then averaged across configurations, yielding Lfusion . This keeps metric learning consistent with multi-modal evaluation, where probe and gallery inputs are constructed from the same modality subset. 
+
+4) Overall Objective: The complete learning objective combines the two classification terms and three task-specific metric terms: 
+
+L = Lce s + Lce f + Lintra + Lcross + Lfusion . (13) All terms are equally weighted, and a common margin is used for the three triplet objectives. Computing each term group-wise before averaging ensures that optimization is balanced over modalities, retrieval directions, and fusion subsets rather than being biased toward the task containing the largest number of descriptors. 
+
+5) Unified Inference: At inference, the identity classifiers are discarded and retrieval uses Euclidean distance between pre-BN descriptors. Given one modality m, OmniGait++ produces zm for single-modal recognition. For cross-modal recognition, it independently encodes the probe and gallery modality inputs and performs directed retrieval by comparing 
+
+zmp with zmg without invoking fusion. Given an anchor-containing subset S, multi-modal recognition produces zS and uses the same modality composition for probe and gallery. 12 TABLE VI MULTI -MODAL FUSION -TO -FUSION EVALUATION REGISTRY . E VERY SET CONTAINS THE RGB-SILHOUETTE ANCHOR AND IS USED FOR BOTH PROBE AND GALLERY FUSION ; GROUP LABELS DESCRIBE THE AUXILIARY MODALITIES .
+
+Group Fusion Set Diagnostic Role 
+
+Two-Stream RGB Sil. + Depth Dense depth geometry complements visible contours. RGB Sil. + IR Sil. Cross-spectrum contour consistency. RGB Sil. + LiDAR Active 3D structure from LiDAR projected depth. RGB Sil. + Radar Radar geometry tests robustness beyond optical sensing. RGB Sil. + Event Motion-sensitive evidence from temporal changes. RGB Sil. + Pose Structural body layout from pose heatmaps. RGB Sil. + RGB Raw RGB appearance beyond silhouette extraction. RGB Sil. + IR Spectrum-dependent IR appearance complementarity. Within-Group RGB Sil. + RGB + IR Sil. + IR Visible/infrared appearance and contour fusion. RGB Sil. + Depth + LiDAR + Radar Range-based geometry modalities fused with anchor. RGB Sil. + Event + Pose Motion and pose fusion without range sensors. Across-Group RGB Sil. + IR Sil. + Depth Visible contour, IR contour, and metric geometry. RGB Sil. + RGB + Depth Contour, raw appearance, and camera geometry. RGB Sil. + Event + Depth Contour, motion, and camera geometry. RGB Sil. + Pose + LiDAR Contour, pose structure, and LiDAR geometry. RGB Sil. + Event + Radar Contour, motion, and radar-derived geometry. Omni-Fusion RGB Sil. + Depth + IR Sil. + LiDAR + Radar Omni-5 contour-and-geometry fusion subset. RGB Sil. + RGB + IR Sil. + IR + Depth + LiDAR + Radar Omni-7, adding appearance modalities to Omni-5. RGB Sil. + RGB + IR Sil. + IR + Depth + LiDAR + Radar + Event + Pose Omni-9 full fusion over all available modalities. 
+
+The same checkpoint therefore supports all three modes with-out task-specific fine-tuning, score-level fusion, or separately trained networks. VI. E XPERIMENTS ON OMNI -M ODAL GAIT RECOGNITION 
+
+A. Experimental Setup 
+
+All main OmniGait++ results in Section VI-B use one 
+
+jointly trained checkpoint for single-modal recognition, cross-modal recognition, and multi-modal recognition, without task-specific fine-tuning or additional checkpoints. 
+
+1) Evaluation Settings and Metrics: Unless otherwise stated, all results follow Protocol V2 with the impostor-augmented gallery defined in Section III-C. The omni-modal experiments reuse the same probe, positive-template, and impostor definitions as the expert study. Rank-1 accuracy and mAP are reported separately for BG and CL after uniformly averaging the off-diagonal view pairs. 
+
+2) Operating Modes and Evaluation Tasks: The three op-erating modes in Eq. (4) are instantiated as follows. Single-modal recognition compares probe and gallery descriptors from the same modality, yielding nine tasks. Cross-modal recognition performs retrieval in both directions over the six unordered pairs among RGB silhouettes, IR silhouettes, depth, and LiDAR projected depth, yielding twelve directed tasks without invoking the fusion module. Multi-modal recognition 
+
+uses a fusion-to-fusion protocol in which probe and gallery are encoded from the same modality subset S.
+
+3) Fusion Configuration Registry: To evaluate variable-cardinality fusion systematically, we define the 19 configu-rations in Table VI as a structured diagnostic registry. Every configuration contains the RGB-silhouette anchor; therefore, the group labels refer only to the relationships among the eight auxiliary modalities. We organize these auxiliaries into three cue families: appearance/contour (RGB, IR silhouette, and IR), geometry (depth, LiDAR projected depth, and radar projected depth), and motion/structure (event and pose). The registry comprises four diagnostic groups. Two-Stream pairs the anchor with exactly one auxiliary and exhausts all eight choices, isolating the contribution of each auxil-iary modality. Within-Group combines the anchor with all auxiliaries from one cue family, yielding three family-level configurations. Across-Group combines two auxiliaries from different cue families while fixing the total fusion cardinality at three; each configuration pairs a geometry modality with a contour, appearance, motion, or structure modality. These five configurations are representative rather than exhaustive. Finally, the nested Omni-5, Omni-7, and Omni-9 configura-tions progressively extend contour-and-geometry fusion with appearance and then motion/structure cues. This organization supports complementary analyses of single-auxiliary utility, within-family aggregation, cross-family complementarity, and scaling to broader modality subsets. 
+
+4) Implementation Details: OmniGait++ builds on the DeepGaitV2-P3D architecture [15], using a modality-specific tokenizer followed by a private-to-shared backbone. 1 By de-fault, Stages 1–3 form the modality-specific private encoder, after which a shared Stage-4 identity encoder, temporal max pooling, horizontal part pooling, and part-wise projections produce the retrieval descriptors. Fusion is performed after private Stage 3 and before shared Stage 4. The fusion module uses R=8 horizontal fusion regions, eight attention heads, cosine similarity, learnable modality embeddings, and residual 
+
+> 1Code, pretrained models, and instructions for requesting access to MMGait will be available at https://github.com/BNU-IVC/MMGait.
+
+13 TABLE VII SINGLE -MODAL RESULTS OF OMNI GAIT ++ UNDER PROTOCOL V2. RESULTS ARE REPORTED AS RANK -1 ACCURACY AND M AP (%). 
+
+Modality BG CL 
+
+R1 mAP R1 mAP RGB Sil. 90.6 90.3 37.8 40.6 RGB 99.0 99.0 45.3 48.8 IR Sil. 79.8 79.2 20.8 23.5 IR 96.8 96.9 55.7 59.3 Depth 69.2 70.3 32.3 35.3 LiDAR 81.7 82.3 42.1 45.2 Radar 1.5 2.4 0.9 1.7 Event 21.6 24.0 3.7 5.0 Pose 49.0 49.7 20.3 22.5 
+
+Average 65.5 66.0 28.8 31.3 
+
+TABLE VIII CROSS -MODAL RECOGNITION OF OMNI GAIT ++ UNDER PROTOCOL V2 (%). T HE ARROW DENOTES PROBE -TO -GALLERY RETRIEVAL ;BIDIRECTIONAL AVG . IS THE ARITHMETIC MEAN OF THE TWO DIRECTIONS , AND CROSS -M ODAL AVG . EQUALLY WEIGHTS THE SIX MODALITY PAIRS . L IDAR DENOTES LIDAR PROJECTED DEPTH .
+
+Cross-Modal Settings BG CL 
+
+R1 mAP R1 mAP RGB Sil. → IR Sil. 79.1 78.2 23.9 26.3 IR Sil. → RGB Sil. 77.0 77.5 22.5 25.5 
+
+Bidirectional Avg. 78.0 77.8 23.2 25.9 RGB Sil. → Depth 59.6 60.3 19.1 21.8 Depth → RGB Sil. 46.2 48.3 17.3 19.9 
+
+Bidirectional Avg. 52.9 54.3 18.2 20.8 RGB Sil. → LiDAR 66.1 66.6 25.3 27.9 LiDAR → RGB Sil. 55.7 56.6 22.0 24.7 
+
+Bidirectional Avg. 60.9 61.6 23.7 26.3 IR Sil. → Depth 50.5 51.8 13.6 16.3 Depth → IR Sil. 39.4 41.1 12.9 15.1 
+
+Bidirectional Avg. 45.0 46.5 13.3 15.7 IR Sil. → LiDAR 59.7 60.6 18.7 21.6 LiDAR → IR Sil. 50.7 51.2 17.3 19.5 
+
+Bidirectional Avg. 55.2 55.9 18.0 20.6 Depth → LiDAR 50.7 52.1 23.2 25.9 LiDAR → Depth 49.0 50.2 20.6 23.5 
+
+Bidirectional Avg. 49.9 51.2 21.9 24.7 
+
+Cross-Modal Avg. 57.0 57.9 19.7 22.3 
+
+correction. Modality-aware normalization is applied in both the shared encoder and the BNNecks. Each mini-batch contains 8 identities and 4 sequences per identity. We sample 30 ordered frames and apply random perspective, horizontal flipping, and rotation, each with prob-ability 0.2. Optimization uses SGD with learning rate 0.1,momentum 0.9, and weight decay 5×10 −4, decayed at 20k, 40k, and 50k iterations for a total of 60k iterations. The five loss terms in Eq. (13) are equally weighted; the triplet margin is 0.2. Cross-modal triplets are computed over the twelve directed tasks defined above. In each iteration, eight fusion subsets are sampled by drawing two configurations from each of the four registry groups, while evaluation always uses the full 19-set registry. At inference, the classifiers are discarded 
+
+TABLE IX VARIABLE -CARDINALITY MULTI -MODAL FUSION RESULTS OF 
+
+OMNI GAIT ++ UNDER PROTOCOL V2. R ESULTS ARE RANK -1 ACCURACY AND M AP (%), WITH EACH GROUP FOLLOWED BY ITS AVERAGE . O MNI -5  
+
+> FUSES
+
+RGB SILHOUETTES WITH IR SILHOUETTES , DEPTH , L IDAR, AND RADAR ; O MNI -7 ADDS RGB AND IR APPEARANCE ; O MNI -9 USES ALL NINE IMAGE -LIKE MODALITIES .
+
+Fusion Set BG CL 
+
+R1 mAP R1 mAP RGB Sil.+Depth 95.7 95.4 57.5 59.9 RGB Sil.+IR Sil. 93.4 93.1 42.7 45.6 RGB Sil.+LiDAR 96.7 96.7 61.8 64.5 RGB Sil.+Radar 93.5 93.2 54.7 57.3 RGB Sil.+Event 93.2 93.0 45.4 48.2 RGB Sil.+Pose 92.0 91.5 46.4 48.9 RGB Sil.+RGB 99.7 99.7 64.6 67.5 RGB Sil.+IR 99.4 99.4 75.4 77.6 
+
+Two-Stream Avg. 95.5 95.3 56.1 58.7 RGB Sil.+RGB+IR Sil.+IR 99.8 99.8 76.1 78.2 RGB Sil.+Depth+LiDAR+Radar 98.6 98.5 75.1 77.1 RGB Sil.+Event+Pose 94.3 93.9 50.8 53.4 
+
+Within-Group Avg. 97.6 97.4 67.3 69.5 RGB Sil.+IR Sil.+Depth 97.0 96.7 59.5 61.7 RGB Sil.+RGB+Depth 99.7 99.7 70.5 72.8 RGB Sil.+Event+Depth 96.4 96.1 58.3 60.6 RGB Sil.+Pose+LiDAR 97.2 97.0 65.2 67.5 RGB Sil.+Event+Radar 95.5 95.3 57.4 60.0 
+
+Across-Group Avg. 97.1 97.0 62.2 64.5 Omni-5 98.8 98.7 75.9 77.7 Omni-7 99.8 99.9 83.0 84.7 Omni-9 99.8 99.8 83.5 85.2 
+
+Omni-Fusion Avg. 99.5 99.5 80.8 82.5 
+
+and Euclidean distance is computed on the pre-BN descriptors. 
+
+B. Performance Evaluation 1) Single-Modal Recognition: Table VII reports single-modal recognition for all nine inputs. This evaluation exam-ines whether joint omni-modal training retains discriminative identity descriptors for each individual modality. Under BG, the appearance modalities are the most discrimi-native, with RGB reaching 99 .0% Rank-1 accuracy, while the silhouette and geometric modalities occupy an intermediate range and the event and radar modalities remain weak. Under CL, IR provides the strongest result at 55 .7% , while LiDAR and depth retain comparatively useful geometric cues. Notably, the unified RGB branch reaches 45 .3% Rank-1 accuracy under CL, outperforming the RGB-specific DeepGaitV2-P3D baseline by 6.8 percentage points. The overall pattern is consistent with the task-specific study in Section IV: joint training retains meaningful modality-dependent strengths and failure modes within one model. 
+
+2) Cross-Modal Recognition: Table VIII reports all twelve directed retrieval tasks. The Cross-Modal Avg. gives equal weight to the six modality pairs. Among the six modality pairs, RGB and IR silhou-ettes achieve the strongest compatibility, reaching 78 .0% 
+
+bidirectional-average Rank-1 accuracy under BG. Retrieval 14 TABLE X COMPARISON WITH OMNI GAIT UNDER PROTOCOL V2. E ACH CELL IS RANK -1 / MAP (%). T HE COMMON SINGLE -MODAL , CROSS -MODAL , AND    
+
+> TWO -S TREAM COLUMNS AVERAGE THE SAME NINE MODALITIES ,SIX MODALITY PAIRS ,AND EIGHT FUSION CONFIGURATIONS ,RESPECTIVELY .OMNI GAIT DOES NOT SUPPORT VARIABLE -CARDINALITY FUSION BEYOND PAIRWISE ANCHOR –AUXILIARY CONFIGURATIONS .
+
+Method Single-Modal Cross-Modal Two-Stream Within-Group Across-Group Omni-Fusion 
+
+BG CL BG CL BG CL BG CL BG CL BG CL OmniGait 57.2/58.0 16.8/19.3 50.6/51.7 11.1/13.4 89.6/89.3 30.1/33.2 –/– –/– –/– –/– –/– –/– OmniGait++ 65.5/66.0 28.8/31.3 57.0/57.9 19.7/22.3 95.5/95.3 56.1/58.7 97.6/97.4 67.3/69.5 97.1/97.0 62.2/64.5 99.5/99.5 80.8/82.5 
+
+between silhouettes and geometric modalities is more difficult, while depth and LiDAR also remain imperfectly aligned despite both encoding body geometry. Compared with the pair-specific CL-Gait results in Table IV, OmniGait++ performs better on five of the six modality pairs under both probe conditions, with RGB Sil. ↔IR Sil. as the only exception. These results show that the jointly trained identity space enables direct retrieval across heterogeneous modalities with-out pair-specific fine-tuning. They also confirm that standalone discriminability and shared physical content do not by them-selves guarantee cross-modal compatibility. 
+
+3) Multi-Modal Recognition: Table IX reports all 19 fusion configurations evaluated using the same checkpoint and fusion module. For each of the four registry groups, we additionally report the unweighted mean over its constituent configurations for each metric and probe condition. Every Two-Stream configuration surpasses the single-modal results of both its RGB-silhouette anchor and corresponding auxiliary modality under BG and CL. The gains are particu-larly pronounced under clothing change: RGB Sil.+IR reaches 
+
+75 .4% Rank-1 accuracy, while RGB Sil.+Radar improves the anchor from 37 .8% to 54 .7% despite the weak standalone performance of radar. Standalone strength therefore does not fully determine a modality’s value in fusion. Compared with the separately trained MultiGait++ models in Table V, Omni-Gait++ performs better when RGB or IR appearance is used as the auxiliary modality, but generally trails the task-specific models for the remaining auxiliaries. The higher-cardinality results further show that both compo-sition and cardinality matter. Within-group appearance/contour and geometry fusion are more effective than motion/structure fusion, while the across-group settings provide different gains according to their constituent cues. In the nested omni-fusion sequence, adding RGB and IR appearance to Omni-5 improves CL Rank-1 by 7.1 percentage points, whereas further adding event and pose in Omni-9 contributes only 0.5 percentage points. This diminishing increment indicates that auxiliary cues become partly redundant once appearance, contour, and geometry are jointly available. 
+
+4) Comparison with OmniGait: Table X compares Om-niGait++ with its preliminary version, OmniGait, under the same Protocol V2. For their three shared operating modes, the averages cover nine single-modal settings, six cross-modal pairs, and eight Two-Stream configurations. OmniGait++ consistently improves recognition in all three overlapping modes. The gains are larger under clothing change, where single- and cross-modal Rank-1 accuracy each increase by more than 8 percentage points and Two-Stream recognition rises from 30 .1% to 56 .1% . More importantly, OmniGait is restricted to fixed fusion between an RGB silhou-ette anchor and one auxiliary modality, whereas OmniGait++ extends the same checkpoint to within-group, across-group, and omni-fusion inputs of different compositions and cardinal-ities. OmniGait++ is therefore not merely a stronger pairwise model, but a transition toward unified omni-modal recognition. 
+
+C. Ablation Study 
+
+Table XI evaluates the main design choices of OmniGait++. Each block changes one factor from the full model while re-taining the remaining settings, and reports the same category-level averages used above. Because one checkpoint must serve all operating modes, we select the default configuration according to its consistency across tasks and probe conditions rather than an isolated maximum. 
+
+1) Ablation Study on Fusion Stage: Here, Stage s denotes fusion immediately after private Stage s, with the remaining backbone stages forming the shared encoder. We evaluate fusion after Stages 2–4. Fusion immediately after Stage 1 is not included: its feature maps contain four times as many spatial locations as those of Stage 2, and retaining dense spatial values for multiple variable-cardinality fusion subsets incurs prohibitive GPU memory consumption under the same training protocol. Fusion at Stage 3 provides the strongest overall balance across the six task groups. Earlier fusion at Stage 2 yields a small advantage on BG cross-modal retrieval, but is less effective for most fusion settings, suggesting that the features have not yet received sufficient modality-specific adaptation. Conversely, delaying fusion to Stage 4 causes broad degradation, reducing Omni-Fusion Rank-1 under CL by 
+
+8.6 percentage points. At this boundary, no shared backbone stage remains after aggregation to reconcile the heterogeneous inputs. We therefore use Stage 3 to balance modality-specific adaptation with shared post-fusion identity encoding. 
+
+2) Ablation Study on Modality-Aware Normalization: Hav-ing established the fusion boundary, we next examine how fea-tures from different modalities are normalized along the shared pathway. Modality-aware normalization in the shared encoder is particularly important for heterogeneous identity alignment. Removing it reduces cross-modal BG Rank-1 from 57 .0% to 
+
+43 .2% and also degrades all fusion groups. Removing only the modality-aware BNNeck has little effect on single- and cross-modal recognition, with slight improvements in a few cross-modal entries, but consistently weakens fusion, especially at higher cardinalities. Removing both normalization components produces the deepest cross-modal degradation. These results show that applying modality-aware normalization to the shared 15 TABLE XI ABLATION OF OMNI GAIT ++ UNDER PROTOCOL V2. E ACH CELL IS RANK -1/ MAP (%). F ULL DENOTES THE DEFAULT SETTING (FUSION AT STAGE 3,         
+
+> MODALITY -AWARE NORMALIZATION IN BOTH THE SHARED ENCODER AND BNN ECK ,R=8 HORIZONTAL FUSION REGIONS ,AND THE ANCHOR EXCLUDED FROM THE KEY –VALUE SET ). I N(D), A NCHOR /∈KV IS THE DEFAULT QUERY -ONLY SETTING .
+
+Setting Single-Modal Cross-Modal Two-Stream Within-Group Across-Group Omni-Fusion 
+
+BG CL BG CL BG CL BG CL BG CL BG CL 
+
+(a) Fusion stage (private-to-shared boundary) 
+
+Stage 2 63.8/64.2 28.7/31.3 57.9/58.7 19.5/22.1 94.9/94.7 54.3/56.9 96.9/96.7 63.5/65.7 96.2/96.0 58.9/61.4 99.2/99.1 77.2/79.1 Stage 3 65.5/66.0 28.8/31.3 57.0/57.9 19.7/22.3 95.5/95.3 56.1/58.7 97.6/97.4 67.3/69.5 97.1/97.0 62.2/64.5 99.5/99.5 80.8/82.5 
+
+Stage 4 63.9/64.4 24.6/27.1 47.6/49.1 16.0/18.6 94.7/94.5 52.4/55.0 97.1/97.0 62.8/65.3 96.5/96.4 57.9/60.4 99.3/99.3 72.2/74.5 
+
+(b) Modality-aware normalization (abbreviated as MN) 
+
+Full 65.5/66.0 28.8/31.3 57.0/57.9 19.7/22.3 95.5/95.3 56.1/58.7 97.6/97.4 67.3/69.5 97.1/97.0 62.2/64.5 99.5/99.5 80.8/82.5 
+
+w/o Enc. MN 63.8/64.4 26.5/29.2 43.2/45.1 13.9/16.4 94.4/94.3 52.5/55.2 96.7/96.6 63.8/66.1 95.9/95.8 57.5/60.1 99.1/99.1 76.6/78.6 w/o Neck MN 65.2/65.8 28.7/31.3 57.6/58.4 19.9/22.5 95.4/95.2 55.6/58.3 97.5/97.4 66.8/69.1 97.1/96.9 61.3/63.9 99.4/99.4 78.9/80.7 w/o MN 64.1/64.7 27.3/29.9 41.7/43.5 13.0/15.5 94.7/94.5 53.0/55.9 96.9/96.8 64.3/66.6 96.2/96.1 58.1/60.7 99.3/99.2 75.6/77.7 
+
+(c) Part-aware temporal fusion ( R: number of horizontal fusion regions) 
+
+R=1 64.8/65.4 27.8/30.4 57.0/57.9 19.0/21.6 93.5/93.1 53.0/55.4 96.0/95.7 62.2/64.3 95.3/95.0 58.8/61.0 98.9/98.8 75.3/77.1 
+
+R=4 65.4/65.9 27.8/30.5 57.7/58.6 19.3/22.0 95.3/95.1 55.6/58.3 97.4/97.3 66.6/68.9 97.0/96.9 61.6/64.0 99.4/99.4 80.0/81.8 
+
+R=8 65.5/66.0 28.8/31.3 57.0/57.9 19.7/22.3 95.5/95.3 56.1/58.7 97.6/97.4 67.3/69.5 97.1/97.0 62.2/64.5 99.5/99.5 80.8/82.5 
+
+R=16 65.2/65.8 28.0/30.6 57.6/58.4 19.8/22.4 95.4/95.2 55.0/57.6 97.4/97.3 66.0/68.2 97.0/96.8 60.9/63.3 99.3/99.3 79.3/81.1 
+
+(d) Anchor exclusion (KV: key–value set) 
+
+Anchor /∈ KV 65.5/66.0 28.8/31.3 57.0/57.9 19.7/22.3 95.5/95.3 56.1/58.7 97.6/97.4 67.3/69.5 97.1/97.0 62.2/64.5 99.5/99.5 80.8/82.5 
+
+Anchor ∈ KV 65.0/65.5 27.9/30.5 56.3/57.2 19.1/21.8 95.4/95.3 51.9/54.7 97.2/97.1 63.1/65.6 96.7/96.6 56.7/59.4 99.4/99.3 77.4/79.4 
+
+encoder and BNNeck better accommodates heterogeneous modality statistics and improves consistency across the unified operating modes. 
+
+3) Ablation Study on Part-Aware Temporal Fusion: With the encoder interface fixed, we turn to the internal fusion design, beginning with its spatial granularity. Collapsing the feature height into one region (R=1 ) consistently harms fusion, including a drop of 5.5 percentage points in Omni-Fusion Rank-1 under CL. This confirms that global temporal aggregation can obscure spatially localized gait cues. Increas-ing the number of regions to 4, 8, or 16 substantially narrows the gap, but the improvements are not monotonic: overly fine partitioning provides no consistent benefit. We adopt 
+
+R=8 because it gives the most stable performance across the fusion groups, balancing local correspondence with sufficient information in each region. 
+
+4) Ablation Study on Anchor Exclusion: After determining the regional granularity, we examine the roles assigned to the anchor and auxiliary modalities in attention. Including the RGB-silhouette anchor in the key–value set degrades every fusion group under CL; for example, Across-Group Rank-1 decreases from 62 .2% to 56 .7% . Keeping the anchor query-only prevents its self-response from competing with auxiliary evidence. The attention module consequently esti-mates a correction from the auxiliary modalities, while the residual path preserves the anchor features. This separation is especially beneficial when the auxiliary set contains multiple heterogeneous modalities. VII. S COPE AND FUTURE DIRECTIONS 
+
+Broader Acquisition Settings. MMGait’s matched multi-sensor recordings support controlled comparisons across sen-sors, modalities, views, and walking conditions. By holding participant identity and recording context consistent across sensing streams, this design reduces confounding factors when analyzing modality-specific discriminability and complemen-tarity. Future data collections can complement this controlled setting with greater environmental and device diversity, en-abling systematic evaluation of transfer across capture domains and deployment conditions. 
+
+Native Structured Modalities. OmniGait++ establishes a common learning and fusion interface for nine image-like modalities spanning all five sensing streams. Using a common backbone family makes it possible to study modality adaptation, identity alignment, and variable-cardinality fusion under a consistent architecture. The modular private front-end also provides a natural insertion point for native point-cloud tokenizers for LiDAR and radar, as well as a coordinate-based tokenizer for 3D pose. These additions would extend the same shared identity and fusion space to all twelve MMGait modalities while preserving their native structures. 
+
+Flexible Modality Availability. The 19-configuration reg-istry systematically varies auxiliary composition and cardinal-ity around a common RGB-silhouette anchor, while the set-based fusion design remains independent of fixed auxiliary branches. In particular, the shared attention module accepts auxiliary sets with different sizes and compositions without introducing configuration-specific parameters. This structure provides a basis for studying broader availability patterns, including alternative anchors and asymmetric probe–gallery modality subsets. Incorporating modality-quality estimates could further allow the model to adjust the contribution of noisy or degraded observations. 
+
+Responsible Use. MMGait’s provisions for informed con-16 sent, pseudonymization, controlled access, and participant rights are detailed in Section III-D. These measures provide a governance framework for research involving sensitive gait data. Future dataset extensions and system deployments should preserve these protections while documenting data access, model evaluation, and intended-use boundaries. Together, these directions extend MMGait and OmniGait++ toward broader, more flexible, and responsible omni-modal gait recognition. VIII. C ONCLUSION 
+
+This work presents MMGait as a common experimental basis for heterogeneous gait recognition. MMGait combines matched observations from five sensing streams and twelve modalities with an identity-disjoint split and an impostor-augmented protocol, enabling single-modal, cross-modal, and multi-modal recognition to be compared under consistent evaluation. The results show that standalone discriminability, cross-modal compatibility, and fusion complementarity are distinct properties: standalone strength does not necessarily predict cross-modal alignment or value in fusion. To unify recognition across heterogeneous modality in-puts and operating modes, we developed OmniGait++. Its private-to-shared architecture preserves modality-dependent cues while learning comparable identity descriptors, and its anchor-guided temporal fusion accommodates modality subsets with different sizes and compositions. Experiments demonstrate that one jointly trained checkpoint supports this unified coverage while remaining competitive with separately trained task-specific models. Overall, MMGait provides the empirical foundation for systematically studying heterogeneous gait information, while OmniGait++ offers a scalable framework for learning from it. Together, they establish a common basis for advancing omni-modal gait recognition. REFERENCES [1] A. Sepas-Moghaddam and A. Etemad, “Deep gait recognition: A sur-vey,” TPAMI , vol. 45, no. 1, pp. 264–284, 2022. [2] H. Chao, Y. He, J. Zhang, and J. Feng, “Gaitset: Regarding gait as a set for cross-view gait recognition,” in AAAI , vol. 33, no. 01, 2019, pp. 8126–8133. [3] C. Fan, J. Liang, C. Shen, S. Hou, Y. Huang, and S. Yu, “Opengait: Revisiting gait recognition towards better practicality,” in CVPR , 2023, pp. 9707–9716. [4] R. Liao, S. Yu, W. An, and Y. Huang, “A model-based gait recognition method with body pose and human prior knowledge,” Pattern Recogni-tion , vol. 98, p. 107069, 2020. [5] C. Fan, J. Ma, D. Jin, C. Shen, and S. Yu, “Skeletongait: Gait recognition using skeleton maps,” in AAAI , vol. 38, no. 2, 2024, pp. 1662–1669. [6] D. Ye, C. Fan, J. Ma, X. Liu, and S. Yu, “Biggait: Learning gait representation you want by large vision models,” in CVPR , 2024, pp. 200–210. [7] D. Ye, C. Fan, Z. Huang, C. Luo, J. Li, S. Yu, and X. Liu, “Biggergait: Unlocking gait recognition with layer-wise representations from large vision models,” arXiv preprint arXiv:2505.18132 , 2025. [8] D. Tan, K. Huang, S. Yu, and T. Tan, “Efficient night gait recognition based on template matching,” in International Conference on Pattern Recognition , vol. 3, 2006, pp. 1000–1003. [9] M. Hofmann, J. Geiger, S. Bachmann, B. Schuller, and G. Rigoll, “The tum gait from audio, image and depth (gaid) database: Multimodal recognition of subjects and traits,” Journal of Visual Communication and Image Representation , vol. 25, no. 1, pp. 195–206, 2014. [10] C. Shen, C. Fan, W. Wu, R. Wang, G. Q. Huang, and S. Yu, “Lidargait: Benchmarking 3d gait recognition with point clouds,” in CVPR , 2023, pp. 1054–1063. [11] X. Han, Y. Ren, P. Cong, Y. Sun, J. Wang, L. Xu, and Y. Ma, “Gait recognition in large-scale free environment via single lidar,” in ACM MM , 2024, pp. 380–389. [12] C. Wang, Q. Cai, S. Hou, A. Li, and Y. Huang, “MMGait: Towards multi-modal gait recognition,” in CVPR , 2026. [13] C. Fan, Y. Peng, C. Cao, X. Liu, S. Hou, J. Chi, Y. Huang, Q. Li, and Z. He, “Gaitpart: Temporal part-based model for gait recognition,” in 
+
+CVPR , 2020, pp. 14 225–14 233. [14] B. Lin, S. Zhang, M. Wang, L. Li, and X. Yu, “Gaitgl: Learning discriminative global-local feature representations for gait recognition,” 
+
+arXiv preprint arXiv:2208.01380 , 2022. [15] C. Fan, S. Hou, Y. Huang, and S. Yu, “Exploring deep models for practical gait recognition,” arXiv preprint arXiv:2303.03301 , 2023. [16] H. Xiong, B. Feng, X. Wang, and W. Liu, “Causality-inspired discrimi-native feature learning in triple domains for gait recognition,” in ECCV ,2024, pp. 251–270. [17] K. Ma, Y. Fu, D. Zheng, C. Cao, X. Hu, and Y. Huang, “Dynamic aggregated network for gait recognition,” in CVPR , 2023, pp. 22 076– 22 085. [18] K. Ma, Y. Fu, C. Cao, S. Hou, Y. Huang, and D. Zheng, “Learning visual prompt for gait recognition,” in CVPR , 2024, pp. 593–603. [19] P. Huang, S. Hou, J. Huang, and Y. Huang, “Learning a unified template for gait recognition,” in ICCV , 2025, pp. 12 459–12 469. [20] S. Yang, J. Wang, S. Hou, X. Liu, C. Cao, L. Wang, and Y. Huang, “Bridging gait recognition and large language models sequence model-ing,” in CVPR , 2025, pp. 3460–3469. [21] T. Teepe, A. Khan, J. Gilg, F. Herzog, S. H¨ ormann, and G. Rigoll, “Gait-graph: Graph convolutional network for skeleton-based gait recognition,” in ICIP , 2021, pp. 2314–2318. [22] T. Teepe, J. Gilg, F. Herzog, S. H¨ ormann, and G. Rigoll, “Towards a deeper understanding of skeleton-based gait recognition,” in CVPRW ,2022, pp. 1569–1577. [23] Y. Fu, S. Meng, S. Hou, X. Hu, and Y. Huang, “Gpgait: Generalized pose-based gait recognition,” in ICCV , 2023, pp. 19 595–19 604. [24] S. Meng, Y. Fu, S. Hou, X. Hu, C. Cao, X. Liu, and Y. Huang, “From fastposegait to gpgait++: Bridging the past and future for pose-based gait recognition,” TPAMI , 2025. [25] Y. Guo, A. Shah, J. Liu, A. Gupta, R. Chellappa, and C. Peng, “Gaitcon-tour: Efficient gait recognition based on a contour-pose representation,” in IEEE/CVF Winter Conference on Applications of Computer Vision ,2025, pp. 1051–1061. [26] L. Chen, Z. Zhang, and Y. Wang, “Edinogait: Transferring large visual models to event-based vision for enhancing gait recognition,” TMM ,2025. [27] S. Xu, S. Chen, C. Shen, K. Liu, Z. Sun, C. Cao, and X. Fu, “EventGait: Towards robust gait recognition with event streams,” in CVPR , 2026, pp. 22 323–22 334. [28] A. Haque, A. Alahi, and L. Fei-Fei, “Recurrent attention models for depth-based person identification,” in CVPR , 2016, pp. 1229–1238. [29] R. Wang, C. Shen, C. Fan, G. Q. Huang, and S. Yu, “Pointgait: Boosting end-to-end 3d gait recognition with point clouds via spatiotemporal modeling,” in IEEE International Joint Conference on Biometrics , 2023, pp. 1–10. [30] C. Shen, R. Wang, L. Duan, and S. Yu, “Lidargait++: Learning local fea-tures and size awareness from lidar point clouds for 3d gait recognition,” in CVPR , 2025, pp. 6627–6636. [31] Z. Meng, S. Fu, J. Yan, H. Liang, A. Zhou, S. Zhu, H. Ma, J. Liu, and N. Yang, “Gait recognition for co-existing multiple people using millimeter wave sensing,” in AAAI , vol. 34, no. 01, 2020, pp. 849–856. [32] R. Wang, C. Shen, M. J. Marin-Jimenez, G. Q. Huang, and S. Yu, “Cross-modality gait recognition: Bridging lidar and camera modalities for human identification,” in International Joint Conference on Biomet-rics , 2024, pp. 1–11. [33] W. Guo, Y. Liang, Z. Pan, Z. Xi, J. Feng, and J. Zhou, “Camera-lidar cross-modality gait recognition,” in ECCV , 2024, pp. 439–455. [34] Z. Lu and M. Cheng, “Text-guided feature disentanglement for cross-modal gait recognition,” in CVPR , 2026, pp. 25 484–25 493. [35] Y. Cui and Y. Kang, “Multi-modal gait recognition via effective spatial-temporal feature fusion,” in CVPR , 2023, pp. 17 949–17 957. [36] Y. Sun, X. Feng, X. Liu, L. Ma, L. Hu, and M. S. Nixon, “Trigait: hybrid fusion strategy for multimodal alignment and integration in gait recognition,” TBIOM , vol. 7, no. 1, pp. 82–94, 2024. 
+
+17 [37] D. Jin, C. Fan, W. Chen, and S. Yu, “Exploring more from multiple gait modalities for human identification,” in AAAI , vol. 39, no. 4, 2025, pp. 4120–4128. [38] Z. Lu, W. Jiang, T. Wu, Z. Wang, C. Zhang, S. Shen, and M. Cheng, “Walking further: Semantic-aware multimodal gait recognition under long-range conditions,” in AAAI , vol. 40, no. 9, 2026, pp. 7618–7626. [39] M. J. Mar´ ın-Jim´ enez, F. M. Castro, R. Delgado-Esca˜ no, V. Kalogeiton, and N. Guil, “UGaitNet: Multimodal gait recognition with missing input modalities,” TIFS , vol. 16, pp. 5452–5462, 2021. [40] H. Li, M. Ye, M. Zhang, and B. Du, “All in one framework for multimodal re-identification in the wild,” in CVPR , 2024, pp. 17 459– 17 469. [41] J. Zuo, Y. Deng, M. Tan, R. Jin, D. Wu, N. Sang, L. Pan, and C. Gao, “ReID5o: Achieving omni multi-modal person re-identification in a single model,” in NeurIPS , vol. 38, 2025. [42] A. Li, S. Hou, C. Wang, Q. Cai, and Y. Huang, “Aerialgait: Bridging aerial and ground views for gait recognition,” in ACM MM , 2024, pp. 1139–1147. [43] C. Wang, S. Hou, A. Li, Q. Cai, and Y. Huang, “Ra-gar: A richly annotated benchmark for gait attribute recognition,” in AAAI , vol. 39, no. 7, 2025, pp. 7591–7599. [44] S. Yu, D. Tan, and T. Tan, “A framework for evaluating the effect of view angle, clothing and carrying condition on gait recognition,” in 
+
+International Conference on Pattern Recognition , vol. 4, 2006, pp. 441– 444. [45] N. Takemura, Y. Makihara, D. Muramatsu, T. Echigo, and Y. Yagi, “Multi-view large population gait dataset and its performance evaluation for cross-view gait recognition,” IPSJ transactions on Computer Vision and Applications , vol. 10, pp. 1–14, 2018. [46] W. Li, S. Hou, C. Zhang, C. Cao, X. Liu, Y. Huang, and Y. Zhao, “An in-depth exploration of person re-identification and gait recognition in cloth-changing conditions,” in CVPR , 2023, pp. 13 824–13 833. [47] S. Zou, C. Fan, J. Xiong, C. Shen, S. Yu, and J. Tang, “Cross-covariate gait recognition: A benchmark,” in AAAI , vol. 38, no. 7, 2024, pp. 7855– 7863. [48] J. Zheng, X. Liu, W. Liu, L. He, C. Yan, and T. Mei, “Gait recognition in the wild with dense 3d representations and a benchmark,” in CVPR ,2022, pp. 20 228–20 237. [49] Z. Zhu, X. Guo, T. Yang, J. Huang, J. Deng, G. Huang, D. Du, J. Lu, and J. Zhou, “Gait recognition in the wild: A benchmark,” in ICCV ,2021, pp. 14 789–14 799. [50] https://www.orbbec.com/products/stereo-vision-camera/gemini-2xl/. [51] https://ouster.com/products/hardware/os0-lidar-sensor. [52] https://www.geometricalpal.com/hardware/1. [53] Y. Zhang, P. Sun, Y. Jiang, D. Yu, F. Weng, Z. Yuan, P. Luo, W. Liu, and X. Wang, “Bytetrack: Multi-object tracking by associating every detection box,” in ECCV , 2022, pp. 1–21. [54] Y. Liu, L. Chu, G. Chen, Z. Wu, Z. Chen, B. Lai, and Y. Hao, “Pad-dleseg: A high-efficient development toolkit for image segmentation,” 
+
+arXiv preprint arXiv:2101.06175 , 2021. [55] J. Wang, K. Sun, T. Cheng, B. Jiang, C. Deng, Y. Zhao, D. Liu, Y. Mu, M. Tan, X. Wang et al. , “Deep high-resolution representation learning for visual recognition,” TPAMI , vol. 43, no. 10, pp. 3349–3364, 2020. [56] Q. Cai, X. Hu, S. Hou, L. Yao, and Y. Huang, “Disentangled diffusion-based 3d human pose estimation with hierarchical spatial and temporal denoiser,” in AAAI , vol. 38, no. 2, 2024, pp. 882–890. [57] Y. Hu, S.-C. Liu, and T. Delbruck, “v2e: From video frames to realistic dvs events,” in CVPRW , 2021, pp. 1312–1321. [58] S. Lee, H. Lim, and H. Myung, “Patchwork++: Fast and robust ground segmentation solving partial under-segmentation using 3d point cloud,” in International Conference on Intelligent Robots and Systems , 2022, pp. 13 276–13 283. [59] M. Ester, H.-P. Kriegel, J. Sander, X. Xu et al. , “A density-based algorithm for discovering clusters in large spatial databases with noise,” in International Conference on Knowledge Discovery and Data Mining ,vol. 96, no. 34, 1996, pp. 226–231. [60] C. Zhang, X.-P. Chen, G.-Q. Han, and X.-J. Liu, “Spatial transformer network on skeleton-based gait recognition,” Expert Systems , vol. 40, no. 6, p. e13244, 2023. [61] W.-G. Chang, T. You, S. Seo, S. Kwak, and B. Han, “Domain-specific batch normalization for unsupervised domain adaptation,” in CVPR ,2019, pp. 7354–7362. [62] Z. Qiu, T. Yao, and T. Mei, “Learning spatio-temporal representation with pseudo-3d residual networks,” in ICCV , 2017, pp. 5533–5541. [63] H. Luo, Y. Gu, X. Liao, S. Lai, and W. Jiang, “Bag of tricks and a strong baseline for deep person re-identification,” in CVPRW , 2019, pp. 1487–1495. [64] A. Vaswani, N. Shazeer, N. Parmar, J. Uszkoreit, L. Jones, A. N. Gomez, L. Kaiser, and I. Polosukhin, “Attention is all you need,” in NeurIPS ,vol. 30, 2017, pp. 5998–6008. [65] A. Hermans, L. Beyer, and B. Leibe, “In defense of the triplet loss for person re-identification,” arXiv preprint arXiv:1703.07737 , 2017. 
+
+18 SUPPLEMENTARY MATERIAL 
+
+S1. C OMPUTATIONAL COST 
+
+Table S1 compares the model size and path-wise inference complexity of the task-specific baselines, OmniGait, and OmniGait++. Total Params denotes the parameter count of one independently trained checkpoint for a task-specific baseline and that of the complete unified checkpoint for OmniGait and OmniGait++; it is therefore fixed across their operating settings. Active Params denotes the union of the parameters required by a specified operating path, with shared parameters counted once and repeated execution reflected in FLOPs. Both parameter measures exclude the BNNeck and identity classifiers. FLOPs are measured before the BNNeck using batch size one. Each selected modality provides a 30-frame input under the default preprocessing setting. Gallery matching is excluded. For each configuration, we count one forward pass through every distinct descriptor path required by the setting: one modality path for single-modal inference, two modality paths without fusion for cross-modal inference, and one fused path over the selected modalities for multi-modal inference. All quantities are measured per configuration and then averaged with equal weight within each operating setting. Single-modal Avg., Cross-modal Avg., and Two-Stream Avg. cover nine modalities, six unordered modality pairs, and eight fusion configurations, respectively. Task-specific parameter counts are averaged per checkpoint rather than summed over the expert collection, whereas Omni-5, Omni-7, and Omni-9 are reported directly. For Omni-9, the inactive single-modal normalization branches make Active Params slightly lower than Total Params.                                                
+
+> TABLE S1 MODEL SIZE AND PATH -WISE INFERENCE COST . P ARAMETER COUNTS AND FLOP S EXCLUDE THE BNN ECK AND IDENTITY CLASSIFIERS ; FLOP S ALSO EXCLUDE GALLERY MATCHING . E ACH MODALITY PROVIDES 30 FRAMES WITH BATCH SIZE ONE . “A VG .” IS AN EQUAL -WEIGHT AVERAGE OVER THE APPLICABLE CONFIGURATIONS .
+> Method Operating Setting Total Params (M) Active Params (M) FLOPs (G)
+> DeepGaitV2-P3D Single-modal Avg. 8.03 8.03 55.85 CL-Gait Cross-modal Avg. 10.20 10.20 114.78 MultiGait++ Two-Stream Avg. 11.09 11.09 105.58 OmniGait Single-modal Avg. 9.14 7.23 73.16 Cross-modal Avg. 9.14 7.46 146.25 Two-Stream Avg. 9.14 7.51 105.45 OmniGait++ Single-modal Avg. 24.12 8.27 82.22 Cross-modal Avg. 24.12 9.98 164.37 Two-Stream Avg. 24.12 12.15 135.24 Omni-5 24.12 17.28 280.95 Omni-7 24.12 20.70 378.16 Omni-9 24.12 24.11 475.30
+
+The two parameter measures reveal complementary aspects of scalability. Although the full OmniGait++ descriptor model is larger than an individual task-specific descriptor model, covering the shared evaluation settings requires nine single-modal experts, six pair-specific cross-modal experts, and eight Two-Stream experts. Using the rounded per-model averages in Table S1, their aggregate size is approximately 9(8 .03) + 6(10 .20) + 8(11 .09) = 222 .19 M parameters, compared with 24.12M for the full OmniGait++ descriptor model. Relative to storing all 23 task-specific descriptor models, the unified model therefore reduces descriptor-model storage by approximately 89% while additionally supporting variable-cardinality fusion. At the level of an active path, OmniGait++ remains close to the corresponding task-specific models. Relative to OmniGait, the additional capacity and computation accompany broader modality coverage and the consistent recognition gains in Table X. Moreover, expanding from Omni-5 to Omni-7 and from Omni-7 to Omni-9 adds 3.42M and 3.41M Active Params and 97.21G and 97.14G FLOPs, respectively, indicating predictable growth as pairs of modalities are added. Overall, OmniGait++ trades additional per-path computation for substantially lower collection-level storage and broader coverage within one checkpoint. S2. A DDITIONAL MMG AIT VISUALIZATIONS 
+
+Figures S1 and S2 present processed examples from two participants using the same layout. Rows group the raw and derived modalities by sensing stream and indicate their walking directions, whereas columns compare normal walking, backpack carrying, and clothing change. 19 RGB Walking Backpack Clothing 
+
+0!
+
+RGB Camera Silhouette 36 !
+
+2D Pose 3D Pose 
+
+72 !
+
+Event 
+
+108 !
+
+144 !
+
+180 !
+
+IR IR Silhouette 180 !
+
+216 !Projected Depth 
+
+252 !
+
+Point Cloud 
+
+288 !
+
+Point Cloud Depth 324 !
+
+LiDAR Scanner 4D Radar System Depth Camera IR Camera Projected Depth 288 !Fig. S1. Representative MMGait sequences for one participant. Rows cover the twelve raw or derived gait modalities at the annotated walking directions, while columns show normal walking, backpack carrying, and clothing change. 
+
+20 RGB Walking Backpack Clothing 
+
+0!
+
+RGB Camera Silhouette 36 !
+
+2D Pose 3D Pose 
+
+72 !
+
+Event 
+
+108 !
+
+144 !
+
+180 !
+
+IR IR Silhouette 180 !
+
+216 !Projected Depth 
+
+252 !
+
+Point Cloud 
+
+288 !
+
+Point Cloud Depth 324 !
+
+LiDAR Scanner 4D Radar System Depth Camera IR Camera Projected Depth 288 !Fig. S2. Additional representative MMGait sequences from another participant, showing the twelve raw or derived gait modalities at the annotated walking directions under normal walking, backpack carrying, and clothing change. 
+
+21
