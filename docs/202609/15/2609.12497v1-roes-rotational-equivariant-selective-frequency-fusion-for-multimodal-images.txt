@@ -1,0 +1,2089 @@
+RoES: Rotational Equivariant Selective-frequency Fusion for
+Multimodal Images
+Jiabao Wang
+hi.wangjiabao@outlook.com
+Zhongnan University of Economics
+and Law
+Wuhan, Hubei, China
+Wenjian Liu
+andylau@cityu.edu.mo
+City University of Macau
+Macau, China
+Yaoming Cai∗
+caiyaom@zuel.edu.cn
+Zhongnan University of Economics
+and Law
+Wuhan, Hubei, China
+Gengyu Zhang
+gzhan@uic.edu
+University of Illinois Chicago
+Chicago, Illinois, United States
+Boyan Zhao
+boyan.zhao@outlook.com
+Zhongnan University of Economics
+and Law
+Wuhan, Hubei, China
+Zijia Zhang
+zijiazhang@hubu.edu.cn
+Hubei University
+Wuhan, Hubei, China
+Yao Ding
+dingyao.88@outlook.com
+Xi’an High-tech Research Institute
+Xi’an, Shaanxi, China
+Xiaobo Liu
+xbliu@cug.edu.cn
+China University of Geosciences
+(Wuhan)
+Wuhan, Hubei, China
+Abstract
+Infrared-visible image fusion facilitates robust multimodal percep-
+tion by integrating complementary textural nuances from visible
+sensors with thermal signatures from infrared systems. Due to the
+task’s inherently ill-posed nature, existing methods heavily rely
+on structural priors but typically enforce rotation equivariance
+uniformly across all features. Such a holistic approach overlooks a
+critical distinction where low-frequency shared structures strictly
+adhere to equivariant constraints while high-frequency modality-
+specific details require greater flexibility to preserve unique in-
+formation. To bridge this gap, we propose RoES, a Rotational
+Equivariant Selective-frequency fusion network. Instead of em-
+ploying static decomposition, we introduce a trainable rotation-
+enhanced updater/predictor module to dynamically decouple low-
+and high-frequency components. The resulting representations are
+then processed through a dual-branch fusion module tailored for
+spectral consistency. Specifically, a rotation-equivariant Mamba
+is employed to capture long-range structural dependencies in the
+low-frequency domain, while a polar spectral attention-based Dual-
+Fourier block refines high-frequency details under explicit low-
+frequency guidance. Extensive experiments demonstrate that RoES
+consistently achieves state-of-the-art performance in both fusion
+quality and downstream object detection, establishing a robust so-
+lution for multimodal fusion by reconciling frequency-selective
+features with equivariant constraints. The source code is available
+at https://github.com/BryceLosky/RoES-Fusion.
+∗Corresponding author.
+This work is licensed under a Creative Commons Attribution 4.0 International License.
+MM ’26, Rio de Janeiro, Brazil
+© 2026 Copyright held by the owner/author(s).
+ACM ISBN 979-8-4007-2213-4/2026/11
+https://doi.org/10.1145/3767308.3835904
+CCS Concepts
+• Computing methodologies →Computer vision; Image rep-
+resentations.
+Keywords
+Multimodal image fusion, Rotational equivariance, Frequency de-
+composition, Polar spectral attention
+ACM Reference Format:
+Jiabao Wang, Wenjian Liu, Yaoming Cai, Gengyu Zhang, Boyan Zhao, Zi-
+jia Zhang, Yao Ding, and Xiaobo Liu. 2026. RoES: Rotational Equivariant
+Selective-frequency Fusion for Multimodal Images. In Proceedings of the
+34th ACM International Conference on Multimedia (MM ’26), November
+10–14, 2026, Rio de Janeiro, Brazil. ACM, New York, NY, USA, 10 pages.
+https://doi.org/10.1145/3767308.3835904
+1
+Introduction
+Robust visual perception in safety-critical applications such as au-
+tonomous driving and surveillance demands reliable scene under-
+standing across diverse and adverse environmental conditions [18–
+20, 25]. Infrared-visible image fusion is a prominent approach to this
+end, combining the complementary characteristics of two widely
+deployed sensor modalities. Visible cameras provide rich spatial
+textures and fine structural detail, yet degrade severely under low
+illumination or glare. Infrared sensors offer illumination-invariant
+thermal detection, yet sacrifice texture resolution and are suscepti-
+ble to thermal crossover artifacts [69]. Through cross-modal com-
+plementarity, fusion produces imagery that is simultaneously detail-
+preserving and environmentally robust. This unified representation
+directly benefits downstream tasks such as object detection [22]
+and semantic segmentation [24], which require both properties to
+perform reliably in real-world conditions.
+arXiv:2609.12497v1  [cs.CV]  11 Sep 2026
+
+
+MM ’26, November 10–14, 2026, Rio de Janeiro, Brazil
+Jiabao Wang et al.
+Infrared
+Visible
+Fused
+Operator Selection Map
+(a) Operational preferences across frequencies
+(b) State-of-the-art performance of RoES  
+Figure 1: Motivation and performance of RoES. (a) An
+attention-based router reveals frequency-dependent oper-
+ator selection in a preliminary U-Net fusion task: rotation-
+equivariant convolutions for low-frequency structures
+(green) and standard convolutions for high-frequency tex-
+tures (red). (b) RoES achieves state-of-the-art performance
+on the M3FD benchmark.
+However, infrared-visible image fusion is fundamentally ill-posed.
+For any registered source pair, no ground-truth image simulta-
+neously preserves all complementary content from both modali-
+ties [25]. Consequently, fusion models cannot be trained against
+a definitive target and must instead rely on structural priors to
+constrain the solution space [62]. This raises the question of what
+structural prior to impose.
+Among possible priors, geometric consistency—particularly ro-
+tation equivariance—has recently emerged as a promising choice
+[4]. It reflects a simple geometric principle: when the input rotates,
+the representation should transform accordingly in a predictable
+manner. This inductive bias has shown clear benefits in visual recog-
+nition and dense prediction [48, 54]. More recently, Zhao et al. [65]
+demonstrated that geometric consistency directly benefits multi-
+modal fusion by introducing rotation-equivariant modeling into
+the fusion pipeline.
+However, when rotation-equivariant modeling is introduced
+into fusion, it is typically enforced uniformly across the representa-
+tion [65], overlooking the fact that low- and high-frequency com-
+ponents are not equally compatible with the same geometric prior.
+As shown in Fig. 1, a fusion model exhibits evident operational
+preferences across frequency, where standard convolutions are
+prioritized for high-frequency textures while rotation-equivariant
+convolutions are selectively invoked for low-frequency structural
+components. Applying the same rigid equivariant constraint to
+both regimes may therefore stabilize shared structure while over-
+regularizing detail modeling, suppressing the complementary infor-
+mation that fusion is meant to preserve. This concern is also echoed
+in recent low-level vision studies. Xie et al. [53, 54] note that practi-
+cal equivariant modules can incur approximation errors on complex
+local patterns. Bai et al. [1] further show that strict equivariance
+constraints can limit representation accuracy when the assumed
+symmetry does not hold precisely. In Sec. 3.1, we formalize this
+observation as a frequency-selective equivariance constraint and
+further validate it through a controlled frequency-threshold experi-
+ment.
+A further challenge is that realizing frequency-selective fusion
+first requires a meaningful low/high-frequency decomposition, yet
+many frequency-aware fusion methods still rely on fixed, hand-
+crafted transforms [33, 64, 70] that predefine the boundary between
+shared structure and modality-specific detail rather than adapting
+it to the fusion objective.
+We therefore propose Rotational Equivariant Selective-frequency
+fusion (RoES) to address both the mismatch of uniform equivari-
+ance and the rigidity of fixed frequency decomposition. RoES first
+employs a learnable lifting-based module, RoUP, to adaptively sep-
+arate multimodal features into low-frequency structure and high-
+frequency detail. It then selectively imposes rotation equivariance
+only on the low-frequency branch, where a rotation-equivariant
+Mamba-style encoder [5] produces a geometry-consistent represen-
+tation with stable global structure. Rather than constraining high-
+frequency features with the same rigid prior, RoES refines them in
+the frequency domain through a Frequency-guided Dual-Fourier
+(FDF) block, where the stable low-frequency representation guides
+high-frequency spectral optimization via Polar Spectral Attention
+(PSA). This selective design achieves a better balance between struc-
+tural robustness and detail preservation, as validated by extensive
+experiments.
+Our contributions are four-fold:
+• Frequency-selective equivariance. We formulate a frequency-
+selective prior for multimodal fusion, showing that rotation equiv-
+ariance is more suitable for low-frequency structure than for
+high-frequency details.
+• Learnable decomposition. We introduce RoUP, a learnable lift-
+ing module with an asymmetric CNN/F-Conv predictor/updater
+and a direction-aware loss for task-adaptive low/high-frequency
+decomposition.
+• RoES framework. We propose a selective-frequency fusion ar-
+chitecture that uses rotation-equivariant Mamba for low-frequency
+global structure and a low-frequency-guided Dual-Fourier block
+for high-frequency refinement.
+• Polar spectral refinement. We design PSA to inject rotation-
+consistent low-frequency cues into the high-frequency amplitude
+spectrum in polar coordinates, enabling low-frequency-guided
+high-frequency refinement in the frequency domain while pre-
+serving phase-sensitive localization.
+2
+Related Work
+2.1
+Infrared-visible Image Fusion
+Infrared-visible image fusion aims to extract and integrate comple-
+mentary multimodal cues [3, 12, 30, 60, 63]. Early methods mainly
+relied on multi-scale transforms [15], whereas later deep mod-
+els shifted toward data-driven decomposition [23]. Autoencoder-
+and CNN-based frameworks commonly decompose inputs into
+base/detail or shared/specific representations [11, 14, 16, 46], while
+more recent dual-branch or disentanglement-based designs use
+correlation-aware objectives to align shared representations and
+preserve modality-specific textures [7, 55, 56, 64, 66]. Although
+these strategies improve complementary representation learning,
+they mostly disentangle information by functional role and rarely
+consider the different geometric properties of structural low-frequency
+and detail-dominant high-frequency components during fusion.
+
+
+RoES: Rotational Equivariant Selective-frequency Fusion for Multimodal Images
+MM ’26, November 10–14, 2026, Rio de Janeiro, Brazil
+FFT
+V
+K
+Q
+MHSA
+Conv-1
+Conv-1
+PSA
+IFFT
+PSA
+64
+H
+W
+
+
+384
+H
+W
+
+
+64
+H
+W
+
+
+Concat
+Conv-1
+Conv-1
+Conv-3
+SiLU
+Conv-3
+SiLU
+Conv-3
+SiLU
+Feature Enc. & 
+Dim. Reduction
+H
+in
+F
+Layer Norm
+LF
+Amp.
+SepConv
+SiLU
+Euler Encode
+Conv-1
+SiLU
+Conv-1
+Euler Decode
+IFFT
+Phase Processing
+Amplitude Processing
+Conv-1
+H
+out
+F
+FDF
+Decoder
+C
+Fused
+FFT
+Layer Norm
+H
+Refined
+F
+L
+Eq
+F
+Restormer-Block
+Predictor
+Updater
+Predictor
+Updater
+𝐶𝐶
+𝐶𝐶
+H
+F
+Detail
+Coarse
+Coarse
+Detail
+Conv-3
+Conv-3
+Shared Restormer-Block
+Cross-Attention
+Cross-Attention
+V
+Q
+Q
+K
+V
+Infrared
+Visible
+K
+Encoder
+I
+H
+V
+H
+VL
+IL
+RoUP
+Low-Freq. Branch
+(EM)
+High-Freq. Branch
+(FDF)
+EM
+Rotation
+0o
+90
++
+o
+180
++
+o
+90
+−
+o
+Rotation Back
+Patchification
+Max
+Spectral Traversal Scan
+S6 Block
+Spectral Traversal Merge
+ReLU
+Conv-3
+ReLU
+Conv-3
+Conv-3
+ReLU
+Conv-3
+Coarse
+Predictor
+H
+
+2
+
+ReLU
+F-Conv
+ReLU
+F-Conv
+F-Conv
+ReLU
+F-Conv
+Updater
+Detail
+L
+
+2
+
+3×3 / 1×1 Convolution
+Pearson Correlation Coefficient
+Channel-wise Concatenation
+Element-wise Subtraction
+Element-wise Addition
+Equivariant Mamba
+Freq.-guided Dual-Fourier
+Polar Spectral Attention
+Frequency-Selective Fusion
+Depthwise Separable Conv.
+Equivariant Convolution
+Conv-3/1
+C
+—
+EM
+FDF
+PSA
+FSF
+SepConv
+F-Conv
+𝑪𝑪
+L
+F
+FSF
+4
+
+4
+
+Figure 2: Overview of the proposed RoES model. Paired infrared-visible images are encoded by a shared Restormer encoder and
+decomposed into low- and high-frequency components via the trainable RoUP module. Our frequency-selective fusion module
+comprises a rotation-equivariant Mamba block for low-frequency structure modeling, and a frequency-guided Dual-Fourier
+block for high-frequency detail refinement under low-frequency guidance.
+Recent studies have also explored Fourier- or spectral-domain in-
+teraction for frequency-specific fusion [47, 51, 67], but many still
+rely on fixed transforms, predefined bands, or whole-spectrum
+processing, limiting adaptive low/high-frequency partitioning and
+low-to-high structural guidance. Among learnable decomposition
+frameworks, the lifting scheme, a second-generation wavelet frame-
+work [38], is particularly relevant because it supports task-adaptive
+decomposition with an explicit inverse path. By factorizing wavelet
+transforms into split, predict, and update steps [6], it replaces linear
+filters with learnable nonlinear operators [68] while supporting
+exact or explicit reconstruction under invertible designs [10, 35]. Its
+effectiveness in image compression, denoising, and time-series mod-
+eling [29] makes it well suited to adaptive and reversible frequency
+decoupling in multimodal fusion.
+2.2
+Rotation Equivariance Constraint
+For a rotation group G and𝑔∈G, a mapping 𝑓is rotation-equivariant
+if 𝑓(𝑔◦X) = 𝑔◦𝑓(X), where 𝑔◦(·) denotes the action of 𝑔on a
+feature map. Rotation equivariance thus provides a geometric prior
+for predictable feature transformations under input rotations [48].
+Typical realizations include group convolutions and steerable fil-
+ters [49, 50], which are widely used in rotation-sensitive tasks such
+as oriented object detection and visual matching [2, 9, 13, 36, 43].
+For low-level dense prediction, however, strict equivariance is usu-
+ally realized through finite angular sampling or basis approxima-
+tions [37, 54], which can limit accuracy on complex local patterns
+[1, 53]. This limitation is particularly relevant to multimodal fu-
+sion, where low-frequency components mainly encode stable global
+structure, whereas high-frequency components are more heteroge-
+neous, modality-dependent, and sensitive to local reliability [1, 21].
+Imposing the same rigid equivariant constraint on all frequency
+bands may therefore be unnecessarily restrictive for detail model-
+ing. Attention-based fusion offers a flexible mechanism for comple-
+mentary feature selection [26–28, 34, 42, 64], but such geometry-
+agnostic interaction does not explain how rotation-consistent struc-
+ture should guide locally variable details. Prior infrared-visible
+fusion studies have paid limited attention to whether low- and
+high-frequency branches differ in their compatibility with strict
+rotation-equivariant modeling, motivating selective rotation priors:
+explicit equivariant modeling for structurally stable representations
+and greater flexibility for high-frequency detail fusion.
+3
+Methodology
+RoES is built on a simple principle: rotation equivariance ought to
+be imposed selectively instead of uniformly across low- and high-
+frequency components. As illustrated in Fig. 2, we realize this de-
+sign philosophy through a frequency decomposition and selectivity
+
+
+MM ’26, November 10–14, 2026, Rio de Janeiro, Brazil
+Jiabao Wang et al.
+framework. The detailed architecture and components are elabo-
+rated in the following subsections.
+3.1
+Frequency-Selective Equivariance Prior
+We treat rotation equivariance as a branch-selective prior at the
+fusion stage rather than a uniform hard constraint across low- and
+high-frequency branches, because it is better aligned with low-
+frequency structural fusion than with high-frequency detail fusion.
+Let G = 𝐶𝑁be the discrete rotation group, and let H G ⊂H denote
+the corresponding equivariant subset of the base function class H.
+Functionally, low-frequency fusion mainly models shared spatial
+layout, whose response should rotate consistently with the input,
+making rotation-equivariant modeling suitable. High-frequency
+fusion instead learns to select reliable modality-specific details, sup-
+press redundant or noisy responses, and enhance complementary
+edges, textures, or thermal cues under low-frequency guidance.
+These operations depend on local context and modality reliability
+rather than rotational symmetry alone, so enforcing the same strict
+equivariant constraint is unnecessary and can limit detail recovery.
+RoES therefore applies explicit equivariant modeling only to the
+low-frequency branch and uses the resulting rotation-consistent
+low-frequency representation to guide high-frequency fusion. For-
+mally, this branch-selective design is summarized by the following
+definition.
+Definition 3.1 (Frequency-selective equivariance constraint). Let
+𝑓𝐿and 𝑓𝐻denote the low- and high-frequency fusion mappings,
+respectively. A fusion model satisfies the frequency-selective equiv-
+ariance constraint if
+𝑓𝐿∈H G,
+𝑓𝐻∈H.
+(1)
+That is, the low-frequency branch is constrained to be rotation-
+equivariant, whereas no strict rotation-equivariant constraint is
+imposed on the high-frequency branch.
+Controlled validation. To examine the scope of Definition 3.1
+independently of RoES-specific modules, we conduct a controlled
+experiment with a basic two-branch U-Net. Following FFT decompo-
+sition at a frequency threshold𝜏, components below𝜏are processed
+by a strictly𝐶4-equivariant branch, 𝐸(x) = 1
+4
+Í
+𝑔∈𝐶4 𝑔−1𝐵(𝑔x), where
+𝐵denotes a standard branch, while components above 𝜏are pro-
+cessed by the standard branch before recombination. Thus, 𝜏= 0
+applies no equivariance, whereas 𝜏= 1 applies it to the full spec-
+trum. The model is trained on MSRS and evaluated on 300 M3FD
+image pairs.
+As shown in Fig. 3, VIF peaks and 𝑁𝑎𝑏𝑓reaches its minimum
+when equivariance is restricted to low frequencies, while extend-
+ing the constraint toward the full spectrum reverses both gains.
+VIF measures transferred visual information, whereas 𝑁𝑎𝑏𝑓quan-
+tifies fusion-induced noise and artifacts, jointly covering fidelity
+preservation and artifact suppression. These aligned optima sup-
+port the design principle formalized in Definition 3.1, grounding
+the frequency-selective equivariance constraint in controlled ex-
+perimental evidence.
+In our implementation, 𝑁= 4, i.e., G = 𝐶4. Guided by the
+above frequency-selective equivariance constraint, RoES first builds
+interaction-enhanced features with a front-end encoder before
+RoUP. The encoder contains modality-specific 3 × 3 convolution
+Figure 3: Controlled validation of the frequency-selective
+equivariance constraint. The threshold 𝜏spans no equivari-
+ance (𝜏= 0) to full-frequency equivariance (𝜏= 1), with both
+VIF and 𝑁𝑎𝑏𝑓attaining their optima in the low-frequency
+regime.
+stems for initial embedding and shallow feature extraction, a parameter-
+shared Restormer backbone [59] for aligned structural representa-
+tion learning and long-range context modeling, and a bidirectional
+cross-attention module for complementary cross-modal informa-
+tion exchange. The resulting encoder features are then directly fed
+into RoUP for trainable low/high-frequency decomposition.
+3.2
+Trainable Frequency Decoupling via RoUP
+Using the interaction-enhanced encoder features, we employ Rotation-
+enhanced Update/Predict networks (RoUP), an asymmetric lifting
+module with a CNN predictor and an F-Conv updater [54], to learn
+a task-adaptive low/high-frequency decomposition for subsequent
+fusion. Two RoUP modules with the same architecture but indepen-
+dent parameters are used for the infrared and visible streams. For
+each modality, a wavelet initializer produces initial low/high states,
+which are then refined by the lifting predictor–updater process.
+Consistent with the frequency-selective equivariance constraint
+(Definition 3.1), RoUP adopts an asymmetric predictor–updater
+design: a CNN predictor for flexible high-frequency residual estima-
+tion and an F-Conv updater for rotation-consistent low-frequency
+correction. We instantiate the updater with F-Conv [54], whose
+Fourier-series filter parametrization improves equivariant filter-
+ing accuracy and reduces rotation-induced aliasing. The low- and
+high-frequency states are then refined through 𝑀lifting steps.
+Specifically, the predictor and updater are shallow residual subnet-
+works, each comprising an input layer, two residual blocks, and an
+output layer; the predictor uses standard convolutions, whereas the
+updater uses F-Conv, with ReLU activations after the intermediate
+layers. Compared with a fixed wavelet split, this learned refine-
+ment is more adaptive while retaining an exact inverse path before
+fusion.
+3.2.1
+Lifting-based decomposition. For modality 𝑞∈{𝐼,𝑉}, let
+L𝑞,(𝑚) and H𝑞,(𝑚) denote the low- and high-frequency states at
+lifting step 𝑚, respectively. Because the two modalities are pro-
+cessed by independent RoUP instances, their predictors and up-
+daters are modality- and step-specific, yielding the high-frequency
+
+
+RoES: Rotational Equivariant Selective-frequency Fusion for Multimodal Images
+MM ’26, November 10–14, 2026, Rio de Janeiro, Brazil
+residual ΔH𝑞,(𝑚) = Pred𝑞,𝑚(L𝑞,(𝑚−1)) and the low-frequency resid-
+ual ΔL𝑞,(𝑚) = Upd𝑞,𝑚(H𝑞,(𝑚)). At step 𝑚, the lifting update is for-
+mulated as
+H𝑞,(𝑚) = H𝑞,(𝑚−1) −ΔH𝑞,(𝑚),
+L𝑞,(𝑚) = L𝑞,(𝑚−1) +ΔL𝑞,(𝑚). (2)
+Under the lifting interpretation, the CNN-based predictor estimates
+detail from the coarse state with greater flexibility, so that the high-
+frequency residual can better preserve modality-specific compo-
+nents, whereas the F-Conv-based updater feeds rotation-consistent
+structural corrections back to the low-frequency state to progres-
+sively emphasize shared structure. After 𝑀steps, this yields the
+modality-specific outputs {L𝐼, L𝑉, H𝐼, H𝑉} for subsequent fusion.
+Because each lifting step admits an explicit inverse, the decomposi-
+tion remains exactly reversible before fusion, which helps preserve
+sparse high-frequency information that is otherwise prone to at-
+tenuation during forward propagation.
+3.2.2
+Cross-modal decomposition supervision. Following the mul-
+timodal prior that low-frequency components are more correlated
+across modalities while high-frequency components are more modality-
+specific and complementary, we supervise the two parts differently.
+For the low-frequency part, we compare corresponding structures
+within matched directional subspaces before aggregation; although
+the two RoUP modules use independent parameters, subspaces with
+the same 𝜃remain geometrically matched because 𝜃indexes the
+same F-Conv orientation axis. Compared with global supervision on
+aggregated features, this subspace-level comparison focuses more
+directly on within-subspace correspondence and is less sensitive to
+residual modality-specific differences. For the high-frequency part,
+redundant cross-modal correlation is suppressed on the final states
+to promote complementary detail decomposition. Let L𝑞,𝜃denote
+the low-frequency response of modality 𝑞in the 𝜃-th directional
+subspace produced by the F-Conv-based updater before aggregation,
+where 𝜃∈{1, . . . , 𝑁𝜃}, and let H𝑞denote the final high-frequency
+state after the lifting steps. Using the Pearson correlation coefficient
+CC (·, ·) computed on vectorized feature responses, we define
+Llow = 1
+𝑁𝜃
+𝑁𝜃
+∑︁
+𝜃=1
+
+1 −CC
+
+L𝐼,𝜃, L𝑉,𝜃
+,
+Lhigh = CC
+
+H𝐼, H𝑉2
+.
+(3)
+This supervision encourages agreement of low-frequency shared
+structure within matched directional subspaces while suppressing
+redundant high-frequency correlation, thereby promoting com-
+plementary detail decomposition in a better-aligned comparison
+space.
+3.3
+Frequency-Selective Fusion
+After RoUP, the low- and high-frequency components of the two
+modalities are concatenated as F𝐿=
+
+L𝐼∥L𝑉
+and F𝐻=
+
+H𝐼∥H𝑉
+,
+respectively, where ∥denotes channel-wise concatenation. RoES
+then performs branch-specific fusion on these two components.
+The low-frequency branch extracts stable shared structure, while
+the high-frequency branch enhances complementary details under
+its guidance.
+3.3.1
+Equivariant Mamba (EM) Block. Low-frequency components
+mainly preserve dominant structure, global layout, and stable spec-
+tral energy, and are therefore better suited to global modeling
+than sparse high-frequency details [70]. State space models pro-
+vide global receptive fields with linear complexity, making them
+effective for large-scale structural modeling. We therefore adopt
+the spectral state space modeling strategy of Dastani et al. [5] as
+the low-frequency encoder. In implementation, F𝐿is first passed
+through a rotate–Patchification–inverse–max-aggregate pipeline,
+then through the spectral traversal scan, S6 blocks, and spectral
+traversal merge for global structural modeling. For the four quarter-
+turn rotations 𝑟∈𝐶4, we rotate F𝐿, apply a shared CNN patchifica-
+tion stem, rotate the responses back by 𝑟−1, and perform pointwise
+max aggregation before the spectral SSM stack:
+F𝐿
+Eq = 𝑓SSM
+
+Max𝑟∈𝐶4
+
+𝑟−1◦𝑝
+
+𝑟◦F𝐿
+,
+(4)
+where 𝑝(·) denotes the shared CNN patchification stem, 𝑓SSM(·)
+denotes the subsequent spectral SSM stack, and Max(·) denotes
+pointwise max aggregation. This design injects rotation-consistent
+structural cues before global spectral modeling and yields the fused
+low-frequency feature F𝐿
+Eq.
+3.3.2
+Frequency-guided Dual-Fourier (FDF) Block. High-frequency
+details are sparse and more vulnerable to degradation, whereas low-
+frequency components preserve dominant structure and more sta-
+ble global statistics [70]. We therefore use the fused low-frequency
+feature F𝐿
+Eq to guide high-frequency fusion. We term the proposed
+high-frequency fusion module the Frequency-guided Dual-Fourier
+block. Since the amplitude spectrum (A) encodes modality-specific
+features while the phase spectrum (𝚽) preserves shared structures
+[69], our main guidance focuses on amplitude, with only light re-
+finement on phase. Because the preceding wavelet/lifting decompo-
+sition yields a 384-channel concatenated high-frequency represen-
+tation, we first apply lightweight feature encoding, dimensionality
+reduction, and layer normalization to obtain ˜F𝐻. We then extract the
+high-frequency amplitude A𝐻and phase 𝚽𝐻, and the low-frequency
+amplitude A𝐿, via FFT:
+FFT( ˜F𝐻) = A𝐻⊙𝑒i𝚽𝐻,
+A𝐿= |FFT(F𝐿
+Eq)|.
+(5)
+To better exploit low-frequency rotation-consistent structure, the
+amplitude spectra are mapped to polar coordinates, where rotation-
+related variations are easier to align along the angular dimension. In
+this geometry-aligned space, PSA injects low-frequency guidance
+into the high-frequency amplitude responses; details are given in
+Sec. 3.4. Specifically, the first PSA stage produces a low-frequency-
+guided query for the subsequent multi-head self-attention-based
+channel recalibration, and the same PSA formulation is reused
+after channel mixing to further correct the updated amplitude. The
+corrected amplitude is recombined with the original phase 𝚽𝐻
+through iFFT to produce a spatial residual. In parallel, the phase
+path lightly refines 𝚽𝐻in an Euler-encoded representation and
+recombines it with the original amplitude A𝐻through iFFT; the two
+spatial features are then concatenated, fused by a 1 × 1 convolution,
+and added to ˜F𝐻to obtain F𝐻
+Refined.
+Finally, the fused low- and high-frequency features are concate-
+nated and fed into a decoder of four cascaded Restormer blocks [59]
+
+
+MM ’26, November 10–14, 2026, Rio de Janeiro, Brazil
+Jiabao Wang et al.
+to reconstruct the final fused image. This symmetric decoder helps
+preserve both global structural consistency and fine local details.
+3.4
+Polar Spectral Attention (PSA)
+Next, we elaborate on the polar spectral attention module used in
+the amplitude path of the frequency-guided Dual-Fourier block,
+depicted in Fig. 4. PSA does not rigidly constrain high-frequency fea-
+tures; instead, it injects low-frequency rotation-consistent structure
+into the high-frequency amplitude spectrum in a geometry-aligned
+space. This design is motivated by the observation that enhanced
+low-frequency representations can be used to match and correct
+high-frequency responses, thereby providing a more stable guid-
+ance signal for detail restoration [70]. Both PSA stages share the
+same formulation but use independent parameters.
+3.4.1
+Polar Representation. Let R𝛼denote rotation by angle 𝛼, let
+𝐴x = |FFT (x)| be the amplitude spectrum of a feature map x, and let
+Π(·) denote differentiable Cartesian-to-polar resampling. Since the
+Fourier transform is rotation-equivariant up to coordinate rotation,
+rotating x by 𝛼rotates its amplitude spectrum by the same angle;
+in polar coordinates, this becomes a shift along the angular axis:
+Π 𝐴R𝛼x
+ (𝜌,𝜙) = Π(R𝛼𝐴x) (𝜌,𝜙) = Π(𝐴x) (𝜌,𝜙−𝛼) ,
+(6)
+where 𝜌and 𝜙denote radial frequency and angle, respectively. This
+converts a geometrically complex rotation in Cartesian spectra into
+a simpler translation along the angular axis in polar spectra. This
+conversion is naturally handled by convolution along the angu-
+lar axis and is also well aligned with similarity computation and
+softmax-based cross-frequency attention. We therefore project the
+high- and low-frequency amplitude spectra into polar coordinates:
+P𝐻= Π (A𝐻) ,
+P𝐿= Π (A𝐿) ,
+(7)
+where P𝐻, P𝐿∈R𝐶×𝑆×𝑁𝜙, 𝐶is the number of channels, 𝑆is the
+number of radial bins, and 𝑁𝜙is the number of angular bins. Let
+P(𝑢)
+𝐻, P(𝑢)
+𝐿
+∈R𝐶×𝑁𝜙denote the 𝑢-th radial ring. This representation
+provides a geometry-aligned space for PSA to perform low-to-high
+structural matching.
+3.4.2
+Cross-Frequency Matching and Angular Gating. We first ag-
+gregate the low-frequency polar spectrum into a global descriptor,
+¯P𝐿= Norm𝜙
+ 𝑆
+∑︁
+𝑢=1
+P(𝑢)
+𝐿
+!
+,
+(8)
+where Norm𝜙denotes 𝐿2 normalization along the 𝜙axis. For each
+high-frequency ring 𝑢∈{1, . . . ,𝑆}, we treat the normalized high-
+frequency response as the query Q(𝑢) = Norm𝜙(P(𝑢)
+𝐻), and the
+global low-frequency descriptor as both the key and value K = V =
+¯P𝐿. The cross-frequency guidance G(𝑢) for this specific ring is then
+computed via a scaled dot-product attention:
+G(𝑢) = Softmaxrow
+ 
+Q(𝑢)K⊤
+√︁𝑁𝜙
+!
+V.
+(9)
+Stacking {G(𝑢)}𝑆
+𝑢=1 yields the guidance tensor G ∈R𝐶×𝑆×𝑁𝜙. Es-
+sentially, each high-frequency radial ring is matched to the global
+low-frequency descriptor. Because a radial ring corresponds to one
+spatial frequency across different orientations, the resulting guid-
+ance acts as a frequency-aware cross-frequency attention that lets
+each ring query low-frequency structural cues for detail recovery
+at its own scale.
+The concatenation of P𝐻and G is processed by a 1×1 convolution
+and a circularly padded 1 × 3 angular depthwise convolution to
+preserve continuity across the 0–2𝜋boundary; the resulting gate
+2𝜎(·), where 𝜎(·) denotes the sigmoid function, rescales P𝐻to
+produce ˜P𝐻. Finally, after reverting to Cartesian coordinates, the
+PSA block outputs the refined high-frequency amplitude:
+˜A𝐻= PSA (A𝐻, A𝐿) .
+(10)
+In this way, PSA acts as a geometry-aware cross-frequency atten-
+tion module that aligns low- and high-frequency spectra in polar
+coordinates and extracts structurally reliable low-frequency cues
+to guide high-frequency detail recovery.
+Norm
+Norm
+Softmax
+Permute
+1x1 Conv
+1x3 
+Depthwise
+ 
+Conv for Gating
+Circular Padding
+Aggregation
+S
+C S N
+L
+
+
+
+P
+
+C S N
+H
+
+
+
+P
+
+N
+S
+N
+Angular 
+Polar Proj
+PH
+PL
+Inverse Polar Proj
+PH
+S
+Cross-Frequency 
+Attention Map
+Context G
+Figure 4: Illustration of polar spectral attention.
+3.5
+Learning Objectives
+The overall training objective of RoES is formulated as:
+L = Lfuse + 𝜆RoUPLRoUP,
+(11)
+where Lfuse is the primary image fusion loss, and LRoUP is the aux-
+iliary decomposition loss. The 𝜆coefficients denote the empirical
+trade-off weights.
+3.5.1
+Fusion objective. The fusion loss ensures that the final fused
+image I𝐹faithfully integrates complementary information from the
+infrared (I𝐼) and visible (I𝑉) inputs:
+Lfuse = Lint + 𝜆gradLgrad + 𝜆ssimLssim + 𝜆tvLtv + 𝜆vggLvgg, (12)
+where Lint and Lgrad denote the 𝐿1 penalty on pixel intensities and
+spatial gradients, respectively. Lssim enforces structural similarity,
+Ltv suppresses local artifacts via total variation, and Lvgg improves
+perceptual fidelity.
+3.5.2
+RoUP objective. The RoUP loss ensures accurate frequency
+decoupling and faithful feature reconstruction. Let X𝑞denote the
+interaction-enhanced encoder feature for modality 𝑞∈{𝐼,𝑉}, and
+let ˆX𝑞= InvRoUP(L𝑞, H𝑞) denote the feature reconstructed by the
+exact inverse RoUP transform. We first define the reconstruction
+loss Lrec to preserve feature fidelity:
+Lrec =
+∑︁
+𝑞∈{𝐼,𝑉}
+
+∥ˆX𝑞−X𝑞∥1 + 𝜆str
+ 1 −SSIM( ˆX𝑞, X𝑞)
+,
+(13)
+
+
+RoES: Rotational Equivariant Selective-frequency Fusion for Multimodal Images
+MM ’26, November 10–14, 2026, Rio de Janeiro, Brazil
+Figure 5: Qualitative comparison of infrared-visible fusion
+results on the M3FD dataset.
+where 𝜆str controls the weight of the structural similarity penalty.
+The overall RoUP objective is then formulated by combining Lrec
+with the cross-modal decomposition losses:
+LRoUP = Lrec + 𝜆lowLlow + 𝜆highLhigh,
+(14)
+where Llow and Lhigh (defined in Sec. 3.2) supervise the shared
+low-frequency and modality-specific high-frequency components,
+respectively.
+4
+Experiments
+4.1
+Experimental Setup
+4.1.1
+Datasets. We train RoES on 1,602 infrared-visible pairs from
+MSRS [40] and evaluate it directly on M3FD [22], TNO [44], and
+RoadScene [57] without fine-tuning. The differences in scenes, imag-
+ing conditions, and data distributions provide a rigorous test of
+cross-dataset robustness and generalization.
+4.1.2
+Comparison Methods. We compare RoES with the 17 CNN-,
+GAN-, transformer-, and task- or semantic-aware fusion methods
+listed in the result tables. We use official implementations and
+released weights with identical inputs, preprocessing, test splits,
+and evaluation protocols unless stated otherwise.
+4.1.3
+Implementation Details. RoES is implemented in PyTorch
+and trained end-to-end on MSRS using one NVIDIA RTX 5090
+GPU. Inputs are resized to 128 × 128 for training, and AdamW
+uses an initial learning rate of 5.05 × 10−5 and weight decay of
+1 × 10−4. The loss weights are set to 𝜆grad = 26.7, 𝜆ssim = 25.6,
+𝜆tv = 16.0, 𝜆vgg = 3.8, 𝜆RoUP = 33.0, 𝜆str = 5.6 × 104, 𝜆low = 0.003,
+and 𝜆high = 0.03. We use four RoUP lifting steps, a width-64 four-
+layer spectral SSM, eight attention heads, and two PSA stages.
+Polar resampling uses (𝑆, 𝑁𝜙) = (512, 2048) during training and
+(3072, 3072) during inference; the random seed is fixed to 42, and
+rotation augmentation is disabled.
+4.1.4
+Metrics. We report nine standard metrics: entropy (EN), spa-
+tial frequency (SF), average gradient (AG), visual information fi-
+delity (VIF), 𝑄𝑎𝑏𝑓, mutual information (MI), feature mutual informa-
+tion (FMI), 𝑄𝑐𝑏, and peak signal-to-noise ratio (PSNR). EN, MI, and
+FMI measure retained information; SF and AG measure detail; and
+the remaining metrics assess fidelity and structural preservation.
+Higher is better for all metrics. We also compute TOPSIS rankings
+from normalized scores to summarize overall performance.
+Table 1: Quantitative evaluation of fusion models on the
+M3FD, RoadScene, and TNO datasets.
+Model
+EN↑
+SF↑
+AG↑
+VIF↑
+𝑄𝑎𝑏𝑓↑
+MI↑
+FMI↑
+𝑄𝑐𝑏↑
+PSNR↑
+TOPSIS↑
+M3FD Dataset
+DenseFuse [14]
+6.426
+9.206
+3.200
+0.653
+0.419
+2.777
+0.251
+0.431
+15.762
+0.280
+FusionGAN [32]
+6.636
+8.001
+2.685
+0.479
+0.266
+2.965
+0.217
+0.351
+15.827
+0.067
+PMGI [61]
+6.304
+9.199
+3.228
+0.588
+0.368
+3.011
+0.226
+0.425
+16.117
+0.219
+U2Fusion [56]
+6.661
+12.762
+4.696
+0.664
+0.508
+2.668
+0.264
+0.504
+15.945
+0.495
+RFN-Nest [16]
+6.864
+7.827
+2.869
+0.644
+0.362
+2.812
+0.247
+0.436
+15.564
+0.221
+SeAFusion [39]
+6.848
+14.476
+4.923
+0.737
+0.549
+3.340
+0.275
+0.449
+15.631
+0.600
+SwinFusion [31]
+6.807
+14.246
+4.777
+0.766
+0.550
+3.718
+0.282
+0.463
+15.891
+0.630
+TarDAL [22]
+7.152
+12.539
+4.116
+0.643
+0.377
+3.091
+0.239
+0.432
+15.216
+0.374
+YDTR [41]
+6.547
+12.001
+3.908
+0.678
+0.457
+3.007
+0.255
+0.416
+16.509
+0.406
+CDDFuse [64]
+6.905
+14.782
+4.844
+0.789
+0.549
+3.447
+0.280
+0.455
+15.914
+0.629
+IRFS [45]
+6.744
+10.800
+3.503
+0.686
+0.458
+2.747
+0.258
+0.414
+15.708
+0.356
+LRRNet [17]
+6.435
+10.734
+3.584
+0.639
+0.457
+2.743
+0.243
+0.429
+16.582
+0.339
+SegMiF [24]
+6.985
+14.347
+4.828
+0.787
+0.587
+2.897
+0.288
+0.484
+15.926
+0.619
+EMMA [65]
+6.922
+15.327
+5.325
+0.799
+0.548
+3.579
+0.283
+0.462
+16.793
+0.668
+Text-IF [58]
+6.931
+15.755
+5.284
+0.852
+0.611
+3.351
+0.301
+0.505
+17.145
+0.721
+SAGE [52]
+6.850
+13.867
+4.636
+0.774
+0.585
+3.083
+0.345
+0.449
+15.172
+0.656
+DAFusion [8]
+6.706
+11.347
+3.951
+0.736
+0.564
+3.021
+0.344
+0.456
+15.528
+0.557
+RoES (Ours)
+6.858
+15.932
+5.098
+0.941
+0.642
+4.135
+0.421
+0.495
+18.127
+0.957
+RoadScene Dataset
+DenseFuse [14]
+6.832
+11.687
+4.536
+0.676
+0.482
+2.868
+0.366
+0.508
+14.470
+0.496
+FusionGAN [32]
+7.065
+8.468
+3.310
+0.457
+0.252
+2.730
+0.245
+0.450
+12.645
+0.076
+PMGI [61]
+6.319
+11.465
+4.671
+0.597
+0.405
+3.025
+0.285
+0.520
+14.316
+0.387
+U2Fusion [56]
+6.889
+14.523
+5.854
+0.651
+0.503
+2.719
+0.344
+0.528
+15.740
+0.617
+RFN-Nest [16]
+7.338
+7.811
+3.309
+0.587
+0.297
+2.724
+0.273
+0.472
+13.969
+0.188
+SeAFusion [39]
+7.340
+18.155
+7.055
+0.659
+0.488
+3.012
+0.329
+0.484
+15.043
+0.744
+SwinFusion [31]
+6.990
+17.314
+6.357
+0.696
+0.438
+3.254
+0.327
+0.494
+14.299
+0.700
+TarDAL [22]
+7.320
+13.560
+4.768
+0.604
+0.415
+3.270
+0.316
+0.443
+15.041
+0.481
+YDTR [41]
+6.909
+13.919
+5.209
+0.681
+0.477
+2.984
+0.336
+0.480
+15.348
+0.573
+CDDFuse [64]
+7.482
+18.953
+6.786
+0.686
+0.469
+3.016
+0.335
+0.491
+14.863
+0.752
+IRFS [45]
+7.007
+11.683
+4.465
+0.651
+0.446
+2.735
+0.342
+0.441
+15.892
+0.450
+LRRNet [17]
+7.133
+12.513
+4.674
+0.552
+0.341
+2.773
+0.252
+0.508
+12.107
+0.323
+SegMiF [24]
+7.341
+15.701
+6.027
+0.693
+0.512
+2.705
+0.344
+0.482
+15.436
+0.661
+EMMA [65]
+7.482
+16.159
+6.188
+0.691
+0.436
+3.219
+0.314
+0.504
+14.805
+0.664
+Text-IF [58]
+7.386
+16.798
+6.638
+0.703
+0.523
+2.850
+0.340
+0.502
+15.484
+0.732
+SAGE [52]
+7.009
+15.275
+5.679
+0.640
+0.437
+3.004
+0.327
+0.448
+14.193
+0.577
+DAFusion [8]
+7.081
+13.840
+5.409
+0.686
+0.512
+2.890
+0.357
+0.500
+15.092
+0.605
+RoES (Ours)
+7.461
+20.039
+7.091
+0.776
+0.561
+3.811
+0.367
+0.532
+15.570
+0.986
+TNO Dataset
+DenseFuse [14]
+6.468
+8.824
+3.395
+0.639
+0.366
+2.254
+0.250
+0.463
+15.392
+0.350
+FusionGAN [32]
+6.566
+6.502
+2.447
+0.453
+0.213
+2.366
+0.212
+0.409
+13.964
+0.086
+PMGI [61]
+6.087
+8.726
+3.417
+0.589
+0.332
+2.349
+0.223
+0.456
+14.819
+0.292
+U2Fusion [56]
+6.562
+11.787
+4.863
+0.619
+0.382
+2.009
+0.255
+0.513
+15.726
+0.480
+RFN-Nest [16]
+7.071
+5.944
+2.704
+0.612
+0.289
+2.275
+0.242
+0.460
+15.062
+0.214
+SeAFusion [39]
+7.186
+12.573
+4.964
+0.696
+0.425
+2.836
+0.263
+0.476
+14.917
+0.595
+SwinFusion [31]
+6.985
+12.630
+4.876
+0.730
+0.442
+3.114
+0.292
+0.489
+14.885
+0.661
+TarDAL [22]
+7.189
+12.319
+4.202
+0.606
+0.357
+2.759
+0.242
+0.438
+14.579
+0.472
+YDTR [41]
+6.597
+10.124
+3.646
+0.676
+0.382
+2.706
+0.264
+0.434
+16.229
+0.451
+CDDFuse [64]
+7.156
+12.776
+4.636
+0.737
+0.442
+2.924
+0.286
+0.489
+15.003
+0.640
+IRFS [45]
+6.727
+9.560
+3.440
+0.623
+0.355
+2.250
+0.250
+0.443
+15.350
+0.353
+LRRNet [17]
+7.068
+9.752
+3.828
+0.581
+0.321
+2.600
+0.229
+0.484
+15.673
+0.365
+SegMiF [24]
+7.154
+12.151
+4.605
+0.759
+0.484
+2.826
+0.307
+0.526
+15.344
+0.678
+EMMA [65]
+7.249
+12.184
+4.921
+0.713
+0.410
+2.911
+0.267
+0.502
+15.239
+0.599
+Text-IF [58]
+7.255
+13.276
+5.018
+0.728
+0.454
+2.923
+0.276
+0.513
+15.490
+0.654
+SAGE [52]
+7.094
+11.676
+4.396
+0.732
+0.452
+2.746
+0.327
+0.470
+14.479
+0.635
+DAFusion [8]
+6.829
+10.252
+3.946
+0.782
+0.493
+2.640
+0.345
+0.488
+15.274
+0.636
+RoES (Ours)
+7.207
+12.955
+4.670
+0.928
+0.555
+3.741
+0.401
+0.530
+16.058
+0.950
+4.2
+Main Results
+4.2.1
+Quantitative Comparison. Table 1 reports cross-dataset re-
+sults on M3FD, RoadScene, and TNO. RoES obtains the best TOPSIS
+score on all three datasets, with clear margins over the second-
+ranked methods. It leads on SF, VIF, 𝑄𝑎𝑏𝑓, MI, FMI, and PSNR on
+M3FD; ranks first on seven RoadScene metrics; and leads TNO on
+VIF, 𝑄𝑎𝑏𝑓, MI, FMI, 𝑄𝑐𝑏, and TOPSIS. These results show strong
+and balanced generalization across adverse-weather, road, and con-
+ventional fusion scenes.
+RoES ranks first on MI, FMI, VIF, and 𝑄𝑎𝑏𝑓throughout. The
+MI/FMI gains support RoUP’s task-adaptive separation of shared
+
+
+MM ’26, November 10–14, 2026, Rio de Janeiro, Brazil
+Jiabao Wang et al.
+low-frequency structure and complementary high-frequency in-
+formation. The VIF/𝑄𝑎𝑏𝑓gains support the selective design: equi-
+variant low-frequency modeling stabilizes global structure, while
+low-frequency-guided spectral refinement preserves details with-
+out rigidly constraining them. Together, these results demonstrate
+a favorable balance of information retention, structural fidelity, and
+detail enhancement.
+4.2.2
+Qualitative Comparison. Fig. 5 compares fusion results on
+M3FD. Although all methods highlight thermal targets, their detail
+restoration and color fidelity differ markedly under severe smoke
+occlusion.
+RoES preserves thermal targets, background consistency, and
+fine textures, whereas FusionGAN [32] and TarDAL [22] show color
+distortion or structural blur and SwinFusion [31] loses fine details.
+The results support frequency-selective equivariance for balancing
+thermal saliency and visible-detail recovery.
+4.2.3
+Efficiency. At 1024 × 768 resolution, RoES has 2.28M parame-
+ters, requires 1,989G FLOPs, and uses approximately 6.3GB of peak
+memory. Although RoES is not the lightest in FLOPs, its compu-
+tational cost remains acceptable for practical deployment, and its
+peak memory usage fits within a single consumer GPU.
+Table 2: Ablation study on key components of RoES.
+Experiment
+EN↑
+SF↑
+AG↑
+VIF↑
+𝑄𝑎𝑏𝑓↑
+MI↑
+FMI↑
+𝑄𝑐𝑏↑
+PSNR↑
+w/o Low-Eq
+6.852
+17.161
+5.422
+0.908
+0.615
+3.578
+0.390
+0.481
+17.427
+w/o Low-Eq with RotAug
+6.839
+15.921
+5.024
+0.866
+0.617
+3.334
+0.377
+0.476
+16.653
+w/o Low-Eq with 𝐶4-TTA
+6.851
+17.171
+5.621
+0.917
+0.619
+3.625
+0.399
+0.482
+17.433
+w/ Fixed Wavelet
+6.817
+16.451
+5.080
+0.864
+0.613
+3.500
+0.375
+0.481
+17.174
+w/o Dec. Sup.
+6.848
+16.734
+5.168
+0.927
+0.613
+3.647
+0.388
+0.484
+16.048
+w/o PSA
+6.830
+15.818
+4.933
+0.915
+0.627
+3.874
+0.401
+0.490
+17.749
+w/ Cartesian Attn.
+6.977
+15.974
+5.365
+0.819
+0.600
+3.083
+0.367
+0.477
+16.610
+Baseline (RoES)
+6.858
+15.932
+5.098
+0.941
+0.642
+4.135
+0.421
+0.495
+18.127
+4.3
+Ablation Studies
+Ablation Setup. Table 2 evaluates three components on M3FD
+under the Sec. 4.1 protocol. w/o Low-Eq, w/o Low-Eq with RotAug,
+and w/o Low-Eq with 𝐶4-TTA compare built-in equivariance with
+augmentation and test-time averaging. w/ Fixed Wavelet and w/o
+Table 3: Quantitative evaluation of the downstream object
+detection task on the M3FD dataset.
+Method
+Lamp
+Car
+Bus
+Motor
+Truck
+People
+mAP@0.5↑
+DenseFuse [14]
+0.464
+0.820
+0.710
+0.310
+0.483
+0.668
+0.576
+FusionGAN [32]
+0.399
+0.708
+0.708
+0.301
+0.486
+0.693
+0.549
+U2Fusion [56]
+0.433
+0.835
+0.710
+0.348
+0.461
+0.704
+0.582
+RFN-Nest [16]
+0.497
+0.830
+0.702
+0.385
+0.438
+0.671
+0.587
+SeAFusion [39]
+0.398
+0.826
+0.719
+0.340
+0.471
+0.694
+0.575
+SwinFusion [31]
+0.409
+0.826
+0.717
+0.308
+0.516
+0.686
+0.577
+TarDAL [22]
+0.451
+0.824
+0.740
+0.369
+0.477
+0.727
+0.598
+YDTR [41]
+0.338
+0.820
+0.682
+0.263
+0.415
+0.604
+0.520
+CDDFuse [64]
+0.427
+0.821
+0.704
+0.329
+0.453
+0.665
+0.566
+IRFS [45]
+0.370
+0.822
+0.687
+0.278
+0.444
+0.615
+0.536
+LRRNet [17]
+0.461
+0.828
+0.696
+0.331
+0.454
+0.664
+0.572
+SegMiF [24]
+0.468
+0.831
+0.727
+0.365
+0.438
+0.684
+0.585
+EMMA [65]
+0.462
+0.827
+0.647
+0.392
+0.473
+0.682
+0.581
+Text-IF [58]
+0.398
+0.814
+0.681
+0.394
+0.453
+0.654
+0.566
+RoES (Ours)
+0.632
+0.849
+0.659
+0.637
+0.565
+0.733
+0.679
+Figure 6: Object detection results on the M3FD dataset.
+Dec. Sup. test adaptive decomposition, while w/o PSA removes low-
+frequency-guided spectral refinement. The w/ Cartesian Attn. vari-
+ant replaces PSA’s polar projection with Cartesian cross-attention
+under otherwise identical settings.
+Ablation Analysis. Removing low-frequency equivariance in-
+creases SF/AG by 1.229/0.324 but reduces VIF, MI, 𝑄𝑎𝑏𝑓, and PSNR
+by 0.033, 0.557, 0.027, and 0.700, showing that equivariance im-
+proves fidelity rather than sharpness alone. Rotation augmentation
+does not recover the overall loss, whereas𝐶4-TTA partly recovers it.
+Fixed wavelets and removal of decomposition supervision also de-
+grade performance; the latter decreases MI, FMI, and PSNR by 0.488,
+0.033, and 2.079. Removing PSA reduces VIF, MI, FMI, and PSNR by
+0.026, 0.261, 0.020, and 0.378. The Cartesian variant trades minor
+EN/SF/AG gains for substantial fidelity loss, confirming the neces-
+sity of PSA’s polar projection for accurate cross-frequency mapping.
+Thus, adaptive decomposition, low-frequency equivariance, and
+PSA make complementary contributions.
+4.4
+Downstream Object Detection Task
+Following [25], we evaluate YOLOv5 v7.0 on M3FD images fused by
+each method using the same detector architecture, with a separate
+detector trained for each fusion method under the same protocol.
+Table 3 shows that RoES achieves 0.679 mAP@0.5, with strong re-
+sults for Lamp (0.632), Motor (0.637), Car (0.849), and People (0.733).
+The fusion model is trained only on MSRS and transferred to M3FD
+without fine-tuning, demonstrating cross-domain generalization
+across object scales.
+Fig. 6 further shows sharp contours, salient thermal targets, and
+precise boxes for small or distant objects. Most competing meth-
+ods except LRRNet [17] miss or misalign pedestrians, supporting
+the benefit of stable low-frequency structure and preserved high-
+frequency texture.
+5
+Conclusion
+We presented RoES, an infrared-visible fusion method that ap-
+plies rotation equivariance selectively rather than uniformly. RoUP
+learns adaptive frequency decomposition; an equivariant Mamba
+branch models low-frequency structure; and a frequency-guided
+Dual-Fourier branch with polar spectral attention refines high-
+frequency details. Results across fusion benchmarks and down-
+stream detection demonstrate state-of-the-art performance and
+support frequency-selective equivariance as an effective principle
+for robust multimodal fusion.
+
+
+RoES: Rotational Equivariant Selective-frequency Fusion for Multimodal Images
+MM ’26, November 10–14, 2026, Rio de Janeiro, Brazil
+Acknowledgments
+This work is partially supported by the National Natural Science
+Foundation of China (No. 62401632), the Hubei Provincial Natu-
+ral Science Foundation (Nos. 2024AFB484 and 2026AFB758), the
+Natural Science Foundation of Wuhan (No. 2026040301020058),
+the Hubei Provincial Department of Education Key Projects (No.
+D20251003), the Open Fund of the Research Platforms, School of
+Computer Science, China University of Geosciences, Wuhan (No.
+PTLH2024-B-06), and the Fundamental Research Funds for the Cen-
+tral Universities of Zhongnan University of Economics and Law
+(No. 2722025BJ037).
+References
+[1] Yulu Bai, Jiahong Fu, Qi Xie, and Deyu Meng. 2025. A regularization-guided
+equivariant approach for image restoration. In 2025 IEEE/CVF Conference on
+Computer Vision and Pattern Recognition (CVPR). IEEE, 2300–2310.
+[2] Georg Bökman, Johan Edstedt, Michael Felsberg, and Fredrik Kahl. 2024. Affine
+steerers for structured keypoint description. In European Conference on Computer
+Vision. Springer, 449–468.
+[3] Yaoming Cai, Zijia Zhang, Xiaobo Liu, Yao Ding, Fei Li, and Jinhua Tan. 2025.
+Learning Unified Anchor Graph for Joint Clustering of Hyperspectral and LiDAR
+Data. IEEE Transactions on Neural Networks and Learning Systems 36, 4 (2025),
+6341–6354. doi:10.1109/TNNLS.2024.3392484
+[4] Taco S. Cohen and Max Welling. 2016. Group Equivariant Convolutional Net-
+works. In Proceedings of the 33rd International Conference on Machine Learning
+(ICML). 2990–2999.
+[5] Sahar Dastani, Ali Bahri, Moslem Yazdanpanah, Mehrdad Noori, David Osowiechi,
+Gustavo Adolfo Vargas Hakim, Farzad Beizaee, Milad Cheraghalikhani, Arnab Ku-
+mar Mondal, Herve Lombaert, et al. 2025. Spectral state space model for rotation-
+invariant visual representation learning. In Proceedings of the Computer Vision
+and Pattern Recognition Conference. 23881–23890.
+[6] Ingrid Daubechies and Wim Sweldens. 1998. Factoring wavelet transforms into
+lifting steps. Journal of Fourier analysis and applications 4, 3 (1998), 247–269.
+[7] Yuan Gao, Shiwei Ma, and Jingjing Liu. 2022. DCDR-GAN: A densely connected
+disentangled representation generative adversarial network for infrared and visi-
+ble image fusion. IEEE Transactions on Circuits and Systems for Video Technology
+33, 2 (2022), 549–561.
+[8] Tianwei Guan, Haozhen Wei, Yuhan Zhou, Jun Ma, Zecheng Xu, Zhiying Jiang,
+Jinyuan Liu, and Xingyuan Li. 2026. Domain adaptation guided infrared and visi-
+ble image fusion. In Proceedings of the AAAI Conference on Artificial Intelligence,
+Vol. 40. 4376–4384.
+[9] Jiaming Han, Jian Ding, Nan Xue, and Gui-Song Xia. 2021. Redet: A rotation-
+equivariant detector for aerial object detection. In Proceedings of the IEEE/CVF
+conference on computer vision and pattern recognition. 2786–2795.
+[10] Jun-Jie Huang and Pier Luigi Dragotti. 2022. WINNet: Wavelet-inspired invertible
+network for image denoising. IEEE Transactions on Image Processing 31 (2022),
+4377–4392.
+[11] Lihua Jian, Xiaomin Yang, Zheng Liu, Gwanggil Jeon, Mingliang Gao, and David
+Chisholm. 2020. SEDRFuse: A symmetric encoder–decoder with residual block
+network for infrared and visible image fusion. IEEE Transactions on Instrumenta-
+tion and Measurement 70 (2020), 1–15.
+[12] Shahid Karim, Geng Tong, Jinyang Li, Akeel Qadir, Umar Farooq, and Yiting Yu.
+2023. Current advances and future perspectives of image fusion: A comprehensive
+review. Information Fusion 90 (2023), 185–217.
+[13] Jongmin Lee, Byungjin Kim, Seungwook Kim, and Minsu Cho. 2023. Learning
+rotation-equivariant features for visual correspondence. In Proceedings of the
+IEEE/CVF Conference on Computer Vision and Pattern Recognition. 21887–21897.
+[14] Hui Li and Xiao-Jun Wu. 2019. DenseFuse: A Fusion Approach to Infrared and
+Visible Images. IEEE Transactions on Image Processing 28, 5 (2019), 2614–2623.
+[15] Hui Li, Xiao-Jun Wu, and Josef Kittler. 2020. MDLatLRR: A novel decomposi-
+tion method for infrared and visible image fusion. IEEE Transactions on Image
+Processing 29 (2020), 4733–4746.
+[16] Hui Li, Xiao-Jun Wu, and Josef Kittler. 2021. RFN-Nest: An end-to-end residual
+fusion network for infrared and visible images. Information Fusion 73 (2021),
+72–86.
+[17] Hui Li, Tianyang Xu, Xiao-Jun Wu, Jiwen Lu, and Josef Kittler. 2023. Lrrnet:
+A novel representation learning guided fusion network for infrared and visible
+images. IEEE transactions on pattern analysis and machine intelligence 45, 9 (2023),
+11040–11052.
+[18] Xilai Li, Xiaosong Li, Tianshu Tan, Huafeng Li, and Tao Ye. 2025. UMCFuse: A
+unified multiple complex scenes infrared and visible image fusion framework.
+IEEE Transactions on Image Processing (2025), 6231–6245.
+[19] Xilai Li, Huichun Liu, Xiaosong Li, Tao Ye, Zhenyu Kuang, and Huafeng Li. 2026.
+Awm-fuse: Multi-modality image fusion for adverse weather via global and local
+text perception. IEEE Transactions on Image Processing (2026), 5151–5164.
+[20] Xilai Li, Wuyang Liu, Xiaosong Li, Fuqiang Zhou, Huafeng Li, and Feiping Nie.
+2026. All-weather multi-modality image fusion: Unified framework and 100k
+benchmark. Information Fusion (2026), 104130.
+[21] Hanze Liu, Jiahong Fu, Qi Xie, and Deyu Meng. 2025. Rotation-equivariant
+self-supervised method in image denoising. In Proceedings of the Computer Vision
+and Pattern Recognition Conference. 12720–12730.
+[22] Jinyuan Liu, Xin Fan, Zhanbo Huang, Guanyao Wu, Risheng Liu, Wei Zhong,
+and Zhongxuan Luo. 2022. Target-Aware Dual Adversarial Learning and a Multi-
+Scenario Multi-Modality Benchmark to Fuse Infrared and Visible for Object
+Detection. In Proceedings of the IEEE/CVF Conference on Computer Vision and
+Pattern Recognition (CVPR). 5802–5811.
+[23] Jinyuan Liu, Xin Fan, Ji Jiang, Risheng Liu, and Zhongxuan Luo. 2021. Learning
+a deep multi-scale feature ensemble and an edge-attention guidance for image
+fusion. IEEE Transactions on Circuits and Systems for Video Technology 32, 1 (2021),
+105–119.
+[24] Jinyuan Liu, Zhu Liu, Guanyao Wu, Long Ma, Risheng Liu, Wei Zhong, Zhongx-
+uan Luo, and Xin Fan. 2023. Multi-Interactive Feature Learning and a Full-Time
+Multi-Modality Benchmark for Image Fusion and Segmentation. In Proceedings
+of the IEEE/CVF International Conference on Computer Vision (ICCV). 8115–8124.
+[25] Jinyuan Liu, Guanyao Wu, Zhu Liu, Di Wang, Zhiying Jiang, Long Ma, Wei
+Zhong, Xin Fan, and Risheng Liu. 2025. Infrared and Visible Image Fusion: From
+Data Compatibility to Task Adaption. IEEE Transactions on Pattern Analysis and
+Machine Intelligence 47, 4 (2025), 2349–2369. doi:10.1109/TPAMI.2024.3521416
+[26] Yuanye Liu, Renwei Dian, and Shutao Li. 2025. Low-rank transformer for high-
+resolution hyperspectral computational imaging. International Journal of Com-
+puter Vision 133, 2 (2025), 809–824.
+[27] Yuanye Liu, Renwei Dian, Zhijun Zhao, and Shutao Li. 2026. Rank-aware routing
+decomposition for hyperspectral and multispectral image fusion. Information
+Fusion 136 (2026), 104498. doi:10.1016/j.inffus.2026.104498
+[28] Yuanye Liu, Jinyang Liu, Renwei Dian, and Shutao Li. 2025. A selective re-learning
+mechanism for hyperspectral fusion imaging. In 2025 IEEE/CVF Conference on
+Computer Vision and Pattern Recognition (CVPR). IEEE, 7437–7446.
+[29] Haichuan Ma, Dong Liu, Ruiqin Xiong, and Feng Wu. 2019. iWave: CNN-based
+wavelet-like transform for image compression. IEEE Transactions on Multimedia
+22, 7 (2019), 1667–1679.
+[30] Jiayi Ma, Yong Ma, and Chang Li. 2019. Infrared and visible image fusion methods
+and applications: A survey. Information fusion 45 (2019), 153–178.
+[31] Jiayi Ma, Linfeng Tang, Fan Fan, Jun Huang, Xiaoguang Mei, and Yong Ma. 2022.
+SwinFusion: Cross-domain long-range learning for general image fusion via swin
+transformer. IEEE/CAA Journal of Automatica Sinica 9, 7 (2022), 1200–1217.
+[32] Jiayi Ma, Wei Yu, Pengwei Liang, Chang Li, and Junjun Jiang. 2019. FusionGAN: A
+generative adversarial network for infrared and visible image fusion. Information
+fusion 48 (2019), 11–26.
+[33] Gonzalo Pajares and Jesus Manuel de la Cruz. 2004. A Wavelet-Based Image
+Fusion Tutorial. Pattern Recognition 37, 9 (2004), 1855–1872. doi:10.1016/j.patcog.
+2004.03.010
+[34] Seonghyun Park, An Gia Vien, and Chul Lee. 2023. Cross-modal transformers
+for infrared and visible image fusion. IEEE Transactions on Circuits and Systems
+for Video Technology 34, 2 (2023), 770–785.
+[35] Maria Ximena Bastidas Rodriguez, Adrien Gruson, Luisa Polania, Shin Fujieda,
+Flavio Prieto, Kohei Takayama, and Toshiya Hachisuka. 2020. Deep adaptive
+wavelet network. In Proceedings of the IEEE/CVF Winter Conference on Applications
+of Computer Vision. 3111–3119.
+[36] Pourya Shamsolmoali, Masoumeh Zareapoor, Jocelyn Chanussot, Huiyu Zhou,
+and Jie Yang. 2021. Rotation equivariant feature image pyramid network for object
+detection in optical remote sensing imagery. IEEE Transactions on Geoscience and
+Remote Sensing 60 (2021), 1–14.
+[37] Zhengyang Shen, Lingshen He, Zhouchen Lin, and Jinwen Ma. 2020. Pdo-econvs:
+Partial differential operator based equivariant convolutions. In International
+Conference on Machine Learning. PMLR, 8697–8706.
+[38] Wim Sweldens. 1998. The lifting scheme: A construction of second generation
+wavelets. SIAM journal on mathematical analysis 29, 2 (1998), 511–546.
+[39] Linfeng Tang, Jiteng Yuan, and Jiayi Ma. 2022. Image fusion in the loop of high-
+level vision tasks: A semantic-aware real-time infrared and visible image fusion
+network. Information Fusion 82 (2022), 28–42.
+[40] Linfeng Tang, Jiteng Yuan, Hao Zhang, Xingyu Jiang, and Jiayi Ma. 2022. PI-
+AFusion: A progressive infrared and visible image fusion network based on
+illumination aware. Information Fusion 83 (2022), 79–92.
+[41] Wei Tang, Fazhi He, and Yu Liu. 2022. YDTR: Infrared and visible image fusion
+via Y-shape dynamic transformer. IEEE Transactions on Multimedia 25 (2022),
+5413–5428.
+[42] Wei Tang, Fazhi He, Yu Liu, Yansong Duan, and Tongzhen Si. 2023. DATFuse:
+Infrared and visible image fusion via dual attention transformer. IEEE Transactions
+on Circuits and Systems for Video Technology 33, 7 (2023), 3159–3172.
+
+
+MM ’26, November 10–14, 2026, Rio de Janeiro, Brazil
+Jiabao Wang et al.
+[43] Yang Tian, Mengmeng Zhang, Jinyu Li, Yangfan Li, Hong Yang, and Wei Li.
+2024. FPNFormer: Rethink the method of processing the rotation-invariance and
+rotation-equivariance on arbitrary-oriented object detection. IEEE Transactions
+on Geoscience and Remote Sensing 62 (2024), 1–10.
+[44] Alexander Toet. 2017. The TNO Multiband Image Data Collection. Data in Brief
+15 (2017), 249–251. doi:10.1016/j.dib.2017.09.038
+[45] Di Wang, Jinyuan Liu, Risheng Liu, and Xin Fan. 2023. An interactively reinforced
+paradigm for joint infrared-visible image fusion and saliency object detection.
+Information Fusion 98 (2023), 101828.
+[46] Zhishe Wang, Yuanyuan Wu, Junyao Wang, Jiawei Xu, and Wenyu Shao. 2022.
+Res2Fusion: Infrared and visible image fusion based on dense Res2net and double
+nonlocal attention models. IEEE Transactions on Instrumentation and Measurement
+71 (2022), 1–12.
+[47] Zhishe Wang, Zhuoqun Zhang, Wuqiang Qi, Fengbao Yang, and Jiawei Xu. 2024.
+FreqGAN: Infrared and visible image fusion via unified frequency adversarial
+learning. IEEE Transactions on Circuits and Systems for Video Technology 35, 1
+(2024), 728–740.
+[48] Maurice Weiler and Gabriele Cesa. 2019. General E(2)-Equivariant Steerable
+CNNs. In Advances in Neural Information Processing Systems (NeurIPS), Vol. 32.
+[49] Maurice Weiler, Fred A Hamprecht, and Martin Storath. 2018. Learning steerable
+filters for rotation equivariant cnns. In Proceedings of the IEEE Conference on
+Computer Vision and Pattern Recognition. 849–858.
+[50] Daniel E Worrall, Stephan J Garbin, Daniyar Turmukhambetov, and Gabriel J
+Brostow. 2017. Harmonic networks: Deep translation and rotation equivariance.
+In Proceedings of the IEEE conference on computer vision and pattern recognition.
+5028–5037.
+[51] Dan Wu, Mina Han, Yang Yang, Shan Zhao, Yujing Rao, Hao Li, Xing Lin,
+Chengjiang Zhou, and Haicheng Bai. 2023. DCFusion: A Dual-Frequency Cross-
+Enhanced Fusion Network for Infrared and Visible Image Fusion. IEEE Transac-
+tions on Instrumentation and Measurement 72 (2023), 1–15. doi:10.1109/TIM.2023.
+3267380
+[52] Guanyao Wu, Haoyu Liu, Hongming Fu, Yichuan Peng, Jinyuan Liu, Xin Fan,
+and Risheng Liu. 2025. Every SAM drop counts: Embracing semantic priors
+for multi-modality image fusion and beyond. In 2025 IEEE/CVF Conference on
+Computer Vision and Pattern Recognition (CVPR). IEEE, 17882–17891.
+[53] Qi Xie, Jiahong Fu, Zongben Xu, and Deyu Meng. 2025. Rotation equivariant
+arbitrary-scale image super-resolution. IEEE Transactions on Pattern Analysis
+and Machine Intelligence (2025).
+[54] Qi Xie, Qian Zhao, Zongben Xu, and Deyu Meng. 2023. Fourier Series Expansion
+Based Filter Parametrization for Equivariant Convolutions. IEEE Transactions on
+Pattern Analysis and Machine Intelligence 45, 4 (2023), 4537–4551. doi:10.1109/
+TPAMI.2022.3196652
+[55] Han Xu, Meiqi Gong, Xin Tian, Jun Huang, and Jiayi Ma. 2022. CUFD: An encoder–
+decoder network for visible and infrared image fusion based on common and
+unique feature decomposition. Computer Vision and Image Understanding 218
+(2022), 103407.
+[56] Han Xu, Jiayi Ma, Junjun Jiang, Xiaojie Guo, and Haibin Ling. 2020. U2Fusion: A
+unified unsupervised image fusion network. IEEE transactions on pattern analysis
+and machine intelligence 44, 1 (2020), 502–518.
+[57] Han Xu, Jiayi Ma, Zhuliang Le, Junjun Jiang, and Xiaojie Guo. 2020. Fusiondn: A
+unified densely connected network for image fusion. In Proceedings of the AAAI
+conference on artificial intelligence, Vol. 34. 12484–12491.
+[58] Xunpeng Yi, Han Xu, Hao Zhang, Linfeng Tang, and Jiayi Ma. 2024. Text-if:
+Leveraging semantic text guidance for degradation-aware and interactive image
+fusion. In Proceedings of the IEEE/CVF Conference on Computer Vision and Pattern
+Recognition. 27026–27035.
+[59] Syed Waqas Zamir, Aditya Arora, Salman Khan, Munawar Hayat, Fahad Shahbaz
+Khan, and Ming-Hsuan Yang. 2022. Restormer: Efficient Transformer for High-
+Resolution Image Restoration. In Proceedings of the IEEE/CVF Conference on
+Computer Vision and Pattern Recognition (CVPR). 5728–5739.
+[60] Hao Zhang, Han Xu, Xin Tian, Junjun Jiang, and Jiayi Ma. 2021. Image fusion
+meets deep learning: A survey and perspective. Information Fusion 76 (2021),
+323–336.
+[61] Hao Zhang, Han Xu, Yang Xiao, Xiaojie Guo, and Jiayi Ma. 2020. Rethinking
+the image fusion: A fast unified image fusion network based on proportional
+maintenance of gradient and intensity. In Proceedings of the AAAI conference on
+artificial intelligence, Vol. 34. 12797–12804.
+[62] Xingchen Zhang and Yiannis Demiris. 2023. Visible and infrared image fusion us-
+ing deep learning. IEEE Transactions on Pattern Analysis and Machine Intelligence
+45, 8 (2023), 10535–10554.
+[63] Zijia Zhang, Yaoming Cai, Wenyin Gong, Xiaobo Liu, Cheng Zeng, and Gan Yu.
+2025. MMAGL: Multiobjective Multiview Attributed Graph Learning for Joint
+Clustering of Hyperspectral and LiDAR Data. IEEE Transactions on Geoscience
+and Remote Sensing 63 (2025), 1–14. doi:10.1109/TGRS.2025.3540269
+[64] Zixiang Zhao, Haowen Bai, Jiangshe Zhang, Yulun Zhang, Shuang Xu, Zudi Lin,
+Radu Timofte, and Luc Van Gool. 2023. CDDFuse: Correlation-Driven Dual-
+Branch Feature Decomposition for Multi-Modality Image Fusion. In Proceedings
+of the IEEE/CVF Conference on Computer Vision and Pattern Recognition (CVPR).
+5906–5916.
+[65] Zixiang Zhao, Haowen Bai, Jiangshe Zhang, Yulun Zhang, Kai Zhang, Shuang
+Xu, Dongdong Chen, Radu Timofte, and Luc Van Gool. 2024. Equivariant Multi-
+Modality Image Fusion. In Proceedings of the IEEE/CVF Conference on Computer
+Vision and Pattern Recognition (CVPR). 25912–25921.
+[66] Zixiang Zhao, Shuang Xu, Chunxia Zhang, Junmin Liu, Pengfei Li, and Jiangshe
+Zhang. 2020. DIDFuse: Deep image decomposition for infrared and visible image
+fusion. arXiv preprint arXiv:2003.09210 (2020).
+[67] Naishan Zheng, Man Zhou, Jie Huang, Junming Hou, Haoying Li, Yuan Xu, and
+Feng Zhao. 2024. Probing synergistic high-order interaction in infrared and
+visible image fusion. In Proceedings of the IEEE/CVF conference on computer vision
+and pattern recognition. 26384–26395.
+[68] Yi Zheng, Ruijin Wang, and Jianping Li. 2010. Nonlinear wavelets and BP neu-
+ral networks adaptive lifting scheme. In The 2010 International Conference on
+Apperceiving Computing and Intelligence Analysis Proceeding. IEEE, 316–319.
+[69] Man Zhou, Jie Huang, Keyu Yan, Danfeng Hong, Xiuping Jia, Jocelyn Chanussot,
+and Chongyi Li. 2025. A General Spatial-Frequency Learning Framework for
+Multimodal Image Fusion. IEEE Transactions on Pattern Analysis and Machine
+Intelligence 47, 7 (2025), 5281–5298. doi:10.1109/TPAMI.2024.3368112
+[70] Wenbin Zou, Hongxia Gao, Weipeng Yang, and Tongtong Liu. 2024. Wave-Mamba:
+Wavelet State Space Model for Ultra-High-Definition Low-Light Image Enhance-
+ment. In Proceedings of the 32nd ACM International Conference on Multimedia
+(Melbourne VIC, Australia) (MM ’24). Association for Computing Machinery,
+New York, NY, USA, 1534–1543. doi:10.1145/3664647.3681580
