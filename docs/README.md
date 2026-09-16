@@ -6,44 +6,38 @@
 </div>
 
 ## 每次日报
-- 最新运行日期：2026-09-15
-- 运行时间：2026-09-15 21:51:27 UTC
+- 最新运行日期：2026-09-16
+- 运行时间：2026-09-16 22:08:52 UTC
 - 运行状态：成功
-- 本次总论文数：7
+- 本次总论文数：5
 - 精读区：0
-- 速读区：7
+- 速读区：5
 
 ### 今日简报（AI）
-今天共推荐7篇、精读0篇、速读7篇，其中三篇6.0分论文聚焦听觉注意力检测、多模态图像融合与月面遥感基础模型。  
-最值得看的是RAMamba-Net的可靠性感知+Mamba多模态融合，以及RoES的旋转等变选择性频率融合。  
-普通读者可按应用场景选读一篇
-- 详情：[/202609/15/README](/202609/15/README)
+- 今日共生成 5 篇推荐（精读 0 篇，速读 5 篇）
+- 速读：《DXPR: Depth-Based Vision-LiDAR Cross-Modal Place Recognition Using Vision Foundation Models》（6.0/10）, 《Multimodal Foundation Models Adaptation based on Domain-Aware Relaxed Orthogonal Subspace for Remote Sensing》（6.0/10）, 《Machine Learning under Imperfect Data: Challenges and Methods》（6.0/10）
+- 这些结果覆盖了当下较热的方向，建议先看精读区论文的关键问题与方法。
+- 详情：[/202609/16/README](/202609/16/README)
 
 ### 精读区论文标签
 - 本次无精读推荐。
 
 ### 速读区论文标签
-1. [RAMamba-Net: A Reliability-Aware and Mamba-Based Multimodal Fusion Network for Auditory Attention Detection](/202609/15/2609.11372v1-ramamba-net-a-reliability-aware-and-mamba-based-multimodal-fusion-network-for-auditory-attention-detection)  
+1. [DXPR: Depth-Based Vision-LiDAR Cross-Modal Place Recognition Using Vision Foundation Models](/202609/16/2609.09005v1-dxpr-depth-based-vision-lidar-cross-modal-place-recognition-using-vision-foundation-models)  
    标签：评分：6.0/10、query:multi-modal
-   evidence：不完整模态证据下的多模态融合
-2. [RoES: Rotational Equivariant Selective-frequency Fusion for Multimodal Images](/202609/15/2609.12497v1-roes-rotational-equivariant-selective-frequency-fusion-for-multimodal-images)  
+   evidence：相机与激光雷达跨模态融合
+2. [Multimodal Foundation Models Adaptation based on Domain-Aware Relaxed Orthogonal Subspace for Remote Sensing](/202609/16/2609.13654v1-multimodal-foundation-models-adaptation-based-on-domain-aware-relaxed-orthogonal-subspace-for-remote-sensing)  
    标签：评分：6.0/10、query:multi-modal
-   evidence：红外可见光多模态图像融合网络
-3. [Multimodal-Multiresolution Foundation Model for Lunar Remote Sensing](/202609/15/2609.13283v1-multimodal-multiresolution-foundation-model-for-lunar-remote-sensing)  
+   evidence：面向遥感的多模态基础模型适配
+3. [Machine Learning under Imperfect Data: Challenges and Methods](/202609/16/2609.13914v1-machine-learning-under-imperfect-data-challenges-and-methods)  
    标签：评分：6.0/10、query:multi-modal
-   evidence：跨传感器多模态遥感数据融合
-4. [Global-Local Contextual Progressive Expansion Network for Martian Landslide Segmentation in Multimodal Remote Sensing Imagery](/202609/15/2609.13332v1-global-local-contextual-progressive-expansion-network-for-martian-landslide-segmentation-in-multimodal-remote-sensing-imagery)  
+   evidence：处理数据缺失与损坏的机器学习方法综述
+4. [Multi-Modal Tumor Survival Prediction via Graph-Guided Mixture of Experts](/202609/16/2609.14072v1-multi-modal-tumor-survival-prediction-via-graph-guided-mixture-of-experts)  
    标签：评分：6.0/10、query:multi-modal
-   evidence：多模态遥感影像上的深度学习分割
-5. [Machine Learning under Imperfect Data: Challenges and Methods](/202609/15/2609.13914v1-machine-learning-under-imperfect-data-challenges-and-methods)  
+   evidence：处理模态缺失与模态差异
+5. [Multimodal deep learning from spectra for small-molecule structure identification: enhancing robustness with mixed-condition training](/202609/16/2609.14360v1-multimodal-deep-learning-from-spectra-for-small-molecule-structure-identification-enhancing-robustness-with-mixed-condition-training)  
    标签：评分：6.0/10、query:multi-modal
-   evidence：缺失数据下的学习方法综述
-6. [Sensory Precision Inference for Multimodal Arbitration under Uncertainty](/202609/15/2609.15065v1-sensory-precision-inference-for-multimodal-arbitration-under-uncertainty)  
-   标签：评分：6.0/10、query:multi-modal
-   evidence：面向缺失、噪声与模态冲突的多模态仲裁推断模型
-7. [Query-Conditioned Spherical Centroid Aggregation for Multimodal Retrieval](/202609/15/2609.15335v1-query-conditioned-spherical-centroid-aggregation-for-multimodal-retrieval)  
-   标签：评分：6.0/10、query:multi-modal
-   evidence：聚合器可处理任意模态子集
+   evidence：对缺失或退化光谱鲁棒的混合条件训练
 
 
 <div class="dpr-home-promo-card">

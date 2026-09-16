@@ -1,0 +1,401 @@
+Title: Multi-Modal Tumor Survival Prediction via Graph-Guided Mixture of Experts
+
+URL Source: https://arxiv.org/pdf/2609.14072v1
+
+Published Time: Tue, 15 Sep 2026 01:03:29 GMT
+
+Number of Pages: 50
+
+Markdown Content:
+Multi-Modal Tumor Survival Prediction via Graph-Guided Mixture of Experts by Hirthik Mathavan A Thesis Presented in Partial Fulfillment of the Requirement for the Degree Master of Science Approved April 2024 by the Graduate Supervisory Committee: Huan Liu, Chair Hasan Davulcu YooJung Choi ARIZONA STATE UNIVERSITY May 2024 arXiv:2609.14072v1 [cs.LG] 12 Sep 2026 ABSTRACT Large Language Models (LLMs) have displayed impressive capabilities in handling tasks that require few demonstration examples, making them effective few-shot learn-ers. Despite their potential, LLMs face challenges when it comes to addressing com-plex real-world tasks that involve multiple modalities or reasoning steps. For example, predicting cancer patients’ survival period based on clinical data, cell slides, and ge-nomics poses significant logistical complexities. Although several approaches have been proposed to tackle these challenges, they often fall short in achieving promising performance due to their inability to consider all modalities simultaneously or account for missing modalities, variations in modalities, and the integration of multi-modal data, ultimately compromising their effectiveness. This thesis proposes a novel approach for multi-modal tumor survival prediction to address these limitations. Taking inspiration from recent advancements in LLMs, particularly Mixture of Experts (MoE)-based models, a graph-guided MoE framework is introduced. This framework utilizes a graph structure to manage the predictions effectively and combines multiple models to enhance predictive power. Rather than training a single foundation model for end-to-end survival prediction, the approach leverages a MOE-guided ensemble to manage model callings as tools automatically. By leveraging the strengths of existing models and guiding them through a MOE framework, the aim is to achieve better performance and more accurate predictions in complex real-world tasks. Experiments and analysis on the TCGA-LUAD dataset show improved performance over the individual modal and vanilla ensemble models. iThis work is dedicated with love and gratitude to my loving parents, family, friends, and mentors who have always believed in me and supported me in all my endeavors. 
+
+ii ACKNOWLEDGEMENTS I want to express my deepest gratitude to my advisor, Dr. Huan Liu, for his unwa-vering support and guidance throughout my master’s journey. His assistance allowed me to delve into research in this field. I also owe a debt of gratitude to Zhen Tan, whose mentorship has been invaluable every step of the way. This journey would not have been possible without his dedicated help. Heartfelt thanks are due to all the members of the DMML lab group for their willingness to listen and share their insights. To my friends at ASU, your companion-ship has made this journey truly unforgettable. I would like to mention my brother, Jaanav Mathavan, and my parents, whose constant encouragement has been my driv-ing force. I am sincerely grateful to my thesis committee members, Dr. Hasan Davulcu and Dr. YooJung Choi, for their guidance and support. This work would not have been possible without the collective encouragement and assistance of everyone mentioned here. From the depths of my heart, thank you all. iii TABLE OF CONTENTS Page LIST OF TABLES . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . vi LIST OF FIGURES . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . vii CHAPTER 1 INTRODUCTION . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . 12 RELATED WORK & BACKGROUND . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . 42.1 Graphs . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . 42.1.1 Overview, Applications, and Representation . . . . . . . . . . . . . . . 42.1.2 Graph Neural Networks . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . 42.2 Few-shot Learning . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . 52.3 Large Language Models . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . 82.4 Cancer Survival Prediction . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . 11 2.4.1 Cancer Prognosis . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . 11 2.4.2 Survival analysis . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . 11 2.4.3 Multimodal Cancer Data . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . 13 3 METHODOLOGY . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . 16 3.1 Preliminary . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . 16 3.1.1 Prompting ChatGPT-3.5 . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . 16 3.2 Graph based - Mixture of Experts Framework . . . . . . . . . . . . . . . . . . . . 18 3.3 The architectural elements of the proposed method . . . . . . . . . . . . . . . . 19 3.3.1 Division of dataset into local subsets . . . . . . . . . . . . . . . . . . . . . . 19 3.3.2 Expert Models . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . 20 3.3.3 Gating Model . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . 25 3.3.4 Pooling Method . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . 26 4 EXPERIMENTS . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . 27 iv CHAPTER Page 4.1 Dataset . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . 27 4.2 Baselines and Metrics . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . 27 4.3 Implementation . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . 29 5 RESULTS and ANALYSIS . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . 31 5.1 RQ.1 Performance Comparison . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . 31 5.2 RQ.2: Relative Significance of Each Expert Model . . . . . . . . . . . . . . . . 35 6 CONCLUSION and LIMITATIONS . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . 37 6.1 CONCLUSION . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . 37 6.2 LIMITATIONS . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . 38 7 FUTURE WORK . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . 39 REFERENCES . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . 40 vLIST OF TABLES Table Page 2.1 Summary of Covariates for Patients (LUAD) . . . . . . . . . . . . . . . . . . . . . . . . . 14 4.1 Details of TCGA-LUAD Dataset . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . 28 4.2 Diagnostic Slide Transformation . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . 28 5.1 The results of (CI ↑) of Individual Models, comparison with Ensemble and MoE based model. . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . 31 vi LIST OF FIGURES Figure Page 2.1 General Few Shot Learning Approach . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . 62.2 General Mixture of Experts Approach . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . 92.3 Tissue Slides of LUAD Data . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . 13 3.3 Graph based - Mixture of Experts Framework . . . . . . . . . . . . . . . . . . . . . . . . 20 3.4 Graph Attention Network . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . 25 5.1 a) HGCN, b) Lasso . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . 34 5.2 a) CTransPath, b) PSSLM . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . 34 5.3 a) Ensemble, b) Mixture of Experts(MOE) . . . . . . . . . . . . . . . . . . . . . . . . . . 34 5.4 Significance of Each Expert Mode . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . 35 vii Chapter 1 INTRODUCTION Graphs play a crucial role in various research fields, including social network anal-ysis (Liu and De Sabbata, 2019), bioinformatics (HC et al. , 2019), recommendation systems (Ying et al. , 2018), and foundation models (Hu et al. , 2023). In the realm of sentiment analysis on social media, graphs model user interactions, allowing al-gorithms to classify sentiments based on structural and attribute features. Graphs are also used as traversals in Visual Information Seeking with Large Language Model Agents as transitions and in Foundation Models to tackle complex models and real-world problems (Hu et al. , 2023). Graphs have found many applications due to the relation modeling within the graph-structured data. Graph Neural Networks (GNNs) have emerged as powerful tools for modeling relationships and dependencies within graph-structured data. Un-like traditional neural networks operating on grid-like data (e.g., images, sequences), GNNs exploit the inherent graph structure to capture local and global interactions among nodes. GNNs can effectively encode complex relational information into node embeddings, enabling tasks such as node classification, link prediction, and graph gen-eration by aggregating information from neighboring nodes through message-passing mechanisms. The relational modeling of graphs holds significant promise in mitigat-ing data scarcity issues, particularly in domain-specific tasks such as in Healthcare (Ge et al. , 2023), Social Sciences (R et al. , 2024), Cyber Security (Sureshan et al. ,2023), etc, where labeled data may be limited or expensive. To understand K-shot learning and Graphs, we explored Few-shot learning, a subset of machine learning that has gained popularity for constructing models with minimal labeled data. We 1focused on meta-learning, a powerful technique enabling rapid adaptation to new tasks with minimal labeled data. Addressing the underexplored realm of inductive few-shot learning in graph node classification, our research underscored the necessity for models to adapt to novel contexts and explored practical baseline approaches to enhance inductive few-shot node classification tasks (Mathavan et al. , 2023). Now, LLMs have impressive capabilities in solving tasks with few demonstration examples emerging as a new few-shot learner. For example, recent work with Visual Information tasks has been tackled with LLM Agents using graphs to guide inferences (Hu et al. , 2023). However, they still face limitations in handling complex real-world tasks involving multiple modalities, which are often logistically complicated and require dealing with multi-modal data. For instance, predicting the survival period of cancer patients based on clinical data, cell slides, and symptom descriptions is a challenging task, even for experienced doctors. Several existing works have attempted to solve these challenges, but they either fail to consider all modalities simultaneously or cannot achieve promising performance. This thesis proposes a novel approach to address the issue of multi-modal tumor survival prediction. We are inspired by recent LLMs (MoE-based models) and have developed a graph-guided MoE that uses a graph structure to manage the callings of existing predictions. Rather than directly training a single foundation model to perform end-to-end survival prediction, our method can be viewed as a MOE-guided ensemble that automatically manages the callings for models as tools. We leverage the strengths of existing models and combine them to enhance their predictive power. By using a MOE-guided ensemble, we manage the callings of existing models more ef-fectively and efficiently, leading to better performance and more accurate predictions. Our goal is to leverage the strengths of multiple models and guide them to achieve better performance and more accurate predictions in complex real-world tasks. 2The summary of our contribution is as follows, 
+
+• New Framework: The thesis presents a novel approach for multi-modal tumor survival prediction, addressing the limitations of existing models by introducing a graph-guided Mixture of Experts framework. 
+
+• Improved Performance: Experiments and analysis on the TCGA LUAD dataset demonstrate that the proposed approach performs better than other survival prediction models. We evaluated six models, including the proposed framework. 
+
+• Practical Relevance: The proposed approach has the potential to translate into practical clinical applications, with implications for improved patient care and personalized treatment strategies in oncology. This contribution aligns with the broader goal of advancing predictive modeling techniques to benefit healthcare and medical practitioners. 3Chapter 2 RELATED WORK & BACKGROUND 2.1 Graphs 
+
+2.1.1 Overview, Applications, and Representation 
+
+A graph is a versatile data structure that encapsulates relationships between ob-jects, where edges connect pairs of objects, and the connected objects are referred to as vertices or nodes. With applications spanning social networks, molecular structures, citation networks, and knowledge graphs, graphs serve as a fundamental model for representing diverse relationships. Graphs are utilized for many tasks, ranging from graph-level predictions to node and edge-level property predictions and even sub-graph tasks like community detection. Representations of graphs commonly include sets of edges and nodes or adjacency matrices, reflecting the intricate connectivity among entities. Despite their complexity, graphs offer powerful insights into relational data, catering to various analytical and predictive tasks in various domains. 
+
+2.1.2 Graph Neural Networks 
+
+Graph Neural Networks (GNNs) are a class of neural networks designed to oper-ate on graph-structured data. They have become increasingly popular due to their ability to model and learn from graph-structured data effectively. GNNs typically consist of successive layers, and each layer represents a node as the combination (ag-gregation) of the representations of its neighbors and itself from the previous layer (message passing). GNNs adhere to certain requirements, such as permutation invari-ance and equivariance, which means that the network’s representation of a graph and 4its permutations should be the same after going through the network. There are var-ious ways to aggregate messages from neighboring nodes in GNNs, such as summing, averaging, or using attention mechanisms to weigh the importance of neighboring nodes. Aggregation techniques play a crucial role in capturing the graph’s structural information and generating meaningful representations for nodes within the graph. 2.2 Few-shot Learning Few-Shot Learning (FSL) is a machine learning framework that addresses the challenge of training models with only a few labeled samples per class, enabling them to generalize over new categories of data not seen during training. This framework falls under the larger paradigm of meta-learning, which involves learning to learn. FSL aims to mimic human ability, as humans can identify new classes of data using only a few examples and our previously learned knowledge. Traditional supervised learning methods use large quantities of labeled data for training, and the test set comprises data samples that must not only belong to the same categories as the training set but also come from a similar statistical distribu-tion. Few-shot learning alleviates the problems associated with traditional supervised learning in the following ways: 
+
+• Eliminates the requirement for large volumes of costly labeled data. 
+
+• Enables the extension of pre-trained models to new data categories without re-training from scratch. 
+
+• Enables learning about rare categories of data with exposure to only limited prior information. 
+
+• Allows models to be extended to different data domains as long as the data in the support and query sets are coherent. 5Figure 2.1: General Few Shot Learning Approach Traditional approaches in few-shot learning include meta-learning, metric learn-ing, and data augmentation. Meta-learning, also known as learning to learn, in-volves training models on various tasks to rapidly adapt to new tasks with limited la-beled data. Popular meta-learning algorithms include MAML (Model-Agnostic Meta-Learning) (Finn et al. , 2017) and Prototypical Networks (Snell et al. , 2017), which have demonstrated success in few-shot classification tasks. Our paper (Mathavan 
+
+et al. , 2023) introduced a competitive baseline approach for few-shot node classifica-tion under the inductive settings. Metric learning approaches focus on learning a distance metric that measures similarity between samples. Siamese networks (Koch, 2015) and triplet loss (Schroff 6et al. , 2015) are common techniques used in metric learning for few-shot learning tasks. Data augmentation techniques such as generative models (e.g., GANs) and synthetic data generation have also been explored to augment the training data and improve model generalization in few-shot scenarios, (Antoniou et al. , 2017). 
+
+Zero-shot Learning: 
+
+On the other hand, zero-shot learning (ZSL) is a machine learning scenario where an AI model is trained to recognize and categorize objects or concepts without seeing any examples of those categories or concepts beforehand. In ZSL, the model is not trained on any labeled examples of the unseen classes, and it is asked to make predic-tions post-training. Instead, ZSL uses auxiliary information such as textual descrip-tions, attributes, embedded representations, or other semantic information relevant to the task. It typically outputs a probability vector representing the likelihood that a given input belongs to certain classes. ZSL has become notable in computer vision and natural language processing, as it enables AI models to generalize quickly to many semantic categories with minimal training overhead, particularly in scenarios where labeled examples are scarce or non-existent. Attribute-based methods repre-sent classes using attribute vectors describing various semantic attributes (e.g., color, shape) and learn a compatibility function to predict class labels based on attribute similarity (Lampert et al. , 2009). Semantic embedding approaches map classes and features into a common semantic space, enabling inference for unseen classes based on their similarity to seen classes (Frome et al. , 2013). Text-based zero-shot learning methods leverage textual descrip-tions or natural language queries to infer class labels for unseen examples. Techniques such as natural language embeddings and text-image matching have been employed for zero-shot recognition, (Socher et al. , 2013). 72.3 Large Language Models Foundation models are large deep-learning neural networks that have revolution-ized the field of machine learning. These models are trained on extensive datasets and are designed to serve as a starting point for developing machine learning (ML) mod-els that power new applications more efficiently and cost-effectively. Essentially, the ”foundation model” refers to ML models trained on a broad spectrum of generalized and unlabeled data. They can perform various general tasks, such as understanding language, generating text and images, and conversing in natural language. Foundation models, particularly Large Language Models (LLMs), have revolution-ized various fields by exhibiting remarkable abilities in solving complex tasks with minimal demonstration examples. These models are the cornerstone for numerous downstream applications and have spurred research in diverse areas. 
+
+Large Language Models (LLMs): LLMs, such as OpenAI’s GPT series and Google’s BERT, have demonstrated exceptional capabilities in understanding and generating human-like text. These models are trained on vast amounts of text data and can be fine-tuned for specific tasks, ranging from language understanding and generation to translation and summarization. Recent advancements in LLMs have also enabled them to tackle multimodal tasks by integrating textual and non-textual modalities, expanding their applicability to a broader range of tasks and domains. 
+
+Mixture of Experts (MoE): Mixture of Experts is a powerful neural network architecture that combines multiple expert models within a gating network to handle diverse tasks or modalities. Each expert specializes in a specific sub-task or domain, while the gating network dynamically selects the most relevant expert for a given input. MoE has been applied successfully in various domains, including natural lan-guage processing (GPT-4), computer vision, and recommendation systems to improve 8model performance and robustness (Shazeer et al. , 2017). 
+
+Figure 2.2: General Mixture of Experts Approach 
+
+LLM for Multi-modal Tasks: 
+
+LLMs have been extended to handle multi-modal tasks by incorporating both textual and non-textual inputs, such as images, audio, or structured data. This ex-tension enables LLMs to understand and generate content across multiple modalities, opening up new opportunities for applications in areas like image captioning, video understanding, and multimodal translation. 
+
+a. ChatGPT (GPT-3.5): GPT-3.5 is a large language model developed by OpenAI. GPT-3.5 is renowned for its state-of-the-art performance in various language understanding and generation tasks. Built upon a transformer architecture, GPT-3.5 comprises an expansive neural network with 175 billion parameters, enabling it to capture intricate linguistic patterns and nuances across diverse contexts. 9The methodology underlying GPT-3.5 involves pre-training on vast amounts of text data from the internet, encompassing many languages and domains. The model learns to predict the next token in a sequence given the preceding context through unsupervised learning, thereby acquiring a rich understanding of language structure and semantics. Moreover, GPT-3.5 employs a multi-layer architecture with atten-tion mechanisms, facilitating the capture of long-range dependencies and contextual information within text sequences. 
+
+b. Multimodal LLM: Multimodal Large Language Models (LLMs) represent a sophisticated approach to processing and understanding diverse forms of information, seamlessly integrating textual and visual data. They are adept at generating captions for images, answering questions about visual content, and analyzing sentiment across multiple modalities. Leveraging pre-trained LLMs as their foundation, these models incorporate specialized layers or modules designed to handle and fuse the complexities of multimodal inputs, enabling them to extract richer insights and produce more nuanced outputs across various tasks and domains. 
+
+c. Decision Making with LLM as an Agent: There has also been a surge of interest in applying Large Language Models (LLMs) as autonomous agents. These agents are capable of interacting with external environments, making dynamic de-cisions based on real-time feedback, and consequently achieving specific goals. For example, Autonomous Visual Information Seeking with Large Language Model Agent (AVIS) (Hu et al. , 2023), method leverages a Large Language Model (LLM) to strate-gize the utilization of external tools dynamically and to investigate their outputs, thereby acquiring the indispensable knowledge needed to provide answers to the posed questions. We concentrate on this approach of decision-making in selecting appropriate tools/models for our problem (Cancer Survival Prediction). 10 2.4 Cancer Survival Prediction 
+
+2.4.1 Cancer Prognosis 
+
+Globally, cancer-related deaths currently stand at approximately 10 million an-nually, with projections indicating that cancer will emerge as the primary cause of death in all countries during the 21st century (Bray et al. , 2018). In oncology, the prediction of time-to-event outcomes, such as cancer recurrence or mortality, plays a pivotal role in clinical decision-making. Survival analysis, specifically, is highly valued by patients, clinicians, researchers, and policymakers alike (Mariotto et al. , 2014). Traditional cancer prognosis methods typically rely on population-level estimates tailored to specific cancer types and stages. However, these approaches overlook in-dividual patient variations, including critical factors such as age at diagnosis. To address this limitation, several patient-specific prediction techniques have been intro-duced in clinical practice, integrating clinical data with laboratory measurements of validated biomarkers (Simmons et al. , 2017). Despite these advancements, survival prediction often remains reliant on subjec-tive interpretation and intuition (Hui et al. , 2019) by clinicians, which can compromise accuracy and reproducibility (Cheon et al. , 2016). Thus, there is a pressing need for more objective and precise methodologies in cancer prognosis. 
+
+2.4.2 Survival analysis 
+
+Survival analysis is a field focused on understanding the time it takes for a par-ticular event to occur. In the context of cancer, this typically refers to the duration between diagnosis and death caused by the disease. While the ideal scenario involves observing every patient until the event of interest, in reality, some patients may drop out of follow-up early, and in some cases, the event may not occur at all if the patient 11 succumbs to another cause. When the event is not observed, the last known contact time is termed as censoring time. Despite not directly observing the event, censored observations still provide valuable information for modeling, as they offer a lower bound on the patient’s survival time. The semi-parametric Cox proportional hazards (CPH) model (Cox, 1972) is a commonly used statistical approach for analyzing survival data with censored obser-vations (LeCun et al. , 2015). However, it has notable limitations. Firstly, it relies on a linear model, which limits its ability to capture non-linear relationships between in-put data and the risk of death. Additionally, the CPH model assumes that the effects of patient features remain constant over time, resulting in proportional predictions for patients at all follow-up time points. Initially, the integration of DL models within the CPH framework began with the utilization of a basic feed-forward neural network with a unimodal data input (Norgeot et al. , 2019). However, as the era of big data in precision medicine unfolds, there’s a surge in the availability of diverse data modalities in routine clinical practice. This proliferation of big data necessitates robust modeling approaches, thereby un-derscoring the importance of DL-based methods. Consequently, recent studies have capitalized on modern DL techniques to enhance the capabilities of DL-based CPH models (Katzman et al. , 2018). Prominent examples include methodologies tailored to leverage clinical and gene expression data, such as DeepSurv (Ching et al. , 2018) and Cox-nnet (Lu and et al., 2019). Additionally, there are approaches targeting imaging data, such as CXR-risk for chest radiographs(Mukherjee and et al., 2020), LungNet(Zhang and et al., 2020) for computed tomography (CT) images in lung cancer prognosis, and a model(Zhong and et al., 2020) for gastric cancer survival prediction based on CT images. 12 2.4.3 Multimodal Cancer Data 
+
+The availability of vast and varied datasets, encompassing clinical records, imag-ing scans, and molecular profiles, underscores the importance of integrating these data types using deep multimodal representation learning techniques (Baltrusaitis 
+
+et al. , 2019; Yousefi and et al., 2017). Recent advancements have extended deep learning-based Cox survival models to incorporate diverse data modalities, enhancing predictive accuracy. For instance, SurvivalNet integrates various high-throughput molecular data modalities across different cancer types (Mobadersany and et al., 2018). The GSCNN system merges digital pathology images with validated genomic biomarkers in glioma patients (Huang and et al., 2019). SALMON tackles breast cancer by combining gene and microRNA expression data with clinical parameters and validated biomarkers (Cheerla and Gevaert, 2019). 
+
+Figure 2.3: Tissue Slides of LUAD Data 
+
+Cancer survival prediction is a critical task in healthcare, aiming to estimate the likelihood of a patient’s survival based on various clinical and demographic factors. Machine learning techniques, including deep learning and ensemble methods, have 13 Table 2.1: Summary of Covariates for Patients (LUAD)                               
+
+> Covariates Group Patients (N = 522)
+> Survival time 902.51 ±892.15 Vital status Alive 334 (63.98%) Dead 188 (36.02%) Stage I280 (53.64%) II 130 (24.90%) III 86 (16.48%) IV 26 (4.98%) T stage T1 172 (32.95%) T2 281 (53.83%) T3 47 (9.00%) T4 22 (4.21%) N stage N0 342 (65.52%) N1 99 (18.97%) N2 75 (14.37%) N3 6 (1.15%) M stage M0 496 (95.02%) M1 26 (4.98%) Age ≤65 250 (47.89%)
+> >65 272 (52.11%) Gender Female 280 (53.64%) Male 242 (46.36%)
+
+been employed to develop predictive models for cancer survival prognosis. Other researches in cancer survival prediction has focused on leveraging diverse data sources, including clinical records, genomic data, imaging scans, and patient demographics, to build accurate and reliable prediction models. Feature selection, dimensionality reduction, and model interpretability techniques have been explored to enhance model performance and clinical interpretability. For e.g. (Hou et al. ,2023) addresses the challenge of multimodal cancer survival prediction by leverag-ing related pathological, clinical, and genomic features. It integrates graph convo-lutional networks (GCNs) and a hypergraph convolutional network (HCN) to cap-14 ture intra- and inter-modal interactions within flexible and interpretable multimodal graphs. (Wang et al. , 2022) proposes a novel self-supervised learning strategy, called semantically-relevant contrastive learning (SRCL), tailored for histopathological im-age analysis, leveraging a hybrid model (CTransPath) pretrained on unlabeled data to generate informative representations, achieving state-of-the-art performance across various downstream tasks. 15 Chapter 3 METHODOLOGY 3.1 Preliminary 
+
+3.1.1 Prompting ChatGPT-3.5 
+
+We employ the GPT-3.5 language model, developed by OpenAI, as a baseline. In our research, we exploit GPT-3.5’s capabilities through zero-shot learning to deter-mine which expert model to use for a particular patient’s tumor data and see if it can choose a model for us.  
+
+> (a) Example 1 (b) Example 2
+
+16 (a) Example 3 (b) Example 4 
+
+• The performance of GPT-3.5 in selecting models or tools based on available data was observed to be suboptimal in several instances. In Example 1, despite the context indicating the availability of only clinical data, GPT-3.5 produced incorrect assumptions by generating hallucinations of both clinical and image data. Consequently, this led to the selection of an inappropriate model. 
+
+• Similarly, in Example 2, GPT-3.5 erroneously chose Tool 4, which requires all modalities, even though Tool 2 or Tool 3 could have been more suitable choices based on the available data. This suggests a failure of GPT-3.5 to accurately assess the compatibility of models with the provided data context. 
+
+• Examples 3 and 4 further highlight GPT-3.5’s tendency to default to Tool 4 when it cannot select a specific model. This behavior was consistent across multiple tested examples, indicating a limitation in the algorithm’s decision-17 making process when confronted with uncertainty or ambiguity in the context. 
+
+• Overall, these observations underscore the need for caution when relying on GPT-3.5 for model or tool selection in scenarios where the algorithm’s under-standing of the available data may be inaccurate or incomplete. 
+
+• This observation highlights a crucial aspect: while LLMs exhibit capabilities as few-shot learners, their performance may be inadequate in specific tasks due to their lack of specific domain knowledge. Two key considerations arise: Firstly, the diversity of inputs across models necessitates adaptability. Secondly, while it’s common to assume that one model generally outperforms another for a particular modality, there may be instances where a specific model excels, emphasizing the need for dynamic model selection. Therefore, to address the variability in model performance and the necessity for dynamic model selection, we propose a graph-guided mixture of experts-based model. 3.2 Graph based - Mixture of Experts Framework The proposed approach for multimodal tumor survival prediction introduces a novel paradigm by employing a Graph-based Mixture of Experts (MoE) model. Unlike traditional ensemble methods where all models are trained on the same dataset and their outputs are combined through simple averaging or voting, the MoE framework offers a more sophisticated approach. In the MoE model, each survival prediction model is treated as an ”expert” spe-cializing in a particular modality or aspect of the data. These experts are trained on subsets of the data where they can achieve optimal performance, allowing them to focus on specific features or patterns within their respective domains. This special-18 ization enables each expert to develop a deep understanding of its assigned subset, leading to enhanced predictive capabilities. The key innovation of the MoE framework lies in its ability to dynamically com-bine the outputs of these expert models based on their relevance and confidence levels for a given prediction task. Rather than relying on a fixed set of weights or voting mechanisms, the MoE dynamically selects the most suitable combination of expert predictions for each instance of the data. This adaptive aggregation mech-anism ensures that the model can effectively leverage the strengths of each expert while mitigating the impact of potential weaknesses or biases. Additionally, the MoE framework offers a natural means to manage the inherent heterogeneity and complexity of multimodal data. By integrating multiple expert models trained on diverse modalities like clinical data, imaging studies, and genomics, the MoE model captures a broad spectrum of relevant information for tumor survival prediction. This comprehensive approach allows the model to leverage complementary insights from various modalities, enhancing prediction robustness and accuracy. 3.3 The architectural elements of the proposed method 
+
+3.3.1 Division of dataset into local subsets 
+
+In the proposed approach, the predictive modeling problem is decomposed into subtasks based on the different modalities present in the data. In the context of cancer survival prediction, the data may encompass clinical information, genomic data, and diagnostic Whole Slide Images (WSIs). Each modality represents a distinct subset of the data, and subtasks are formulated to address the prediction task within each of these modalities. This division allows for focused modeling efforts tailored to the 19 P1  P1   
+
+> Expert Model 1
+> Lasso - Clinical
+> Data
+> P2
+> P2
+> Expert Model 2
+> HGCN - All
+> Modalities
+> P3
+> P3
+> Expert Model 3
+> CTransPath -
+> Tissue slides
+> P4
+> P4
+> Expert Model 4
+> PSSLM - Tissue
+> slides
+> Input Data:
+> Clinical, Genomics
+> and Tissue slides
+> W1 WP1
+> W2
+> WP2
+> WP3
+> W4 WP4
+> Graph Attention
+> Network
+> Weighted
+> Aggregation
+> W3
+> Final Prediction
+> High Risk/ Low Risk
+> stratification
+
+Figure 3.3: Graph based - Mixture of Experts Framework unique characteristics and challenges associated with each modality. 
+
+## xs =
+
+## 
+
+## x1
+
+## x2
+
+## x3
+
+##  , (3.1) 
+
+where x1, x2, x3 are individual components of xs representing clinical information, genomic data, and diagnostic Whole Slide Images (WSIs). 
+
+3.3.2 Expert Models 
+
+Expert models are trained to specialize in modeling each subset of the data. Each expert model will act as a domain expert for each subset of the data. These models are designed to capture the specific patterns and relationships present within their respective modalities. In the proposed framework, four expert models are utilized, each addressing a different subset of the data. We choose our expert models to cover 20 all data modalities available in the input data. The expert network E is a set of N experts {e1, . . . , e N }, where each is a cancer survival prediction model and contains its own parameters in the framework. For each expert ei (ei : RD → RD), it takes the token xs as input to produce its own output ei(xs). 
+
+## ms = E(xs), (3.2) 
+
+Lasso 
+
+One of the expert models employed is based on Lasso Regression. Lasso Regression is a variant of linear regression that incorporates an L1 penalty, which encourages sparsity in the coefficient estimates. This penalty term induces some of the coeffi-cients to shrink to zero, effectively performing feature selection by eliminating less relevant variables. In the context of cancer survival prediction, the Lasso model op-erates on the patient’s clinical data. By leveraging the regularization properties of Lasso Regression, this expert model can effectively identify and prioritize the most informative features from the clinical dataset, facilitating accurate predictions of sur-vival outcomes. Additionally, the interpretability of Lasso Regression allows for a transparent understanding of the factors influencing the predictions, which can be valuable for clinical decision-making and hypothesis generation. The cost function with L1 regularization is given by: Cost function = 1
+
+n
+
+> n
+
+X
+
+> i=1
+
+(hθ(x)i − yi)2 + λ
+
+> m
+
+X
+
+> j=1
+
+|θj |
+
+!
+
+.
+
+where hθ(x)i are predicted values, yi are target values, θj is the sum of the absolute value of coefficients, and λ is a parameter that provides a trade-off between balancing residual sum of squares and the magnitude of coefficients. 21 Hybrid Graph Convolutional Network (Hou et al. , 2023) 
+
+The Hybrid Graph Convolutional Network (HGCN) method is developed to address the challenge of robust multimodal cancer survival prediction in scenarios where pa-tient data may be incomplete or heterogeneous across modalities. This methodology aims to enhance the representation and interaction of patient data modalities, such as clinical records, genomic features, and pathological slides, by leveraging graph-based modeling techniques. HGCN employs Graph Convolutional Networks (GCNs) to facilitate intra-modal interactions within each modality. By constructing flexible and interpretable multimodal graphs, HGCN enables effective information exchange and feature propagation within individual modalities. This intra-modal interaction mechanism allows the model to capture and incorporate relevant patterns and depen-dencies specific to each data modality. In addition to intra-modal interactions, HGCN integrates a Hypergraph Convolu-tional Network (HCN) with a hyperedge mixing mechanism to promote inter-modal interactions. This architecture enables the model to capture high-order relation-ships and interactions across different modalities. By leveraging hypergraph struc-tures, HCN facilitates the fusion of information from multiple modalities, enabling the model to extract comprehensive representations incorporating intra- and inter-modal dependencies. To further enhance the model’s robustness in scenarios where certain modalities may be missing or incomplete, HGCN incorporates an Online Masked Auto-encoder. This component addresses missing modalities during model inference by capturing intrinsic dependencies between modalities and generating missing hy-peredges. The Online Masked Auto-encoder enhances the model’s resilience to incom-plete data and improves prediction performance in real-world settings by dynamically adapting to the available modalities in a given sample. 22 Transformer-based Unsupervised Contrastive Learning (Wang et al. , 2022) 
+
+The CTransPath (Transformer-based Unsupervised Contrastive Learning) method represents a pioneering approach in the realm of histopathological image analysis, aiming to extract rich and discriminative features for downstream tasks such as sur-vival prediction. This method leverages a hybrid backbone architecture, integrat-ing both Convolutional Neural Network (CNN) and multi-scale Swin Transformer components. By combining the strengths of CNNs in capturing local features and Transformers in modeling long-range dependencies, CTransPath effectively extracts comprehensive representations from histopathological images. A key innovation introduced by the CTransPath method is the adoption of a semantically-relevant contrastive learning (SRCL) strategy. Unlike traditional con-trastive learning approaches that align two views from an instance, SRCL focuses on enhancing instance discrimination by selecting more semantically relevant pos-itives. This is achieved by aligning multiple positive instances that share similar visual concepts, thereby increasing the diversity of positive pairs and leading to more informative feature representations. Incorporating SRCL in CTransPath enhances both representation quality and model robustness to image variations. The CTransPath architecture undergoes pre-training on a large-scale dataset of histopathological images using the SRCL strategy. This pre-trained model serves as a valuable asset for downstream tasks, offering two main advantages: transfer learning and direct feature extraction. Through transfer learning, the pre-trained CTransPath model can be fine-tuned on target datasets with limited labeled data, enabling efficient adaptation to specific tasks and domains. Alternatively, the pre-trained model can be used for direct feature extraction, providing rich and meaningful representations that capture salient characteristics of histopathological images. 23 The efficacy of the SRCL-pretrained CTransPath model has been demonstrated across various downstream tasks, showcasing state-of-the-art performance on different datasets. In the context of cancer survival prediction, we employ the CTransPath method to extract features from diagnostic slides, which are then utilized to train a regression head for predicting survival time. 
+
+Pathology Self-Supervised Learning Model (Kang et al. , 2023) (PSSLM) 
+
+We employ a Self-Supervised Learning model pre-trained on diverse pathology im-age datasets to extract informative features from diagnostic slides for cancer survival prediction. The PSSLM model is pre-trained on a comprehensive dataset of 20,994 Whole Slide Images (WSIs) from the Cancer Genome Atlas (TCGA) and 15,672 WSIs from TULIP. These datasets encompass a wide range of cancer types and pathological variations, providing a rich source of information for feature learning. The WSIs in these datasets are stained with Hematoxylin and Eosin (H&E), a common staining technique used in pathology to visualize tissue structures and cell morphology. To ensure computational tractability and focus on relevant regions, patches of resolution 512x512 pixels are extracted from each WSI, resulting in a dataset containing 32.6 million patches. The pre-training process utilizes the ResNet-50 architecture, a widely used convolutional neural network known for its effectiveness in image feature extraction tasks. By leveraging the PSSLM pre-training on such diverse and extensive pathology datasets, the model learns to capture meaningful representations of histopathological features, including tissue morphology, cellular structures, and architectural patterns. These learned representations encode rich information about the underlying biological characteristics of cancer tissues, enabling the model to discern subtle nuances and variations indicative of disease progression and prognosis. Therefore, we utilize the learned PSSLM weights to extract features from diag-24 nostic slides used in cancer survival prediction. The extracted features serve as input to a regression head, which is trained to predict the survival time of cancer patients. 
+
+3.3.3 Gating Model 
+
+In a dense MoE architecture, the gating network (graph attention network) re-ceives the predictions produced by all expert models as input. We choose a graph-based network to enable flexibility in adding or removing experts within the frame-work. The gating model then analyzes these predictions and computes corresponding weights that indicate the significance associated with each expert’s output. The key function of the gating model is to adaptively allocate attention to different expert models based on the characteristics of the input data and the task at hand. By assigning higher weights to experts whose predictions are deemed more informative or accurate for a particular input instance, the gating model enables the MoE framework to leverage the complementary strengths of diverse expert models effectively. ms
+
+> ms1
+> ms2
+> ms3
+> ms4
+> Softmax
+> g1
+> g2
+> g3
+> g4
+> eij
+> eij - Attention Score
+
+Figure 3.4: Graph Attention Network The dense gate network G takes the expert prediction as input ys (ys ∈ RD) and produces the probability of it with respect to N experts. Equation 1 formulates the 25 gate function, where ys (ys ∈ RD×N ) are predictions of N experts, As is the Attention Network and the outputs are normalized via softmax distribution. 
+
+## g(xs) = softmax( As(ms)) , (3.3) 
+
+3.3.4 Pooling Method 
+
+Following the gating model’s determination of the weights for each expert’s pre-diction, a pooling method is employed to combine these weighted predictions into a single aggregated output. The pooling method serves as the final step in the MoE framework, synthesizing the diverse insights provided by individual experts into a cohesive and comprehensive prediction. One common approach to pooling in the MoE framework is weighted sum or weighted aggregation. In this method, the gating model’s weights are multiplied by the corresponding expert model outputs and summed to produce the final aggregated prediction. Weighted sum pooling ensures that the contributions of each expert model are appropriately weighted based on their respective strengths and relevance to the input data. By incorporating the gating mechanism and weighted aggregation, the graph based - MoE framework harnesses the collective intelligence of multiple expert models, resulting in enhanced predictive performance and robustness across a wide range of tasks and datasets. The final output is the linearly weighted combination of each expert’s output on the token by the gate’s output. 
+
+## ys =
+
+> N
+
+## X
+
+> i=1
+
+## g(xs) · ei(xs). (3.4) 
+
+26 Chapter 4 EXPERIMENTS 4.1 Dataset The Cancer Genome Atlas (TCGA) is a vital dataset that has provided molecular information on more than 20,000 primary cancers and matched normal samples, cov-ering 33 different types of cancer. TCGA data has significantly improved the ability to diagnose, treat, and prevent cancer, and has also changed the way in understanding and treating cancer in clinics. We selected the TCGA-LUAD dataset, which covers lung adenocarcinoma (LUAD), as it is one of the most common cancer types. LUAD prognosis is still a significant clinical challenge, as it varies remarkably among indi-vidual patients. The dataset contains 585 cases of data, and after merging clinical data, 470 cases in the TCGA-LUAD database with genomics, Imaging Slides, and clinical data were used for analysis. 4.2 Baselines and Metrics We use the four expert models, i.e., Lasso, HGCN, CTransPath, and PSSLM, as baselines, including vanilla ensemble. 
+
+Metrics: The performance of the models is assessed using two metrics: 
+
+1. The concordance index (c-index) , which evaluates the extent to which the model’s predicted values correctly rank the observed survival times. A higher c-index indicates better predictive performance, with values ranging from 0.5 (random 27 Table 4.1: Details of TCGA-LUAD Dataset Clinical Records of TCGA-LUAD (N=470) 
+
+Attribute Description 
+
+Race Race of patients Age at Index Age of patients at diagnosis Gender Gender of patients Pathological stage Cancer stage based on pathology reports Morphology Cellular structure and characteristics Radiation Therapy Whether patients underwent radiation therapy Pharmaceutical Therapy Pharmaceutical treatments received Table 4.2: Diagnostic Slide Transformation Diagnostic Slide Transformation 
+
+Transformation Details 
+
+Slide Transformation .svs to .png Mean (0 .485 , 0.456 , 0.406) Standard Deviation (0 .229 , 0.224 , 0.225) Resize 224 × 224 pixels prediction) to 1 (perfect prediction). 
+
+c =
+
+P
+
+> i∈U
+
+nP  
+
+> Tj>T i
+
+1fj >f i
+
+oP
+
+> i∈U
+
+nP  
+
+> Tj>T i
+
+1
+
+o ,
+
+where U is a set of uncensored data; Ti is the observed survival time of sample i;
+
+fi is the predicted survival time of sample i and 1 a>b = 1 if a > b and 0 otherwise. 
+
+2. Kaplan-Meier (KM) curves , which visualize the probability of survival for patients in different risk groups over a specific time period. Additionally, we employ 28 the logrank test to assess the statistical significance of the differences between low and high-risk groups. A p-value of less than 0.05 indicates a statistically significant separation between the groups. 
+
+τ1 < τ 2 < · · · < τ K are distinct failure times 
+
+Yi(τj ) are number of persons in group i at risk at τj
+
+Y (τj ) = Y0(τj ) + Y1(τj ), represents the total number of subjects at risk at τj
+
+dij is the number of failures in group i at τj
+
+dj = d0j + d1j are total number of failures at τj
+
+• Oj is the observed number of failures 
+
+• Ej is the expected number of failures, where Ej = dj Y1(τj )/Y (τj )
+
+• Vj = Y0(τj )Y1(τj )dj (Y (τj )−dj )     
+
+> Y(τj)2(Y(τj)−1)
+
+is the variance of the observed number of failures 
+
+• Z represents the p-value. 
+
+Z =
+
+Pkj=1 (Oj − Ej )
+
+qPkj=1 Vj
+
+.
+
+4.3 Implementation In this research, we conducted a 5-fold evaluation procedure to assess the perfor-mance of survival prediction methods, considering the variability of predictions. For evaluation purposes, 20% of the data was randomly sampled as a test set, and the average scores were reported. The models were implemented using PyTorch. 
+
+1. For the Lasso model, the Sklearn Lasso implementation was utilized with hyperparameters set to alpha=10 and max iteration=2000 .
+
+2. The regression head architecture for the CTransPath and PSSLM models consists of a multi-layer perceptron (MLP) with three fully connected layers: fc1 29 with 128 neurons, fc2 with 64 neurons, and fc3 for the final regression output. Each layer is followed by a Rectified Linear Unit (ReLU) activation function to introduce non-linearity. During the training phase, the Mean Squared Error (MSE) loss function is utilized to quantify the difference between predicted and actual regression values. The Adam optimizer is employed to update the model parameters, using a learning rate of 0.001 . A batch size of 16 is employed, and data shuffling is enabled to facilitate model convergence and mitigate the risk of overfitting. 
+
+3. The Graph-based - Mixture of Experts (MoE) architecture incorporates a Gating Function and MoE Function. The Gating Function operates on the concatenated predictions from all expert models. The concatenated predictions undergo processing through two fully con-nected layers: fc1 followed by fc2. fc1 employs a Rectified Linear Unit (ReLU) ac-tivation function, while fc2 applies a softmax activation function along the expert dimension. This softmax operation generates gating coefficients, ensuring their sum equals one and indicating the relative contribution of each expert’s prediction. The MoE function encapsulates the model, taking the gating function as input during initialization. Here, gating coefficients are computed using the gating function and applied to expert predictions to generate the final output. In training, the Adam optimizer updates model parameters with a learning rate of 0.1 and a batch size of 
+
+16 with data shuffling is employed to enhance convergence and mitigate overfitting. In our experiments, we aim to address the following questions: 
+
+• RQ.1: How does the Graph-Guided Mixture of Experts (MoE) framework im-prove the accuracy of survival prediction? 
+
+• RQ.2: What is the relative importance of each expert model in enhancing the predictive capability of the MoE framework? 30 Chapter 5 RESULTS AND ANALYSIS 5.1 RQ.1 Performance Comparison Table 5.1: The results of (CI ↑) of Individual Models, comparison with Ensemble and MoE based model. 
+
+Type Method LUAD Individual Models 
+
+Lasso 0.650 ±0.017 HGCN 0.633 ±0.020 CTransPath 0.611 ±0.085 PSSLM 0.642 ±0.027 
+
+Ensemble Naive 0.665 ±0.020 
+
+Mixture of Experts Dense 0.703 ±0.022 
+
+• As depicted in Table 5.1, our analysis begins by assessing the ranking ability, quantified by the Concordance Index (CI), across various methods. Initially, it is evident that individual modal performances tend to exhibit lower CI values compared to multimodal approaches. This disparity underscores the advantage of leveraging diverse and complementary information from multiple modalities in the context of survival prediction tasks. 
+
+• Among the Individual Models assessed, Lasso and PSSLM stand out as the most effective methods. This outcome highlights the ability of Lasso and PSSLM to 31 leverage information from clinical records and image slides, respectively, thereby augmenting their predictive ability. 
+
+• Subsequently, employing a naive ensemble technique yields a modest improve-ment in CI compared to the Individual Models. Despite the marginal enhance-ment, it reinforces the utility of ensemble methods in amalgamating predictions from diverse sources to achieve more robust performance. 
+
+• However, our proposed method, which strategically amalgamates individual modal and multimodal approaches, attains the pinnacle of performance. This integration allows for the exploitation of singular and combined sources of in-formation, culminating in a mean CI of 0.703 . Importantly, this surpasses the performance of both the Individual Models and the Ensemble, highlighting the effectiveness of our approach in leveraging the complementary strengths of different survival prediction models. 
+
+• In the analysis of the TCGA-LUAD (The Cancer Genome Atlas - Lung Ade-nocarcinoma) dataset, we employed a risk stratification approach based on the predictions generated by our model. The goal is to categorize patients into high-risk and low-risk groups according to their predicted survival outcomes. This stratification allows for a clearer understanding of patient prognosis and can inform treatment decisions. We evaluate several models, including individ-ual modal models and an ensemble model, for predicting patient survival in the TCGA-LUAD dataset. Each model generated its own set of predictions, allow-ing us to compare their performance in stratifying the patients into high-risk and low-risk groups. 
+
+• Fig. 5.1- 5.3 illustrates the Kaplan-Meier (KM) survival curves for the high-risk 32 and low-risk groups identified by different models. These curves demonstrate the estimated probability of survival over time for each group. Among the individual models are lasso and PSSLM, which exhibit higher performance compared to others. However, when considering the ensemble model, which combines the predictions of multiple individual models, we observed improved performance in patient stratification. Interestingly, the ensemble model demonstrated the ability to stratify patients more effectively than any of the individual models alone. This suggests that leveraging the diversity of predictions from multiple models can enhance the accuracy of risk stratification and provide more reliable insights into patient prognosis. 
+
+• The Mixture of the Expert-based model, which we utilized in our analysis, exhibited state-of-the-art (SOTA) performance in predicting patient survival within the LUAD dataset. 
+
+• Comparing the KM curves of the high-risk and low-risk groups reveals the sig-nificance of our method’s performance. A key indicator of the effectiveness of our model is the p-value associated with the differences between these curves. A low p-value suggests a significant difference in survival outcomes between the two groups. In our analysis, the p-values obtained from our method were consistently lower than those from the other methods, generally less than 0.01. 
+
+• This indicates that our model successfully stratifies patients into distinct risk groups with significantly different survival outcomes. Such findings highlight the effectiveness of our approach for patient stratification in the context of lung adenocarcinoma, providing valuable insights for clinical decision-making and personalized treatment strategies. 33 0 1 2 3 4 5 6 7 8Months 0.2 0.4 0.6 0.8 1.0 Survival Probability 
+
+Kaplan-Meier Survival Estimate by Risk Group 
+
+Group Risk Group 0 Risk Group 1 (a) p-value = 4 .97 × 10 −13 0 50 100 150 200 250 Months 0.0 0.2 0.4 0.6 0.8 1.0 Survival Probability 
+
+Kaplan-Meier Survival Estimate by Risk Group 
+
+Group Risk Group 0 Risk Group 1 (b) p-value = 8 .86 × 10 −29 
+
+Figure 5.1: a) HGCN, b) Lasso 0 50 100 150 200 250 Months 0.2 0.4 0.6 0.8 1.0 Survival Probability 
+
+Kaplan-Meier Survival Estimate by Risk Group 
+
+Group Risk Group 0 Risk Group 1 
+
+(a) p-value = 2 .41 × 10 −11 0 50 100 150 200 250 Months 0.2 0.4 0.6 0.8 1.0 Survival Probability 
+
+Kaplan-Meier Survival Estimate by Risk Group 
+
+Group Risk Group 0 Risk Group 1 (b) p-value = 1 .05 × 10 −14 
+
+Figure 5.2: a) CTransPath, b) PSSLM 0 50 100 150 200 250 Months 0.0 0.2 0.4 0.6 0.8 1.0 Survival Probability 
+
+Kaplan-Meier Survival Estimate by Risk Group 
+
+Group Risk Group 0 Risk Group 1 
+
+(a) p-value = 2 .31 × 10 −16 0 50 100 150 200 250 Months 0.0 0.2 0.4 0.6 0.8 1.0 Survival Probability 
+
+Kaplan-Meier Survival Estimate by Risk Group 
+
+Group Risk Group 0 Risk Group 1 (b) p-value = 5 .10 × 10 −19 
+
+Figure 5.3: a) Ensemble, b) Mixture of Experts(MOE) 34 CTransPath PSSLM Lasso HGCN  
+
+> Tools
+> 025 50 75 100 125 150 175 200
+> Frequency of Activation
+> 5189 193 13
+> Frequency of Activation for Each Expert Model
+
+(a) Frequency of Activation MoE Without CTransPath Without PSSLM Without Lasso Without HGCN  
+
+> Models
+> 0.50 0.55 0.60 0.65 0.70
+> C-Index
+> 0.703 0.683 0.612 0.592 0.68
+> Effect of Removing Each Model on C-Index
+
+(b) Effect of Removing Each Model 
+
+Figure 5.4: Significance of Each Expert Mode 5.2 RQ.2: Relative Significance of Each Expert Model 
+
+• Figure 5.4a illustrates the frequency of activation for each expert model within our framework. Notably, Lasso and PSSLM exhibit the highest frequency of ac-tivation compared to the other two models. This observation can be attributed to the robustness and effectiveness of PSSLM and Lasso in survival prediction tasks, which positions them as preferred choices within our framework. The frequency of activation reflects the adaptability of our framework, as it dy-namically selects the most suitable expert model based on the patient’s input data. Consequently, the increased frequency of activation for superior models underscores our framework’s ability to prioritize and leverage the strengths of high-performing models for improved predictive outcomes. From Figure 5.4b, we can make the following analysis: 
+
+• The predictive performance of a framework that utilizes various models can be significantly impacted by the removal of specific models. In this context, the 35 C-Index decreases notably if the Lasso model is removed, which highlights its crucial role in enhancing the accuracy of survival prediction. 
+
+• Similarly, the PSSLM model also shows a considerable impact on the predic-tive performance, as removing it leads to a noticeable decrease in the C-Index. This suggests that the PSSLM model effectively harnesses information from image slides, contributing significantly to the overall predictive prowess of the framework. 
+
+• Furthermore, removing the HGCN model also results in a notable decrease in the C-Index, implying its importance in the predictive capability of the framework. On the other hand, the removal of the CTransPath model has a relatively minor effect on the C-Index compared to the other models. While still contributing to the overall predictive performance, its removal does not result in as significant a decrease in the C-Index as observed with the other models. In conclusion, the analysis of Figure 5.4 reveals a complementary relationship between the two, highlighting the framework’s ability to select the most suitable model based on input data dynamically. Additionally, the impact of removing both high and low-performing models underscores the framework’s adaptability and effectiveness. Due to the inductive nature of our gating model, our framework is also flexible, capable of adding more experts or removing experts. 36 Chapter 6 CONCLUSION AND LIMITATIONS 6.1 CONCLUSION In conclusion, this thesis has addressed the challenges and limitations faced by the existing survival prediction models in multi-modal tumor survival prediction. Through the development of a novel approach utilizing a graph-guided Mixture of Experts (MoE) framework, we have demonstrated the potential to enhance predictive power and accuracy for survival prediction tasks. By leveraging the strengths of existing models and guiding them through a MoE framework, the proposed approach offers a promising solution to the integration of multi-modal data and the effective management of model callings. The experiments conducted on the TCGA-LUAD dataset have shown improved performance over individual modal and vanilla ensemble models, highlighting the effectiveness of our approach in addressing the challenges posed by complex real-world tasks. 37 6.2 LIMITATIONS Although our research has yielded promising results, it is important to acknowl-edge that the analysis and experiments were conducted solely on the TCGA LUAD dataset. As such, we cannot guarantee the generalizability of our approach across diverse datasets and application domains. Furthermore, our study is limited in terms of interpretability. While our approach allows for survival prediction by tracing back to specific data modalities, it does not currently offer the ability to pinpoint the exact biological and clinical factors or fea-tures within each modality that contribute to the predictions. This lack of granularity in feature attribution within individual modalities restricts our ability to provide de-tailed insights into the underlying mechanisms driving the model’s predictions. Another limitation we encountered concerns the computational cost associated with adding more experts to the model. As the number of experts increases, so does the demand for computational resources, potentially leading to scalability issues and increased hardware requirements, such as additional GPUs. This could pose a practical constraint, particularly for resource-constrained environments or scenarios where extensive parallel processing capabilities are not readily available. 38 Chapter 7 FUTURE WORK This thesis opens several avenues for future research. First, further investigation into the scalability and generalizability of the proposed graph-guided MoE frame-work across diverse datasets and application domains is warranted. Furthermore, extending the analysis to include additional evaluation metrics and conducting com-prehensive comparative studies with existing methods would provide deeper insights into the efficacy of the proposed approach. Moreover, investigating interpretability and explainability techniques for the predictions generated by the graph-guided MoE model could enhance trust and understanding in real-world applications. Addition-ally, a potential avenue for future research involves developing methods to enhance the interpretability of the graph-guided MoE model specifically for healthcare pro-fessionals, such as doctors. Investigating techniques to trace back to the features contributing to survival prediction can provide valuable insights into the biological and clinical factors driving patient outcomes. This could involve developing visualiza-tion tools or feature attribution methods that highlight the most influential genomic, transcriptomic, or clinical variables associated with survival. Lastly, exploring tech-niques to integrate domain knowledge and expert insights into the modeling process could further improve the performance and applicability of the proposed framework in diverse real-world scenarios. Overall, this thesis lays the foundation for future research endeavors aimed at leveraging graph structures and multi-modal data for enhanced predictive modeling and decision-making in complex real-world tasks. 39 REFERENCES Antoniou, A., A. Storkey and H. Edwards, “Data augmentation generative adversarial networks”, (2017). Baltrusaitis, T., C. Ahuja and L.-P. Morency, “Multimodal machine learning: Asurvey and taxonomy”, IEEE T. Pattern Anal. 41 , 423–443 (2019). Bray, F., J. Ferlay, I. Soerjomataram, R. L. Siegel, L. A. Torre and A. Jemal, “Global cancer statistics 2018: Globocan estimates of incidence and mortality worldwide for 36 cancers in 185 countries”, CA: A Cancer Journal for Clinicians 68 , 394–424 (2018). Cheerla, A. and O. Gevaert, “Deep learning with multimodal representation for pan-cancer prognosis prediction”, Bioinformatics 35 , i446–i454 (2019). Cheon, S., A. Agarwal, M. Popovic, M. Milakovic, M. Lam, S. Chan and M. K. Krzyzanowska, “The accuracy of clinicians predictions of survival in advanced can-cer: A review”, Annals of Palliative Medicine 5, 22–29 (2016). Ching, T., X. Zhu and L. X. Garmire, “Cox-nnet: An artificial neural network method for prognosis prediction of high-throughput omics data”, PLoS Computational Bi-ology 14 , e1006076 (2018). Cox, D. R., “Regression models and life-tables”, Journal of the Royal Statistical Society: Series B (Methodological) 34 , 187–220 (1972). Finn, C., P. Abbeel and S. Levine, “Model-agnostic meta-learning for fast adaptation of deep networks”, ICML (2017). Frome, A., G. S. Corrado, J. Shlens, S. Bengio, J. Dean, M. A. Ranzato and T. Mikolov, “Devise: A deep visual-semantic embedding model”, in “Advances in Neural Information Processing Systems”, vol. 26 (Curran Associates, Inc., 2013). Ge, Y., Y. Guo, S. Das, M. A. Al-Garadi and A. Sarker, “Few-shot learning for medical text: A review of advances, trends, and opportunities”, Journal of Biomedical Informatics 144 , 104458 (2023). HC, Y., Y. ZH, H. DS and K. CK., “Graph representation learning in bioinformatics: trends, methods and applications.”, (2019). Hou, W., C. Lin, L. Yu, J. Qin, R. Yu and L. Wang, “Hybrid graph convolutional network with online masked autoencoder for robust multimodal cancer survival prediction”, IEEE Transactions on Medical Imaging 42 , 8, 2462–2473 (2023). Hu, Z., A. Iscen, C. Sun, K.-W. Chang, Y. Sun, D. A. Ross, C. Schmid and A. Fathi, “Avis: Autonomous visual information seeking with large language model agent.”, (2023). 40 Huang, Z. and et al., “Salmon: Survival analysis learning with multi-omics neural networks on breast cancer”, Front. Genet. 10 , 166 (2019). Hui, D., K. Hess, R. dos Santos, G. Chisholm and E. Bruera, “Prognostication in advanced cancer: Update and directions for future research”, Supportive Care in Cancer 27 , 1973–1984 (2019). Kang, M., H. Song, S. Park, D. Yoo and S. Pereira, “Benchmarking self-supervised learning on diverse pathology datasets”, in “2023 IEEE/CVF Conference on Com-puter Vision and Pattern Recognition (CVPR)”, pp. 3344–3354 (2023). Katzman, J. L., U. Shaham, A. Cloninger, J. Bates, T. Jiang and Y. Kluger, “Deep-surv: Personalized treatment recommender system using a cox proportional hazards deep neural network”, BMC Medical Research Methodology (2018). Koch, G. R., “Siamese neural networks for one-shot image recognition”, (2015). Lampert, C., H. Nickisch and S. Harmeling, “Learning to detect unseen object classes by between-class attribute transfer”, (2009). LeCun, Y., Y. Bengio and G. Hinton, “Deep learning”, Nature 521 , 436–444 (2015). Liu, P. and S. De Sabbata, “Estimating locations of social media content through a graph-based link prediction”, (2019). Lu, M. T. and et al., “Deep learning to assess long-term mortality from chest radio-graphs”, JAMA Netw. Open 2, e197416 (2019). Mariotto, A. B., A.-M. Noone, N. Howlader, H. Cho, G. E. Keel, J. Garshell, S. Woloshin and L. M. Schwartz, “Cancer survival: An overview of measures, uses, and interpretation”, Journal of the National Cancer Institute Monographs pp. 145–186 (2014). Mathavan, H., Z. Tan, N. Mudiam and H. Liu, “Inductive linear probing for few-shot node classification”, SBP-BRiMS (2023). Mobadersany, P. and et al., “Predicting cancer outcomes from histology and genomics using convolutional networks”, Proc. Natl. Acad. Sci. U.S.A. 115 , E2970–E2979 (2018). Mukherjee, P. and et al., “A shallow convolutional neural network predicts prognosis of lung cancer patients in multi-institutional ct-image data”, Nat. Mach. Intell. 2,274–282 (2020). Norgeot, B., B. S. Glicksberg and A. J. Butte, “A call for deep-learning healthcare”, Nature Medicine 25 , 14–15 (2019). R, M., C. T, S. V and B. C, “Dynamic few-shot learning for computational social science.”, (2024). 41 Schroff, F., D. Kalenichenko and J. Philbin, “Facenet: A unified embedding for face recognition and clustering”, 2015 IEEE Conference on Computer Vision and Pat-tern Recognition (CVPR) pp. 815–823 (2015). Shazeer, N., A. Mirhoseini, K. Maziarz, A. Davis, Q. Le, G. Hinton and J. Dean, “Outrageously large neural networks: The sparsely-gated mixture-of-experts layer”, in “International Conference on Learning Representations”, (2017). Simmons, C. P. L., D. C. McMillan, K. McWilliams, T. A. Sande, K. C. H. Fearon, S. Tuck and M. T. Fallon, “Prognostic tools in patients with advanced cancer: A systematic review”, Journal of Pain and Symptom Management 53 , 962–970 (2017). Snell, J., K. Swersky and R. Zemel., “Prototypical networks for few-shot learning”, NeurIPS (2017). Socher, R., M. Ganjoo, C. D. Manning and A. Ng, “Zero-shot learning through cross-modal transfer”, in “Advances in Neural Information Processing Systems”, vol. 26 (Curran Associates, Inc., 2013). Sureshan, Shruti, Das and Debasis, “Few-shot learning based anomaly detection in security applications”, in “Proceedings of the 6th Joint International Conference on Data Science & Management of Data (10th ACM IKDD CODS and 28th CO-MAD)”, CODS-COMAD ’23, p. 295–296 (Association for Computing Machinery, New York, NY, USA, 2023). Wang, X., S. Yang, J. Zhang, M. Wang, J. Zhang, W. Yang, J. Huang and X. Han, “Transformer-based unsupervised contrastive learning for histopathological image classification”, Medical Image Analysis 81 , 102559 (2022). Ying, R., R. He, K. Chen, P. Eksombatchai, W. L. Hamilton and J. Leskovec, “Graph convolutional neural networks for web-scale recommender systems”, in “Proceed-ings of the 24th ACM SIGKDD International Conference on Knowledge Discovery & Data Mining”, KDD ’18, p. 974–983 (Association for Computing Machinery, New York, NY, USA, 2018). Yousefi, S. and et al., “Predicting clinical outcomes from large scale cancer genomic profiles with deep survival models”, Sci. Rep. 7, 11707 (2017). Zhang, L. and et al., “A deep learning risk prediction model for overall survival in patients with gastric cancer: A multicenter study”, Radiother. Oncol. 150 , 73–80 (2020). Zhong, L.-Z. and et al., “A deep learning mr-based radiomic nomogram may predict survival for nasopharyngeal carcinoma patients with stage t3n1m0”, Radiother. Oncol. 151 , 1–9 (2020). 42

@@ -1,0 +1,315 @@
+Title: Multimodal deep learning from spectra for small-molecule structure identification: enhancing robustness with mixed-condition training
+
+URL Source: https://arxiv.org/pdf/2609.14360v1
+
+Published Time: Tue, 15 Sep 2026 01:11:33 GMT
+
+Number of Pages: 16
+
+Markdown Content:
+# Multimodal deep learning from spectra for small-molecule structure identification: enhancing robustness with mixed-condition training 
+
+Bowen Gao a, Lei Zhu a, Yiying Wang a, ∗, Wenjie Yu a
+
+> aState Key Laboratory of Materials for Integrated Circuits, Shanghai Institute of Microsystem and Information Technology, Chinese Academy of Sciences, 865 Changning Road, Shanghai 200050, China
+
+Abstract 
+
+In practical molecular characterization, small-molecule structure identification benefits from complementary spectroscopic evidence, but missing, degraded, or mismatched spectra chal-lenge multimodal models. Herein, we incorporate domain knowledge from spectroscopy and chemistry into mixed-condition training for candidate structure reranking, using a reproducible evaluation protocol and mixture-of-experts (MoE) fusion. The protocol incorporates perturba-tions tailored to each spectroscopic modality and chemically informed spectrum replacements to cover variations in spectral availability, quality, and consistency. A total of 79,462 test samples were evaluated across 30 predefined conditions using simulated spectra from the Multimodal Spectroscopic Dataset (MSSD) for mass spectrometry (MS), infrared (IR) spectroscopy, and 
+
+> 1
+
+H and 13 C nuclear magnetic resonance (NMR), with up to 128 hard candidate structures per sample. A controlled two-by-two factorial comparison of complete-input training versus mixed-condition training and vanilla concatenation versus MoE fusion, with matched evalua-tion conditions, showed that mixed-condition training provided the main gains in both archi-tectures. For MoE, mean reciprocal rank (MRR), averaged equally across conditions, increased from 0.9203 to 0.9763, a relative increase of 6.08%. Recall at rank 1 (R@1), averaged over the same conditions, increased from 89.50% to 96.36%, an increase of 6.86 percentage points and a relative increase of 7.67%. IR-only and MS/MS-only MRR increased from 0.4337 to 0.9307 and from 0.3711 to 0.8575, reaching 2.15 and 2.31 times their respective baseline values, while complete-input performance remained high. These results support integrating domain knowl-edge into training-condition design to improve robustness, with further gains from MoE under mixed-condition training. 
+
+Keywords: Deep learning, Multimodal fusion, Domain knowledge, Spectroscopy, Molecular identification, Robustness, Mixed-condition training 
+
+1. Introduction 
+
+Small-molecule structure identification relies on spectroscopic measurements and their inter-pretation. Structural confirmation commonly requires several complementary measurements, since each probes a different aspect of the molecule. For example, mass spectrometry (MS) can provide fragmentation patterns that inform substructures and connectivity; infrared (IR) spectroscopy reflects molecular vibrations associated with functional groups and bonding envi-ronments; nuclear magnetic resonance (NMR) spectroscopy provides chemical shifts and cou-pling information associated with the local environments of the observed nuclei. Structure elucidation therefore requires joint analysis of these complementary spectroscopic observations.        
+
+> ∗Corresponding author.
+> Email addresses: gaobowend@gmail.com (Bowen Gao), leizhu@mail.sim.ac.cn (Lei Zhu),
+> yywang@mail.sim.ac.cn (Yiying Wang), casan@mail.sim.ac.cn (Wenjie Yu) arXiv:2609.14360v1 [cs.LG] 13 Sep 2026
+
+However, joint interpretation of these spectra has traditionally relied on accumulated expertise and time-consuming manual analysis. With recent advances in artificial intelligence (AI) and the development of multimodal spectroscopic datasets, AI-accelerated structure elucidation from complementary spectroscopic evidence has become possible [1–5]. For example, QM9S, developed by Zou et al., provides calculated IR, Raman, and ultraviolet–visible (UV–Vis) spectra for approximately 0.13 mil-lion small organic molecules [1]; the Multimodal Spectroscopic Dataset (MSSD), developed by Alberts et al. at IBM Research, pairs approximately 0.79 million molecular structures with simulated IR, NMR, and MS spectra, a scale more readily achievable through simulation than through fully paired experimental measurements [2]. In the MSSD benchmark, an encoder– decoder transformer was used to combine 1H NMR and 13 C NMR spectra with a molecular-formula prior, achieving 73.38% Top-1 and 89.98% Top-10 structure-prediction accuracy on simulated data. Tan used a QM9S-derived dataset to develop CLAMS, a Transformer-based generative model that combined IR, UV–Vis, and 1H NMR spectra to achieve 45.2% Top-1 and 83.1% Top-15 structure-generation accuracy on held-out simulated data [3]. Trained on a larger collection of simulated spectra for 4 million ZINC compounds, the MultiModalSpec-tralTransformer (MMST), developed by Priessner et al., achieved 72% Top-1 and 80% Top-3 accuracy on a 4,000-compound simulated test subset after heteronuclear single quantum coher-ence (HSQC) matching and candidate ranking [4]. In a retrieval setting, SECS, developed by Mirza et al., aligned spectral and molecular representations through contrastive learning and recovered the correct structure at rank 1 for 98.4% of 1,000 MSSD-derived test molecules by combining IR, 1H NMR, 13 C NMR, and HSQC spectra [5]. These approaches are designed to integrate complementary spectral information for molecular structure elucidation. However, in practice, limited experimental resources and sample constraints may prevent the acquisition of a complete set of spectra for a given sample, while sample preparation and instrument settings can introduce noise and accidental sample mismatches may also occur. There is therefore a need to develop targeted training strategies to improve the robustness of multimodal models to incomplete, noisy, or mismatched spectral inputs, and to systematically evaluate their effects on predictive performance and quantify the resulting robustness gains. Herein, we introduce a mixed-condition training strategy (denoted as mixed training), which integrates spectroscopic and chemical domain knowledge into small-molecule candidate struc-ture reranking. Missing-input conditions are combined with modality-specific signal perturba-tions and spectrum replacements with similar structures to cover variations in spectral avail-ability, quality, and consistency. Defined input perturbations and evaluation settings provide a common basis for a controlled two-by-two factorial comparison of complete-input training (denoted as clean training) versus mixed training, and vanilla concatenation (Concat) versus mixture-of-experts (MoE) fusion. This comparison shows that mixed training strategy pro-vides the main robustness gains in both architectures, particularly with sparse, missing, or mismatched evidence, while high complete-input performance is retained. MoE provides a modest additional ranking benefit under mixed training, suggesting that this designed train-ing strategy may serve as a useful foundation for further gains through fusion architecture refinement. 
+
+2. Methods 
+
+2.1. Candidate structure reranking task 
+
+The task was to rank a finite set of candidate molecular structures using a query’s available spectra (Fig. 1). For each query, the set contained the correct structure and a collection of alternative structures. Spectral encoders and a fusion module produced a query representation, while a molecular encoder represented each candidate (Table S1). A compatibility score then 2determined the candidate order. Model testing was conducted without prior knowledge of the molecular formula. The task assessed discrimination within the supplied candidate set, conditional on inclusion of the correct structure. Example input molecule                   
+
+> Simulated spectra Channel encoders Channel representations Feature-level fusion
+> Molecular formula SMILES
+> C₇H₁₀O
+> CC1=C(C)C(=O)CC1 dim = 256
+> IR
+> z1
+> ¹H
+> z2
+> ¹³C
+> z3
+> MS⁺
+> z4
+> MS⁻
+> z5
+> Concat or MoE Scoring
+> s(q,cj)
+> Top-K candidates
+> Rerank k-candidates
+> Query q
+> Candidates
+> CID 19957 CID 73958 CID 121710
+> K-candidates:
+> • Train: 128 hard + 32 batch-shared
+> • Eval (hard): 128 hard
+> • Eval (random): 128 random
+> Molecular encoder
+> Candidate cj
+> Channel-level conflict detection Sample-level conflict detection
+> 4000 2200 400 01
+> Channel-1: IR
+> cm⁻¹ 10 4−2 01
+> Channel-2: ¹H NMR
+> ppm 230 100 −20 01
+> Channel-3: ¹³C NMR
+> ppm 060 120 01
+> Channel-4: MS/MS⁺
+> m/z 060 120 01
+> Channel-5: MS/MS⁻
+> m/z
+
+Fig. 1. Candidate structure reranking from simulated multimodal spectra. Channel- and sample-level conflict detection is discussed in Section 3.2. Five channel encoders and feature-level fusion produce a query representation for scoring encoded candidate structures. The hard candidate lists comprise the correct structure and up to 127 structurally similar negative candidates; 32 batch-shared random negatives are added only during training. Evaluation with random candidates uses the fixed MoE-mixed checkpoint and 127 negatives sampled globally at random. Fusion architectures are detailed in Figs. S1–S2. 
+
+2.2. Spectroscopic data and candidate sets 2.2.1. Data sources and splits 
+
+MSSD version 3, comprising 794,386 aligned multimodal records, was used in this study. All spectra were computationally generated [2, 6–9]. Four spectroscopic modalities were represented across five input channels: IR, 1H NMR, 13 C NMR, and liquid chromatography–electrospray ionization tandem mass spectrometry (LC-ESI-MS/MS) acquired in positive- and negative-ion modes (ESI + and ESI -). The two mass-spectral channels were predicted using competitive fragmentation modeling for metabolite identification (CFM-ID) at a collision energy of 40 eV, with protonated and deprotonated precursor ions assigned as [M + H] + and [M − H] −, respec-tively [9]. Following preprocessing and eligibility assessment across all five channels, 794,343 samples were retained and partitioned for the study (Table 1). Records sharing the same molecu-lar connectivity, including stereochemical variants, were assigned to the same dataset split. International Chemical Identifier Keys (InChIKey) were generated from molecular structures represented by canonical SMILES, and molecules were grouped by the first InChIKey block (connectivity block). The resulting groups were assigned to the training, validation, and test sets to achieve an approximate 80:10:10 split. The validation and test sets contained 13,413 and 13,532 unique nonempty Murcko scaffolds absent from training, respectively, demonstrating distinct scaffold coverage despite remaining shared scaffolds (Fig. 2). 3Table 1 Dataset partition sizes after multimodal alignment. Counts refer to eligible samples with all five input channels within each partition. 
+
+Split Samples Train 635,441 Validation 79,440 Test 79,462 0 50,000 100,000 150,000 200,000 Number of unique Murcko scaffolds Train v.s. Validation Train v.s.Test 141,718 (80.1% train only) 21,883 (12.4% shared) 13,413 (7.6% validation only) 141,751 (80.0% train only) 21,850 (12.3% shared) 13,532 (7.6% test only) 
+
+Fig. 2. Murcko scaffold analysis identifies shared and distinct molecular cores in training–validation and training–test comparisons. 
+
+2.2.2. Candidate set construction 
+
+Negative candidates were drawn from an external pool of approximately 14.5 million dedu-plicated molecular structures constructed from PubChem. Structures were standardized with RDKit version 2026.3.2 to canonical isomeric simplified molecular-input line-entry system (SMILES) strings, preserving stereochemical information present in the source structures. For the evaluation, a neutral exact-mass index window was used to obtain alternatives near the mass of the correct structure, with chemically related hard negatives prioritized within that window (Fig. 1, K-candidates). Candidate identities were held fixed across spectral perturba-tions. Detailed in Supporting information (SI), Section S2. 
+
+2.3. Input conditions and spectral perturbations 
+
+A set of 30 predefined input conditions (hereafter termed views) was used to cover spectral availability, signal quality, and cross-modal consistency, simulating the spectroscopic measure-ments in practice (Fig. 3). The 30 views comprised 1 clean (complete input), 8 missing-input, one random-dropout, 15 noisy, and 5 conflict views. The implementation and full parameter set are described in Section S1.1 and Tables S2–S3. In concise term, clean view (Fig. 3A) included all five unaltered input channels. The eight missing-input views (Fig. 3B) represented four single-modality and four leave-one-modality-out configurations, without additional numerical perturbation or source replacement. A binary availability mask determined which channel em-beddings were included during fusion. In the separate random-dropout view (Fig. 3C), each of the five channels was independently removed with a probability of 0.25. 4IR ¹H ¹³C MS⁺ MS⁻ Full IR ¹H ¹³C MS⁺ MS⁻                                   
+
+> Single-modality inputs Leave-one-modality-out inputs
+> IR only ––––¹H NMR only ––––¹³C NMR only ––––MS/MS only –––No IR –No ¹H NMR –No ¹³C NMR –No MS/MS ––Same inputs as random eval IR ¹H ¹³C MS⁺ MS⁻ Random Available –Absent Random dropout 40 60 80 m/z 00.5 12.8 2.4 2.0 1.6 Chemical shift (ppm) 00.5 14000 2000 400 Wavenumber (cm⁻¹) 00.5 1
+
+A. Clean (1 view) B. Missing (8 views) C. Random dropout (1 view) 
+
+> Full input throughout clean training. Independent channel dropout: p = 0.25
+
+D. Conflict (5 views) 
+
+> Single-channel replacement with a spectrum from a different molecule
+> Correct structure (C)
+> SMILES CC1=C(C)C(=O)CC1
+> Replaced structure (R)
+> SMILES CC1=CCC(C)C1=O
+
+Channel-level conflict 
+
+IR 
+
+R
+
+¹H 
+
+C
+
+¹³C 
+
+C
+
+MS⁺ 
+
+C
+
+MS⁻ 
+
+C
+
+> Example: change IR only Same molecular formula: C₇H₁₀O
+
+E. Noisy (15 views) 
+
+> Chemistry-informed single-channel quality perturbations
+
+MS/MS⁺ m/z + intensity changes ¹H NMR Shift + broadening + scaling IR Baseline + noise + scaling  
+
+> Normalized intensity (a.u.) Clean Noisy
+
+Fig. 3. Domain-informed input perturbations covering spectral availability, quality, and molecular-source consistency. (A) Clean shows complete input, and (B) missing displays all eight fixed masks; (C) random dropout is shown separately. The random eval label marks the four single-modality masks used in the candidate-condition comparison. (D) The structure pair illustrates replacement of the IR source while retaining the other four channels from the correct structure. (E) Paired spectra illustrate separate single-channel, high-severity perturbations. Registered view families and perturbation parameters are defined in Tables S2–S3. 
+
+Conflict views replaced one channel with the corresponding spectrum from another MSSD molecule in the same partition, labelled Replaced structure (R). Replacement-source selection emphasized shared molecular formula, scaffold, structural similarity, or functional-group com-position, supplemented by a smaller random-replacement component. This chemically informed construction introduced incorrect-source evidence that could remain plausible alongside spectra from the correct structure (C). The other four channels continued to originate from the correct structure (Fig. 3D). Availability masks, perturbed payloads, and replacement-source assign-ments were materialized before model evaluation. Consequently, the four models encountered the same realized views for every test sample. Noisy views (Fig. 3E) altered one channel at a time at low, medium, or high severity while retaining the other four channels. Perturbations were matched to the representation and signal 5Table 2 Molecular and spectroscopic encoders and training settings. Input Input format Encoder Initialization Ref. Molecule structure SMILES ChemBERTa Pretrained [10] MS/MS + Discrete m/z -intensity peaks DreaMS Pretrained [11] MS/MS - Discrete m/z -intensity peaks DreaMS Pretrained [11]             
+
+> 1H NMR Binned spectrum (10,000 bins) Hybrid Transformer Random [12]
+> 13 C NMR Binned spectrum (10,000 bins) Hybrid Transformer Random [12] IR Binned spectrum (1,800 bins) ACT-style Transformer Random [13]
+
+characteristics of each modality. MS/MS perturbations combined mass-to-charge ratio ( m/z )jitter, intensity variation, stochastic peak removal, and exclusion of low-intensity peaks. NMR perturbations comprised chemical-shift displacement, line broadening, intensity scaling, and signal or annotation dropout. IR perturbations combined baseline variation, additive Gaussian noise, intensity scaling, and removal of individual sampled points. The numerical operations and severity levels were fixed in advance, allowing a consistent comparison across models. These operations provided controlled tests of changes in spectral quality, with full parameter definitions in Table S3. 
+
+2.4. Model architectures and training strategies 
+
+All four models shared the molecular and spectral encoders summarized in Table 2. Candi-date structures were represented by ChemBERTa embeddings and candidate-derived chemical features, while DreaMS encoded both MS/MS channels. Local Transformer encoders were used to processed IR and NMR spectra, due to implementation compatibility and pretrained-weight availability. Naive concatenation combined the ordered channel representations with missing inputs zeroed; MoE adaptively pooled the available representations through selected experts. The fused representation was projected into the candidate embedding space for compatibility scoring. Further details are provided in Section S1 and Figs. S1–S2. The factorial comparison crossed Concat or MoE fusion with clean or mixed-view training. Clean training used complete, unperturbed inputs throughout. Mixed training first sampled complete and missing inputs, then introduced noisy and conflict views while retaining complete and sparse inputs. Both strategies optimized candidate cross-entropy with auxiliary chemical-feature and evidence-consistency objectives; MoE also used load balancing. Each combination had one fitted model, with matched total training steps and global batch size. One checkpoint per run was selected by validation MRR on the clean view and evaluated on the same held-out views and hard candidates. Detailed computational settings are listed in Table S1. 
+
+2.5. Evaluation metrics and statistical analysis 
+
+Mean reciprocal rank (MRR) was the primary ranking metric, supplemented by recall at ranks 1, 5, and 10. Expected calibration error (ECE) measured confidence calibration; areas under the receiver operating characteristic and precision–recall curves (AUROC and AUPRC) measured sample-level conflict detection. Channel localization assessed identification of the replaced channel. Ranking excluded padded candidates and assigned the best position within exact score ties; alternative tie conventions were examined separately (Section S3.5). Overall performance was summarized by assigning equal weight to all 30 views. Training, fusion, and interaction effects used paired comparisons. Percentile 95% confidence intervals came from 1,000 bootstrap resamples of test sample identities, preserving pairing across models and views. They quantify test-sample uncertainty for the fixed checkpoints. Metric definitions 6and statistical procedures are given in Section S3.1. Two illustrative cases were selected post hoc using the criteria in Section S1. 
+
+3. Results and discussion 
+
+3.1. Overall reranking performance 
+
+The mixed training protocol provided the largest overall improvement in candidate rerank-ing, and MoE supplied an additional gain within that training strategy (Fig. 4A; Table 3). The MoE-mixed model achieved a 30-view mean MRR of 0.9763 and R@1 of 96.36%, com-pared with 0.9203 and 89.50%, respectively, for MoE-clean. These changes corresponded to a 6.08% relative increase in MRR and a 6.86 pp increase in R@1, or a 7.67% relative increase in first-rank recovery. Concat showed the same main pattern, reaching an MRR of 0.9738 and R@1 of 95.99% with mixed training. The common direction across architectures supports the combined benefit of the complete mixed training protocol. clean mixed Training strategy 0.0 0.2 0.4 0.6 0.8 1.0 Mean reciprocal rank (MRR) Concat 0.9214 MoE 0.9203 Concat 0.9738 MoE 0.9763                
+
+> A
+> 12345678910 Rank 86 88 90 92 94 96 98 100 Mean Recall@k (%)
+> BConcat-clean MoE-clean Concat-mixed MoE-mixed -0.002 0.000 0.002 0.004 0.006 ΔMRR (MoE − Concat) mixed clean Interaction +0.0024 [+0.0020, +0.0028] −0.0010 [−0.0015, −0.0006] +0.0035 [+0.0029, +0.0041]
+> C
+> Estimate Paired 95% CI
+
+Fig. 4. Overall reranking performance with hard candidates ( n = 79 ,462). (A) MRR and (B) Recall@ k,averaged equally over 30 views. (C) Fusion effects (MoE − Concat) and their interaction (mixed − clean). Error bars denote paired percentile-bootstrap 95% confidence intervals from 1,000 test-sample resamples for fixed checkpoints. 
+
+The gain extended from first-rank placement to recovery within a short candidate list (Fig. 4B). For MoE-mixed, average R@5 and R@10 were 99.24% and 99.63%, respectively, in-dicating that the correct structure was usually recovered within the first ten candidates under the predefined views. The corresponding MoE-clean values were 95.06% and 96.59%. Together, the MRR and Recall@ k comparisons support improved candidate prioritization across several rank cutoffs. The paired MRR training effect was +0.0559 (95% CI, +0.0554 to +0.0564) for MoE and +0.0525 (+0.0519 to +0.0530) for Concat (Table S4). These intervals quantify test-sample uncertainty for the fixed checkpoints and support a consistent training benefit. The following analyses locate that improvement within particular input views and separate it from the smaller, training-dependent fusion effect in Fig. 4C. 
+
+3.2. Effects of training strategy 
+
+The largest training benefits occurred when the evidence was sparse or incomplete (Fig. 5A and C). For MoE, the missing-family mean MRR increased from 0.7883 to 0.9560, and random-dropout MRR rose from 0.9269 to 0.9791. The clean family contains only the clean view, which provides the complete-input reference for these comparisons. Under complete input, MoE improved from 0.9850 to 0.9867, while Concat increased from 0.9842 to 0.9850 (Fig. 5B). Read together, panels A–C indicate that the much larger gains under reduced input were obtained while high complete-input performance was retained, with no observed decrease for either fitted architecture. 7Table 3 Ranking, calibration, and conflict-detection performance with hard candidates. Training Fusion MRR R@1 (%) R@5 (%) R@10 (%) ECE (%) Clean-view MRR Conflict AUROC Conflict AUPRC mixed MoE 0.9763 96.36 99.24 99.63 1.57 0.9867 0.8148 0.8368 
+
+Concat 0.9738 95.99 99.17 99.62 1.66 0.9850 0.8546 0.8801 clean MoE 0.9203 89.50 95.06 96.59 8.13 0.9850 0.4961 0.4984 Concat 0.9214 89.57 95.22 96.75 7.74 0.9842 0.5002 0.5001 MRR, recall, and ECE are unweighted 30-view means; clean-view MRR uses complete input. AUROC and AUPRC are averaged over five replacement views, each with 79,462 matched conflict–clean pairs. Higher values indicate better performance, except for ECE. Bold denotes MoE-mixed. Paired effects and 95% confidence intervals: Table S4. 0.80 0.85 0.90 0.95 1.00 Mean reciprocal rank (MRR) Clean view (1) Missing view (8) Random dropout view (1) Noisy view (15) Conflict view (5) 
+
+A Concat-clean MoE-clean Concat-mixed MoE-mixed 0.982 0.983 0.984 0.985 0.986 0.987 MRR Concat MoE Δ = +0.0008 Δ = +0.0019 Δ = +0.0018 Δ = +0.0038 
+
+B clean training clean view mixed training noisy view 0.0 0.1 0.2 0.3 0.4 0.5 0.6 ΔMRR (mixed - clean training) MS/MS-only IR-only ¹H NMR-only ¹³C NMR-only Random channel dropout 0.4597 0.4757 0.1820 0.0613 0.0474 0.4864 0.4970 0.1993 0.0487 0.0523 
+
+C Concat MoE Concat MoE Concat MoE MS/MS⁺ MS/MS⁻ IR ¹H NMR ¹³C NMR −0.0002 −0.0002 +0.0000 −0.0002 +0.0001 −0.0001 +0.0001 −0.0000 −0.0093 −0.0063 −0.0020 −0.0024 −0.0057 −0.0158 −0.0038 −0.0037 −0.0056 −0.0052 −0.0019 −0.0012 clean mixed -0.016 -0.008 0.000 0.008 0.016 ΔMRR 
+
+D
+
+Fig. 5. Training effects on MRR with hard candidates. (A) View-family means. (B) Clean-view (solid) and noisy-view means (dashed); open/filled markers denote clean/mixed training. (C) Training gains for single-modality inputs and random dropout. Labels in B–C give mixed-minus-clean differences. (D) Highest-severity single-channel MRR minus each model’s clean-view MRR, with other channels unchanged; negative values indicate degradation. 
+
+IR-only and MS/MS-only inputs most clearly illustrated the recovery of candidate discrim-ination with limited evidence (Fig. 5C). MoE IR-only MRR increased from 0.4337 to 0.9307, reaching 2.15 times the clean-training value. MS/MS-only MRR increased from 0.3711 to 80.8575, or 2.31 times its baseline. The 1H NMR-only score also rose substantially, from 0.7633 to 0.9626 (Table S5), whereas the MoE gain for 13 C NMR-only input was smaller (+0.0487 MRR). Concat exhibited corresponding improvements, including IR-only MRR from 0.4374 to 0.9131 and MS/MS-only MRR from 0.4034 to 0.8631. These evaluations used the same fitted multimodal models with reduced input. The results suggest that the mixed protocol helped preserve candidate discrimination when other measurements were unavailable, consistent with reduced dependence on a fixed combination of spectra. Random channel dropout extended this observation beyond the fixed input masks, with a MoE training gain of +0.0523 MRR (Fig. 5C). The gain varied with the retained evidence. With both MS/MS channels removed, clean-training performance was already high, and MRR increased from 0.9834 to 0.9862. By comparison, removing 13 C NMR yielded a larger improve-ment, from 0.8977 to 0.9814 (Table S5). This dependence on the retained evidence explains why the family mean in Fig. 5A should be read alongside the selected contrasts in panel C and the complete view-by-model comparison in Table S5. All four models retained high MRR when spectral quality was degraded in a single channel and the remaining channels were available. The noisy-family mean for MoE increased from 0.9820 with clean training to 0.9857 with mixed training (Fig. 5A and B). At the highest perturbation level, 1H NMR degradation produced MRR values of 0.9692 and 0.9830 for the two strategies, respectively; the corresponding values for IR were 0.9787 and 0.9843. These higher absolute scores reflect both the clean-view baseline and the response to degradation. Fig. 5D separates the latter by subtracting each model’s own clean-view MRR. For MoE, the 1H NMR decrease narrowed from 0.0158 to 0.0037, and the IR decrease from 0.0063 to 0.0024. Smaller IR and NMR decreases were also observed for Concat, whereas MS/MS changes were close to zero under both strategies. Jointly, panels B and D support higher noisy-input performance, with reduced degradation for IR and NMR. The complete curves in Fig. S3 and Table S5 include some nonmonotonic responses and describe the specified perturbations with complementary channels present. The near-zero MS/MS changes and larger IR and NMR decreases in Fig. 5D motivate a pos-sible spectroscopic interpretation. In ESI-MS/MS, soft ionization produces precursor ions [14], while subsequent collision-induced dissociation generates fragment populations that depend on molecular structure, precursor-ion type, collision energy, and instrument conditions. CFM-ID models competing fragmentation pathways probabilistically [9]; the numerical perturbations used for evaluation were applied separately. The small MS/MS changes could reflect preserva-tion of useful fragment constraints and compensation by the other channels. IR bands reflect molecular vibrations and bonding environments, while one-dimensional 1H and 13 C NMR chem-ical shifts primarily constrain local nuclear environments [8, 13]. Reliance on these features may make ranking sensitive to spectral displacement or distortion. Here, NMR perturbations in-cluded chemical-shift displacement, whereas IR perturbations altered baseline, noise, intensity, and sampled points without explicitly shifting band positions. This interpretation concerns simulated spectra with complementary channels retained and modality-specific perturbation settings, rather than perturbations matched for equivalent information loss. Mixed training also improved ranking with incorrect-source evidence, where an available spectrum belonged to another molecule rather than being numerically degraded. The conflict-family MRR for MoE rose from 0.9324 to 0.9775, and Concat improved from 0.9298 to 0.9747 (Fig. 5A). The greatest MoE gain among the five replacement views occurred for 13 C NMR, where MRR increased from 0.8039 to 0.9710. Improved ranking was accompanied by better sample-level conflict detection: MoE AUROC increased from 0.4961 to 0.8148, while Concat increased from 0.5002 to 0.8546 (Table 3). The corresponding AUPRC values for MoE-mixed and Concat-mixed were 0.8368 and 0.8801. These outcomes distinguish two benefits: prioritiz-ing the correct candidate despite a mismatch, and detecting that the input set contains one. 9Mean channel-localization accuracy under mixed training was 20.38% for MoE and 20.78% for Concat, close to the 20.00% random-choice level across five channels (Table S6). The combined results support improved candidate prioritization and sample-level mismatch screening. Calibration improved alongside ranking. Mean ECE decreased from 8.13% to 1.57% for MoE and from 7.74% to 1.66% for Concat (Table 3). The largest calibration errors for the clean-trained models occurred with sparse evidence, including IR-only and MS/MS-only in-puts, and were substantially reduced after mixed training (Table S5). Improved ordering and lower calibration error address complementary aspects of candidate prioritization: which struc-tures are ranked highest and how well the reported confidence agrees with correctness. Taken together, the view-level results support a training mixture that covers anticipated changes in evidence availability, quality, and consistency while retaining complete-input examples. 
+
+3.3. Fusion architecture effects and interactions 
+
+The value of MoE depended on the training strategy (Fig. 4C). Under mixed training, MoE exceeded Concat by 0.0024 MRR (95% CI, +0.0020 to +0.0028). Under clean training, its difference from Concat was −0.0010 ( −0.0015 to −0.0006). The resulting interaction was +0.0035 (+0.0029 to +0.0041), indicating that the fusion comparison changed in favor of MoE under the mixed protocol (Table S4). Consistent with the aggregate comparison in Fig. 4A and B, MoE achieved higher MRR than Concat in 29 of the 30 predefined views under mixed training. The largest local gain was +0.0176 for IR-only input; MS/MS-only input was the exception, with a difference of −0.0056 (Table S5). The relative magnitudes of these effects provide a useful design priority. Changing the train-ing strategy improved MRR by 0.0525–0.0559 across the two architectures, whereas changing fusion within mixed training added 0.0024. Concat already combined learned spectral repre-sentations through a trainable projection and could accommodate the missing-input patterns encountered during training. MoE supplied an additional mechanism for conditioning fusion on the available representations and mask. Its additional ranking gain is consistent with a benefit from adaptive fusion once diverse input conditions have been included in training. The com-parison therefore prioritizes the complete mixed protocol, with fusion refinement providing an additional improvement. Within mixed training, MoE achieved higher ranking scores, whereas Concat achieved higher conflict-detection scores. The role of domain knowledge lies in the definition of that training protocol. General strategies such as modality dropout and data augmentation were instantiated through modality-specific signal changes and replacement-source selection based on molecular relationships. Adefined sampling schedule, shared hard candidates, and fixed evaluation views made these choices reproducible and allowed their combined benefit to be quantified. The two-by-two factorial comparison therefore supports the mixed protocol as a complete training strategy. Component-wise ablations against a modality-dropout-only schedule could further resolve the contributions of individual perturbations and training stages. Routing diagnostics were consistent with broader expert use on average after mixed train-ing. The 30-view mean normalized expert-selection entropy increased from 0.7510 to 0.8520, and the mean maximum expert-selection share decreased from 0.4155 to 0.3113 (Table S7). Fig. S4 places these averages in context: broader use under clean, noisy, and conflict inputs coexisted with concentrated routing under several fixed missing-input masks. Missing-family entropy decreased from 0.7147 to 0.6817 alongside improved ranking. These patterns are con-sistent with condition-dependent routing. Expert identifiers are local to each fitted model, and expert-selection frequencies are distinct from spectral-channel weights. Section S3.4 further distinguishes these diagnostics from the load-balancing objective, which also depends on router probabilities. The directions of the training, fusion, and interaction effects were preserved under alternative tie conventions (Table S8). 10 3.4. Modality contributions and candidate set composition 
+
+For MoE-mixed under hard candidates, complete-input MRR was 0.9867, exceeding every single-modality result (Fig. 6A). The single-modality order was 13 C NMR (0.9647), 1H NMR (0.9626), IR (0.9307), and MS/MS (0.8575). Joint evidence therefore improved candidate ranking beyond the strongest individual modality in this setting. Leave-one-modality-out eval-uation provided a complementary assessment: removing any modality reduced MRR when the remaining evidence was retained (Fig. 6B). The decreases were 0.0054 for 13 C NMR, 0.0050 for 
+
+> 1
+
+H NMR, 0.0032 for IR, and 0.0005 for MS/MS, calculated before rounding. Panel A measures how well each modality supports ranking alone, whereas panel B measures its additional contri-bution alongside the other spectra. Their joint pattern is consistent with complementary and partly redundant evidence: MS/MS supported substantial discrimination alone, with a smaller incremental contribution when IR and both NMR modalities were already available. These effects characterize the fitted model and candidate set. hard random Candidate condition 0.85 0.90 0.95 1.00 Mean reciprocal rank (MRR)            
+
+> Complete input (hard) 0.9867 MS/MS 0.8575 MS/MS 0.9377 IR 0.9307 IR 0.9549 ¹H NMR 0.9626 ¹H NMR 0.9874 ¹³C NMR 0.9647 ¹³C NMR 0.9896
+> ΔMRR = +0.080
+> A
+> 0.000 0.002 0.004 0.006 MRR decrease MS/MS IR ¹H NMR ¹³C NMR Removed modality 0.0005 0.0032 0.0050 0.0054
+> B
+
+Fig. 6. Modality contributions for the fixed MoE-mixed checkpoint. (A) Single-modality MRR with hard and random candidates; the gray reference denotes clean-view MRR with hard candidates. (B) Clean-view minus leave-one-modality-out MRR with hard candidates. MS/MS comprises both polarity channels. Paired candidate-condition effects and 95% confidence intervals: Table S9. 
+
+The apparent value of individual modalities also depended on the structures being compared. Replacing hard candidates with random candidates increased MRR for all four single-modality inputs while leaving the MoE-mixed checkpoint unchanged (Fig. 6A; Table S9). MS/MS showed the largest increase, from 0.8575 to 0.9377, with a paired gain of +0.0802 (95% CI, +0.0781 to +0.0824). The 1H NMR score rose from 0.9626 to 0.9874, a gain of +0.0248 (+0.0237 to +0.0259). Gains for 13 C NMR and IR were +0.0248 and +0.0242, respectively. The modality order was retained, but the gap between MS/MS and the other modalities narrowed. NMR-only scores under random candidates slightly exceeded the clean-view hard-candidate reference, illustrating the importance of candidate composition when comparing input configurations. The accompanying composition statistics characterize this change in task difficulty (Ta-ble S10). The hard negatives had a median absolute exact-mass difference from the correct structure of 2 .6854 × 10 −3 Da, compared with 101.0867 Da for random negatives. The pro-portion sharing the formula of the correct structure fell from 14.2538% to 0.0007%, and the proportion sharing a non-empty Murcko scaffold decreased from 4.2770% to 0.7943%. These changes occurred together with a reduction in median fingerprint similarity. Fragmentation patterns can constrain molecular substructures and frameworks, so the larger MS/MS gain is compatible with reduced ambiguity among the random alternatives. Mass, formula, scaf-fold, and similarity changed jointly, so the comparison quantifies the overall effect of candidate composition. For study design, these results emphasize the joint role of input conditions and candidate difficulty. Complete multimodal evidence improved ranking within hard sets that prioritized 11 chemically related alternatives, while random candidates made each single-modality task easier. Evaluation with hard candidates exposed differences in discrimination that were less apparent under broad random sampling. Accordingly, a modality ordering should be interpreted with its model, training strategy, and candidate construction specified. The strict first-rank comparisons (Section S3.6) and the post hoc MS/MS peak-count analysis (Section S3.7; Fig. S5) provide additional context for this interpretation. 
+
+3.5. Representative reranking cases 
+
+The first case illustrates improved use of sparse spectral evidence (Fig. 7A–C). For MSSD sample 6320, both MoE models ranked the correct structure (C) first when all five channels were available. With only the IR spectrum retained, MoE-clean placed the correct structure at rank 22, whereas MoE-mixed retained it as the unique first-ranked candidate among 128 valid structures. The correct structure had formula C 20 H19 ClO 3S and contained an ester, an alkynyl ether substituent, and an aryl thioether linkage. The highest-scoring MoE-clean com-petitor, PubChem compound identifier (CID) 11036123, had formula C 18 H12 F2N2O5 and a different heteroaromatic framework. Under mixed training, this competitor moved to rank 29. The different bonding environments in panel B make discrimination using the IR evidence in panel A chemically plausible, consistent with the rank change in panel C. The shift therefore involved discrimination between structurally distinct, mass-matched alternatives using IR ev-idence alone, while the candidate identities and spectrum of the correct structure were held fixed. 12 IR ¹H ¹³C MS⁺ MS⁻ Full Case                         
+
+> ✓✓✓✓✓✓××××
+> 4000 2000 400 Wavenumber (cm⁻¹) 01
+> IR retained 10 50−2 Chemical shift (ppm) 01
+> ¹H NMR unavailable 230 100 −20 Chemical shift (ppm) 01
+> ¹³C NMR unavailable 0200 400 m/z 01
+> MS/MS⁺ unavailable 0200 400 m/z 01
+> MS/MS⁻ unavailable
+
+A Sample 6320 
+
+> Normalized intensity (a.u.)
+> ✓××××
+
+B Sample 6320 
+
+Correct structure (C) 
+
+> MSSD 6320 C20 H19 ClO 3S
+
+C1 clean competitor 
+
+> PubChem CID 11036123 C18 H12 F2N2O5
+
+C2 mixed competitor   
+
+> PubChem CID 86646256 C18 H12 F2N2O5
+> (128 valid hard candidates) clean mixed 1510 15 20 25 Correct structure (C) rank
+> 1122 1
+
+C Sample 6320                              
+
+> Full (clean view) IR-only IR ¹H ¹³C MS⁺ MS⁻ Full Case
+> ✓✓✓✓✓✓✓R✓✓
+> 4000 2000 400 Wavenumber (cm⁻¹) 01
+> IR unchanged 10 50−2 Chemical shift (ppm) 01
+> ¹H NMR unchanged 230 100 −20 Chemical shift (ppm) 01
+> ¹³C NMR CR0250 500 m/z 01
+> MS/MS⁺ unchanged 0250 500 m/z 01
+> MS/MS⁻ unchanged
+
+D Sample 9267 
+
+> Correct structure (C) Replaced structure (R: MSSD 173387) Normalized intensity (a.u.)
+> ✓✓✓✓✓
+
+E Sample 9267 
+
+Correct structure (C) 
+
+> MSSD 9267 C27 H30 N4O2S
+
+C1 clean competitor 
+
+> PubChem CID 68556177 C27 H27 FN 4O3
+
+C2 mixed competitor 
+
+> PubChem CID 59215926 C27 H27 FN 4O3
+
+Replaced structure (R)   
+
+> MSSD 173387 C24 H27 FN 2O2
+> (128 valid candidates; R outside set) clean mixed 1510 15 20 25 Correct structure (C) rank
+> 1124 1
+
+F Sample 9267 
+
+> Full (clean view) ¹³C NMR mismatch
+
+Fig. 7. Post hoc reranking cases: (A–C) IR-only input for sample 6320; (D–F) 13 C NMR replacement for sample 9267. Columns show spectra, structures, and correct-structure ranks. C denotes the correct structure; C1/C2 denote the top-scoring negatives for MoE-clean/MoE-mixed under the altered input; R denotes the replacement source, outside the candidate set. Unavailable spectra and the original 13 C NMR trace are references. Both models use identical evidence and 128 fixed candidates per case. Selection criteria: Section S1. 
+
+The second case concerns inconsistent molecular sources (Fig. 7D–F). For MSSD sam-ple 9267, the correct structure (C) had formula C 27 H30 N4O2S and was ranked first by both models under clean input. The conflict view replaced only its 13 C NMR spectrum with that of MSSD molecule 173387, selected through the similar-functional-group replacement cate-gory. The replacement source (R) had formula C 24 H27 FN 2O2, differing from that of the correct structure despite selection through a functional-group relationship. The overlaid traces in panel D document the altered carbon-environment evidence, while panel E establishes that R was outside the candidate set. With the other four channels from the correct structure retained, MoE-clean placed the correct structure at rank 24 and PubChem CID 68556177 first. MoE-13 mixed instead ranked the correct structure uniquely first and that competitor at rank 21. The 128 valid candidates were identical across both models and both input views, and none of the correct-structure ranks involved tied scores. Thus, panel F illustrates correct-candidate recovery under a fixed source mismatch. These cases connect the aggregate improvements to two different uses of spectroscopic ev-idence: retaining candidate discrimination when most spectra are unavailable, and preserving the correct structure’s priority when one channel is inconsistent with the others. Selected post hoc using the criteria described in the Methods, they illustrate the consequences of a large ranking improvement for a fixed molecular candidate list. The cases provide chemical context for the population-level gains supported by the paired comparisons and complete view-level results. 
+
+4. Conclusion 
+
+A mixed-condition training protocol incorporating spectroscopic signal characteristics and chemical relationships was developed for multimodal candidate structure reranking. A con-trolled comparison using simulated spectra from 79,462 samples across 30 predefined views showed that the complete mixed training protocol provided the main robustness gains. The 30-view mean MRR increased by 6.08% for MoE and 5.69% for Concat relative to clean training. For MoE, R@1 increased by 6.86 percentage points. The largest improvements occurred with incomplete or mismatched evidence, while high clean-view performance was retained. MoE provided a smaller additional MRR gain of 0.0024 under mixed training. Calibration and sample-level conflict detection also improved with mixed training. The comparison of hard and random candidate sets further showed that single-modality reranking performance depended on candidate composition. Together, the training design and fixed-candidate evaluation provide a reproducible basis for robust prioritization of molecular structures from complementary spec-tra, conditional on inclusion of the correct structure in the candidate set. For future studies, developing large-scale datasets of experimentally measured multimodal spectra and improv-ing the localization of inconsistent channels are priorities for advancing this approach toward practical application. 
+
+Code and data availability 
+
+The Multimodal Spectroscopic Dataset (MSSD v3) used in this study is publicly available at https://doi.org/10.5281/zenodo.14770232 .The code will be made publicly available after publication of the article in a peer-reviewed journal. 
+
+Declaration of competing interest 
+
+The authors declare that they have no known competing financial interests or personal relationships that could have appeared to influence the work reported in this paper. 
+
+Funding 
+
+This study is supported by the AI for Science Program, the Shanghai Municipal Commission of Economy and Informatization (2025-GZL-RGZN-BTBX-02027). The funder played no role in study design, data collection, analysis and interpretation of data, or the writing of this manuscript. 14 References 
+
+[1] Z. Zou, Y. Zhang, L. Liang, M. Wei, J. Leng, J. Jiang, Y. Luo, W. Hu, A deep learning model for predicting selected organic molecular spectra, Nat. Comput. Sci. 3 (2023) 957– 964. doi:10.1038/s43588-023-00550-y .[2] M. Alberts, O. Schilter, F. Zipoli, N. Hartrampf, T. Laino, Unraveling molecular struc-ture: A multimodal spectroscopic dataset for chemistry, in: A. Globerson, L. Mackey, D. Belgrave, A. Fan, U. Paquet, J. Tomczak, C. Zhang (Eds.), Advances in Neural In-formation Processing Systems, Vol. 37, Curran Associates, Inc., 2024, pp. 125780–125808. 
+
+doi:10.52202/079017-3996 .[3] X. Tan, A transformer based generative chemical language AI model for structural elucidation of organic compounds, J. Cheminform. 17 (2025) 103. doi:10.1186/ s13321-025-01016-1 .[4] M. Priessner, R. J. Lewis, I. Lemurell, M. J. Johansson, J. M. Goodman, J. P. Janet, A. Tomberg, Advancing structure elucidation with a flexible multi-spectral AI model, Angew. Chem. Int. Ed. 65 (2026) e17611. doi:10.1002/anie.202517611 .[5] A. Mirza, L. Patiny, K. M. Jablonka, End-to-end multimodal structure elucidation from raw spectra combining contrastive learning and evolutionary algorithms, Nat. Commun. 17 (2026) 5013. doi:10.1038/s41467-026-73846-y .[6] J. Wang, R. M. Wolf, J. W. Caldwell, P. A. Kollman, D. A. Case, Development and testing of a general amber force field, J. Comput. Chem. 25 (2004) 1157–1174. doi: 10.1002/jcc.20035 .[7] A. P. Thompson, H. M. Aktulga, R. Berger, D. S. Bolintineanu, W. M. Brown, P. S. Crozier, P. J. in ’t Veld, A. Kohlmeyer, S. G. Moore, T. D. Nguyen, R. Shan, M. J. Stevens, J. Tranchida, C. Trott, S. J. Plimpton, LAMMPS - a flexible simulation tool for particle-based materials modeling at the atomic, meso, and continuum scales, Comput. Phys. Commun. 271 (2022) 108171. doi:10.1016/j.cpc.2021.108171 .[8] C. Cobas, NMR signal processing, prediction, and structure verification with machine learning techniques, Magn. Reson. Chem. 58 (2020) 512–519. doi:10.1002/mrc.4989 .[9] F. Wang, J. Liigand, S. Tian, D. Arndt, R. Greiner, D. S. Wishart, CFM-ID 4.0: More accurate ESI-MS/MS spectral prediction and compound identification, Anal. Chem. 93 (2021) 11692–11700. doi:10.1021/acs.analchem.1c01465 .[10] W. Ahmad, E. Simon, S. Chithrananda, G. Grand, B. Ramsundar, ChemBERTa-2: To-wards chemical foundation models, arXiv:2209.01712 (2022). doi:10.48550/arxiv.2209. 01712 .[11] R. Bushuiev, A. Bushuiev, R. Samusevich, C. Brungs, J. Sivic, T. Pluskal, Self-supervised learning of molecular representations from millions of tandem mass spectra using DreaMS, Nat. Biotechnol. 44 (2026) 630–640. doi:10.1038/s41587-025-02663-3 .[12] C. Han, X. Pan, Y. Zhang, End-to-end molecular structure elucidation from multimodal NMR spectra images using vision transformers, Chem. Sci. 17 (2026) 13072–13082. doi: 10.1039/d6sc02352e .15 [13] S. Huang, Y. Jin, W. Jin, Y. Mu, Analytical-chemistry-informed transformer for infrared spectra modeling, in: Proceedings of the AAAI Conference on Artificial Intelligence, Vol. 39, 2025, pp. 17440–17448. doi:10.1609/aaai.v39i16.33917 .[14] J. T. Cox, S. R. Kronewitter, A. K. Shukla, R. J. Moore, R. D. Smith, K. Tang, High sensitivity combined with extended structural coverage of labile compounds via nano-electrospray ionization at subambient pressures, Anal. Chem. 86 (19) (2014) 9504–9511. 
+
+doi:10.1021/ac502767y .16
