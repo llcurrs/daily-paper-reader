@@ -1,0 +1,346 @@
+Title: Multimodal Emergency Vehicle Classification via Audio-Visual Transformers and Knowledge Distillation
+
+URL Source: https://arxiv.org/pdf/2609.16535v1
+
+Published Time: Wed, 16 Sep 2026 00:32:42 GMT
+
+Number of Pages: 15
+
+Markdown Content:
+Technical Report AVNet: Emergency Vehicle Classification 
+
+# AVNet 
+
+# Multimodal Emergency Vehicle Classification via Audio-Visual Transformers and Knowledge Distillation 
+
+Vijay John Amar Dabaja 
+
+Department of Mathematics and Computer Science Lawrence Technological University, Southfield, MI, USA 
+
+{vjohn, adabaja }@ltu.edu 
+
+March 2026 
+
+Abstract 
+
+Emergency vehicle detection in autonomous driving is a safety-critical perception task that demands robustness under diverse and adverse real-world conditions. Existing approaches rely on a single modal-ity, either audio or video, which leads to systematic failure when that modality is degraded: microphone-based systems fail in noisy urban environments, and camera-based systems fail at night or under oc-clusion. This report presents AVNet , a multimodal audio-visual transformer that classifies emergency vehicles (ambulance, fire engine, police car) and road background using both audio and video, while gracefully handling the absence of either modality at inference time. AVNet introduces three key contri-butions: (1) a temporally aligned cross-modal fusion module that performs second-level cross-attention between audio spectrogram tokens and video frame tokens, exploiting their exact temporal correspon-dence without any learned alignment mechanism; (2) learned null embeddings that substitute for missing modality tokens, enabling a single unified model to operate in audio-only, video-only, or joint audio-visual mode without retraining; and (3) a knowledge distillation training strategy in which specialist unimodal teacher models transfer inter-class dark knowledge into the multimodal student fusion branch via soft probability targets. Evaluated on 281 clips from the Google AudioSet dataset, AVNet achieves 66.6% overall accuracy in audio-visual mode, outperforming the audio-only branch by +10 .4% and the video-only branch by +15 .0% . The largest per-class gain is observed for the hardest class, Ambulance, where fusion achieves +29 .5% over either unimodal branch alone, demonstrating that the two modalities provide complementary information that the aligned cross-attention mechanism successfully exploits. 
+
+## 1. Introduction 
+
+Emergency vehicle detection is a critical task in intelligent transportation systems and autonomous driving. When an ambulance, fire engine, or police car approaches, nearby vehicles must yield immediately. While humans rely on both the sound of a siren and the visual appearance of flashing lights, automated systems often use only one modality, either audio or video, which leads to higher error rates under adverse conditions. A microphone-based system fails in noisy urban environments; a camera-based system fails at night or when the vehicle is occluded. Neither modality alone is sufficient for robust real-world detection. This report presents AVNet , a multimodal deep learning model that classifies emergency vehicles using audio and/or video. The system is designed to handle three real-world scenarios: 1. Audio-only: microphone available, no camera (or obstructed view) 2. Video-only: camera available, no microphone (or high noise environment) 3. Audio-Video: both modalities available Page 1 arXiv:2609.16535v1 [cs.MM] 15 Sep 2026 Technical Report AVNet: Emergency Vehicle Classification 
+
+Figure 1: AVNet architecture. The AST branch processes audio spectrograms and the ViT branch processes video frames. Both produce token sequences that are fused via temporally aligned cross-attention. Dashed arrows indicate branch-specific logits used during training. Missing modalities are replaced by learned null embeddings inside the fusion module, enabling the model to produce valid outputs regardless of which modalities are present at inference time. The model is trained on the AudioSet dataset and uses a student-teacher training strategy called Knowl-edge Distillation to improve the fusion branch by learning from specialist unimodal models. The key design contributions of AVNet are: (1) a temporally aligned cross-modal fusion module that exploits the second-level correspondence between audio spectrogram tokens and video frame tokens; (2) learned null embed-dings that allow the model to gracefully handle missing modalities at inference time without retraining; and (3) a knowledge distillation training strategy that transfers dark knowledge from specialist teacher models into the multimodal student. The remainder of this report is structured as follows. Section 2 describes the proposed AVNet frame-work in full, covering the model architecture, knowledge distillation strategy, and training pipeline. Sec-tion 3 describes the AudioSet dataset and the audio and video preprocessing pipelines. Section 4 presents experimental results and analysis. Section 5 discusses strengths, limitations, and future directions. Section 6 concludes. 
+
+## 2. Proposed Framework 
+
+2.1. Model Architecture 
+
+AVNet consists of three components: the AST Branch (audio encoder), the ViT Branch (video encoder), and the Aligned Cross-Modal Fusion module. Each branch independently processes its modality and produces both a set of logits for unimodal classification and a sequence of tokens that are passed to the fusion module. The full model is shown schematically in Figure 1. Page 2 Technical Report AVNet: Emergency Vehicle Classification 
+
+2.1.1. The Transformer Block 
+
+All three components of AVNet are built from the same fundamental unit: the Transformer block [13]. Understanding this block is essential for understanding the entire architecture. Given an input sequence 
+
+X ∈ RN ×D of N tokens each with dimension D, the Transformer block applies two sub-layers with residual connections and layer normalisation. 
+
+Multi-Head Self-Attention (MHSA) allows each token to attend to all other tokens in the sequence, capturing global dependencies: MHSA (X) = Concat (head 1, . . . , head h)WO (1) where each attention head computes a scaled dot-product attention: head i = Attention (XW Qi , XW Ki , XW Vi ), Attention (Q, K, V ) = softmax 
+
+ QK ⊤
+
+√dk
+
+
+
+V (2) The division by √dk prevents the dot products from growing too large as the key dimension dk increases, which would push the softmax into regions of very small gradients and destabilise training. 
+
+Feed-Forward Network (MLP) applies a position-wise two-layer network with GELU activation: MLP (x) = W2 · GELU (W1x + b1) + b2 (3) with hidden dimension = 4 D (default in all AVNet components). The full block uses pre-layer normalisation and residual connections, which have been shown to improve training stability over the original post-norm design: 
+
+X′ = X + MHSA (LayerNorm (X)) (4) 
+
+X′′ = X′ + MLP (LayerNorm (X′)) (5) In the fusion module, cross-attention is used instead of self-attention: the query comes from the video tokens and the keys and values come from the audio tokens, so each video token attends selectively to the audio tokens from the corresponding time window. 
+
+2.1.2. AST Branch: Audio Spectrogram Transformer 
+
+The Audio Spectrogram Transformer (AST) [15] branch treats the log-mel spectrogram as a 2D image and applies a Vision Transformer architecture to extract audio features. This approach avoids the inductive biases of convolutional networks and allows the model to capture long-range frequency and temporal dependencies directly from the raw spectrogram representation. 
+
+Patchification: The mel spectrogram of shape (1 , 128 , 430) is first padded along the time axis to 432 samples (the nearest multiple of 8) and then divided into non-overlapping 8 × 8 patches: 
+
+Nf = 128 /8 = 16 (frequency patches) , Nt = 432 /8 = 54 (time patches) , Naudio = Nf ×Nt = 864 tokens (6) Each patch is a 1×8×8 = 64 -dimensional vector which is projected to the model dimension D by a learned linear layer. This is analogous to the patch embedding used in Vision Transformers for images. Page 3 Technical Report AVNet: Emergency Vehicle Classification 
+
+Token Layout and Temporal Indexing: Tokens are stored in row-major order (time outer, frequency inner): token [t · Nf + f ] = patch at time patch t, frequency patch f (7) A critical design decision is that the audio tokens for video second i are exactly at indices [80 i : 80( i + 1)] 
+
+(5 time patches × 16 frequency patches = 80 tokens per second). This predictable layout makes exact temporal alignment with video frames possible without any learned alignment mechanism. 
+
+Transformer Encoding: The encoding procedure follows the standard ViT pipeline: 1. A learnable [CLS] token is added bringing the sequence length to 865. 2. A learnable positional embedding of shape (865 , D ) is added to encode the 2D position of each patch. 3. 6 Transformer blocks (self-attention) are applied to the full sequence. 4. The [CLS] token representation is projected via a linear layer to produce logits (B, 4) for unimodal audio classification. 5. The remaining 864 patch tokens (B, 864 , D ) are forwarded to the fusion module. 
+
+2.1.3. ViT Branch: Video Vision Transformer 
+
+The ViT branch [14] encodes video by applying two stages of transformer processing: a spatial stage that operates on individual frames, and a temporal stage that models relationships between frames over time. Separating these two stages allows the model to learn appearance features within each frame independently from motion features across frames, which is more sample-efficient than applying a single joint spatiotem-poral transformer. 
+
+Spatial Encoding (per frame): Each of the 10 frames of shape (3 , 64 , 64) is divided into 8 × 8 patches: 
+
+Np = (64 /8) 2 = 64 patches per frame , patch dimension = 3 × 8 × 8 = 192 (8) A shared spatial transformer (3 blocks) processes all B × 10 frames simultaneously by treating them as a batch. This weight sharing across frames is important: it ensures that the spatial encoder learns frame-level features that generalise across time positions rather than overfitting to specific temporal locations. The 
+
+[CLS] token of each frame is extracted as a compact frame-level representation, giving a tensor of shape 
+
+(B, 10 , D ).
+
+Temporal Encoding: The sequence of 10 frame-level representations is then processed temporally: 1. A learnable temporal positional embedding of shape (10 , D ) is added to encode the temporal ordering of frames. 2. 3 temporal Transformer blocks are applied over the sequence of 10 frame tokens, allowing each frame to attend to all other frames. 3. Mean-pooling over the 10 time steps collapses the sequence to a single video-level representation. 4. A linear layer projects to logits (B, 4) for unimodal video classification. Page 4 Technical Report AVNet: Emergency Vehicle Classification 5. The token sequence (B, 10 , D ) before mean-pooling is forwarded to the fusion module. Dividing the depth equally between spatial (3 blocks) and temporal (3 blocks) allows the model to develop separate feature hierarchies for within-frame content and cross-frame dynamics, which is more interpretable and has been shown to be effective in video understanding. 
+
+2.1.4. Aligned Cross-Modal Fusion 
+
+The fusion module is the central contribution of AVNet. Rather than concatenating global audio and video representations (which discards temporal structure) or using a generic cross-attention over all tokens (which is computationally expensive and ignores temporal correspondence), AVNet uses a temporally aligned cross-attention : each video frame token attends only to the audio tokens from the same one-second time window. 
+
+Temporal Alignment: The alignment is exact and deterministic. Frame t was sampled from second t of the video clip. The mel spectrogram has approximately 43 time steps per second (since 22050 × 1/512 ≈
+
+43 ), which corresponds to 5 time patches × 16 frequency patches = 80 audio tokens per second. Therefore, the audio tokens that temporally correspond to video frame t are exactly at indices [80 t : 80( t + 1)] in the token sequence. No learned alignment is required — the alignment is built into the preprocessing and token layout by design. 
+
+Cross-Attention per Second: For each second t = 0 , 1, . . . , 9, the fusion module performs: • Query: video token vt ∈ R1×D for second t
+
+• Key and Value: aligned audio tokens at ∈ R80 ×D for second t
+
+• Output: fused token ft = CrossAttn (vt, at) ∈ R1×D
+
+This produces a sequence of 10 fused tokens, each of which captures the joint audio-visual information from a one-second window. The cross-attention operation allows the video token to selectively attend to the most relevant frequency bands in the audio signal at each moment in time. 
+
+Temporal Fusion: The 10 fused tokens {f0, . . . , f9} are stacked into a sequence of shape (B, 10 , D ) and processed by 4 temporal Transformer blocks. Mean-pooling over the 10 time steps produces a single fused representation, which is passed to a linear classifier to produce the final fusion logits (B, 4) .
+
+Handling Missing Modalities: A critical practical requirement is that the system must function even when one modality is unavailable, for example, when a camera is occluded or a microphone fails. AVNet handles this through two learned null embeddings: • ηa ∈ R80 ×D: replaces all audio token sequences when audio is missing • ηv ∈ R1×D: replaces all video tokens when video is missing These null embeddings are learned parameters trained end-to-end alongside the rest of the network. Dur-ing training, modality dropout is applied stochastically: with some probability, the audio or video tokens are replaced by their corresponding null embeddings. This forces the model to learn meaningful null rep-resentations that allow the fusion module to produce useful outputs even when one modality provides no Page 5 Technical Report AVNet: Emergency Vehicle Classification information. At inference time, the appropriate null embedding is substituted for any missing modality, ensuring the model always produces a valid output. 
+
+2.2. Knowledge Distillation 
+
+2.2.1. Motivation 
+
+Suppose we want a single model that can handle audio-only, video-only, and audio-video inputs simulta-neously. A naive approach is to train it end-to-end on all three modes at once. However, this creates a difficult multi-objective optimisation problem: the model must simultaneously develop good audio features, good video features, and learn how to fuse them. In practice, this often leads to the fusion branch being suboptimal because the gradient signal is diluted across three competing objectives. Knowledge Distillation offers an elegant solution. In the first phase, specialist teacher models are trained on each modality independently, allowing them to develop the best possible unimodal representations with-out interference. In the second phase, these frozen teacher models act as supervisors for the student fusion branch, providing soft probability distributions (rather than hard one-hot labels) as training targets. The student learns not just to classify correctly, but to replicate the nuanced probability judgements of each specialist teacher. 
+
+2.2.2. Why Soft Labels? 
+
+To understand why soft labels are valuable, consider a Police Car clip. The true hard label is: 
+
+y = [0 , 0, 1, 0] (one-hot: Ambulance, Fire Engine, Police Car, Road) (9) This label carries no information about the relationships between classes. In contrast, a well-trained audio teacher might output: 
+
+˜p = [0 .15 , 0.07 , 0.72 , 0.06] (10) This soft distribution tells the student something important: police car sirens are acoustically somewhat similar to ambulance sirens (both use electronic sirens), moderately similar to fire engine sirens, and very different from road noise. This dark knowledge — the relative similarities between classes encoded in the teacher’s probability outputs — is information that the hard label completely discards. Training the student on soft labels transfers this dark knowledge and leads to better generalisation. 
+
+2.2.3. Temperature Scaling 
+
+To make the soft labels even more informative, temperature scaling is applied to the teacher’s raw logits before computing the soft distribution: 
+
+˜pc(T ) = exp( zc/T )
+
+P 
+
+> c′
+
+exp( zc′ /T ) (11) where zc are the teacher’s raw logits and T ≥ 1 is the temperature hyperparameter. At T = 1 this recovers the standard softmax. At T > 1, the distribution becomes softer (more uniform), revealing more of the relative information between classes that would otherwise be hidden by the peaky softmax at T = 1 . In AVNet we use T = 4 , which produces smooth distributions that expose the inter-class structure effectively. The same temperature is applied to the student’s logits when computing the distillation loss, ensuring a Page 6 Technical Report AVNet: Emergency Vehicle Classification consistent comparison. 
+
+2.2.4. KL Divergence Loss 
+
+The distillation loss measures how well the student’s soft distribution matches the teacher’s soft distribution, using the Kullback-Leibler (KL) divergence: 
+
+LKD (s, t ; T ) = T 2 · DKL 
+
+
+
+˜p(t) ∥ ˜p(s)
+
+= T 2
+
+> C
+
+X
+
+> c=1
+
+˜p(t) 
+
+> c
+
+log ˜p(t)
+
+> c
+
+˜p(s)
+
+> c
+
+(12) The T 2 prefactor is not arbitrary. When gradients of the KL loss are backpropagated through the temperature-scaled softmax, a factor of 1/T 2 naturally appears. Without the T 2 prefactor, the distillation gradients would be T 2 times smaller than the classification gradients, making the distillation signal negligible at high tem-peratures. The T 2 factor cancels this effect and ensures the distillation and classification losses contribute comparably to the total gradient. 
+
+2.2.5. Classification Loss with Label Smoothing 
+
+The classification loss uses standard cross-entropy with label smoothing ( ϵ = 0 .1): 
+
+LCE (s, y ) = − X
+
+> c
+
+˜yc log σ(sc) (13) where the smoothed label is: 
+
+˜yc = (1 − ϵ) · 1[c = y] + ϵC (14) Label smoothing replaces the hard target probability of 1.0 with 1 − ϵ = 0 .9 and distributes the remain-ing probability mass ϵ/C = 0 .025 uniformly across all classes. This prevents the model from becoming overconfident and assigning probability arbitrarily close to 1.0 to the correct class, which has been shown to improve calibration and generalisation performance. 
+
+2.2.6. Full Loss Function 
+
+The total training loss depends on which input modality the current batch uses. Because different modalities activate different branches and different teacher supervisors, three loss configurations are used: 
+
+Mode Total Loss 
+
+Audio-only LCE (ast , y ) + LCE (fusion , y ) + λ LKD (fusion , t a)
+
+Video-only LCE (vit , y ) + LCE (fusion , y ) + λ LKD (fusion , t v)
+
+AV (both) LCE (ast , y ) + LCE (vit , y ) + LCE (fusion , y ) +
+
+λ[LKD (fusion , t a) + LKD (fusion , t v) + LKD (fusion , ¯t)] 
+
+Table 1: Training loss by input modality mode. In each mode, the fusion branch is supervised by both a hard cross-entropy loss and a soft distillation loss from the appropriate teacher(s). where ta and tv are the frozen AudioTeacher and VideoTeacher logits respectively. In the AV mode, an Page 7 Technical Report AVNet: Emergency Vehicle Classification ensemble teacher is also used: 
+
+¯t = 12 [σ(ta/T ) + σ(tv/T )] (15) This ensemble teacher is the average of both teachers’ soft distributions and provides supervision that cap-tures the joint audio-visual signature of each class — information that neither teacher alone can provide. The distillation weight λ = 1 .0 is used throughout, placing equal weight on the classification and distilla-tion objectives. 
+
+2.3. Training Pipeline 
+
+2.3.1. Phase 1: Pretrain Specialist Teachers 
+
+Training begins by pretraining two specialist teacher models independently. Each teacher is a deeper ver-sion of the corresponding student branch (depth = 6 transformer blocks in both the spatial and temporal encoders), giving the teacher greater representational capacity than the student branch it will supervise. • AudioTeacher: The AST branch (deeper version) is trained on audio-only batches for 30 epochs. At each epoch, test accuracy is evaluated on the fusion branch in audio-only mode. The checkpoint achieving the highest test accuracy is saved. • VideoTeacher: The ViT branch (deeper version) is trained on video-only batches for 30 epochs with the same checkpoint selection strategy. After Phase 1, both teachers are frozen. Their weights are not updated during Phase 2. 
+
+2.3.2. Phase 2: Train Student with Distillation 
+
+With the teachers frozen, the full AVNet student model is trained for 50 epochs. Batches are constructed with a random modality assignment: 25% audio-only, 25% video-only, and 50% audio-video. This ensures the model receives balanced exposure to all three operational modes and develops robust representations under each condition. For each batch, the appropriate teacher or teachers are queried to produce the distillation targets. Test accuracy on the fusion branch in AV mode is evaluated at every epoch. The checkpoint with the highest test accuracy is saved and used for all reported results. 
+
+2.3.3. Hyperparameters 
+
+The embedding dimension of D = 128 was chosen to fit within an 8 GB GPU memory budget. A larger embedding dimension (256 or 512) would be expected to improve performance but requires more GPU memory. The CosineAnnealingLR schedule gradually reduces the learning rate from 10 −4 to near zero over the training epochs, which has been found to improve final convergence in transformer training. Gradient clipping at 1.0 prevents gradient explosion in the early stages of training when the randomly initialised attention weights can produce large gradient magnitudes. Page 8 Technical Report AVNet: Emergency Vehicle Classification 
+
+Hyperparameter Value 
+
+Optimiser AdamW Learning rate 10 −4
+
+Weight decay 0.05 LR schedule CosineAnnealingLR Gradient clipping 1.0 Batch size 8Embedding dimension D 128 Attention heads 4Teacher training epochs 30 Student training epochs 50 Temperature T 4.0 Label smoothing ϵ 0.1 Distillation weight λ 1.0 Table 2: Training hyperparameters used for all experiments. 
+
+## 3. Dataset and Preprocessing 
+
+3.1. AudioSet 
+
+AudioSet [16] is a large-scale, weakly-labelled audio event dataset released by Google. Each sample is a 10-second YouTube video clip annotated with one or more sound event labels from a hierarchical ontology of 632 audio classes. The dataset is weakly labelled in the sense that the labels indicate which sound events are present in the clip but do not provide timestamps for when each event occurs. For AVNet, four classes are used: 
+
+Class AudioSet Label ID Test Samples 
+
+Ambulance /m/012n7d 61 Fire Engine /m/012ndj 70 Police Car /m/01jwx6 74 Road (8 combined labels) — 76 
+
+Total 281 
+
+Table 3: AudioSet classes and test set composition. The Road class combines 8 AudioSet labels covering various road and traffic background sounds. Clips are downloaded as MP4 files using yt-dlp and split 90%/10% into training and test sets using a fixed random seed for reproducibility. The effective training set contains approximately 2,528 clips — substantially smaller than the full AudioSet due to deleted or unavailable YouTube videos. Page 9 Technical Report AVNet: Emergency Vehicle Classification 
+
+3.2. Audio Preprocessing: Log-Mel Spectrogram 
+
+3.2.1. What is a Mel Spectrogram? 
+
+A raw audio waveform x[n] carries all the information about sound, but it is difficult to process directly with neural networks. The waveform is a one-dimensional time-series signal that encodes frequency information implicitly through rapid amplitude oscillations. Instead, we convert it to a spectrogram : a 2D representation of time × frequency content that makes the frequency structure explicit and amenable to 2D convolutional or transformer processing. The conversion proceeds in three steps. 
+
+Step 1: Short-Time Fourier Transform (STFT). The audio waveform is divided into overlapping windows of length N samples with hop length H samples between consecutive windows. For each window at time step t, the Discrete Fourier Transform is applied to recover the frequency content of that short segment: 
+
+X[k, t ] =  
+
+> N−1
+
+X
+
+> n=0
+
+x[n + tH ] · w[n] · e−j2πkn/N (16) where w[n] is a Hann window function that tapers the signal at the window edges to reduce spectral leakage. The power spectrogram is |X[k, t ]|2, which gives the energy at each frequency bin k and time step t.
+
+Step 2: Mel Filterbank. The human auditory system perceives pitch approximately logarithmically — the perceptual difference between 100 Hz and 200 Hz is much greater than the difference between 5000 Hz and 5100 Hz, even though both are 100 Hz linear differences. A mel-scale filterbank models this perceptual property by applying M triangular filters whose centre frequencies are spaced on the mel scale: 
+
+m = 2595 log 10 
+
+
+
+1 + f
+
+700 
+
+
+
+(17) This transformation compresses the high-frequency range (where perceptual differences are small) and ex-pands the low-frequency range (where perceptual differences are large), producing a representation that better matches human auditory perception. 
+
+Step 3: Log Compression. The mel filterbank outputs are passed through a logarithm, which further compresses the dynamic range of the signal: 
+
+S[m, t ] = log X
+
+> k
+
+|X[k, t ]|2 · Hm[k] + ϵ
+
+!
+
+(18) where Hm[k] is the m-th mel filter and ϵ is a small constant for numerical stability. The log compres-sion makes the representation more robust to variations in overall signal amplitude (e.g. how far away the emergency vehicle is) and produces a feature space where differences are approximately proportional to perceptual differences. 
+
+3.2.2. Parameters Used 
+
+The audio preprocessing uses a sample rate of 22,050 Hz with an FFT window of 1024 samples, hop length of 512 samples, and 128 mel filterbanks applied to 10-second clips. This yields ⌊22050 × 10 /512 ⌋ ≈ 430 
+
+time steps. The resulting output tensor has shape (1 , 128 , 430) — 1 channel, 128 frequency bins, and 430 time steps — and is normalised to [−1, 1] before being stored. The choice of 128 mel filterbanks provides sufficient frequency resolution to distinguish the different siren waveforms used by ambulances, fire engines, Page 10 Technical Report AVNet: Emergency Vehicle Classification and police cars, which differ primarily in their frequency modulation patterns. 
+
+3.3. Video Preprocessing 
+
+Ten frames are sampled uniformly per clip at t = 0 .5, 1.5, . . . , 9.5 seconds (one frame per second, sampled at the midpoint of each second). Each frame is resized to 64 × 64 pixels in RGB format and normalised channel-wise using the ImageNet mean and standard deviation per channel. The resulting output tensor has shape (10 , 3, 64 , 64) . The small frame resolution of 64 × 64 was chosen to keep the model size manageable given the GPU memory constraints. While this discards fine-grained visual detail, it retains the coarse appearance information (vehicle shape, colour, flashing light patterns) that is most useful for emergency vehicle classification. 
+
+Temporal Alignment: A critical design choice is that frame t (sampled from second t) corresponds ex-actly to mel columns [t × 43 : ( t + 1) × 43] , since the mel spectrogram has approximately 43 time steps per second ( 22050 /512 ≈ 43 ). Equivalently, in terms of AST tokens, the audio tokens for second t are at indices [80 t : 80( t + 1)] (5 time patches × 16 frequency patches per second). This exact correspondence is not approximate — it is built into the preprocessing pipeline by design and is what makes the aligned cross-modal fusion module work without any learned alignment mechanism. 
+
+## 4. Experimental Results 
+
+4.1. Test Set 
+
+The test set contains 281 clips sampled from all 4 classes. Evaluation is performed in AV mode (both audio and video provided), which activates all three branches of the model. This allows the unimodal branch accuracies to be measured as a baseline for comparison with the fusion branch. 
+
+Class Samples Proportion 
+
+Ambulance 61 21.7% Fire Engine 70 24.9% Police Car 74 26.3% Road 76 27.0% 
+
+Total 281 100% 
+
+Table 4: Test set composition. The four classes are approximately balanced, making overall accuracy a meaningful summary metric. 
+
+4.2. Overall Accuracy 
+
+The fusion branch outperforms the audio-only branch by +10 .4% and the video-only branch by +15 .0% .Both unimodal branches substantially exceed random chance (25.0%), confirming that each modality in-dividually carries useful discriminative information. The fusion improvement demonstrates that the two modalities are complementary rather than redundant — the cross-modal information captured by the aligned cross-attention module adds genuine value beyond what either modality provides alone. Page 11 Technical Report AVNet: Emergency Vehicle Classification 
+
+Branch Modality Overall Accuracy vs. Random (25.0%) 
+
+AST Audio only 56.2% +31.2% ViT Video only 51.6% +26.6% Fusion Audio + Video 66.6% +41.6% 
+
+Table 5: Overall accuracy across modality branches on the AudioSet test set ( N = 281 , 4-class, random chance = 25.0%). The fusion branch outperforms both unimodal branches by significant margins, validating the core multimodal design. 
+
+4.3. Per-Class Accuracy Class AST (Audio) ViT (Video) Fusion Samples 
+
+Ambulance 34.4% 34.4% 63.9% 61 Fire Engine 65.7% 58.6% 57.1% 70 Police Car 64.9% 54.1% 78.4% 74 Road 56.6% 56.6% 65.8% 76 
+
+Overall 56.2% 51.6% 66.6% 281 Table 6: Per-class test accuracy for each branch. Fusion achieves the best accuracy on 3 of 4 classes. The largest single improvement is for Ambulance ( +29 .5% over unimodal), demonstrating how fusion resolves cases where individual modalities are ambiguous. 
+
+4.4. Analysis Police Car achieves the highest fusion accuracy at 78.4%. This is the most distinguishable class in both modalities: police car sirens use a distinctive electronic wail pattern that is acoustically very different from fire engine and ambulance sirens, and the visual appearance (compact vehicle with flashing blue lights) is also distinctive. When both modalities confidently agree, the fusion branch benefits from the reinforced signal. 
+
+Ambulance is the most challenging class under unimodal conditions, with both AST and ViT achieving only 34.4% — barely above random chance. This low performance has two causes. Visually, ambulances resemble large white vans or trucks, which are common vehicles on roads; without the flashing lights and sirens, they are nearly indistinguishable from ordinary vehicles in low-resolution 64 × 64 frames. Acousti-cally, ambulance sirens overlap in frequency range with fire engine sirens and can also be confused with road noise at low signal-to-noise ratios. Fusion dramatically improves performance to 63.9% — nearly double the unimodal result — because the cross-attention mechanism allows the audio signal to help disambiguate the visual ambiguity and vice versa. 
+
+Fire Engine is a notable exception where the audio-only branch (65.7%) outperforms fusion (57.1%). This suggests that the fire engine siren is highly acoustically distinctive (low-frequency continuous tone that is unlike other sirens), but the visual appearance of a large red truck can sometimes conflict with the acoustic prediction in the fusion branch. One possible explanation is that fire engines in some AudioSet clips are partially occluded or at low resolution, causing the visual token to carry noisy or misleading information that reduces fusion accuracy. 
+
+Road is the background class, combining 8 AudioSet labels covering various road and traffic sounds. Page 12 Technical Report AVNet: Emergency Vehicle Classification Both audio and video branches achieve 56.6%, and fusion improves this to 65.8%. The improvement is consistent with the general trend that fusion helps when both modalities are moderately informative — road sounds and road visual appearance are both recognisable but not strongly distinctive individually. 
+
+## 5. Discussion and Limitations 
+
+5.1. Strengths 
+
+AVNet has several important strengths that make it suitable as a foundation for future multimodal emergency vehicle perception systems: • Unified multi-modal handling: A single model handles all three input modes (audio-only, video-only, AV) without retraining or architectural changes. This is essential for deployment in real-world systems where sensor availability may vary. • Physically motivated alignment: The temporally aligned cross-attention is grounded in the actual temporal correspondence between audio and video, making the fusion mechanism interpretable and robust. • Knowledge distillation improvement: Distillation from specialist teachers significantly improves fusion accuracy by providing soft supervision that encodes inter-class relationships. • Modular and extensible design: The teacher models can be replaced with stronger pre-trained mod-els such as wav2vec 2.0 for audio or VideoMAE for video, which would likely yield substantially better performance. 
+
+5.2. Limitations 
+
+Several important limitations should be acknowledged: • Small and noisy training data: The effective training set of approximately 2,528 clips is small for a transformer-based model, and AudioSet’s weak labels mean that some clips may not actually contain the labelled sound event prominently. Both factors limit the achievable accuracy. • Constrained model capacity: The embedding dimension of D = 128 was chosen to fit within an 8 GB GPU. A larger model ( D = 256 or 512) would provide greater representational capacity and likely improve performance substantially, but requires more GPU memory. • Ambulance confusion: The model struggles with ambulances in both modalities. This could be addressed with ambulance-specific data augmentation, higher-resolution video frames, or pre-trained models that provide richer feature representations. • No pre-training: Training from scratch on a small dataset is inherently challenging. Pre-trained audio transformer weights (e.g. AST pre-trained on AudioSet-20k) and pre-trained video transformer weights (e.g. VideoMAE) would provide much stronger feature initialisations. • Majority-mode batch training: The current implementation assigns a single modality mode to each entire batch based on the majority vote. A more principled approach would assign each sample its own modality mode independently, allowing more diverse training signal within each batch. Page 13 Technical Report AVNet: Emergency Vehicle Classification 
+
+5.3. Future Directions 
+
+The following extensions are identified as natural next steps for this research: • Incorporate pre-trained audio models (AST pre-trained on AudioSet-20k, wav2vec 2.0) and video models (VideoMAE, TimeSFormer) to provide stronger feature initialisations. • Increase model capacity to D = 256 or 512 on a GPU with larger memory. • Add attention map visualisation to understand which frequency bands and time steps the cross-attention module focuses on for each vehicle class. • Extend the class taxonomy to additional emergency and non-emergency sound events relevant to autonomous driving (e.g. train horn, construction equipment, vehicle horn). • Develop a real-time inference pipeline for embedded automotive hardware, building towards deploy-ment on autonomous vehicle platforms. 
+
+## 6. Conclusion 
+
+This report presented AVNet , a multimodal audio-visual transformer for emergency vehicle classification. The central contribution is the aligned cross-modal fusion module, which exploits the exact temporal cor-respondence between log-mel spectrogram tokens and video frame tokens to perform second-level cross-attention between audio and video streams. Learned null embeddings enable the model to operate robustly under sensor dropout at inference time, and a two-phase knowledge distillation training strategy transfers inter-class dark knowledge from specialist teacher models into the multimodal fusion student. On the 281-clip AudioSet test set, the fusion branch achieves 66.6% overall accuracy (4-class, random chance = 25%), compared to 56.2% for audio-only and 51.6% for video-only, representing improvements of +10 .4% and +15 .0% respectively. The largest per-class improvement is for Ambulance ( +29 .5% over unimodal), where neither modality alone is sufficient but their combination resolves the ambiguity. These re-sults demonstrate that multimodal fusion with temporally aligned cross-attention and knowledge distillation is an effective strategy for robust emergency vehicle classification under varying sensor conditions. 
+
+## References 
+
+[1] S. Adavanne, A. Politis, J. Nikunen, and T. Virtanen, “Sound event localization and detection of over-lapping sources using convolutional recurrent neural networks (SELDnet),” IEEE J. Sel. Topics Signal Process. , vol. 13, no. 1, pp. 34–48, 2019. [2] A. Politis, A. Mesaros, S. Adavanne, T. Heittola, and T. Virtanen, “Overview and Evaluation of Sound Event Localization and Detection in DCASE 2019,” IEEE/ACM Trans. Audio, Speech, and Lang. Proc. , vol. 29, pp. 684–698, 2020. [3] K. Shimada, A. Politis, P. Sudarsanam, D. Krause, K. Uchida, S. Adavanne, A. Hakala, Y. Koyama, N. Takahashi, S. Takahashi, T. Virtanen, and Y. Mitsufuji, “STARSS23: An audio-visual dataset of spatial recordings of real scenes with spatiotemporal annotations of sound events,” in Proc. 37th Int. Conf. Neural Inf. Process. Syst. (NeurIPS) , New Orleans, LA, USA, 2023, Art. no. 3189. Page 14 Technical Report AVNet: Emergency Vehicle Classification [4] D. Berghi, P. Wu, J. Zhao, W. Wang, and P. J. B. Jackson, “Fusion of audio and visual embeddings for sound event localization and detection,” arXiv preprint arXiv:2312.09034 , 2023. [5] H. Hong, Q. Wang, J. Du, R. Wei, M. Cai, and X. Fang, “MVANet: Multi-stage video attention network for sound event localization and detection with source distance estimation,” arXiv preprint arXiv:2411.14153 , 2024. [6] V.-T. Tran and W.-H. Tsai, “Acoustic-based emergency vehicle detection using convolutional neural networks,” IEEE Access , vol. 8, pp. 75702–75713, 2020, doi: 10.1109/ACCESS.2020.2988986. [7] M. Cantarini, L. Gabrielli, and S. Squartini, “Few-shot emergency siren detection,” Sensors , vol. 22, no. 12, Art. no. 4338, 2022, doi: 10.3390/s22124338. [8] H. Sun, X. Liu, K. Xu, J. Miao, and Q. Luo, “Emergency vehicles audio detection and localization in autonomous driving,” arXiv preprint arXiv:2109.14797 , 2021. [9] A. Dosovitskiy, G. Ros, F. Codevilla, A. Lopez, and V. Koltun, “CARLA: An Open Urban Driving Simulator,” in Proc. Conf. Robot Learning (CoRL) , 2017. [10] G. Silvera, A. Biswas, and H. Admoni, “DReyeVR: Democratizing virtual reality driving simulation for behavioural & interaction research,” arXiv preprint arXiv:2201.01931 , 2022. [11] T.-Y. Lin, P. Goyal, R. Girshick, K. He, and P. Doll´ ar, “Focal loss for dense object detection,” arXiv preprint arXiv:1708.02002 , 2017. [12] A. Vaswani, N. Shazeer, N. Parmar, J. Uszkoreit, L. Jones, A. N. Gomez, Ł. Kaiser, and I. Polosukhin, “Attention is all you need,” in Proc. Advances in Neural Information Processing Systems (NeurIPS) ,pp. 5998–6008, 2017. [13] A. Vaswani, N. Shazeer, N. Parmar, J. Uszkoreit, L. Jones, A. N. Gomez, Ł. Kaiser, and I. Polosukhin, “Attention is all you need,” in Proc. Advances in Neural Information Processing Systems (NeurIPS) ,pp. 5998–6008, 2017. [14] A. Dosovitskiy, L. Beyer, A. Kolesnikov, D. Weissenborn, X. Zhai, T. Unterthiner, M. Dehghani, M. Minderer, G. Heigold, S. Gelly, J. Uszkoreit, and N. Houlsby, “An image is worth 16 ×16 words: Transformers for image recognition at scale,” in Proc. Int. Conf. Learning Representations (ICLR) ,2021. [15] Y. Gong, Y.-A. Chung, and J. Glass, “AST: Audio Spectrogram Transformer,” in Proc. Interspeech , pp. 571–575, 2021. [16] J. F. Gemmeke, D. P. W. Ellis, D. Freedman, A. Jansen, W. Lawrence, R. C. Moore, M. Plakal, and M. Ritter, “Audio Set: An ontology and human-labeled dataset for audio events,” in Proc. IEEE Int. Conf. Acoustics, Speech and Signal Processing (ICASSP) , pp. 776–780, 2017. Page 15

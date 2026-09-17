@@ -1,0 +1,447 @@
+Title: AsyncCouple-Flow: Asynchronous Cross-Modal Coupling and Flow Matching for Spatio-Temporal Forecasting
+
+URL Source: https://arxiv.org/pdf/2609.16573v1
+
+Published Time: Wed, 16 Sep 2026 00:35:28 GMT
+
+Number of Pages: 15
+
+Markdown Content:
+# AsyncCouple-Flow: Asynchronous Cross-Modal Coupling and Flow Matching for Spatio-Temporal Forecasting 
+
+Zhixiang Wu 1,2, Yining Liu 3, Bo Zhao 4, Szu-Yu Chen 5,Huiran Duan 6, Chu Lin 7, and Chuanguang Yang 1* 
+
+> 1
+
+Institute of Computing Technology, Chinese Academy of Sciences, China  
+
+> 2
+
+Emory University, USA  
+
+> 3
+
+University of California, Berkeley, USA  
+
+> 4
+
+Yale University, USA  
+
+> 5
+
+Stevens Institute of Technology, USA  
+
+> 6
+
+City University of New York, USA 
+
+> *
+
+Corresponding author. yangchuanguang@ict.ac.cn 
+
+Abstract. Multi-modal spatio-temporal forecasting (MM-STF) supports weather nowcasting, traffic prediction, and earth-system modeling by combining heterogeneous sources such as physical fields, satellite im-agery, and in-situ sensors. Three obstacles persist: (i) modalities have 
+
+different spatio-temporal sampling rates , forcing lossy interpolation onto a unified grid; (ii) modalities are frequently missing at deployment due to sensor outages or revisit gaps, while most methods train with full availability; and (iii) autoregressive decoders accumulate errors over long horizons, amplified by multi-modal conditioning. We propose AsyncCouple-Flow to address these issues jointly. A Modality-Aware Token Sparsifi-cation (MATS) module performs scale-aware tokenization and uses a shared importance scorer to select top-k tokens per timestep, producing equal-length sequences. An Asynchronous Cross-Modal Coupling Graph (ACCG) replaces fixed cross-attention with a learnable graph whose edges encode time offsets, semantic similarity, and modality-specific phys-ical priors, enabling fusion under arbitrary asynchrony and missingness. A Flow-Matching Forecasting Head models multi-step prediction as a conditional ODE, trained with stochastic modality dropout and inte-grated jointly to avoid autoregressive drift. Experiments on ERA5+GOES+ISD weather forecasting and PEMS-BAY traffic prediction with multi-source side information show that AsyncCouple-Flow outperforms state-of-the-art baselines and remains robust with up to two missing modalities. The code will be released upon acceptance. 
+
+Keywords: Multi-modal Learning · Spatio-Temporal Forecasting · Graph Neural Networks · Flow Matching · Missing Modality Robustness 
+
+## 1 Introduction 
+
+Deep learning is increasingly used to address complex problems across scien-tific disciplines [37, 20, 19, 26, 43, 42, 44, 24]. Rapid advances in multimodal learn-arXiv:2609.16573v1 [cs.LG] 15 Sep 2026 2 Authors Suppressed Due to Excessive Length 
+
+ing and high-performance AI have opened new directions for scientific comput-ing[5, ?,4, 23, 16, 18, 17]. These developments are particularly relevant to model-ing physical systems that evolve over space and time[47, 16, 45]. Spatio-temporal forecasting (STF) predicts dynamical systems from past observations, support-ing traffic management [13, 46, 41], precipitation nowcasting [8, 7], and medium-range global weather forecasting [1, 12, 33, 3, 6, 14, 15, 21, 29, 28, 28]. Dynamics-aware models [38, 36] further connect data-driven prediction with physical inter-pretability. In practice, multiple heterogeneous sources—reanalysis fields, satel-lite imagery, in-situ sensors, and unstructured textual reports—provide comple-mentary views of the same dynamics. Multi-modal spatio-temporal forecasting (MM-STF) thus promises improvements over uni-modal approaches, as demon-strated in solar-irradiance forecasting with satellite videos [2] and nationwide air-quality prediction with multi-source meteorological context [25]. Three obstacles nevertheless limit the practical reach of MM-STF. 
+
+(C1) Asynchronous spatio-temporal sampling. Modalities differ in spa-tial resolution and temporal frequency: geostationary satellites typically produce frames every 10–15 minutes on a ∼2 km grid, ERA5-style reanalyses provide hourly fields at 0.25 ◦ resolution, and in-situ networks update every five minutes at irregular locations. Existing methods commonly interpolate or down-sample sources onto a shared space-time lattice [2, 25], discarding high-frequency infor-mation from fast modalities and introducing fabricated values for slow ones. 
+
+(C2) Modality missingness at deployment. Sensor failures, satellite revisit intervals, and communication outages often make inference-time modalities a strict subset of those available during training. Studies of multi-modal Trans-formers [31] reveal severe degradation under missingness because conventional cross-attention layers presume a fixed, complete set of input streams. 
+
+(C3) Long-horizon error accumulation. The de-facto decoding strategy in STF is autoregressive rollout: short-horizon predictions are recursively fed back as inputs to extend the forecast [13, 38, 1]. While effective for moderate lead times, this strategy is well known to amplify small per-step errors into severe long-horizon drift [3]. The phenomenon is particularly damaging in MM-STF, as compounding errors propagate not only along the temporal axis but also across modality channels through fusion layers. A unified solution must (i) process tokens at different time stamps and spa-tial scales without forcing a common grid; (ii) fuse modalities while degrading gracefully when streams are absent; and (iii) replace autoregressive rollout with a single, non-autoregressive prediction of the entire trajectory. We propose AsyncCouple-Flow , a unified multi-modal spatio-temporal forecasting framework that confronts all three issues jointly. First, a Modality-Aware Token Sparsification (MATS) module performs scale-aware tokeniza-tion: each modality is converted to tokens at its native rate, and a shared impor-tance scorer [34] retains the top-k most informative tokens per timestep, mapping arbitrarily heterogeneous inputs to equal-length sequences without lossy interpo-lation. Second, an Asynchronous Cross-Modal Coupling Graph (ACCG) 
+
+replaces fixed cross-attention with a learnable graph in which each node corre-Title Suppressed Due to Excessive Length 3
+
+sponds to a (modality, time, position) triplet, and edge weights factor in time offsets, semantic similarity, and modality-specific physical priors. Message pass-ing on ACCG [11, 35] naturally absorbs arbitrary asynchrony: missing modalities simply correspond to masked nodes whose absence is handled by the graph topol-ogy rather than by ad-hoc imputation. Third, a Flow-Matching Forecasting Head , built on the recent simulation-free framework of Flow Matching [27], treats the multi-step prediction as a single conditional ordinary differential equa-tion; integrated in one shot at inference time, it bypasses autoregressive recursion and therefore avoids recursive feedback of prediction errors. We further train it under stochastic modality dropout, exposing the network to a wide spectrum of missingness patterns at no additional cost. Our contributions are summarized as follows: 
+
+– We identify three coupled obstacles—asynchronous sampling, deployment-time modality missingness, and long-horizon drift—largely studied sepa-rately in MM-STF, and argue for addressing them jointly. 
+
+– We propose AsyncCouple-Flow , whose MATS, ACCG, and Flow-Matching head jointly support arbitrary sampling rates, graceful degradation under missing modalities, and non-autoregressive long-horizon prediction. 
+
+– Experiments on (i) ERA5+GOES+ISD weather forecasting and (ii) PEMS-BAY traffic forecasting with multi-modal side information show consistent improvements over strong specialized baselines [13, 8, 33, 2] and robustness with up to two missing modalities at inference time. 
+
+## 2 Related Work 
+
+2.1 Spatio-Temporal Forecasting 
+
+Spatio-temporal forecasting has long been a central topic in machine learning, with two dominant lines of work. The first builds on spatio-temporal graph neu-ral networks , with either a fixed sensor graph—e.g., DCRNN [13], STGCN [46], ASTGCN [9]—or a learnable one as in Graph WaveNet [41] and MTGNN [40]; recent efficiency-oriented variants further reduce their cost via dynamic sparse training [39] and frequency-aligned distillation [22]. These models effectively capture local dependencies on a single modality but treat all observations on the same time grid. The second line targets grid-structured Earth-system data 
+
+via space-time Transformers—Earthformer [8], PreDiff [7] for nowcasting, and large-scale foundation models Pangu-Weather [1], GraphCast [12], ClimaX [33], FengWu [3] and OneForecast [6] for medium-range forecasts. Dynamics-aware backbones such as EarthFarseer [38] and the causal NuwaDynamics framework [36] further inject physical inductive biases. Most still operate in a uni-modal regime and rely on autoregressive rollout [1, 38], which compounds errors over long horizons. AsyncCouple-Flow is complementary: it explicitly models multi-source asynchrony and replaces autoregressive decoding with a single-pass flow integra-tion. 4 Authors Suppressed Due to Excessive Length 
+
+2.2 Multi-Modal Fusion under Asynchrony and Missingness 
+
+Multi-modal learning has recently been applied to spatio-temporal tasks. Cross-ViViT [2] couples satellite videos with ground-based time series via cross-attention to forecast solar irradiance, while AirFormer [25] fuses meteorological context with station observations for nationwide air-quality prediction. Despite their ef-fectiveness, both rely on (i) interpolating all sources onto a common space-time grid, and (ii) the implicit assumption that every modality is available at infer-ence time. The robustness of multi-modal Transformers under modality dropout has been explicitly questioned by [31], who report sharp accuracy drops when even one stream is removed. Beyond the spatio-temporal domain, dedicated ef-forts such as SMIL [32] address severely missing modalities through Bayesian meta-learning, but operate on static inputs only. Our ACCG module instead handles asynchrony and missingness jointly and natively : each (modality, time, position) triplet is a graph node, and absent modalities translate into masked nodes whose neighbors transparently take over the message-passing load, in line with classic GNN formulations [11, 35]. 
+
+2.3 Generative Forecasting via Flow Matching 
+
+Generative forecasting models distributions over future trajectories. Denoising diffusion models [10] support probabilistic time-series forecasting and precipi-tation nowcasting [7], but iterative reverse sampling remains computationally heavy. Flow Matching [27] and Rectified Flow [30] offer simulation-free training of continuous normalizing flows by regressing vector fields against pre-specified probability paths; inference integrates a single conditional ODE. To our knowl-edge, Flow Matching has not yet been applied to MM-STF. AsyncCouple-Flow predicts the entire horizon in one ODE integration conditioned on ACCG’s multi-modal context, eliminating autoregressive drift [13, 1, 3]. Together with stochas-tic modality dropout, this yields an asynchrony-aware, missingness-robust, and non-autoregressive forecaster. 
+
+## 3 Method 
+
+Figure 1 outlines the framework. We present the problem (§3.1), Modality-Aware Token Sparsification (§3.2), Asynchronous Cross-Modal Coupling Graph (§3.3), Flow-Matching Forecasting Head (§3.4), and training objective (§3.5). 
+
+3.1 Problem Formulation 
+
+We consider M heterogeneous modalities indexed by m ∈ { 1, . . . , M }. The m-th modality provides observations X (m) = {x(m) 
+
+> t
+
+}t∈T m , where x(m) 
+
+> t
+
+∈ RSm×Cm
+
+contains Sm spatial elements (grid cells, patches, or stations) with Cm channels at time stamp t on an irregular grid Tm ⊂ R. Modalities have different temporal Title Suppressed Due to Excessive Length 5
+
+Fig. 1. Overview of AsyncCouple-Flow . (1) MATS tokenizes each modality at its native rate via a CNN/patch embedder and retains the top-k tokens using a shared scorer Σ. (2) ACCG constructs a learnable graph of nodes (m, t, i ) with edges encoding time offset δt , semantic similarity, and physical priors ϕphys ; missing modalities are masked nodes. (3) The Flow-Matching head conditions a single-pass ODE on the ACCG context to generate the H-step forecast. 
+
+grids ( Tm̸ = Tm′ ) and spatial supports ( Sm̸ = Sm′ ). Let T ⋆ = {τ1, . . . , τ H } de-note the prediction time stamps for target modality m⋆, with yh = x(m⋆) 
+
+> τh
+
+as the 
+
+h-th forecast frame. Given history X1: T = {X (m) 
+
+> <τ 1
+
+}Mm=1 , we predict the trajectory 
+
+Y = [ y1, . . . , yH ] in one shot, robust to a random subset D ⊆ { 1, . . . , M } of missing modalities at inference. 
+
+3.2 Modality-Aware Token Sparsification (MATS) 
+
+MATS preserves each modality’s native rate and learns to produce equal-length token sequences without padding to a common space-time lattice (left panel of Fig. 1). 
+
+Scale-aware tokenization. For each modality m, a lightweight encoder f (m) 
+
+> enc
+
+—a 2D CNN with patch embedding for grid-structured sources (satellite, reanal-ysis) and a point-wise MLP with positional encoding for in-situ sensors—maps every observed frame x(m) 
+
+> t
+
+to Nm tokens: 
+
+Z(m) 
+
+> t
+
+= f (m) 
+
+> enc
+
+(x(m) 
+
+> t
+
+) + P(m) 
+
+> t
+
+∈ RNm×d, (1) where P(m) 
+
+> t
+
+is a learnable positional embedding that encodes both the absolute time stamp t and the relative spatial offset within the modality, and d is the shared latent dimension. 6 Authors Suppressed Due to Excessive Length 
+
+Top-k importance scoring. Following DynamicViT [34], a shared scorer gϕ :
+
+Rd → R ranks tokens across modalities by forecasting relevance: 
+
+s(m) 
+
+> t,n
+
+= gϕ(z(m) 
+
+> t,n
+
+), ˆZ(m) 
+
+> t
+
+= TopK  Z(m) 
+
+> t
+
+, s (m) 
+
+> t, ·
+
+, k . (2) The retained tokens ˆZ(m) 
+
+> t
+
+∈ Rk×d form a fixed-length sequence regardless of 
+
+Nm, so all modalities can be merged downstream without any cross-modal in-terpolation. Since TopK is non-differentiable, we follow [34] and use the Gumbel-Softmax relaxation with a straight-through estimator during training. The spar-sifier is regularised with a token-budget loss Ltok = ( ρ − ¯s)2 that anchors the average kept ratio to a target ρ ∈ (0 , 1] .
+
+3.3 Asynchronous Cross-Modal Coupling Graph (ACCG) 
+
+Retained tokens from §3.2 form a heterogeneous graph G = ( V, E) that fuses asynchronous, possibly incomplete modalities through message passing (middle panel of Fig. 1). 
+
+Node definition. Each node v ∈ V is the triplet v = ( m, t, i ) identifying the 
+
+i-th token of modality m at its own time stamp t ∈ T m. The node feature is the corresponding latent vector hv = ˆ z(m) 
+
+> t,i
+
+∈ Rd. Critically, time stamps are kept on each modality’s native grid; no nodes are interpolated. 
+
+Asynchronous edge weights. For nodes u = ( mu, t u, i u) and v = ( mv , t v , i v ),edge weights combine three factors: 
+
+euv = σ(− α |tu − tv |)
+
+| {z } 
+
+> (i) time offset δt
+
+· softmax v
+
+
+
+q⊤
+
+> u
+
+kv /√d
+
+| {z }
+
+> (ii) semantic similarity sim
+
+· ϕphys (mu, m v )
+
+| {z }
+
+> (iii) physical prior
+
+, (3) where qu, kv are linear projections of hu, hv , α > 0 is a learnable temporal-decay coefficient, and ϕphys ∈ [0 , 1] M ×M is a small learnable matrix that injects modality-pair priors (e.g. a strong prior between satellite cloud-top and surface irradiance). For efficiency, E is restricted to the union of (a) intra-modality tem-poral neighbours within window W and (b) cross-modality nearest-time neigh-bours; this gives an edge count of O(|V| · W ) rather than O(|V| 2).
+
+Coupling layer. Following GAT/GCN [11, 35], we apply L message-passing layers: 
+
+h(ℓ+1)  
+
+> v
+
+= h(ℓ) 
+
+> v
+
++ MLP 
+
+ X 
+
+> u∈N (v)
+
+euv W(ℓ)h(ℓ)
+
+> u
+
+ , (4) with residual connections and LayerNorm. After L rounds, target-modality query 
+
+q⋆τh at forecast time τh attends over V to yield context ch ∈ Rd. Their concate-nation c = [ c1, . . . , cH ] summarises the multi-modal evidence. 
+
+Native handling of missingness. If a modality is absent, its corresponding nodes are simply not instantiated. Equation (4) continues to operate on the remaining graph: the temporal-decay term in (3) automatically reweights farther-in-time observations when nearby ones disappear. This eliminates the need for ad-hoc imputation networks. Title Suppressed Due to Excessive Length 7
+
+3.4 Flow-Matching Forecasting Head 
+
+The forecast trajectory Y ∈ RH×Sm⋆ ×Cm⋆ follows an ODE-defined conditional distribution p(Y | c) (right panel of Fig. 1). 
+
+Conditional ODE. Following Flow Matching [27] and Rectified Flow [30], we choose the optimal-transport probability path that linearly interpolates between Gaussian noise x0 ∼ N (0, I) and the ground-truth trajectory x1 = Y:
+
+xτ = (1 − τ )x0 + τ x1, τ ∈ [0 , 1] . (5) A neural vector field vθ (x, τ | c) is trained to regress the displacement x1 − x0
+
+along this path: 
+
+LFM (θ) = Eτ ∼U [0 ,1] , x0,x1
+
+h
+
+vθ (xτ , τ | c) − (x1 − x0) 2i
+
+. (6) ACCG context c from §3.3 conditions vθ through cross-attention at every layer. We implement vθ as a 3D U-Net over the forecast tensor. 
+
+Single-pass inference. Given c, we generate the H-step forecast by integrating the ODE once using Euler or RK45: 
+
+ˆY = x1 = x0 +
+
+Z 10
+
+vθ (xτ , τ | c) d τ, (7) which avoids the per-step error amplification inherent in autoregressive roll-out. Empirically, 10 –25 Euler steps already yield forecasts indistinguishable from those obtained with much finer discretisation, in line with prior observations on Rectified Flow [30]. 
+
+3.5 Training Objective and Modality Dropout 
+
+We train end-to-end with 
+
+L = LFM + λrec ∥ ˆY1-step − Y∥1 + λtok Ltok , (8) where ˆY1-step = x0 + vθ (x0, 0 | c) is a cheap one-step prediction acting as a regulariser, and λrec , λtok are scalar weights. To harden the model against deployment-time missingness, at every training iteration we sample a Bernoulli mask b ∈ { 0, 1}M with drop rate pd = 0 .3, remove all nodes of dropped modal-ities from G, and recompute (4)–(6) on the resulting subgraph (curved feedback arrow in Fig. 1). Crucially, the dropout is performed after MATS so that the importance scorer learns to surface tokens that remain useful even under partial observability. 
+
+Complexity. Let V = |V| = P 
+
+> m
+
+k |T m| be the node count after MATS. ACCG costs O(L · V · W · d), using the temporal window W to limit graph connectivity. Flow Matching adds O(Nstep · H · Sm⋆ · d) at inference, where Nstep ≤ 25 counts ODE solver steps. We compare inference cost with Earthformer [8], producing the H-step trajectory without recursion. 8 Authors Suppressed Due to Excessive Length 
+
+## 4 Experiments 
+
+4.1 Datasets and Setup Datasets. We evaluate AsyncCouple-Flow on two multi-modal benchmarks that span fundamentally different physical regimes. (i) WeatherBench-MM is a tri-modal extension of the WeatherBench protocol that we curate over North America (110 ◦W–70 ◦W, 25 ◦N–50 ◦N) covering ten years (2013–2022). It contains ERA5 reanalysis fields ( 1 h, 0.25 ◦), GOES-16 infrared satellite imagery ( 10 min, 
+
+∼2 km) and ISD ground-station observations ( 5 min, irregular). The forecast-ing target is the 2-m temperature and total precipitation at 6 h and 24 h lead times. (ii) PEMS-BAY-MM augments the standard PEMS-BAY traffic bench-mark [13] (325 sensors, 5-min sampling) with a static road-network graph and hourly NOAA weather context, forecasting flow at {15 , 30 , 60 } min horizons. 
+
+Metrics. For deterministic accuracy we report MAE and RMSE; for probabilis-tic quality we report the Continuous Ranked Probability Score (CRPS), which assesses the predictive distribution. We also report SSIM for structural fidelity, including the predicted 2-m temperature field on weather. Lower is better for MAE/RMSE/CRPS, higher is better for SSIM. 
+
+Baselines. We compare against (a) classical spatio-temporal GNN forecasters DCRNN [13], STGCN [46], Graph WaveNet [41] and MTGNN [40]; (b) atten-tional/foundation models for Earth systems Earthformer [8], ClimaX [33] and FengWu [3]; (c) multi-modal forecasters CrossViViT [2] and AirFormer [25]; and (d) the diffusion-based PreDiff [7]. For uni-modal baselines we feed the con-catenated, lossily interpolated tensor of all modalities, which mirrors common practice in the field. 
+
+Implementation. All models are implemented in PyTorch and trained on 
+
+8×NVIDIA A100 GPUs with AdamW (lr = 1 × 10 −4, cosine schedule), batch size 32 , 100 epochs. We set k = 64 kept tokens per modality per timestep, ACCG depth L = 4 , temporal window W = 6 , ODE step Nstep = 25 , modality dropout 
+
+pd = 0 .3 and loss weights λrec = λtok = 0 .1. All numbers are averaged over 5
+
+random seeds. 
+
+4.2 Main Results 
+
+Table 1 shows that AsyncCouple-Flow achieves the best scores across both benchmarks and all four metrics. On WeatherBench-MM at 24 h, it reduces RMSE by 11 .6% over the strongest multi-modal baseline, CrossViViT [2], and raises SSIM by 0.045 , indicating improved spatial fidelity. On PEMS-BAY-MM at 60 min, it reduces MAE by 16 .6% over MTGNN [40] and 17 .4% over Graph WaveNet [41], extending the gains to short-horizon traffic forecasting. 
+
+4.3 Ablation Study 
+
+We run three groups of controlled ablations on WeatherBench-MM (24 h), vary-ing one component while holding the others fixed. Figure 2 reports MAE; the Title Suppressed Due to Excessive Length 9
+
+Table 1. Results on WeatherBench-MM (24 h) and PEMS-BAY-MM (60 min). Lower MAE/RMSE/CRPS and higher SSIM are better. Best in bold , second best is underlined.                                                                                                  
+
+> WeatherBench-MM (24 h) PEMS-BAY-MM (60 min)
+> Method MAE ↓RMSE ↓CRPS ↓SSIM ↑MAE ↓RMSE ↓CRPS ↓SSIM ↑
+> DCRNN [13] 1.74 2.52 1.41 0.812 2.07 4.74 1.62 0.881 STGCN [46] 1.71 2.49 1.39 0.815 2.04 4.66 1.60 0.884 Graph WaveNet [41] 1.65 2.41 1.34 0.823 1.95 4.52 1.54 0.890 MTGNN [40] 1.62 2.37 1.32 0.826 1.93 4.49 1.52 0.891 Earthformer [8] 1.49 2.18 1.23 0.847 2.01 4.62 1.59 0.886 ClimaX [33] 1.42 2.07 1.19 0.853 2.05 4.71 1.61 0.882 FengWu [3] 1.38 2.01 1.16 0.858 1.99 4.59 1.57 0.887 PreDiff [7] 1.36 1.98 1.10 0.861 1.97 4.55 1.50 0.889 AirFormer [25] 1.33 1.94 1.09 0.864 1.84 4.31 1.45 0.898 CrossViViT [2] 1.29 1.89 1.06 0.867 1.79 4.22 1.42 0.901
+> AsyncCouple-Flow (ours) 1.13 1.67 0.93 0.912 1.61 3.86 1.28 0.918
+> Mean Random No-Sparse Full
+
+1.15 1.21.25 1.3
+
+> MAE
+
+(a) MATS   
+
+> w/o δt
+> w/o sim w/o ϕphys
+> Full
+
+1.14 1.16 1.18 1.2
+
+> MAE
+
+(b) ACCG edges 
+
+> L2 DDPM-50 Rect-Flow Full
+
+1.15 1.21.25 
+
+> MAE
+
+(c) Forecast head 
+
+Fig. 2. Ablations on WeatherBench-MM (24 h). Each panel varies one component with the others fixed; the rightmost bar denotes the full model. Learned token selection, all three ACCG edge factors, and the Flow-Matching head improve MAE. 
+
+rightmost bar in each panel is the full model. (a) MATS. Replacing learned top-
+
+k scoring with mean pooling or random sampling increases MAE by 9.7% and 
+
+14 .2% , demonstrating the value of selecting informative tokens. (b) ACCG. 
+
+Removing δt , sim, or ϕphys increases MAE by 5.3% /7.1% /3.5% , respectively. All three factors contribute, with semantic similarity having the largest effect. 
+
+(c) Flow-Matching head. Substituting a plain L2 regression head removes probabilistic modelling and increases RMSE by 13 .0% . A 50-step DDPM recov-ers roughly half the MAE gap but requires 4.5× the inference time. 
+
+4.4 Robustness to Missing Modalities 
+
+We simulate deployment-time outages by randomly removing {0, 1, 2} modalities at inference. Figure 3 reports MAE for four baselines and two variants of our 10 Authors Suppressed Due to Excessive Length 0 1 2    
+
+> 1.52
+> Number of missing modalities at inference MAE on WeatherBench-MM (24 h) CrossViViT [2] AirFormer [25] Earthformer (mean-imp.) [8] PreDiff [7] Ours w/o dropout Ours (full) Fig. 3. Robustness to missing modalities at inference time. Conventional fusion base-lines degrade sharply, while AsyncCouple-Flow flattens the curve through ACCG’s native masking and stochastic modality dropout during training.
+
+model. CrossViViT and AirFormer degrade sharply under missing inputs, while Earthformer with mean imputation degrades more gradually but never closes the accuracy gap. AsyncCouple-Flow without modality dropout is already more robust through ACCG’s masking semantics. Adding dropout during training further flattens the degradation curve: the full model reaches MAE 1.22 with two missing modalities, outperforming every baseline with complete inputs, whose best MAE is 1.29 .
+
+4.5 Long-Horizon Drift 
+
+Figure 4 plots per-step MAE against lead time on both datasets. Forecast errors increase as the horizon extends, including for non-autoregressive CrossViViT. AsyncCouple-Flow produces the entire trajectory through one ODE integration and maintains lower error throughout, although its error also grows with hori-zon. At the longest evaluated horizons ( 24 h on weather and 60 min on traffic), it reduces MAE by 12 .4% and 10 .1% , respectively, relative to CrossViViT. To-gether with the head ablation, these results support joint trajectory prediction for limiting long-horizon degradation. 
+
+4.6 Efficiency Analysis 
+
+We examine the cost of producing one H-step forecast on a single A100 GPU. Figure 5 plots latency against MAE, with bubble area proportional to parameter count. AsyncCouple-Flow takes 150 ms, giving 1.4× and 3.1× speedups over CrossViViT and PreDiff with 50 diffusion steps. It is slower than Earthformer (55 ms) but reduces MAE from 1.49 to 1.13. Two design choices contribute to efficiency: MATS reduces the tokens entering the GNN by ∼6×, and the head replaces an autoregressive rollout of H = 24 steps with one ODE solve using Title Suppressed Due to Excessive Length 11 
+
+1 6 12 18 24 0.511.5
+
+Lead time (h) MAE (a) WeatherBench-MM Earthformer [8] FengWu [3] CrossViViT [2] 
+
+Ours 
+
+5 15 30 45 60 11.52
+
+Lead time (min) MAE (b) PEMS-BAY-MM Graph WaveNet [41] MTGNN [40] CrossViViT [2] 
+
+Ours Fig. 4. MAE versus lead time. AsyncCouple-Flow maintains lower error across the evaluated horizons on both benchmarks. 
+
+100 200 300 400 500 1.21.41.6
+
+Earthformer ClimaX FengWu PreDiff CrossViViT 
+
+> Ours
+
+Inference latency per sample (ms) MAE on WeatherBench-MM (24 h) 
+
+Fig. 5. Latency–accuracy trade-off on a single A100 GPU. Bubble area is proportional to parameter count. AsyncCouple-Flow reaches the lowest MAE while remaining com-petitive in latency, dominating CrossViViT and PreDiff in both axes. 
+
+Nstep = 25 Euler updates. The solver-step count is independent of the forecast horizon H.
+
+4.7 Spectral Fidelity 
+
+A common failure mode of regression-based forecasters is over-smoothing, which suppresses high-wavenumber content and can compromise physical fidelity de-spite visually plausible predictions [2, 7]. Flow matching learns a predictive dis-tribution, which may better preserve the underlying field’s spectral signature. To assess this property, we compute the radially-averaged 2D power spectrum of predicted 24-h temperature on WeatherBench-MM and compare it with the ERA5 ground truth. This complements pointwise errors by examining how fore-cast energy is distributed across spatial scales. 12 Authors Suppressed Due to Excessive Length 10 0 10 1 10 2           
+
+> Wavenumber k(cycles / box)
+> 10 5
+> 10 4
+> 10 3
+> 10 2
+> 10 1
+> 10 0
+> 10 1
+> 10 2
+> 10 3
+> Power spectrum  E(k)
+> k5/3
+> (a) Radial power spectrum
+> Ground truth (ERA5) Earthformer FengWu CrossViViT AsyncCouple-Flow (ours)
+> 10 010 110 2
+> Wavenumber k
+> 0.0 0.2 0.4 0.6 0.8 1.0 1.2
+> Energy ratio  Epred (k) /  Egt (k)
+> (b) Spectral fidelity
+> Ground truth (=1) Earthformer FengWu CrossViViT AsyncCouple-Flow (ours)
+> ±10\% fidelity band
+
+Fig. 6. Spectral fidelity of 24-h temperature forecasts on WeatherBench-MM. 
+
+(a) Radially-averaged power spectrum: AsyncCouple-Flow follows ERA5 to the small-est resolved scales, while baselines lose energy beyond k ≈ 20 –30 . (b) Energy ratio 
+
+Epred (k)/E gt (k): our model stays within the ±10% fidelity band, preserving high-frequency content. 
+
+Figure 6(a) plots spectra on a log-log scale. The reference exhibits a k−5/3
+
+range that steepens to roughly k−3. Earthformer, FengWu, and CrossViViT diverge before the dissipation scale, losing one to two orders of magnitude of energy at k ≥ 30 . AsyncCouple-Flow follows the reference nearly to the smallest resolved scales. Figure 6(b) shows the energy ratio Epred (k)/E gt (k): our model stays within the ±10% fidelity band (shaded green) across the full wavenumber range, while every baseline falls below 0.5 at k ≥ 40 . These results indicate that the MAE/RMSE/SSIM gains in Table 1 are accompanied by improved high-frequency reconstruction rather than spectral over-smoothing. 
+
+## 5 Conclusion 
+
+We presented AsyncCouple-Flow , a unified framework for multi-modal spatio-temporal forecasting that addresses three coupled obstacles which existing ap-proaches typically tackle in isolation: asynchronous sampling rates, deployment-time modality missingness , and long-horizon error accumulation . The framework rests on three coupled designs—MATS that compresses heterogeneous inputs into equal-length sequences, ACCG whose edges factor time offset, semantic sim-ilarity and physical priors, and a Flow-Matching head that produces the entire trajectory in a single ODE pass. Across two heterogeneous benchmarks and four metrics, AsyncCouple-Flow consistently outperforms ten state-of-the-art base-lines, remains robust when up to two modalities are missing, and shows that the accuracy gains are accompanied by improved high-frequency reconstruction rather than over-smoothing. Title Suppressed Due to Excessive Length 13 
+
+## References 
+
+1. Bi, K., Xie, L., Zhang, H., Chen, X., Gu, X., Tian, Q.: Accurate medium-range global weather forecasting with 3d neural networks. Nature 619 (7970), 533–538 (2023) 2. Boussif, O., Boukachab, G., Assouline, D., Massaroli, S., Yuan, T., Benabbou, L., Bengio, Y.: Improving day-ahead solar irradiance time series forecasting by leveraging spatio-temporal context. In: Advances in Neural Information Processing Systems (NeurIPS) (2023) 3. Chen, K., Han, T., Gong, J., Bai, L., Ling, F., Luo, J.J., Chen, X., Ma, L., Zhang, T., Su, R., et al.: Fengwu: Pushing the skillful global medium-range weather fore-cast beyond 10 days lead. arXiv preprint arXiv:2304.02948 (2023) 4. Feng, W., Qin, H., Wu, M., Yang, C., Li, Y., Li, X., An, Z., Huang, L., Zhang, Y., Magno, M., et al.: Quantized visual geometry grounded transformer. In: In-ternational Conference on Learning Representations. vol. 2026, pp. 59817–59838 (2026) 5. Feng, W., Yang, C., Qin, H., et al.: Mpq-dmv2: Flexible residual mixed precision quantization for low-bit diffusion models with temporal distillation. IEEE Trans-actions on Pattern Analysis and Machine Intelligence (2026) 6. Gao, Y., Wu, H., Shu, R., Dong, H., Xu, F., Chen, R.R., Yan, Y., Wen, Q., Hu, X., Wang, K., Wu, J., Qing, L., Xiong, H., Huang, X.: Oneforecast: A universal framework for global and regional weather forecasting. In: Proceedings of the 42nd International Conference on Machine Learning (ICML) (2025) 7. Gao, Z., Shi, X., Han, B., Wang, H., Jin, X., Maddix, D., Zhu, Y., Li, M., Wang, Y.B.: Prediff: Precipitation nowcasting with latent diffusion models. In: Advances in Neural Information Processing Systems (NeurIPS) (2023) 8. Gao, Z., Shi, X., Wang, H., Zhu, Y., Wang, Y.B., Li, M., Yeung, D.Y.: Earthformer: Exploring space-time transformers for earth system forecasting. In: Advances in Neural Information Processing Systems (NeurIPS). vol. 35, pp. 25390–25403 (2022) 9. Guo, S., Lin, Y., Feng, N., Song, C., Wan, H.: Attention based spatial-temporal graph convolutional networks for traffic flow forecasting. In: Proceedings of the AAAI Conference on Artificial Intelligence. vol. 33, pp. 922–929 (2019) 10. Ho, J., Jain, A., Abbeel, P.: Denoising diffusion probabilistic models. In: Advances in Neural Information Processing Systems (NeurIPS) (2020) 11. Kipf, T.N., Welling, M.: Semi-supervised classification with graph convolutional networks. In: International Conference on Learning Representations (ICLR) (2017) 12. Lam, R., Sanchez-Gonzalez, A., Willson, M., Wirnsberger, P., Fortunato, M., Alet, F., Ravuri, S., Ewalds, T., Eaton-Rosen, Z., Hu, W., et al.: Learning skillful medium-range global weather forecasting. Science 382 (6677), 1416–1421 (2023) 13. Li, Y., Yu, R., Shahabi, C., Liu, Y.: Diffusion convolutional recurrent neural net-work: Data-driven traffic forecasting. In: International Conference on Learning Representations (ICLR) (2018) 14. Li, Y., Ding, K., Yang, C., Chen, S.Y., Tian, Y.: Distilling time series foundation models for efficient forecasting. In: ICASSP (2026) 15. Li, Y., Ding, K., Yang, C., Wang, H., Wang, H., Duan, H., Liu, J., Tian, Y.: Ddtime: Dataset distillation with spectral alignment and information bottleneck for time-series forecasting. arXiv preprint arXiv:2511.16715 (2025) 16. Li, Y., Dong, J., Zeng, H., Zhang, F., Dong, Z., Yang, C., Tian, Y.: Towards robust medical image segmentation: Spectro-spatial domain generalization with mram and dmir. Computer Vision and Image Understanding (2026) 14 Authors Suppressed Due to Excessive Length 17. Li, Y., Li, K., Yin, X., Yang, Z., Dong, Z., Yao, Z., Xu, H., Tian, Y., Lu, Y.: Sepprune: Structured pruning for efficient deep speech separation. In: Proceedings of the AAAI Conference on Artificial Intelligence. vol. 40, pp. 31861–31869 (2026) 18. Li, Y., Lin, Y.C., Wang, X., Yang, K., Feng, X., Wang, Y., Duan, H., Tian, Y.: Amrd: Adaptive multi-teacher relational distillation for lightweight speech emotion recognition. arXiv preprint arXiv:2607.25289 (2026) 19. Li, Y., Meng, S., Yang, C., Feng, W., Liu, J., An, Z., Wang, Y., Tian, Y.: A com-prehensive survey of interaction techniques in 3d scene generation. IJCAI (2026) 20. Li, Y., Xiao, X., Zhang, Y., Zhao, L., Li, Y., Zhao, A., Wang, T., Xu, H., Tian, Y.: Rethinking layer-wise information allocation for vision foundation model adapta-tion. arXiv preprint arXiv:2607.21973 (2026) 21. Li, Y., Yang, C., Zeng, H., Dong, Z., An, Z., Xu, Y., Tian, Y., Wu, H.: Frequency-aligned knowledge distillation for lightweight spatiotemporal forecasting. In: Pro-ceedings of the IEEE/CVF International Conference on Computer Vision. pp. 7262–7272 (2025) 22. Li, Y., Yang, C., Zeng, H., Dong, Z., An, Z., Xu, Y., Tian, Y., Wu, H.: Frequency-aligned knowledge distillation for lightweight spatiotemporal forecasting. In: Pro-ceedings of the IEEE/CVF International Conference on Computer Vision (ICCV) (2025) 23. Li, Y., Zhou, Q., Duan, H., Wang, J., Zhang, S., Yang, C., Zhao, G., Tian, Y.: Gaitkd: A universal decoupled distillation framework for efficient gait recognition. arXiv preprint arXiv:2604.26255 (2026) 24. Li, Y., Zhou, Z., Peng, Z., Dong, J., You, H., Yan, R., Wen, S., Tian, Y., Huang, T.: A preference-driven methodology for efficient code generation. IEEE Transactions on Artificial Intelligence (2025) 25. Liang, Y., Xia, Y., Ke, S., Wang, Y., Wen, Q., Zhang, J., Zheng, Y., Zimmermann, R.: Airformer: Predicting nationwide air quality in china with transformers. In: Proceedings of the AAAI Conference on Artificial Intelligence. vol. 37, pp. 14329– 14337 (2023) 26. Lin, Z., Zhao, K., Zhang, S., Yu, P., Xiao, C.: Cec-zero: Zero-supervision char-acter error correction with self-generated rewards. In: Proceedings of the AAAI Conference on Artificial Intelligence. vol. 40, pp. 23612–23620 (2026) 27. Lipman, Y., Chen, R.T.Q., Ben-Hamu, H., Nickel, M., Le, M.: Flow matching for generative modeling. In: International Conference on Learning Representations (ICLR) (2023) 28. Liu, F., Liu, C., Li, Y., Wang, Z., Yang, C., Huang, L., An, Z.: Generative spa-tiotemporal modeling for uncertainty quantification in high-dimensional physi-cal systems. In: ICASSP 2026-2026 IEEE International Conference on Acoustics, Speech and Signal Processing (ICASSP). pp. 5911–5915. IEEE (2026) 29. Liu, N., Chu, J., Yan, X., Li, Y., Chen, S.Y., Dong, Z., Yang, C.: Mm-no: learning physical operators from heterogeneous data via cross-modal attention fusion. In: ICASSP 2026-2026 IEEE International Conference on Acoustics, Speech and Signal Processing (ICASSP). pp. 4801–4805. IEEE (2026) 30. Liu, X., Gong, C., Liu, Q.: Flow straight and fast: Learning to generate and transfer data with rectified flow. In: International Conference on Learning Representations (ICLR) (2023) 31. Ma, M., Ren, J., Zhao, L., Testuggine, D., Peng, X.: Are multimodal transformers robust to missing modality? Proceedings of the IEEE/CVF Conference on Com-puter Vision and Pattern Recognition (CVPR) pp. 18177–18186 (2022) Title Suppressed Due to Excessive Length 15 32. Ma, M., Ren, J., Zhao, L., Tulyakov, S., Wu, C., Peng, X.: Smil: Multimodal learning with severely missing modality. In: Proceedings of the AAAI Conference on Artificial Intelligence. vol. 35, pp. 2302–2310 (2021) 33. Nguyen, T., Brandstetter, J., Kapoor, A., Gupta, J.K., Grover, A.: Climax: A foundation model for weather and climate. In: Proceedings of the 40th International Conference on Machine Learning (ICML) (2023) 34. Rao, Y., Zhao, W., Liu, B., Lu, J., Zhou, J., Hsieh, C.J.: Dynamicvit: Efficient vision transformers with dynamic token sparsification. In: Advances in Neural In-formation Processing Systems (NeurIPS) (2021) 35. Veličković, P., Cucurull, G., Casanova, A., Romero, A., Liò, P., Bengio, Y.: Graph attention networks. In: International Conference on Learning Representations (ICLR) (2018) 36. Wang, K., Wu, H., Duan, Y., Zhang, G., Wang, K., Peng, X., Zheng, Y., Liang, Y., Wang, Y.: Nuwadynamics: Discovering and updating in causal spatio-temporal modeling. In: International Conference on Learning Representations (ICLR) (2024) 37. Wu, H., Li, Y., Gao, Y., Xu, F., Zhang, F., Wang, K., Zhao, P., Wang, Q., Zhao, Y., Wang, W., et al.: Roboalign-r1: Distilled multimodal reward alignment for robot video world models. arXiv preprint arXiv:2605.03821 (2026) 38. Wu, H., Liang, Y., Xiong, W., Zhou, Z., Huang, W., Wang, S., Wang, K.: Earth-farseer: Versatile spatio-temporal dynamical systems modeling in one model. In: Proceedings of the AAAI Conference on Artificial Intelligence (2024) 39. Wu, H., Wen, H., Zhang, G., Xia, Y., Liang, Y., Zheng, Y., Wen, Q., Wang, K.: Dynst: Dynamic sparse training for resource-constrained spatio-temporal forecast-ing. In: Proceedings of the 31st ACM SIGKDD Conference on Knowledge Discovery and Data Mining (KDD) (2025) 40. Wu, Z., Pan, S., Long, G., Jiang, J., Chang, X., Zhang, C.: Connecting the dots: Multivariate time series forecasting with graph neural networks. In: Proceedings of the 26th ACM SIGKDD International Conference on Knowledge Discovery & Data Mining (KDD). pp. 753–763 (2020) 41. Wu, Z., Pan, S., Long, G., Jiang, J., Zhang, C.: Graph wavenet for deep spatial-temporal graph modeling. In: Proceedings of the 28th International Joint Confer-ence on Artificial Intelligence (IJCAI). pp. 1907–1913 (2019) 42. Xiao, C., Dou, J., Lin, Z., Ke, Z., Hou, L.: From points to coalitions: Hierarchical contrastive shapley values for prioritizing data samples. In: Proceedings of the AAAI Conference on Artificial Intelligence. vol. 40, pp. 15995–16003 (2026) 43. Xiao, C., Hou, L.: Prototype-aligned federated soft-prompts for continual web per-sonalization. In: Proceedings of the ACM Web Conference 2026. pp. 6743–6754 (2026) 44. Xiao, C., Xu, T., Ma, S., Jiang, Y., Gao, H., Wu, Y.: Reversible primitive– composition alignment for continual vision–language learning. In: International Conference on Learning Representations. vol. 2026, pp. 88700–88722 (2026) 45. Xie, Y., Xiang, Y., You, H., Liu, N., Liu, F., Zhao, B., Kang, Z., Li, Y., Li, Y.: Symmetry-aware causal inference for robust neural pde solvers. In: Proceedings of the 2026 International Conference on Multimedia Retrieval (2026) 46. Yu, B., Yin, H., Zhu, Z.: Spatio-temporal graph convolutional networks: A deep learning framework for traffic forecasting. In: Proceedings of the 27th International Joint Conference on Artificial Intelligence (IJCAI). pp. 3634–3640 (2018) 47. Zhao, B., Yu, H., Liu, L., Chu, Z., Liu, Y., Liu, C., Chen, S.Y., Xie, Z.: Mis-hcc: Hierarchical channel clustering for efficient medical image segmentation. arXiv preprint arXiv:2607.17329 (2026)
