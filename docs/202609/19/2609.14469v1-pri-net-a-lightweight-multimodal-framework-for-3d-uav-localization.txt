@@ -1,0 +1,478 @@
+Title: PRI-Net: A Lightweight Multimodal Framework for 3D UAV Localization
+
+URL Source: https://arxiv.org/pdf/2609.14469v1
+
+Published Time: Tue, 15 Sep 2026 01:20:43 GMT
+
+Number of Pages: 6
+
+Markdown Content:
+# PRI-Net: A Lightweight Multimodal Framework for 3D UAV Localization 
+
+Zhixuan Chen ∗, Jialiang Lu ∗, Zhong Ye †, Yinghui He, Guanding Yu, Senior Member, IEEE 
+
+College of Information Science and Electronic Engineering, Zhejiang University, Hangzhou, China Zhejiang Key Laboratory of Multimodal Communication Networks and Intelligent Information Processing, Hangzhou, China Email: {3230104529,3230104505,12431118,2014hyh,yuguanding }@zju.edu.cn, ∗Equal contribution, † Corresponding author 
+
+Abstract —Accurate 3D localization of unmanned aerial vehicles (UAVs) remains challenging for existing multimodal approaches due to sparse LiDAR geometry, modality-imbalanced fusion, and redundant feature transmission over constrained edge-to-server links. To address these limitations, we propose PRI-Net, an efficient and lightweight multimodal fusion framework for UAV localization that integrates point cloud splatting, residual attention fusion, and an information bottleneck. Specifically, a 3D point cloud splatting (3DPCS) strategy is introduced to transform sparse LiDAR observations into geometrically consistent dense depth maps. A residual attention fusion (RAF) module is then designed to alleviate modal bias by using an image branch for coarse estimation and a gated fusion branch for refinement. In addition, a multimodal information bottleneck (MIB) module compacts features by filtering task-irrelevant redundancy. Experiments show that PRI-Net achieves high localization accuracy with lightweight architectures, while reducing feature dimensionality and improv-ing edge-to-server UAV sensing efficiency and robustness. 
+
+Index Terms —UAV Localization, Multimodal Fusion, Point Cloud Splatting, Information Bottleneck. 
+
+I. I NTRODUCTION 
+
+Low-altitude unmanned aerial vehicle (UAV) sensing sys-tems have developed rapidly, making accurate UAV local-ization essential for monitoring, cooperative perception, and situational awareness. Among ground-based modalities, vision-based methods are widely studied for their low cost and mature pipelines [1]. YOLO-based approaches have achieved accurate real-time UAV detection and tracking [2], [3], while enhanced vision networks address small targets, scale variation, and complex illumination [4]. However, image-based methods lack explicit depth and rely on appearance cues, limiting robustness in challenging environments. Therefore, LiDAR-based methods have been introduced to exploit 3D spatial structure. Point-Net [5], PointNet++ [6], and PointRCNN [7] have advanced point cloud representation and 3D object detection. Despite their geometric advantages, LiDAR-based methods often face sparse observations, limited semantic richness, and high com-plexity, hindering deployment on resource-constrained edge devices. Recent graph-based localization systems have also improved robustness to dynamic sensing configurations and cross-scenario variations [8], [9]. However, they mainly focus on CSI-based wireless localization rather than vision-LiDAR UAV perception. Therefore, multimodal fusion of images and point clouds has emerged as a promising direction for exploiting their complementary strengths. Multimodal fusion methods have therefore attracted increas-ing attention. MV3D [10] proposed an multi-view fusion frame-work, PointPainting [11] introduced a lightweight semantic enhancement strategy, and BEVFusion [12] developed a unified bird’s-eye-view representation. Although these methods per-form well, several challenges remain. First, when point clouds are projected onto the image plane, their inherent sparsity often produces depth maps with severe holes, limiting geometric representation. Second, large distribution gaps across modalities can lead to inconsistent feature representations and thus reduce fusion effectiveness. Third, existing multimodal methods often rely on heavy feature extraction and fusion pipelines, increasing computation overhead and imposing substantial transmission costs in edge-to-server deployment scenarios. To address these challenges, we propose PRI-Net, named after its three key components: point cloud splatting, residual attention fusion, and information bottleneck. Specifically, to overcome depth incompleteness caused by point cloud sparsity, we introduce a 3D point cloud splatting (3DPCS) method that densifies projected depth maps by updating neighboring pixels within a fixed-radius region. A residual attention fusion (RAF) module is designed to alleviate feature discrepancy and fusion imbalance through gated cross-modal interaction, where the image modality provides the primary estimate and the depth modality refines it through residual correction. Moreover, a multimodal information bottleneck (MIB) module is incorpo-rated before transmission to reduce communication overhead in edge-cloud scenarios by compressing features while preserving task-relevant information [13]–[15]. The main contributions of this paper are summarized as follows:  
+
+> •
+
+We propose the 3DPCS method to densify projected depth maps, alleviating projection holes and improving geometric representation.  
+
+> •
+
+We propose RAF module that uses the image branch for primary prediction and the depth branch for residual cor-rection, enabling effective cross-modal complementarity.  
+
+> •
+
+We introduce the MIB module to compress transmitted features, reducing communication overhead while preserv-ing task-relevant information. The remainder of this paper is organized as follows. The system architecture is described in Section II. The system model is discussed in Section III. The proposed methods are explained in Section IV. Experiment results are reported in Section V and arXiv:2609.14469v1 [cs.CV] 13 Sep 2026 Multimodal Fusion Edge server Multimodal feature fusion Modality interaction with weights Fisheye camera Point cloud splatting LiDAR upward facing Specialized Feature extraction xcxlEdge device Minimize I(x;z) Maximize I(y;z) IB feature compression xnznymDistortion correction Point cloud merging LiDAR surround view ResNet YOLO  
+
+> ResNet ROI Image MLP xixb
+> Target
+> Bounding box Camera attention Camera encoder Depth attention Depth encoder IB encoder Channel Decoder Fully connected layer
+> ŷ
+
+Fig. 1: Framework of the proposed PRI-Net. the whole paper is concluded in Section VI. II. S YSTEM ARCHITECTURE 
+
+The proposed PRI-Net framework enables accurate ground-based UAV localization through an edge-to-server pipeline that processes high-bandwidth camera and LiDAR data. To reduce latency, computationally intensive feature extraction is performed at the edge device, while the edge server conducts final coordinate regression using compressed task-relevant rep-resentations. As shown in Fig. 1, the edge device integrates multimodal processing, adaptive fusion, and information-theoretic compres-sion. First, a frozen detector identifies the region of interest (ROI) in rectified visual streams, while a splatting strategy converts sparse LiDAR points into dense depth maps. Together with the bounding box geometry, these inputs are fed into a multi-branch encoder to project visual semantics and absolute scale information into a latent space. The RAF module is then employed to model cross-modal interactions through a gated mechanism, followed by a two-stage residual regression process in which visual estimates are refined by geometric cues. To further reduce transmission over-head, a compression module removes redundant information via the variational information bottleneck (VIB) [14] framework. This partitioned architecture allows the server to receive only essential task-relevant features, thereby balancing localization accuracy and real-time communication efficiency. III. S YSTEM MODEL 
+
+We consider a multimodal perception system consisting of a camera and a LiDAR, with spatial calibration and temporal synchronization to ensure cross-modal alignment. To establish the geometric foundation for fusion, we first define the pro-jection and ranging models of the two sensors. Rigid-body transformations are then introduced for coordinate alignment, so that heterogeneous observations can be represented in a unified form. 
+
+A. Camera Subsystem 
+
+The camera subsystem captures visual semantics by pro-jecting 3D points onto a 2D pixel grid through sequential transformations from the camera coordinate system to the pixel coordinate system. We define the camera coordinate system as 
+
+C, where a point is represented as pc = [ xc, y c, z c]⊤ ∈ R3.To accommodate various lens types, we employ Mei’s unified projection model [16], which is particularly suited for UAV platforms where wide-angle lenses are frequently utilized to ensure a sufficient field of view across expansive flight en-velopes. In the first stage of the transformation, the 3D point 
+
+pc is mapped to the normalized image coordinates ˜m via 
+
+˜m =
+
+ xs
+
+zs + ξ , ys
+
+zs + ξ , 1
+
+⊤
+
+= [ xm, y m, 1] ⊤ , (1) where [xs, y s, z s] = pc/ ∥pc∥, ξ is the parameter representing the lens geometry, and ˜m denotes the homogeneous represen-tation of m = [ xm, y m]⊤.Since the projection is subject to non-linear optical artifacts, we apply a distortion model md = D(m), which is explicitly defined as 
+
+(
+
+xd = xm(1 + k1ρ2 + k2ρ4) + 2 p1xmym + p2(ρ2 + 2( xm)2)
+
+yd = ym(1 + k1ρ2 + k2ρ4) + p1(ρ2 + 2( ym)2) + 2 p2xmym,
+
+(2) where md = [ xd, y d]⊤ denotes the distorted coordinates on the normalized image plane, ρ2 = ( xm)2 + ( ym)2, and the coefficients ki, p i (i = 1 , 2) represent the radial and tangential distortion components, respectively. Finally, the mapping to the pixel coordinates ˜u = [ u, v, 1] ⊤ is achieved through the intrinsic mapping 
+
+˜u = K
+
+
+
+xd
+
+yd
+
+1
+
+ , K =
+
+
+
+f x 0 cx
+
+0 f y cy
+
+0 0 1
+
+ , (3) where f x and f y denote the focal lengths (in pixels) along the u and v axes, respectively, while cx and cy represent the coordinates of the principal point. 
+
+B. LiDAR Subsystem 
+
+We define the LiDAR coordinate system as L, where each captured point pl = [ xl, y l, z l]⊤ ∈ R3 is derived from the range 
+
+r integrated with the horizontal azimuth θ and vertical elevation 
+
+ϕ of the laser beam. The transformation to the Cartesian representation in the LiDAR coordinate system is expressed as 
+
+pl =
+
+
+
+xl
+
+yl
+
+zl
+
+ =
+
+
+
+r cos ϕ cos θr cos ϕ sin θr sin ϕ
+
+ , (4) where the range r is determined by the time-of-flight principle, calculated as 
+
+r = c · ∆t
+
+2 , (5) where c denotes the speed of light and ∆t represents the pulse travel time. Unlike the measured range, the angles θ and ϕ
+
+are determined by the LiDAR’s scanning mechanism. Owing to discrete angular sampling, the resulting point cloud is inherently unstructured and non-uniform, and its spatial sampling density decreases quadratically with the range r.
+
+C. Coordinate Transformation and Data Representation 
+
+For practical UAV applications, observations must be rep-resented in a unified world coordinate system W. To this end, rigid-body transformations are defined between the world, LiDAR, and camera coordinate systems, so that points from different sensors can be mapped into a common coordinate system. This explicit geometric alignment simplifies cross-modal fusion by avoiding implicit coordinate learning in the network. Assuming ideal temporal synchronization between the two sensors, the system performs simultaneous sampling to generate a sequence of N multimodal pairs (Ii, Pi), where i denotes the discrete time index. For each synchronized sample, the inputs are defined as follows  
+
+> •
+
+Image Input : The image is represented as a 3D tensor 
+
+Ii ∈ RC×H×W , where H × W denotes the resolution and 
+
+C represents the number of channel dimensions.  
+
+> •
+
+Point Cloud Input : The point cloud is represented as a sparse set Pi = {pl 
+
+> i,j
+
+}Ni 
+
+> j=1
+
+in the LiDAR coordinate system 
+
+L, where j denotes the point index within the set. For efficient computation, it is organized as a matrix Pi ∈
+
+RNi×3, where each row corresponds to a 3D point. IV. P ROPOSED METHODS 
+
+This section presents the proposed PRI-Net framework in three parts. Section IV-A introduces image ROI extraction and point cloud splatting for data preprocessing. Section IV-B de-scribes the RAF and regression strategy. Section IV-C presents an information bottleneck module for compact task-relevant representations and efficient communication. 
+
+A. Multimodal Data Processing and Feature Extraction 1) Image Modality: The raw image Ii is first rectified to Irec 
+
+> i
+
+using the inverse intrinsics and distortion model D(·). A frozen YOLOv7 detector is then used to localize the UAV and crop the target region based on the bounding box 
+
+bi = [ ut 
+
+> i
+
+, v t 
+
+> i
+
+, u b 
+
+> i
+
+, v b 
+
+> i
+
+, u c 
+
+> i
+
+, v c 
+
+> i
+
+, w b 
+
+> i
+
+, h b 
+
+> i
+
+]⊤ ∈ R8, (6) where (ut 
+
+> i
+
+, v t 
+
+> i
+
+) and (ub 
+
+> i
+
+, v b 
+
+> i
+
+) are corner coordinates, (uc 
+
+> i
+
+, v c 
+
+> i
+
+)
+
+is the center, and (wb 
+
+> i
+
+, h b 
+
+> i
+
+) denotes the dimensions. The corre-sponding sub-matrix is then extracted and rescaled to a cropped image Icrop  
+
+> i
+
+∈ RC×Hc×W c
+
+with predefined height Hc and width 
+
+W c. The final image representation xc 
+
+> i
+
+is formed by combining ResNet features from Icrop  
+
+> i
+
+with multilayer perceptron (MLP)-encoded spatial priors from bi, integrating localized appearance and geometric context. 
+
+2) LiDAR Modality: Due to the extreme sparsity of UAV LiDAR data, conventional point-based architectures often fail to capture local geometry. We therefore propose the 3DPCS method that converts discrete points into a continuous repre-sentation. Specifically, a virtual pinhole camera with intrinsics 
+
+Kv and pose [Rv|tv] is defined, and each point pl is projected onto the image plane as 
+
+˜uv =
+
+uv
+
+vv
+
+1
+
+ = 1
+
+zc Kv  Rvpl + tv . (7) where ˜uv denotes the homogeneous coordinates on the virtual image plane and zc is the depth. To fill spatial gaps, a splatting mechanism assigns the depth 
+
+zc to pixels within a radius R. For a point set Pi, the depth map Mi at pixel uv is defined as 
+
+Mi(uv) = min  
+
+> u
+
+{zc(u)} s.t. dist (uv, u) ≤ R, (8) where dist (·) denotes the L∞ distance. To fully exploit the geometric and spatial contextual information, we construct a geometric tensor Mgeo  
+
+> i
+
+∈ R3×H×W by concatenating the normalized depth map Mi with the normalized 2D coordinate grid (u′, v ′). A typical AI network [17], i.e., convolutional neural network (CNN) encoder with a specialized input stem and a pretrained ResNet backbone, is used to extract geometric features xl
+
+> i
+
+. This design provides structural and scale informa-tion while reducing the representation gap between image and depth modalities. 
+
+B. Residual Attention Fusion Module 1) Cross-modal Attention Fusion: The feature extraction networks map multimodal inputs into a shared latent space, where xc, xl ∈ Rd denote the image and depth features. We employ a gated attention-based fusion method by concatenating them as xf = [ xc; xl]. A lightweight attention network then generates modality-specific gating weights 
+
+wm = σ  hm
+
+> mlp
+
+(xf ; θm
+
+> att
+
+) ∈ Rd, m ∈ { c, l}, (9) where σ(·) is the Sigmoid activation function and hm
+
+> mlp
+
+(·) is an MLP parameterized with parameters θm
+
+> att
+
+. To preserve the original modality information, a residual gating mechanism is used to update the features 
+
+˜xm = xm + xm ⊙ wm, m ∈ { c, l}, (10) where ⊙ denotes element-wise multiplication. The fused rep-resentation is then formed as xn = [˜ xc; ˜ xl] ∈ R2d.
+
+2) Residual Multimodal Regression: Since image features are generally more stable, they may dominate training and suppress the depth modality. We therefore adopt a residual multimodal regression strategy. Specifically, the image branch first produces a base prediction ˆyc, and the fusion branch then learns a residual correction ∆y, yielding 
+
+ˆy = ˆ yc + ∆ y = Hc(xc) + HF(xn), (11) where Hc(·) and HF(·) denote the image regression network and the fusion-based residual network, respectively. This design allows the depth modality to refine the image prediction with complementary geometric information. 
+
+3) Auxiliary Supervision: To stabilize multimodal training, auxiliary supervision is further introduced for the fused, image, and depth branches. The overall training loss is defined as 
+
+L = λ1Lfusion + λ2Limg + λ3Ldepth , (12) where Lfusion , Limg , and Ldepth represent the localization losses of the fused, image, and depth branches, respectively, with 
+
+λ1, λ 2, and λ3 serving as the corresponding weighting coef-ficients. This joint optimization strategy, combined with the residual regression mechanism, effectively mitigates modal imbalance and ensures stable multimodal predictions. 
+
+C. Information Bottleneck Compression 
+
+The IB principle learns a compact representation that pre-serves task-relevant information while removing redundancy, making it suitable for UAV localization under limited compu-tation and communication resources. To reduce the transmission overhead of high-dimensional fused features, we adopt an early-fusion multimodal information bottleneck (EMIB) [15] framework. Specifically, the fused feature xn is fed into the IB module, with the localization label denoted by y ∈ R3. Let X, Y , and 
+
+Z denote the random variables corresponding to xn, y, and the compressed latent representation zn ∈ Rk, respectively, where 
+
+k controls the bottleneck capacity. The IB objective is 
+
+LIB = I(Z; X) − βI (Z; Y ), (13) where I(·; ·) denotes mutual information and β balances infor-mation compression and task relevance. Since mutual information is generally intractable, VIB is adopted to obtain a tractable objective 
+
+LVIB = E(xn, y)Ezn∼p(zn|xn)
+
+− log q(y | zn)
+
++ β D KL (p(zn | xn) ∥ r(zn)) . (14) Where the first term corresponds to the task prediction loss and the second term enforces information compression. In implementation, the posterior p(zn|xn) is parameterized by the network as a diagonal Gaussian distribution N (μ, σ2),where μj and σj denote the mean and standard deviation of the j-th latent dimension, respectively. The KL divergence regularizes this posterior toward a prior distribution.The final training objective is given by 
+
+LALL = Lfusion + β
+
+2
+
+> k
+
+X
+
+> j=1
+
+ μ2 
+
+> j
+
++ σ2 
+
+> j
+
+− log σ2 
+
+> j
+
+− 1 . (15) By introducing the IB constraint, the proposed framework learns a compact latent representation that preserves task-relevant information while suppressing redundant features. This mechanism effectively reduces communication overhead and encourages the model to focus on informative representations for UAV localization. V. E XPERIMENTAL RESULTS 
+
+This section evaluates the proposed PRI-Net framework through three ablation-style experiments: (i) analysis of input processing strategies and comparison between single-modality and multimodal fusion methods; (ii) validation of the proposed 3DPCS strategy by comparing it with a baseline point cloud projection method; and (iii) evaluation of the IB-based latent representation, focusing on its compression efficiency, task-relevant feature extraction, and robustness to sensor noise. 
+
+A. Experiment Setup 
+
+Experiments are conducted on the MMAUD dataset [18], where stereo RGB images and LiDAR point clouds are paired by nearest timestamps and annotated with 3D UAV positions. The dataset is split into training and testing sets at a ratio of 8:2, with five-fold cross-validation on the training set. The implementation is based on PyTorch and trained on a server with an Intel Xeon Platinum 8350C CPU and an NVIDIA GeForce RTX 4090 GPU. The Adam optimizer [19] is used with a weight decay of 5 × 10 −4 and a batch size of 32. Early stopping is applied to alleviate overfitting. For multimodal training, a differential learning rate strategy is adopted: pretrained encoders are fine-tuned with a learning rate of 1 × 10 −5, while newly added modules are trained with 
+
+1 × 10 −4. Detailed network settings are listed in Table I. 
+
+B. Data Processing and Fusion Strategy 
+
+To validate the PRI-Net framework, we first compare differ-ent image input processing strategies under the single-modality setting, and then evaluate the performance of single-modality methods and the proposed multimodal fusion method. For the image modality, three input strategies are compared: ROI-cropped images with bounding box information, ROI-cropped images only, and masked full-image input. Since the UAV occupies only a small portion of the full image, directly using the full image may introduce background interference. Therefore, masked full-image input is adopted for comparison. As shown in Fig. 2, the ROI-cropped input with bounding box information achieves the best performance, while removing the TABLE I: Detailed Construction of the Proposed Network Modules. 
+
+Module Architectural Construction and Mathematical Operation 
+
+Stereo ReLU ([ RN18 [: −1] (IL,crop ), RN18 [: −1] (IR,crop ), MLP 8→64 →128 (b)] → Linear 1152 →256 )
+
+Encoder → Drop (0 .3) → Linear 256 →128 → ReLU Depth Stem ReLU 
+
+
+
+BN (Conv 3×35→16 )
+
+
+
+→ ReLU 
+
+
+
+BN (Conv 3×316 →32 )
+
+
+
+→ Conv 1×132 →3
+
+Depth Encoder ReLU  Stem 5→3 → RN18 conv1 →layer4 → AvgPool 7→1 → Linear 512 →128 
+
+ → Drop (0 .2) 
+
+Cross Fusion w(m) = σ  Linear 128 →128 
+
+ ReLU (Linear 256 →128 ([ xc, xl]))  , m ∈ { c, l}
+
+Pre-branch xpre = ReLU  Linear 256 →128 ([ xc ⊙ (1 + wc), xl ⊙ (1 + wl)]) 
+
+Information Bottleneck μ = Linear 128 →k (xpre ), log σ2 = Linear 128 →k (xpre ) s.t. zn = μ + ϵ ⊙ exp(0 .5 · log σ2), ϵ ∼ N (0, I)
+
+Auxiliary Heads ˆyl = Linear 64 →3(ReLU (Linear 128 →64 (xl))) , ˆyc = Linear 128 →3(xc)
+
+Task-specific Regressor ˆy = ˆ yc + Linear 64 →3 (ReLU (Linear k→64 (zn))) (Stereo Base Estimate + IB Residual Refinement )X-axis Y-axis Z-axis Latent Dim 
+
+> 0.0 0.2 0.4 0.6 0.8 1.0
+> RMSE (meters)
+> 0.29 0.80 0.30 0.12 0.25 0.17 0.10 0.22 0.16
+> masked full image cropped no bbox cropped with bbox
+
+Fig. 2: Comparison of test-set RMSE values across various pre-processing pipelines. X-axis Y-axis Z-axis 
+
+> 0.0 0.1 0.2 0.3 0.4 0.5 0.6
+> RMSE (meters)
+> 0.20 0.48 0.23 0.12 0.24 0.19 0.16 0.33 0.17 0.11 0.22 0.14
+> Depth Only Image Only Simple Concat Proposed
+
+Fig. 3: Comparison of test-set RMSE values across different methods. bounding box information leads to slight degradation, and the masked full-image input yields the largest error. This shows that target-region cropping effectively suppresses background interference, while bounding box information further provides useful spatial priors for localization. For the fusion strategy, Fig. 3 compares the proposed RAF method with three baselines: Image Only and Depth Only, which use a single modality as input, and Simple Concat, which directly concatenates high-dimensional image and depth features for regression. The proposed method achieves the lowest root mean square error (RMSE) on all three axes. In particular, compared with Image Only, the Z-axis error is reduced by about 26.3%, indicating that depth information 8 16 32 64 Latent Dim       
+
+> 0.0 0.1 0.2 0.3 0.4 0.5 0.6 0.7
+> RMSE (meters)
+> 0.16 0.15 0.16 0.16 0.58 0.58 0.57 0.55
+> Depth-Map Point-Cloud
+
+Fig. 4: Comparison of test-set RMSE across different latent dimensionalities k.Raw Preproc. Extracted Proposed       
+
+> 10 1
+> 10 2
+> 10 3
+> 10 4
+> 10 5
+> 10 6
+> 10 7
+> 10 8
+> 10 9
+> Data Volume Evolution
+> (I)22.5 GB
+> (P)209 MB
+> (Icrop )307 MB
+> (Mgeo )153 MB
+> (xn)204.5 KB
+> (zn)25.6 KB
+> Image Point-Cloud
+
+Fig. 5: Evolution of data volume across different stages of the proposed multimodal localization framework. effectively improves distance estimation. Meanwhile, Simple Concat even performs worse than Image Only on all three axes. This suggests that direct concatenation cannot fully exploit cross-modal complementarity, and modality imbalance may instead interfere with the dominant modality. These results further demonstrate the effectiveness of the proposed method. 
+
+C. The Proposed 3D Point Cloud Splatting Strategy 
+
+To validate the effectiveness of the 3DPCS strategy, we further compare the proposed depth-map-based pipeline with the point-cloud baseline under different latent dimensions. Specifically, we compare the RMSE of the two methods across various dimensions k ∈ { 8, 16 , 32 , 64 }. As illustrated in Fig. 4, our method achieves a significantly lower and more stable error TABLE II: Average Test RMSE Comparison 
+
+Noise Level Model Latent Dimension ( d)
+
+(m / σd) Type 8 16 32 64 
+
+None IB 0.1589 0.1542 0.1580 0.1595 (Original) MLP 0.1629 0.1563 0.1596 0.1570 
+
+mask size = 20 IB 0.2041 0.1820 0.1966 0.1908 mask ratio = 0 .1 MLP 0.2133 0.1908 0.2014 0.1876 
+
+mask size = 20 IB 0.2033 0.1867 0.2022 0.1923 mask ratio = 0 .2 MLP 0.2062 0.1891 0.2089 0.1897 
+
+mask size = 40 IB 0.2190 0.2084 0.2094 0.2113 
+
+mask ratio = 0 .1 MLP 0.2204 0.2094 0.2310 0.2138 mask size = 40 IB 0.2179 0.2010 0.2169 0.2081 
+
+mask ratio = 0 .2 MLP 0.2231 0.2127 0.2302 0.2150 
+
+floor regardless of the latent dimension, whereas the baseline exhibits substantially higher errors and greater sensitivity to dimensionality changes. These gains come from 3DPCS as an offline geometric preprocessing step that adds no trainable parameters or inference layers, and from its structured grid representation for local continuity and discriminative spatial features. 
+
+D. Latent Representation Efficiency 
+
+Using a fixed β, we evaluate the effect of latent dimen-sionality k and robustness to interference by comparing the IB-based scheme with an MLP regressor. Image interference is simulated by structural occlusion and depth interference by random signal loss. As shown in Table II, IB achieves lower average RMSE when k ≤ 32 , while the MLP baseline performs better at k = 64 due to its stronger fitting capacity in higher-dimensional spaces. Under noise and partial occlusion, IB remains more robust in constrained latent spaces, whereas MLP is more sensitive to interference. To evaluate efficiency for resource-constrained UAVs, Fig. 5 shows the single-modality data volume across processing stages. While the raw input is large (22.5 GB for images and 209 MB for point clouds), the EMIB-based latent representation 
+
+zn (k = 32 ) reduces it to only 25.55 KB per modality. This corresponds to a 4.4×10 5-fold reduction from the raw data and an additional 87.5% reduction from the intermediate feature xn
+
+(204.5 KB per modality). These results show that the proposal effectively removes task-irrelevant redundancy and preserves compact task-relevant features. By converting heterogeneous raw inputs into a bal-anced latent representation, the IB-based scheme enables robust and communication-efficient real-time edge deployment. VI. C ONCLUSION 
+
+In this paper, we propose PRI-Net framework integrating image semantics, depth geometry, and information bottleneck compression. Experiments show that target-region image in-put reduces background interference, while point cloud splat-ting improves depth representation and localization accuracy. Compared with unimodal baselines and conventional fusion methods, the proposed method achieves better performance on all axes, including a 26.3% reduction in Z-axis error over the image-only model. In addition, the information bottleneck improves compression efficiency and noise robustness in low-dimensional representations, reducing transmission overhead while preserving localization accuracy. These results demon-strate the framework’s potential for resource-constrained edge deployment. Future work will consider robust sensing under dynamic scenes and occlusion, and adaptive β tuning for compression under time-varying bandwidth. REFERENCES [1] Y. He, X. Li, and J. Luo, “Task-oriented integrated sensing and semantic communications for multi-device video analytics,” IEEE Trans. Mobile Comput. , vol. 25, no. 5, pp. 7323–7337, May 2026. [2] A. Barisic, M. Car, and S. Bogdan, “Vision-based system for a real-time detection and following of UAV,” in Proc. Workshop Res., Educ. Develop. Unmanned Aerial Syst. (RED UAS) , 2019, pp. 156–159. [3] Z. Bao, “The UAV target detection algorithm based on improved YOLO V8,” in Proc. Int. Conf. Image Process., Mach. Learn. Pattern Recognit. (IPMLP) , 2024, pp. 264–269. [4] Z. Zhang, “Drone-YOLO: An efficient neural network method for target detection in drone images,” Drones , vol. 7, no. 8, 2023, Art. no. 526. [5] C. R. Qi, H. Su, K. Mo, and L. J. Guibas, “PointNet: Deep learning on point sets for 3D classification and segmentation,” in Proc. IEEE Conf. Comput. Vis. Pattern Recognit. (CVPR) , 2017, pp. 652–660. [6] C. R. Qi, L. Yi, H. Su, and L. J. Guibas, “PointNet++: Deep hierarchical feature learning on point sets in a metric space,” in Proc. Adv. Neural Inf. Process. Syst. (NeurIPS) , 2017, pp. 5099–5108. [7] Q. Zhou and C. Yu, “Point RCNN: An angle-free framework for rotated object detection,” Remote Sens. , vol. 14, no. 11, 2022, Art. no. 2605. [8] Z. Ye, Q. Xiao, J. Liu, Y. He, G. Yu, and J. Han, “Practical WiFi indoor localization: Unleashing the potential of GNNs for accuracy and robustness,” IEEE Trans. Mobile Comput. , vol. 25, no. 5, pp. 7131–7148, May 2026. [9] Q. Xiao, Z. Ye, Y. He, J. Liu, and G. Yu, “Meta-SimGNN: Adaptive and robust WiFi localization across dynamic configurations and diverse scenarios,” IEEE Trans. Commun. , vol. 74, pp. 1732–1746, 2026. [10] X. Chen, H. Ma, J. Wan, B. Li, and T. Xia, “Multi-view 3D object detection network for autonomous driving,” in Proc. IEEE Conf. Comput. Vis. Pattern Recognit. (CVPR) , 2017, pp. 1907–1915. [11] S. Vora, A. H. Lang, B. Helou, and O. Beijbom, “PointPainting: Sequen-tial fusion for 3D object detection,” in Proc. IEEE/CVF Conf. Comput. Vis. Pattern Recognit. (CVPR) , 2020, pp. 4604–4612. [12] Z. Liu, H. Tang, A. Amini, X. Yang, H. Mao, D. L. Rus, and S. Han, “BEVFusion: Multi-task multi-sensor fusion with unified bird’s-eye view representation,” in Proc. IEEE Int. Conf. Robot. Autom. (ICRA) , 2023, pp. 2774–2781. [13] N. Tishby, F. C. Pereira, and W. Bialek, “The information bottleneck method,” in Proc. 37th Annu. Allerton Conf. Commun., Control, Comput. ,1999, pp. 368–377. [14] A. A. Alemi, I. Fischer, J. V. Dillon, and K. Murphy, “Deep variational information bottleneck,” in Proc. Int. Conf. Learn. Represent. (ICLR) ,2017. [15] S. Mai, Y. Zeng, and H. Hu, “Multimodal information bottleneck: Learning minimal sufficient unimodal and multimodal representations,” 
+
+IEEE Trans. Multimedia , vol. 25, pp. 4121–4134, 2023. [16] C. Mei and P. Rives, “Single view point omnidirectional camera calibra-tion from planar grids,” in Proc. IEEE Int. Conf. Robot. Autom. (ICRA) ,2007, pp. 3945–3950. [17] F. Jin, C.-H. Lin, and C. Lai, “Profiles of ESL postgraduate students’ use of artificial intelligence in writing: Antecedents and outcomes,” 
+
+Computers & Education , vol. 253, pp. 1–17, Nov. 2026. [18] S. Yuan, Y. Yang, T. H. Nguyen, T.-M. Nguyen, J. Yang, F. Liu, J. Li, H. Wang, and L. Xie, “MMAUD: A comprehensive multi-modal anti-UAV dataset for modern miniature drone threats,” in Proc. IEEE Int. Conf. Robot. Autom. (ICRA) , 2024, pp. 2745–2751. [19] D. P. Kingma and J. Ba, “Adam: A method for stochastic optimization,” in Proc. Int. Conf. Learn. Represent. (ICLR) , 2015.
