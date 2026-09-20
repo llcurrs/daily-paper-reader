@@ -6,30 +6,24 @@
 </div>
 
 ## 每次日报
-- 最新运行日期：2026-09-19
-- 运行时间：2026-09-19 21:13:22 UTC
+- 最新运行日期：2026-09-20
+- 运行时间：2026-09-20 21:49:53 UTC
 - 运行状态：成功
-- 本次总论文数：3
+- 本次总论文数：1
 - 精读区：0
-- 速读区：3
+- 速读区：1
 
 ### 今日简报（AI）
-今日速读3篇多模态AI论文，聚焦情感识别、无人机定位与不确定性仲裁。最值得关注的是《Affect-Prototype Guided Fusion》提出的开放词汇不完整多模态情感识别方法（7.0分），以及PRI-Net用轻量框架实现3D无人机定位（6.0分）。普通读者可优先了解情感识别中的原型融合思路，再按兴趣跟进其余两篇。
-- 详情：[/202609/19/README](/202609/19/README)
+今日速读1篇机械多模态时序故障检测论文，精读挂零。唯一值得关注的是《Robust Fault Detection in Mechanical Multimodal Time Series via Self-Supervised Cross-Modal Reconstruction》（6.0/10），其自监督跨模态重建思路对多传感器故障检测有参考价值。普通读者可先看摘要判断是否与自身场景相关，无需急于深挖。
+- 详情：[/202609/20/README](/202609/20/README)
 
 ### 精读区论文标签
 - 本次无精读推荐。
 
 ### 速读区论文标签
-1. [Affect-Prototype Guided Fusion for Open-Vocabulary Incomplete Multi-modal Emotion Recognition](/202609/19/2609.16962v1-affect-prototype-guided-fusion-for-open-vocabulary-incomplete-multi-modal-emotion-recognition)  
-   标签：评分：7.0/10、query:multi-modal
-   evidence：模态缺失条件下的不完整多模态融合
-2. [PRI-Net: A Lightweight Multimodal Framework for 3D UAV Localization](/202609/19/2609.14469v1-pri-net-a-lightweight-multimodal-framework-for-3d-uav-localization)  
+1. [Robust Fault Detection in Mechanical Multimodal Time Series via Self-Supervised Cross-Modal Reconstruction](/202609/20/2609.16314v1-robust-fault-detection-in-mechanical-multimodal-time-series-via-self-supervised-cross-modal-reconstruction)  
    标签：评分：6.0/10、query:multi-modal
-   evidence：面向无人机定位的轻量多模态融合,处理模态不平衡
-3. [Sensory Precision Inference for Multimodal Arbitration under Uncertainty](/202609/19/2609.15065v1-sensory-precision-inference-for-multimodal-arbitration-under-uncertainty)  
-   标签：评分：6.0/10、query:multi-modal
-   evidence：面向缺失数据与模态不一致的多模态仲裁
+   evidence：面向多模态时间序列的自监督跨模态重建
 
 
 <div class="dpr-home-promo-card">
