@@ -6,24 +6,30 @@
 </div>
 
 ## 每次日报
-- 最新运行日期：2026-09-20
-- 运行时间：2026-09-20 21:49:53 UTC
+- 最新运行日期：2026-09-21
+- 运行时间：2026-09-21 22:11:12 UTC
 - 运行状态：成功
-- 本次总论文数：1
+- 本次总论文数：3
 - 精读区：0
-- 速读区：1
+- 速读区：3
 
 ### 今日简报（AI）
-今日速读1篇机械多模态时序故障检测论文，精读挂零。唯一值得关注的是《Robust Fault Detection in Mechanical Multimodal Time Series via Self-Supervised Cross-Modal Reconstruction》（6.0/10），其自监督跨模态重建思路对多传感器故障检测有参考价值。普通读者可先看摘要判断是否与自身场景相关，无需急于深挖。
-- 详情：[/202609/20/README](/202609/20/README)
+今日精选3篇速读，聚焦生成式AI多摄像头行人重识别、弱对齐可见光-红外目标检测与免训练3D点云适配，暂无精读。最值得看的是多模态融合与免训练适配两条线，均获6.0分，兼顾低延迟与标签效率。普通读者可优先浏览生成式AI行人重识别一文，了解多摄像头实时识别的最新思路。
+- 详情：[/202609/21/README](/202609/21/README)
 
 ### 精读区论文标签
 - 本次无精读推荐。
 
 ### 速读区论文标签
-1. [Robust Fault Detection in Mechanical Multimodal Time Series via Self-Supervised Cross-Modal Reconstruction](/202609/20/2609.16314v1-robust-fault-detection-in-mechanical-multimodal-time-series-via-self-supervised-cross-modal-reconstruction)  
+1. [A Generative AI Integrated Multimodal Framework for Low-Latency Multi-Camera Person Re-Identification](/202609/21/2609.14419v1-a-generative-ai-integrated-multimodal-framework-for-low-latency-multi-camera-person-re-identification)  
    标签：评分：6.0/10、query:multi-modal
-   evidence：面向多模态时间序列的自监督跨模态重建
+   evidence：面向缺失线索鲁棒的多模态框架
+2. [Aligned Consensus Teaching for Label-Efficient Oriented Object Detection in Weakly-Aligned Visible-Infrared Imagery](/202609/21/2609.18124v1-aligned-consensus-teaching-for-label-efficient-oriented-object-detection-in-weakly-aligned-visible-infrared-imagery)  
+   标签：评分：6.0/10、query:multi-modal
+   evidence：遥感可见光-红外跨模态融合检测
+3. [Refine Then Fusion: Training-Free 3D Point Cloud Adaptation with Priority Refinement and Multi-Modal Knowledge Fusion](/202609/21/2609.21522v1-refine-then-fusion-training-free-3d-point-cloud-adaptation-with-priority-refinement-and-multi-modal-knowledge-fusion)  
+   标签：评分：6.0/10、query:multi-modal
+   evidence：多模态知识融合并考虑样本级模态可靠性
 
 
 <div class="dpr-home-promo-card">
