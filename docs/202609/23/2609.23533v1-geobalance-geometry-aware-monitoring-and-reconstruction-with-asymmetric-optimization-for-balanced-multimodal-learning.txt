@@ -1,0 +1,845 @@
+Title: GeoBalance: Geometry-Aware Monitoring and Reconstruction with Asymmetric Optimization for Balanced Multimodal Learning
+
+URL Source: https://arxiv.org/pdf/2609.23533v1
+
+Published Time: Tue, 22 Sep 2026 01:28:30 GMT
+
+Number of Pages: 13
+
+Markdown Content:
+PREPRINT 1
+
+# GeoBalance: Geometry-Aware Monitoring and Reconstruction with Asymmetric Optimization for Balanced Multimodal Learning 
+
+Zechang Xiong, Da Li, Rong Yin, Kexin Tang, Biao Yang, Pengyuan Li, Wenkang Kong, Yulan Hu, Shengyu Zhu, and Hao Peng 
+
+Abstract —Multimodal classifiers can converge to modality-dominant solutions in which one modality dominates the joint prediction, suppressing the learning of others. Existing balancing methods mainly adjust losses, gradients, or modality contributions, largely treating modality imbalance as an optimization problem while implicitly treating the weak modality as under-optimized but representationally intact. In this work, we find that this assumption does not always hold, as persistent modality dominance can induce a representation-level collapse of the weak modality, which we term manifold modality collapse (MMC). MMC manifests as a coupled geometric degradation in which weak-modality represen-tations collapse onto fewer directions within each class and become less separable across classes. Motivated by this observation, we propose GeoBalance , a geometry-aware framework that monitors these two geometric properties and reconstructs the weak modality representation only when it exhibits signs of MMC. Once triggered, GeoBalance uses a fixed Simplex-ETF class scaffold and spectral regularization to restore class separation while preventing collapse onto a few feature directions. To preserve reconstruction during joint training, asymmetric gradient projection removes the joint-gradient component conflicting with reconstruction, leaving non-conflicting optimization unchanged. Extensive experiments across six multimodal benchmarks demonstrate great improvements over competitive balancing methods, validating its effectiveness. 
+
+Index Terms —Modality Imbalance, Multimodal Learning, Neural Collapse, Representation Geometry. 
+
+I. I NTRODUCTION 
+
+# MULTIMODAL learning aims to exploit complementary evidence from multiple modalities so that a model can resolve ambiguities that cannot be reliably addressed by any individual modality [1]–[3]. However, complementarity does not arise from fusion alone. It also requires each modality branch to preserve information that remains useful to the joint prediction [4]. In practice, modalities often differ substantially in signal quality, task relevance, and optimization difficulty. A modality with cleaner or more task-aligned features can reduce the joint loss more rapidly, steer the fused predictor, and 
+
+Zechang Xiong, Rong Yin, and Hao Peng are with Beihang University, Beijing, China. Da Li and Shengyu Zhu are with the Institute of Computing Technology, Chinese Academy of Sciences, Beijing, China. Kexin Tang is with Amap, Alibaba Group, Beijing, China. Biao Yang is with Kuaishou Technology, Beijing, China. Pengyuan Li and Wenkang Kong are with Beijing Jiaotong University, Beijing, China. Yulan Hu is with Renmin University of China, Beijing, China. Zechang Xiong and Da Li contributed equally to this work. Corresponding author: Rong Yin (yinrong@buaa.edu.cn). This work has been submitted to the IEEE for possible publication. Copyright may be transferred without notice, after which this version may no longer be accessible. 1 2 3 4 5 6 7 8 9 10 
+
+> Singular Value Index
+> 0.00 0.05 0.10 0.15 0.20 0.25 0.30 0.35
+> Normalized Energy
+> Better feature spread (Mitigating collapse)
+> Joint training Ours
+
+Fig. 1. Normalized singular-value energy of weak-modality representations after training. Joint training concentrates most of the feature energy in a few leading components, whereas GeoBalance produces a broader spectrum with more distributed energy. This spectral concentration reflects reduced effective dimensionality; MMC is diagnosed only when it is accompanied by degraded class separability. 
+
+progressively suppress the learning of weaker modalities [5]– [8]. This phenomenon, commonly referred to as modality dominance , may remain obscured by competitive multimodal accuracy: the fused classifier can perform well on the standard test distribution while relying disproportionately on a single modality. Such modality-dominant learning obtains limited benefit from multimodal complementarity and can become brittle when the dominant modality is corrupted, missing, or inconsistent with the remaining inputs [9], [10]. For incomplete multimodal inputs, separating shared and modality-specific features also supports missing-modality recovery [11]. Most existing balancing methods formulate modality domi-nance primarily as an optimization-allocation problem. They adjust gradient magnitudes [6], [12], reshape losses or classifier interactions [13], [14], alternate modality-specific learning phases [15], or coordinate modality objectives explicitly [16]. Although these approaches differ in implementation, they largely share an implicit premise: the weak modality is insuffi-ciently optimized, but its representation remains structurally usable. Under this premise, assigning the weak modality a stronger, better-timed, or more independent optimization signal should allow it to catch up with the dominant modality. This view is appropriate when the weak modality is merely arXiv:2609.23533v1 [cs.CV] 20 Sep 2026 PREPRINT 2
+
+learning more slowly. It becomes incomplete, however, when persistent dominance changes not only the amount of learning received by the weak modality, but also the geometry of the representation being learned. Once the representation itself has deteriorated, increasing its loss or gradient does not specify which discriminative structure should be restored and may continue to optimize a restricted set of cues on an already degenerated feature manifold. In this work, we identify such a representation-level failure mode. As illustrated in Figure 1, persistent modality dominance can concentrate the energy of weak-modality representations along a small number of feature directions. Such spectral concentration is not inherently harmful, because task-relevant information may naturally lie on a compact manifold. The failure becomes consequential when this loss of effective directions is accompanied by reduced class separability: within-class representations become confined to a narrow subspace, while different classes become less distinguishable relative to their internal dispersion. We term this coupled degradation 
+
+manifold modality collapse (MMC). MMC therefore describes a loss of usable class-conditional geometry rather than merely a low-rank representation. MMC reveals that modality imbalance is not always a static difference in optimization progress. A weak modality may remain geometrically healthy during early training and still contribute useful complementary evidence, yet gradually lose this capacity as the joint predictor becomes increasingly dependent on the dominant modality. Once this transition occurs, simply assigning the weak modality a larger loss or gradient does not specify how its missing discriminative structure should be recovered. Conversely, imposing a fixed geometric constraint throughout training may interfere with useful cross-modal co-adaptation before any collapse has emerged. The goal of balancing should therefore not be to force modalities to remain equally strong at every stage of training, but to distinguish a weak yet usable representation from one whose geometry has become unable to support a meaningful contribution to the joint prediction. Guided by this view, we propose GeoBalance , a geometry-aware framework organized as a monitor-reconstruct-project process. GeoBalance first monitors within-class non-degeneracy and class separability relative to a healthy training reference, and activates reconstruction only when both properties de-teriorate. Once activated, a fixed Simplex equiangular tight frame (ETF) provides a class-level scaffold for restoring class separability, while spectral regularization prevents the weak-modality representation from concentrating along only a few feature directions. Because the fused objective may continue to favor the dominant modality during this reconstruction, GeoBalance further compares the joint gradient with the reconstruction gradient on their shared parameters. When the two gradients conflict, an asymmetric projection removes only the conflicting component of the joint gradient, while retaining its aligned component and leaving the reconstruction gradient unchanged. The resulting intervention is selective in both training time and gradient space, and all auxiliary modules are removed after training. Across six multimodal benchmarks, GeoBalance consistently improves over competitive balancing methods under end-to-end trainable settings. Our main contributions are summarized as follows:  
+
+> •
+
+We identify manifold modality collapse , a representation-level failure characterized by the coupled degradation of within-class effective dimensionality and class separability, revealing that modality imbalance can involve structural deterioration rather than merely insufficient optimization.  
+
+> •
+
+We develop GeoBalance to formulate modality balancing as a state-conditioned monitor-reconstruct-project process that distinguishes weak but usable representations from ac-tual collapse, intervenes only when necessary, and protects reconstruction when it conflicts with joint optimization.  
+
+> •
+
+We conduct extensive experiments across six multimodal benchmarks, demonstrating that GeoBalance achieves superior average predictive performance while restoring healthier weak-modality geometry, validating its effective-ness across diverse multimodal settings. II. R ELATED WORK 
+
+A. Multimodal Representation Learning 
+
+Multimodal representation learning seeks to encode hetero-geneous observations while retaining both shared semantics and modality-specific evidence. Early deep models learned coordinated latent spaces through cross-modal reconstruc-tion [17], and attention-based architectures later modeled interactions among temporally unaligned streams [18]. Large-scale contrastive pretraining established transferable image– text spaces [19], while ImageBind extended the shared-space paradigm to six sensory modalities [20]. Task-oriented studies have further improved latent fusion, multimodal sentiment representations, and task-aware multimodal clustering [1], [3], [21]. Other approaches explicitly factor modality-invariant and modality-specific components [22] or alternate unimodal adaptation to retain branch-specific competence [15]. These methods primarily optimize cross-modal correspondence or the quality of the fused representation. They do not necessarily ensure that every modality branch preserves usable class-conditional geometry throughout joint optimization. GeoBal-ance addresses this complementary problem by monitoring the weak modality itself and reconstructing its discriminative geometry only after within-class non-degeneracy and class separability jointly deteriorate. 
+
+B. Balanced Multimodal Learning 
+
+Early analyses showed that multimodal classifiers are difficult to optimize because modalities learn at different rates and compete through the fused objective [5], [7], [23]. A first line of work consequently modifies optimization signals: G-Blending and OGM-GE rebalance modality gradients [5], [6], AGM adapts their strength according to modality-specific learning status [12], and MMCosine changes classifier geometry in fine-grained audio-visual learning [13]. A second line supplies additional supervision to under-optimized modalities. PMR uses class prototypes [14], while PSL transfers discriminative guidance between modalities through prototype swapping [24]. Alternating unimodal adaptation separates modality-specific PREPRINT 3                                                
+
+> TABLE I CORE NOTATION . A SUPERSCRIPT (m)DENOTES MODALITY m,THE SUPERSCRIPT ⋆DENOTES THE PREIDENTIFIED WEAK MODALITY ,A HAT DENOTES A MINIBATCH ESTIMATE ,AND AN OVERBAR DENOTES ITS EXPONENTIAL MOVING AVERAGE .Symbol Meaning Symbol Meaning
+> z(m)
+> iRepresentation of modality mfor sample i.m⋆,z⋆iWeak-modality index and corresponding repre-sentation.
+> Σ(m)wWithin-class scatter of modality m.Σ(m)bBetween-class scatter of modality m.
+> D(m)Within-class non-degeneracy measured by effec-tive dimension.
+> S(m)Class separability measured by a Fisher-style trace ratio.
+> C,ckFixed ETF prototype matrix and prototype of class k.
+> g⋆,u⋆iTraining-only projection head and projected weak representation.
+> ItBinary collapse gate at training iteration t.Ljoint Cross-entropy loss of the fused classifier.
+> L⋆
+> ETF ETF class-reconstruction loss. L⋆
+> spec Spectral non-degeneracy loss.
+> L⋆
+> geo Complete weak-modality geometry loss. θsh Parameters reached by both joint and geometry objectives.
+> gJ,gGJoint and geometry gradients on θsh .Πt,gsh Asymmetric projection operator and effective shared gradient.
+
+learning phases [15], and Relearning and ReconBoost introduce targeted relearning or reconstruction [25], [26]. Sample-level valuation and multi-objective coordination further account for heterogeneous modality contributions [16], [27]. Recent work broadens the target beyond equalizing update magnitudes [28]. InfoReg regulates information acquisition during an early learning window [29], while information-theoretic studies further characterize imbalance through the retention of complementary information during multimodal fusion [30]. DGL separates encoder and fusion gradients [31], while RGM jointly models modality imbalance and gradient conflict through gradient-space modulation [32]. CMoB and TCMax characterize causal or total-correlation information [33], [34]. PDMP instead prioritizes the performance-dominant modality in regimes where strict balance is suboptimal [35]. GeoBalance provides a complementary representation-level perspective: it does not force equal modality strength, but preserves a minimum usable geometry for the weak modality and intervenes only after that geometry deteriorates. 
+
+C. Representation Geometry and Neural Collapse 
+
+Neural collapse (NC) describes a terminal-phase geometry in which within-class variation contracts, class means approach a Simplex equiangular tight frame, and classifier weights align with those means [36]. Unconstrained-feature analyses characterize the geometric landscape underlying this phe-nomenon [37], while NC-inspired objectives have been applied to imbalanced and transfer settings [38], [39]. GeoBalance does not treat NC as the desired terminal state of every modality. Instead, it borrows the class-symmetric ETF scaffold as a training-only target for a weak branch whose discriminative structure has already deteriorated, and combines it with spectral non-degeneracy to avoid replacing MMC with another low-dimensional solution. III. P RELIMINARIES 
+
+A. Problem Setup 
+
+Let i ∈ { 1, . . . , N } index a sample, m ∈ { 1, . . . , M } index a modality, and k ∈ { 1, . . . , K } index a class. We consider a supervised dataset D = {(xi, y i)}Ni=1 containing N labeled samples from K classes and M modalities. For sample i,
+
+xi denotes the complete multimodal input, x(m) 
+
+> i
+
+denotes its observation from modality m, and yi ∈ { 1, . . . , K } denotes its ground-truth class label: 
+
+xi = {x(m) 
+
+> i
+
+}Mm=1 . (1) For modality m, Xm denotes its raw input space and fm :
+
+Xm → Rdm denotes its encoder. The encoder maps x(m) 
+
+> i
+
+to the modality-specific representation 
+
+z(m) 
+
+> i
+
+= fm(x(m) 
+
+> i
+
+) ∈ Rdm , (2) where dm is the representation dimension. A fusion module 
+
+ϕ combines the M modality representations, and a classifier 
+
+h maps the fused representation to K class scores. Standard joint training minimizes the average cross-entropy loss 
+
+Ljoint = 1
+
+N
+
+> N
+
+X
+
+> i=1
+
+CE 
+
+
+
+h
+
+
+
+ϕ({z(m) 
+
+> i
+
+}Mm=1 )
+
+
+
+, y i
+
+
+
+, (3) where CE( ·, ·) denotes cross entropy. Before joint training, each modality is trained individually under the same setting. The modality with the lowest training performance is designated the weak modality ; its modality index is denoted by m⋆. For sample i, the corresponding weak-modality representation is abbreviated as 
+
+z⋆i = z(m⋆) 
+
+> i
+
+∈ Rd⋆ , d⋆ = dm⋆ . (4) The designation is fixed before joint training and is relative to the dataset. 
+
+B. Geometric Health 
+
+Optimization statistics describe how a modality influences the training objective, but do not establish whether its repre-sentation remains usable for classification. We characterize the 
+
+geometric health of modality m through two complementary properties. Within-class non-degeneracy measures how many independent directions are used by class-centered variation. 
+
+Class separability measures how far class means are separated relative to within-class dispersion. A representation may use PREPRINT 4
+
+many directions without arranging classes discriminatively, or may separate class means using only a narrow set of directions; both properties are therefore required. Let y denote the random class label of a sampled example, and let Z(m) denote the random representation obtained by encoding modality m of that example. For class k, πk =Pr( y = k) denotes its prior probability and 
+
+μ(m) 
+
+> k
+
+= E[Z(m) | y = k] (5) denotes its class-conditional mean. The global mean of modality 
+
+m is μ(m) = PKk=1 πkμ(m) 
+
+> k
+
+. Using (·)⊤ for transpose, the within-class and between-class scatter matrices are 
+
+Σ(m)w =
+
+> K
+
+X
+
+> k=1
+
+πkE
+
+h
+
+(Z(m) − μ(m) 
+
+> k
+
+)( Z(m) − μ(m) 
+
+> k
+
+)⊤ | y = k
+
+i
+
+,
+
+Σ(m)b =
+
+> K
+
+X
+
+> k=1
+
+πk(μ(m) 
+
+> k
+
+− μ(m))( μ(m) 
+
+> k
+
+− μ(m))⊤. (6) 
+
+Definition 1 (Within-class non-degeneracy) . Let S be a positive semidefinite matrix and let tr( S) denote its trace. Its effective dimension is measured by the participation ratio 
+
+deff (S) = tr( S)2
+
+tr( S2) + ϵ , (7) where ϵ > 0 prevents numerical division by zero. The within-class non-degeneracy of modality m is 
+
+D(m) = deff 
+
+
+
+Σ(m)w
+
+
+
+. (8) A larger D(m) means that class-centered variation is distributed across more active directions. Because the participation ratio is invariant to uniform rescaling, within-class contraction alone does not reduce D(m); the value decreases when energy becomes concentrated in fewer directions. 
+
+Definition 2 (Class separability) . The class separability of modality m is measured by the Fisher-style trace ratio 
+
+S(m) = tr( Σ(m)b )tr( Σ(m)w ) + ϵ . (9) A larger S(m) means that class means are farther apart relative to within-class dispersion. 
+
+Manifold modality collapse. We use manifold modality collapse to describe a coupled degradation of the weak modality’s class-conditional geometry during joint training. Relative to an earlier reference state of the same branch, MMC is characterized by a simultaneous decrease in within-class effective dimensionality D(m⋆) and class separability S(m⋆).The conjunction is essential: a low-dimensional representation can remain discriminative when its classes are well separated, whereas poor class separation alone does not necessarily imply dimensional collapse. We therefore regard neither quantity as an independent indicator of MMC. The population-level quantities in Equations (8) and (9) characterize the two aspects of MMC. In Section IV-B, we introduce their minibatch estimators and a reference-based criterion for detecting this coupled degradation during training. 
+
+C. Simplex ETF 
+
+Once class separability deteriorates, the joint loss can continue decreasing through the dominant modality and need not provide a reliable class-level target for the weak modality. We therefore use a fixed, class-symmetric scaffold that is independent of the dominant-modality representation. Let de
+
+denote the dimension of an auxiliary space and let 
+
+C = [ c1, . . . , cK ] ∈ Rde×K , de ≥ K − 1, (10) where ck is the unit-norm prototype assigned to class k. A Simplex equiangular tight frame satisfies 
+
+C⊤C = KK − 1
+
+
+
+IK − 1
+
+K 11 ⊤
+
+
+
+, (11) where IK is the K × K identity matrix and 1 is the K-dimensional all-ones vector. Consequently, c⊤ 
+
+> k
+
+ck′ = −1/(K −
+
+1) for any two distinct classes k̸ = k′. This equal-angle configuration provides a simple target for class separation. IV. M ETHOD 
+
+A. Overview 
+
+Modality imbalance is not merely an optimization imbalance: during joint training, the weak modality can progressively lose both within-class non-degeneracy and class separability, leaving its representation geometrically degraded even when the fused objective continues to improve. To address this problem, we propose GeoBalance , a monitor-reconstruct-project framework, as illustrated in Figure 2. The monitor estimates within-class effective dimensionality and class separability from detached minibatch features and compares their smoothed values with early-training references. When both signals fall below their reference thresholds, the collapse gate activates weak-modality reconstruction, which combines a fixed ETF target for class separability with spectral regularization against directional concentration. If the joint gradient conflicts with the geometry gradient, asymmetric projection removes only the conflicting component of the joint gradient while preserving the reconstruc-tion direction. When the gate is inactive, the parameter update reduces to standard joint training. All auxiliary components are used only during training and are removed at inference. 
+
+B. Online Collapse Monitoring 
+
+Since the weak modality can still develop useful structure during early joint training, imposing reconstruction from the outset may unnecessarily constrain normal representation learning. GeoBalance therefore monitors within-class effective dimensionality and class separability online, and activates reconstruction only when both deteriorate relative to an early-training reference. The statistics are computed from detached features so that monitoring itself does not affect optimization. At training iteration t, let Bt denote a minibatch containing B
+
+samples, and let Yt denote the set of class labels represented in that minibatch. For class k ∈ Y t, let Bt,k = {i ∈ B t : yi = k}
+
+be the class-k subset, nk,t = |B t,k | its number of samples, and PREPRINT 5Image Audio 
+
+> Encoder  Encoder
+
+Multimodal training framework 
+
+Text 
+
+> Encoder
+> Fusion
+> Classifier
+
+Online Collapse Monitoring Asymmetric Gradient Projection 
+
+Every store, every SKU, we’re .. ... 
+
+Within-Class Non-degeneracy 
+
+Healthy Collapse 
+
+D
+
+> Fewer within-class directions
+
+Class Separability 
+
+Separated Overlapping 
+
+S
+
+> Lower class separability
+
+D * < τ D AND S * < τ S
+
+Warm-up Reference 
+
+(a) ETF Class Reconstruction (b) Spectral Regularization  
+
+> Fixed ETF targets Variance + covariance
+
+Weak-Modality Reconstruction 
+
+Conflict After Projection 
+
+gjoint 
+
+ggeom 
+
+gjoint gjoint ′
+
+ggeom 
+
+gjoint  
+
+> T
+
+ggeom < 0 gjoint ′ T ggeom = 0 
+
+ggeom 
+
+Dref 
+
+Sref   
+
+> Separate classes Decorrelation
+> Fig. 2. Overview of GeoBalance. Detached weak-modality representations yield minibatch estimates of within-class effective dimensionality and class separability, which are smoothed and compared with early-training references. The collapse gate activates reconstruction only when both signals fall below their thresholds. ETF reconstruction supplies a class-symmetric target, spectral regularization counters directional concentration, and asymmetric gradient projection prevents a conflicting joint update from undoing reconstruction.
+
+pk,t = nk,t /B its minibatch proportion. The weak-modality class mean and overall minibatch mean are 
+
+bμ⋆k,t = 1
+
+nk,t 
+
+X
+
+> i∈B t,k
+
+z⋆i , bμ⋆t = X
+
+> k∈Y t
+
+pk,t bμ⋆k,t , (12) where a hat denotes a quantity estimated from the current minibatch. We class-center each weak-modality representation and apply stopgrad( ·), which returns its input during the forward pass but blocks its gradient: 
+
+ez⋆i = stopgrad  z⋆i − bμ⋆yi,t 
+
+ . (13) Let eZ⋆t ∈ RB×d⋆ be the matrix obtained by stacking the B
+
+centered row vectors. Instead of constructing a d⋆ × d⋆ feature scatter, we form the B × B Gram matrix 
+
+G⋆t = eZ⋆t eZ⋆⊤ 
+
+> t
+
+. (14) The Gram matrix and the corresponding feature scatter share the same nonzero eigenvalues. The minibatch estimate of within-class non-degeneracy is therefore 
+
+bD⋆t = deff (G⋆t ). (15) Class separability is estimated without explicitly constructing the population scatter matrices. Let bT ⋆ 
+
+> b,t
+
+and bT ⋆ 
+
+> w,t
+
+denote the minibatch between-class and within-class trace terms: 
+
+bT ⋆ 
+
+> b,t
+
+= X
+
+> k∈Y t
+
+pk,t bμ⋆k,t − bμ⋆t 
+
+> 22
+
+,
+
+bT ⋆ 
+
+> w,t
+
+= X
+
+> k∈Y t
+
+pk,t 
+
+nk,t 
+
+X
+
+> i∈B t,k
+
+z⋆i − bμ⋆k,t  
+
+> 22
+
+. (16) The minibatch estimate of class separability is 
+
+bS⋆t =
+
+bT ⋆
+
+> b,t
+
+bT ⋆ 
+
+> w,t
+
++ ϵ . (17) The weights pk,t make the two trace estimates consistent with the empirical class proportions in the minibatch; the smoothing step below mitigates the remaining batch-to-batch fluctuations. Because the two estimates are noisy at minibatch scale, we smooth them with an exponential moving average (EMA). Let 
+
+ρ ∈ [0 , 1) denote the EMA smoothing factor and let an overbar denote an EMA-smoothed quantity: 
+
+D⋆t = ρD ⋆t−1 + (1 − ρ) bD⋆t ,
+
+S⋆t = ρS⋆t−1 + (1 − ρ) bS⋆t . (18) Each EMA state is initialized with its first minibatch estimate. During the first T0 iterations, where T0 denotes the warm-up length, we collect the reference values 
+
+Dref = median 1≤s≤T0 D⋆s , Sref = median 1≤s≤T0 S⋆s ,
+
+(19) where s indexes the warm-up iterations. Let η ∈ (0 , 1) denote a relative threshold ratio. The resulting thresholds are τD =
+
+ηD ref and τS = ηSref . The binary collapse gate is 
+
+It = 1
+
+h
+
+D⋆t < τ D ∧ S ⋆t < τ S
+
+i
+
+, (20) where 1[·] is the indicator function. A larger η places the thresh-olds closer to the warm-up references and makes the monitor more sensitive; a smaller η requires a larger deterioration and is more conservative. 
+
+C. Weak-Modality Reconstruction 
+
+The monitor identifies when the coupled degradation criterion is met, but it does not provide a target for improving the weak-modality representation. We therefore use two complementary PREPRINT 6
+
+surrogate objectives: ETF reconstruction supplies a class-symmetric target for class separability, whereas spectral regu-larization discourages projected variation from concentrating in a few directions. Together, they address the two symptoms of MMC without forcing the weak modality to imitate the dominant-modality representation. 
+
+ETF reconstruction. Let g⋆ : Rd⋆ → Rde denote a lightweight training-only projection head. It maps the weak-modality representation z⋆i to 
+
+u⋆i = g⋆(z⋆i ) ∈ Rde , (21) where de = max( d⋆, K − 1) in our implementation. The fixed prototype matrix C is defined in Equation (11). For sample i,the K-dimensional cosine-logit vector is 
+
+ℓ⋆i = s⋆C⊤ u⋆i
+
+∥u⋆i ∥2 + ϵ , (22) where s⋆ > 0 is a learnable logit scale initialized to 10 . The ETF reconstruction loss is 
+
+L⋆ 
+
+> ETF
+
+= 1
+
+B
+
+X
+
+> i∈B t
+
+CE( ℓ⋆i , y i). (23) The fixed prototypes provide a modality-independent class target. They constrain class directions in the auxiliary space but do not prescribe the complete distribution of the weak-modality representation. 
+
+Spectral regularization. The ETF aims to align class directions while still relying on only a few active dimensions, so preventing dimensional collapse requires more than this measure. Let U⋆t ∈ RB×de stack the B projected representa-tions in the minibatch. Let u⋆t = B−1 P 
+
+> i∈B t
+
+u⋆i be their mean and U⋆c,t = U⋆t − 1u ⋆⊤ 
+
+> t
+
+their centered matrix. For auxiliary dimension j ∈ { 1, . . . , d e}, let σj,t denote the minibatch standard deviation of that dimension. The covariance matrix is 
+
+Q⋆t = 1
+
+B − 1 U⋆⊤ 
+
+> c,t
+
+U⋆c,t . (24) For covariance indices p and q, let Q⋆t,pq denote entry (p, q )
+
+of this matrix. Following variance-covariance anti-collapse regularization [40], we define the spectral loss as 
+
+L⋆ 
+
+> spec
+
+= 1
+
+dedeX
+
+> j=1
+
+max(0 , γ − σj,t ) + 1
+
+de(de − 1) 
+
+X
+
+> p̸=q
+
+(Q⋆t,pq )2,
+
+(25) where γ = 1 is a fixed variance floor. The first term prevents projected dimensions from becoming inactive, whereas the second discourages redundant correlations. Accordingly, L⋆
+
+> spec
+
+is a tractable anti-collapse surrogate rather than a second definition or direct estimator of D(m⋆), whose population form remains defined only in Equation (8). The complete weak-modality geometry loss is 
+
+L⋆ 
+
+> geo
+
+= L⋆ 
+
+> ETF
+
++ L⋆
+
+> spec
+
+. (26) The ETF loss is averaged over the minibatch, and the spectral penalties are normalized by de; we therefore combine the two terms with unit coefficients. The collapse gate multiplies the complete geometry loss in Equation (31), avoiding separate activation schedules for the two terms. 
+
+D. Asymmetric Gradient Projection 
+
+Weak-modality reconstruction can be ineffective when the joint update on shared parameters repeatedly moves against the geometry objective. Symmetrically modifying both objectives would also weaken the direction specifically introduced to reconstruct the weak modality. We therefore project only the conflicting component of the joint gradient and leave the geometry gradient unchanged. Let θsh denote the subset of parameters reached by both 
+
+Ljoint and L⋆
+
+> geo
+
+. These parameters include the trainable weak-modality encoder or adapter and any upstream module through which both losses backpropagate; the modality encoders need not share weights. The joint and geometry gradients on this parameter subset are 
+
+gJ = ∇θsh Ljoint , gG = ∇θsh L⋆
+
+> geo
+
+. (27) The inner product ⟨gJ , gG⟩ is negative when the two descent objectives conflict to first order. We therefore define the gated projection operator to selectively correct the joint gradient: 
+
+Πt(gJ ; gG) = gJ − It
+
+min {⟨ gJ , gG⟩, 0}∥gG∥22 + ϵ gG. (28) The effective gradient used to update θsh is 
+
+gsh = Π t(gJ ; gG) + ItgG. (29) When the gate is inactive or the gradients agree, the projection is the identity. When the gate is active and the gradients conflict, only the component of gJ opposing gG is removed. 
+
+Proposition 3. Suppose It = 1 and ⟨gJ , gG⟩ < 0. Ignoring the numerical constant ϵ, the first term in Equation (29) is the unique solution to the following problem, where eg denotes a candidate corrected joint gradient: 
+
+min  
+
+> eg
+
+∥eg − gJ ∥22 s.t. ⟨eg, gG⟩ ≥ 0. (30) 
+
+Proof. The feasible set is a closed half-space whose boundary is normal to gG. Under the conflict condition, gJ lies outside this half-space, so its Euclidean projection lies on the boundary and differs from gJ only along gG. Writing eg = gJ −agG and enforcing the boundary condition yields a = ⟨gJ , gG⟩/∥gG∥22,which gives Equation (28). The solution is unique because the objective is strictly convex. The proposition establishes a minimum-change correction of the joint gradient. It is a local first-order safeguard, not a guarantee that the geometry loss decreases monotonically over complete optimizer steps. 
+
+E. Optimization Objective and Training 
+
+Reconstruction and projection share the same collapse gate produced by the monitor, so all interventions respond to one geometric state. The training objective at iteration t is 
+
+Ltotal (t) = Ljoint + ItL⋆
+
+> geo
+
+. (31) Parameters reached only by the joint objective are updated by standard backpropagation of Ljoint . For θsh , the optimizer consumes gsh from Equation (29) before momentum or PREPRINT 7
+
+Algorithm 1 Monitor-reconstruct-project training of GeoBal-ance 
+
+Require: Dataset D; encoders {fm}Mm=1 ; fusion module ϕ;classifier h; weak-modality index m⋆; projection head g⋆;ETF matrix C; monitor parameters T0, ρ, and η; optimizer.  
+
+> 1:
+
+Initialize model parameters, g⋆, logit scale s⋆, and EMA states.  
+
+> 2:
+
+Run T0 joint-training iterations while updating the EMA statistics; compute Dref and Sref using Equation (19).  
+
+> 3:
+
+for each training iteration t after warm-up do  
+
+> 4:
+
+Sample minibatch Bt and compute Ljoint . 
+
+> 5:
+
+Stage 1—Monitor: detach z⋆i , update D⋆t and S⋆t , and evaluate It. 
+
+> 6:
+
+if It = 0 then  
+
+> 7:
+
+Perform the standard joint-training update.  
+
+> 8:
+
+else  
+
+> 9:
+
+Stage 2—Reconstruct: compute L⋆ 
+
+> geo
+
+= L⋆ 
+
+> ETF
+
++
+
+L⋆
+
+> spec
+
+. 
+
+> 10:
+
+Stage 3—Project: compute gJ and gG on θsh . 
+
+> 11:
+
+Compute gsh = Π t(gJ ; gG) + gG. 
+
+> 12:
+
+Update θsh with gsh , joint-only parameters with 
+
+∇L joint , and geometry-only parameters with ∇L ⋆
+
+> geo
+
+. 
+
+> 13:
+
+end if  
+
+> 14:
+
+end for 
+
+adaptive moments are updated. When It = 0 , the geometry loss and its additional gradient can be skipped. Algorithm 1 makes the three roles explicit. The monitor first detects coupled degradation; reconstruction then supplies class-separability and anti-concentration signals; projection finally protects the reconstruction direction when the joint and geometry gradients conflict. Forming the Gram matrix requires O(B2d⋆) operations and 
+
+O(B2) memory. Computing the auxiliary covariance requires 
+
+O(Bd 2
+
+> e
+
+) operations and O(d2
+
+> e
+
+) memory. These costs occur only during training. The monitor is evaluated at every iteration, whereas reconstruction and gradient projection are skipped whenever the collapse gate is inactive. At inference, g⋆, C,the monitor, and all gate states are removed; the deployed architecture and inference cost are therefore unchanged. V. E XPERIMENTS 
+
+A. Evaluation Protocol        
+
+> TABLE II BENCHMARKS USED IN THE EXPERIMENTS .
+> Benchmark Modalities Kinetics-Sounds Video + Audio CREMA-D Video + Audio VGGSound Video + Audio CMU-MOSEI Text + Video + Audio UCF101 RGB + Optical Flow Food-101 Text + Image
+
+Benchmarks. We evaluate GeoBalance on six public bench-marks covering audio, visual, text, and motion modalities. Table II summarizes their modality combinations. The bench-marks differ in scale, modality composition, and the degree to which one modality can dominate the task, allowing us to examine whether the same geometric failure appears across heterogeneous settings. Kinetics-Sounds [41] contains 31 audio-visual event classes and tests whether sound and appearance are learned coopera-tively. CREMA-D [42] comprises video and audio recordings of 91 actors portraying six emotion categories, with facial dynamics and speech prosody providing complementary cues of different discriminative strengths. VGGSound [43] is a large-scale in-the-wild audio-visual dataset, providing a more diverse label space. CMU-MOSEI [44] provides text, visual, and acoustic streams for sentiment analysis and is the tri-modal benchmark. UCF101 [45] is evaluated with RGB appearance and optical-flow motion streams. Food-101 [46] is evaluated in an image-text setting and provides a modality combination distinct from the audio-visual benchmarks. 
+
+Backbones and pretraining. Dataset-specific backbone architectures, preprocessing pipelines, and data partitions follow BalanceBenchmark [47]. Kinetics-Sounds, CREMA-D, and VGGSound use modality-specific ResNet-18 branches [48] for RGB frames and one-channel audio time-frequency maps, with the input convolution adapted to the corresponding modality. UCF101 uses separate ResNet-18 branches for RGB appearance and two-channel optical flow. Food-101 uses a ResNet-18 image branch and a BERT [49] text branch, whereas CMU-MOSEI applies modality-specific Transformer encoders to the released unaligned text, acoustic, and visual feature sequences. 
+
+Preprocessing. For the audio-visual datasets, videos are sampled at 16 frames per second and resized to 224 × 224 ,while audio is resampled to 16 kHz and converted to log-Mel filterbanks with a 25-ms analysis window and a 10-ms hop. Kinetics-Sounds and VGGSound select three temporally distributed frames per clip, and CREMA-D selects two. During training, a random frame is sampled from each temporal segment with random resized cropping and horizontal flipping, whereas evaluation uses segment midpoints and deterministic resizing. RGB inputs are normalized with ImageNet statistics. UCF101 similarly samples three temporally matched RGB and optical-flow observations, with each flow input formed by its horizontal and vertical components. For Food-101, images are resized to 224 × 224 ; text is tokenized with BERT, then padded or truncated to 40 tokens. CMU-MOSEI uses the standard unaligned sequences with 300-dimensional text, 74-dimensional acoustic, and 35-dimensional visual features. 
+
+Data splits. We reuse the released BalanceBenchmark partitions without dataset-level resampling. Kinetics-Sounds uses the provided training and test CSV files; VGGSound follows the official train/test field in its metadata; CREMA-D and UCF101 use the released training and test lists; Food-101 uses the phase-specific title CSV files and image directories; and CMU-MOSEI uses the standard train/validation/test keys in the unaligned package. 
+
+Baselines. We organize the compared methods by the level at which they address modality imbalance. PREPRINT 8 
+
+> •
+
+Optimization-control methods alter how modality-specific objectives influence training. G-Blending [5] blends modal-ity objectives according to their generalization behavior; Greedy [23] counteracts the tendency of a multimodal model to follow the easiest modality; OGM-GE [6] modulates modality gradients online while enhancing the resulting update; and LFM [50] dynamically learns the modality gap during training. These methods primarily control the allocation or timing of optimization signals.  
+
+> •
+
+Representation-enhancement methods provide additional class or reconstruction supervision. MMCosine [13] re-shapes classifier interactions through a cosine objective; PMR [14] uses class prototypes to rebalance under-optimized modalities; Relearning [25] diagnoses modality dominance and introduces a targeted relearning stage; and ReconBoost [26] uses reconstruction-oriented auxiliary training to reconcile modality learning.  
+
+> •
+
+Multi-objective and geometry-aware methods coordinate several training objectives. MMPareto [16] treats multi-modal learning as a multi-objective problem with unimodal assistance, whereas GGDM [51] modulates optimization through geometric gradient divergence. They are reported under the trainable-backbone protocol because their re-leased settings optimize the modality branches end-to-end. 
+
+Metrics and comparison protocols. We report classification accuracy and macro-F1. Accuracy measures overall correctness, whereas macro-F1 assigns equal weight to each class and is therefore more sensitive to whether improvements are distributed across classes. We report fixed-backbone and trainable-backbone results separately because the two protocols provide different degrees of freedom for reshaping the weak-modality representation. Under the fixed-backbone protocol, the pretrained feature extractor remains frozen, while the subsequent modality-specific projection or adapter, fusion module, and classifier remain trainable. Accordingly, GeoBalance is evaluated under three con-figurations. GeoBalance (Frozen) uses pretrained encoder checkpoints and keeps the feature extractors fixed during training. GeoBalance (Scratch) trains the trainable modality branches from random initialization. GeoBalance (Fine-tuned) initializes from the same unimodal checkpoints as Frozen but updates the complete modality branches end-to-end. 
+
+Method settings. All methods use the same data split, backbone protocol, optimizer family, and training length within each comparison block. Models are optimized with AdamW for 100 epochs on four NVIDIA GeForce RTX 4090 GPUs. The relative threshold ratio is fixed to η = 0 .7 across datasets. The warm-up length is one epoch and the EMA factor is ρ = 0 .99 .The ETF dimension de = max( d⋆, K − 1) is determined by the weak-representation dimension and number of classes; the logit scale s⋆ is learned, while the variance floor γ = 1 
+
+and numerical constant ϵ = 10 −8 are fixed. These monitoring parameters are kept unchanged across datasets. Further analysis on the effects of η, ρ, and T0 are provided in Section V-G. 
+
+B. Main Results 
+
+Table III reveals that the value of geometry reconstruction depends on where the bottleneck lies. Under fixed backbones, GeoBalance is strongest on Kinetics-Sounds and CREMA-D. Both datasets combine modalities whose discriminative cues and optimization difficulty can differ substantially: appearance can solve many events before audio is well organized, while facial and vocal emotion cues exhibit different noise and actor variability. In such settings, the weak modality is not merely assigned a smaller update; its trainable projection can lack a stable class structure. The large gains are therefore consistent with MMC being a representation bottleneck rather than only an imbalance in gradient magnitude. The fixed-backbone results on VGGSound, UCF101, and Food-101 provide an important counterpoint. G-Blending or LFM remains strongest on these benchmarks. VGGSound has a much larger label space and substantially more data, so a fixed class-symmetric ETF target may offer less advantage than meth-ods that continuously reallocate optimization across already informative pretrained features. For UCF101 and Food-101, the frozen RGB, motion, image, or text features may already contain useful geometry; the main remaining problem can then be how the fusion layers allocate their influence. These results suggest that geometry reconstruction and gradient allocation are complementary rather than universally ordered: GeoBalance is most useful when the weak-modality representation itself is the limiting factor. CMU-MOSEI exposes a different limitation. ReconBoost obtains the strongest fixed-backbone result, whereas GeoBal-ance provides a smaller improvement. This pattern suggests that a single dataset-level weak-modality designation may be insufficient when several subordinate modalities or dynamically changing reliability contribute to imbalance. The trainable-backbone block produces a more uniform advantage. End-to-end optimization allows the ETF and spectral objectives to modify the encoder rather than only a shal-low modality projection, and asymmetric gradient projection prevents the fused objective from repeatedly reversing that modification. The strong result from scratch indicates that the gain is not simply inherited from pretrained initialization. At the same time, the improvement is smaller on Food-101 and VGGSound than on CREMA-D, which may reflect a ceiling effect from strong representations, the larger number of classes, or a weaker degree of MMC. Overall, the two backbone protocols support the central mechanism: the benefit of GeoBalance grows when the model has both a geometric bottleneck and sufficient trainable capacity to correct it. 
+
+C. Component Analysis 
+
+The component analysis in Table IV supports the monitor-reconstruct-project design. Removing the monitor causes the largest degradation despite retaining the reconstruction objectives. This shows that reconstruction is not merely an auxiliary regularizer: without state conditioning, it can disrupt healthy learning and push the weak modality toward the ETF scaffold prematurely. The effect is especially pronounced on CREMA-D, where the smaller scale and actor variability make early geometry estimates and class-specific cues more fragile. The ETF and spectral objectives address different failure modes. Without ETF reconstruction, the model lacks a modality-independent class target once the fused objective can be PREPRINT 9       
+
+> TABLE III ACCURACY /MACRO -F1(%) ON SIX MULTIMODAL BENCHMARKS . T HE FIXED -AND TRAINABLE -BACKBONE BLOCKS USE DIFFERENT PROTOCOLS AND SHOULD BE COMPARED ONLY WITHIN EACH BLOCK . B EST AND SECOND -BEST COMPLETE RESULTS IN EACH BLOCK ARE SHOWN IN BOLD AND UNDERLINE .AVERAGES USE ALL SIX DATASETS AND ARE OMITTED FOR INCOMPLETE ROWS .
+
+Method Kinetics-Sounds CREMA-D VGGSound CMU-MOSEI UCF101 Food-101 Average 
+
+Fixed-backbone protocol 
+
+Joint training 65.42 / 65.23 65.53 / 65.11 47.79 / 46.77 79.02 / 70.12 80.92 / 80.22 91.33 / 91.34 71.67 / 69.80 G-Blending [5] 68.47 / 66.32 71.53 / 71.52 51.41 / 50.36 79.63 / 73.27 85.12 / 84.77 92.72 / 92.66 74.81 / 73.15 Greedy [23] 66.77 / 66.42 66.43 / 55.51 48.62 / 47.42 – / – – / – – / – – / – OGM-GE [6] 67.08 / 66.98 67.53 / 67.93 50.32 / 48.73 80.43 / 73.55 82.11 / 81.41 91.55 / 91.53 73.17 / 71.69 MMCosine [13] 67.49 / 67.09 67.19 / 67.34 48.73 / 47.66 80.38 / 73.67 82.97 / 82.47 92.16 / 92.12 73.15 / 71.73 PMR [14] 67.16 / 66.89 67.29 / 67.23 50.48 / 49.22 79.79 / 72.06 81.73 / 81.38 92.08 / 92.03 73.09 / 71.47 LFM [50] 66.37 / 66.02 70.02 / 69.55 47.45 / 46.50 79.90 / 71.60 84.95 / 84.35 92.58 / 92.54 73.54 / 71.76 Relearning [25] 65.91 / 65.58 71.23 / 73.72 48.17 / 48.02 78.55 / 69.92 82.66 / 82.03 91.43 / 91.53 72.99 / 71.80 ReconBoost [26] 68.68 / 67.92 74.57 / 74.27 48.26 / 47.33 81.01 / 74.13 82.81 / 82.13 92.21 / 92.15 74.59 / 72.99 GeoBalance (Frozen) 72.30 / 71.63 77.67 / 78.12 49.91 / 49.79 79.03 / 71.16 83.12 / 83.18 92.45 / 92.33 75.75 / 74.37 
+
+Trainable-backbone protocol 
+
+GGDM [51] 74.64 / 73.80 83.41 / 84.03 50.23 / 49.98 – / – 81.69 / 80.77 92.41 / 92.33 – / – MMPareto [16] 74.55 / 74.21 79.97 / 80.57 49.19 / 48.37 81.21 / 74.66 85.12 / 84.68 92.85 / 92.73 77.15 / 75.87 GeoBalance (Scratch) 77.73 / 76.91 83.27 / 83.14 51.66 / 51.02 81.13 / 73.77 84.78 / 84.23 91.93 / 91.87 78.42 / 76.82 GeoBalance (Fine-tuned) 78.64 / 77.76 87.33 / 86.63 52.19 / 51.38 82.21 / 76.22 85.67 / 84.94 93.13 / 92.97 79.86 / 78.32                             
+
+> TABLE IV COMPONENT ANALYSIS ON CREMA-D AND KINETICS -S OUNDS . E ACH ROW REMOVES ONE COMPONENT WHILE RETAINING THE OTHERS .CREMA-D Kinetics-Sounds Configuration Acc F1Acc F1
+> Full model 87.33 86.63 78.64 77.76
+> without monitor 70.92 70.11 68.94 68.22 without ETF 75.61 75.45 70.97 70.77 without spectral 81.32 81.21 74.92 74.22 without projection 79.12 79.43 74.71 73.91
+
+minimized through the dominant modality. Without spectral regularization, the ETF classifier can still separate classes using a small subset of directions, leaving the remaining representation degenerate. The larger loss from removing ETF suggests that restoring class organization is the first requirement, while the spectral term determines whether that organization is supported by a sufficiently rich representation. Removing asymmetric gradient projection leaves the geome-try loss intact but still causes a substantial decrease. This result is important because it distinguishes “providing a reconstruction objective” from “allowing reconstruction to persist.” When the joint and geometry gradients conflict, simply summing them can produce repeated cancellation on the weak branch. Projection does not add another target; it preserves the effect of the existing target with the minimum first-order modification of the joint gradient. The components are therefore complementary at the mechanism level: the monitor selects the state, ETF and spectral terms reconstruct the two properties of geometric health, and projection protects the resulting update. 
+
+D. Monitoring Behavior 
+
+To understand when GeoBalance intervenes during training, we analyze three complementary statistics. Gate-active itera-tions measures the proportion of post-warm-up iterations for which the collapse gate is activated, indicating how frequently the weak modality is diagnosed as geometrically degraded. 
+
+Conflict over all iterations reports the proportion of all post-warm-up iterations in which the joint gradient conflicts with the geometry-reconstruction gradient. Finally, conflict within gated iterations measures the same gradient conflict conditioned on gate activation, revealing whether destructive joint updates are concentrated precisely when reconstruction is required. Together, these statistics characterize both the selectivity of the monitor and the necessity of the asymmetric projection. Figure 3(a) shows that the collapse gate is activated selec-tively rather than throughout training. GeoBalance therefore leaves ordinary joint learning largely undisturbed when the weak-modality geometry remains usable, and introduces recon-struction only after degradation is detected. This behavior supports the state-conditioned design of GeoBalance and helps explain why removing the monitor causes the largest degradation in Table IV. The contrast between Figure 3(b) and Figure 3(c) shows that gradient conflict is strongly concentrated inside the gated subset. The gate and the gradient inner product therefore answer different questions. The gate asks whether the weak-modality representation requires reconstruction and the inner product asks whether the current joint update threatens that reconstruction. Their conjunction localizes the intervention both in representation state and in optimization direction. CMU-MOSEI exhibits the highest overall conflict rate but does not show the strongest predictive gain. In a tri-modal setting, conflict can arise from several interacting branches, PREPRINT 10 CREMA-D Kinetics-Sounds CMU-MOSEI 0510 15 20 25 
+
+(a) Gate activation  
+
+> 19.1 21.9 17.5 CREMA-D Kinetics-Sounds CMU-MOSEI 0510 15 20 25 30 35
+
+(b) Overall conflict  
+
+> 26.2 19.3 31.8 CREMA-D Kinetics-Sounds CMU-MOSEI 020 40 60 80
+
+(c) Gated conflict      
+
+> 76.0 68.7 77.2
+> Rate (%)
+> Fig. 3. Monitoring and gradient-conflict diagnostics. (a) Fraction of post-warm-up iterations for which the collapse gate is active. (b) Fraction of all post-warm-up iterations with ⟨gJ,gG⟩<0. (c) Fraction of gated iterations with the same conflict condition. All values are percentages.
+
+while the method reconstructs only one preselected weak modality. The dual-signal gate prevents such optimization conflict from being automatically interpreted as geometric collapse, but the result also motivates a multi-weak extension. 
+
+E. Computational Cost                 
+
+> TABLE V MEASURED RUNTIME ON CREMA-D. T OTAL TIME IS TRAINING PLUS VALIDATION PER EPOCH . A LL AUXILIARY COMPONENTS ARE REMOVED AT INFERENCE .Method Train Val. Total Relative (s/epoch) (s/epoch) (s/epoch) total Joint training 22 527 1.00 ×
+> GeoBalance 48 553 1.96 ×
+
+Table V shows that the current implementation nearly doubles total training time on CREMA-D, despite activating reconstruction on only a minority of iterations. The overhead is not proportional to the gate rate because the detached monitor is evaluated at every iteration, and gated iterations require both the geometry objective and an additional gradient on θsh .Validation time is unchanged, confirming that the overhead is confined to training. At inference, the projection head, ETF prototypes, monitor, and collapse gate are removed, so the deployed parameterization and latency are identical to standard joint training. This distinction is favorable for deployment but does not eliminate the training cost. 
+
+F. Representation Analysis 
+
+We examine how the geometry of the weak-modality representation evolves during training. For visualization, Fig. 4 reports the epoch-wise evolution of the two geometric quantities, while online intervention is determined from the EMA-smoothed minibatch estimates defined in Section IV-B. Specifically, we track the effective dimension and class separability for joint training and GeoBalance. As shown in Figure 4, the two geometric measures exhibit markedly different trajectories under joint training and GeoBalance. Under joint training, effective dimension falls and remains low, while class separability improves only modestly. Neither observation alone 0 20 40 60 80 100 16 20 24 28 32 
+
+> Effective dimension
+
+(a) Effective dimension      
+
+> 020 40 60 80 100
+
+Training epoch 
+
+> 0.5 0.6 0.7 0.8 0.9
+> Class separability
+
+(b) Class separability  
+
+> Joint training GeoBalance
+> Fig. 4. Evolution of weak-modality geometric health on CREMA-D during training, measured by (a) effective dimension and (b) class separability.
+
+establishes MMC, but their co-occurrence indicates that the weak-modality representation both loses active directions and fails to organize the remaining directions discriminatively. With GeoBalance, the early trajectory is left largely unchanged; after the gate activates, the effective dimension stabilizes and class separability rises. This state-dependent transition is consistent with the intended mechanism and cannot be explained by a manually fixed training stage. We further examine the final weak-modality representation on CREMA-D from a class-structure perspective using t-SNE. As shown in Figure 5, GeoBalance produces more compact and better separated clusters than GGDM, particularly for neighboring emotions. We attribute this improvement to its geometry-aware training, which preserves weak-modality non-degeneracy and separability while reducing destructive interference from the dominant shared update. Consequently, the weak modality retains a more linearly usable representation. PREPRINT 11 (a) GGDM (b) GeoBalance     
+
+> Fear Neutral Disgust Happy Angry Sad
+> Fig. 5. t-SNE visualization of CREMA-D weak-modality representations.
+
+G. Hyperparameter Analysis 
+
+GeoBalance exposes three monitoring controls: the threshold ratio η, the EMA factor ρ, and the warm-up length T0.These parameters mainly determine when the monitor activates reconstruction rather than the strength of the reconstruction itself. We vary one parameter at a time on CREMA-D under the fine-tuned protocol, while keeping the others fixed. As shown in Figure 6, η exhibits a clear rise-and-fall trend. A small η makes the monitor overly conservative, so reconstruction may be activated only after substantial geometric deterioration has already occurred. Increasing η improves re-sponsiveness, but an excessively large value makes the monitor too sensitive to temporary fluctuations or benign representation compression, leading to premature intervention. This suggests that the collapse criterion should remain responsive without interfering with normal cross-modal co-adaptation. The effect of ρ is smoother. Moderate-to-large values improve performance by suppressing minibatch-level noise in the geometric statistics, while overly strong smoothing slightly reduces performance because the monitor reacts more slowly to genuine changes in representation state. This indicates that GeoBalance is relatively insensitive to ρ as long as the EMA provides sufficient stability without excessive delay. For T0, a short warm-up is preferable. An insufficient warm-up may produce an unstable reference, whereas a long warm-up delays the earliest possible intervention and may allow modality dominance to contaminate the reference itself. Overall, the results show that GeoBalance benefits from a balanced monitoring strategy: neither overly conservative nor overly aggressive intervention is desirable, which is consistent with its state-conditioned design. VI. D ISCUSSION 
+
+A. What GeoBalance Preserves 
+
+GeoBalance is not intended to equalize the predictive influence, optimization strength, or representation quality of different modalities. Recent evidence suggests that strict modality balance is not always desirable and that prioritizing a performance-dominant modality can be beneficial in some regimes [35]. Our objective is therefore more specific. Rather than forcing a weak modality to match the dominant one, GeoBalance aims to preserve sufficient discriminative structure for the weak modality to remain usable by the joint predictor when it provides complementary evidence. This perspective distinguishes representation health from 
+
+optimization balance . Reassigning losses or gradients changes how strongly a modality is optimized, but does not necessar-ily determine what structure its representation retains. Two modalities may receive comparable optimization signals while exhibiting substantially different class-conditional geometry; conversely, unequal representation quality does not constitute a failure as long as the weaker modality still preserves useful discriminative information. GeoBalance therefore intervenes only when the weak-modality representation exhibits the coupled degradation associated with MMC. Its geometric objectives restore class separation and effective feature direc-tions, while asymmetric gradient projection prevents conflicting joint updates from immediately undoing this reconstruction. Importantly, none of these operations requires the weak modality to imitate the dominant modality or to contribute equally at every stage of training. The intended outcome is instead to keep complementary information accessible to the fusion model without unnecessarily constraining naturally asymmetric multimodal learning. 
+
+B. Limitations and Future Work 
+
+The current formulation assumes supervised classification and identifies a single weak modality before joint training. This dataset-level designation may be insufficient when modality reliability changes dynamically across samples or training stages, or when multiple modalities become weak simulta-neously. Extending GeoBalance to dynamically identify weak modalities and coordinate multiple geometry-reconstruction objectives is therefore a natural direction for future work. In addition, the online monitor and the extra geometry gradient introduce additional training cost, although they do not affect inference. Exploring adaptive geometric priors and more efficient monitoring and gradient computation could further improve the generality and efficiency of the framework. VII. C ONCLUSION 
+
+This work revisits modality dominance from the perspective of representation geometry. We identify manifold modality collapse (MMC), a representation-level failure in which the weak modality simultaneously loses within-class effective dimensionality and class separability. Based on this observation, we develop GeoBalance, which detects geometric degradation online, reconstructs the weak-modality representation only when necessary, and protects the reconstruction from con-flicting joint updates through asymmetric gradient projection. Experiments across six multimodal benchmarks demonstrate improved predictive performance and healthier weak-modality geometry under diverse modality combinations and training protocols. These results highlight representation health as an important complement to optimization-based views of balanced multimodal learning. PREPRINT 12 0.5 0.6 0.7 0.8 0.9 
+
+η
+
+> 79 81 83 85 87 89
+> Performance (%)
+
+(a) Threshold ratio    
+
+> 0.90 0.95 0.99 0.995
+
+ρ
+
+> 84 85 86 87 88 89
+
+(b) EMA factor    
+
+> 0.5 125
+
+T0 (epochs) 
+
+> 81 82 83 84 85 86 87 88 89
+
+(c) Warm-up length 
+
+> Accuracy Macro-F1
+
+Fig. 6. Hyperparameter sensitivity of GeoBalance on CREMA-D under the fine-tuned protocol. We report classification accuracy and macro-F1 when varying (a) the threshold ratio η, (b) the EMA factor ρ, and (c) the warm-up length T0, while keeping the remaining parameters fixed. 
+
+REFERENCES [1] X. Xue, C. Zhang, Z. Niu, and X. Wu, “Multi-level attention map network for multimodal sentiment analysis,” IEEE Transactions on Knowledge and Data Engineering , vol. 35, no. 5, pp. 5105–5118, 2023. [2] Q. Zhang, Y. Wei, Z. Han, H. Fu, X. Peng, Q. Hu, C. Deng, C. Xu, J. Wen, D. Hu et al. , “Multimodal fusion on low-quality data: A comprehensive survey,” Information Fusion , p. 104437, 2026. [3] Z. Jin, X. Zheng, C. Tang, C. Li, Y. Liu, and X. Liu, “Task-aware information decoupling for multimodal clustering,” IEEE Transactions on Knowledge and Data Engineering , vol. 38, no. 6, pp. 3961–3974, 2026. [4] Z. Wang, Y. Feng, X. Zhang, R. Yang, and B. Du, “Multi-modal correction network for recommendation,” IEEE Transactions on Knowledge and Data Engineering , vol. 37, no. 2, pp. 810–822, 2025. [5] W. Wang, D. Tran, and M. Feiszli, “What makes training multi-modal classification networks hard?” in Proceedings of the IEEE/CVF Conference on Computer Vision and Pattern Recognition , 2020, pp. 12 695–12 705. [6] X. Peng, Y. Wei, A. Deng, D. Wang, and D. Hu, “Balanced multimodal learning via on-the-fly gradient modulation,” in Proceedings of the IEEE/CVF Conference on Computer Vision and Pattern Recognition ,2022, pp. 8238–8247. [7] Y. Huang, J. Lin, C. Zhou, H. Yang, and L. Huang, “Modality competition: What makes joint training of multi-modal network fail in deep learning? (Provably),” in Proceedings of the 39th International Conference on Machine Learning , vol. 162, 2022, pp. 9226–9259. [8] G. Liu, J. Zhang, Q. Liu, J. Wu, S. Wu, and L. Wang, “Uni-modal event-agnostic knowledge distillation for multimodal fake news detection,” 
+
+IEEE Transactions on Knowledge and Data Engineering , vol. 36, no. 12, pp. 9490–9503, 2024. [9] Y.-L. Lee, Y.-H. Tsai, W.-C. Chiu, and C.-Y. Lee, “Multimodal prompting with missing modalities for visual recognition,” in Proceedings of the IEEE/CVF Conference on Computer Vision and Pattern Recognition ,2023, pp. 14 943–14 952. [10] Y. Ma, Y. Xue, J. Wu, L. Senhadji, H. Shu, and J. Yang, “Multimodal entity linking with dynamic modality selection and interactive prompt learning,” IEEE Transactions on Knowledge and Data Engineering ,vol. 37, no. 9, pp. 5467–5480, 2025. [11] Z. Lin, Z. Yang, and Q. Li, “Robust cross-platform news event detection via self-supervised modality complementation,” IEEE Transactions on Knowledge and Data Engineering , vol. 37, no. 10, pp. 6147–6158, 2025. [12] H. Li, X. Li, P. Hu, Y. Lei, C. Li, and Y. Zhou, “Boosting multi-modal model performance with adaptive gradient modulation,” in Proceedings of the IEEE/CVF International Conference on Computer Vision , 2023, pp. 22 214–22 224. [13] R. Xu, R. Feng, S.-X. Zhang, and D. Hu, “Mmcosine: Multi-modal cosine loss towards balanced audio-visual fine-grained learning,” in IEEE International Conference on Acoustics, Speech and Signal Processing (ICASSP) , 2023, pp. 1–5. [14] Y. Fan, W. Xu, H. Wang, J. Wang, and S. Guo, “PMR: Prototypical modal rebalance for multimodal learning,” in Proceedings of the IEEE/CVF Conference on Computer Vision and Pattern Recognition , 2023, pp. 20 029–20 038. [15] X. Zhang, J. Yoon, M. Bansal, and H. Yao, “Multimodal representation learning by alternating unimodal adaptation,” in Proceedings of the IEEE/CVF Conference on Computer Vision and Pattern Recognition ,2024, pp. 27 456–27 466. [16] Y. Wei and D. Hu, “MMPareto: Boosting multimodal learning with innocent unimodal assistance,” in Proceedings of the 41st International Conference on Machine Learning , vol. 235, 2024, pp. 52 559–52 572. [17] J. Ngiam, A. Khosla, M. Kim, J. Nam, H. Lee, and A. Y. Ng, “Multimodal deep learning,” in Proceedings of the 28th International Conference on Machine Learning , 2011, pp. 689–696. [18] Y.-H. H. Tsai, S. Bai, P. P. Liang, J. Z. Kolter, L.-P. Morency, and R. Salakhutdinov, “Multimodal transformer for unaligned multimodal language sequences,” in Proceedings of the 57th Annual Meeting of the Association for Computational Linguistics . Association for Computational Linguistics, 2019, pp. 6558–6569. [19] A. Radford, J. W. Kim, C. Hallacy, A. Ramesh, G. Goh, S. Agarwal, G. Sastry, A. Askell, P. Mishkin, J. Clark, G. Krueger, and I. Sutskever, “Learning transferable visual models from natural language supervision,” in Proceedings of the 38th International Conference on Machine Learning ,ser. Proceedings of Machine Learning Research, vol. 139. PMLR, 2021, pp. 8748–8763. [20] R. Girdhar, A. El-Nouby, Z. Liu, M. Singh, K. V. Alwala, A. Joulin, and I. Misra, “ImageBind: One embedding space to bind them all,” in Proceedings of the IEEE/CVF Conference on Computer Vision and Pattern Recognition , 2023, pp. 15 180–15 190. [21] J. Mu, F. Nie, W. Wang, J. Xu, J. Zhang, and H. Liu, “MOCOLNet: A momentum contrastive learning network for multimodal aspect-level sentiment analysis,” IEEE Transactions on Knowledge and Data Engineering , vol. 36, no. 12, pp. 8787–8800, 2024. [22] D. Hazarika, R. Zimmermann, and S. Poria, “MISA: Modality-invariant and -specific representations for multimodal sentiment analysis,” in 
+
+Proceedings of the 28th ACM International Conference on Multimedia ,2020, pp. 1122–1131. [23] N. Wu, S. Jastrz˛ ebski, K. Cho, and K. J. Geras, “Characterizing and overcoming the greedy nature of learning in multi-modal deep neural networks,” in Proceedings of the 39th International Conference on Machine Learning , vol. 162, 2022, pp. 24 043–24 055. [24] Z. Chen, S. Zhao, M. Xu, B. Wang, S. Sun, and Y. You, “PSL: Prototype swapping learning for modality imbalance,” Neural Networks , vol. 196, p. 108322, 2026. [25] Y. Wei, S. Li, R. Feng, and D. Hu, “Diagnosing and re-learning for balanced multimodal learning,” in European Conference on Computer Vision , 2024, pp. 71–86. [26] C. Hua, Q. Xu, S. Bao, Z. Yang, and Q. Huang, “Reconboost: Boosting can achieve modality reconcilement,” in The Forty-first International Conference on Machine Learning , vol. 235, 2024, pp. 19 573–19 597. [27] Y. Wei, R. Feng, Z. Wang, and D. Hu, “Enhancing multimodal cooperation via sample-level modality valuation,” in Proceedings of the IEEE/CVF Conference on Computer Vision and Pattern Recognition , 2024, pp. 27 338–27 347. [28] Z. Xiong, D. Li, K. Tang, P. Li, W. Kong, and Y. Hu, “Beyond forced modality balance: Intrinsic information budgets for multimodal learning,” 2026. [Online]. Available: https://arxiv.org/abs/2603.17347 [29] C. Huang, Y. Wei, Z. Yang, and D. Hu, “Adaptive unimodal regulation for balanced multimodal information acquisition,” in Proceedings of the PREPRINT 13 
+
+IEEE/CVF Conference on Computer Vision and Pattern Recognition ,2025, pp. 25 854–25 863. [30] Y. Qin, Y. Feng, Y. Sun, D. Peng, X. Peng, and P. Hu, “Deep information-balanced multimodal learning,” IEEE Transactions on Pattern Analysis and Machine Intelligence , vol. 48, no. 8, pp. 9384–9396, 2026. [31] S. Wei, C. Luo, and Y. Luo, “Boosting multimodal learning via disentan-gled gradient learning,” in Proceedings of the IEEE/CVF International Conference on Computer Vision , 2025, pp. 22 879–22 888. [32] X. Gao, B. Cao, B. Gong, and P. Zhu, “Reconcile gradient modulation for harmony multimodal learning,” Proceedings of the AAAI Conference on Artificial Intelligence , vol. 40, no. 25, pp. 21 225–21 233, 2026. [33] J. Wang, F. Cao, Z. Xue, X. Zhao, and J. Liang, “CMoB: Modality valuation via causal effect for balanced multimodal learning,” in Advances in Neural Information Processing Systems , vol. 38, 2025. [34] F. Yu, X. Wu, Y. Yang, and J. Lu, “Multimodal classification via total correlation maximization,” in The Fourteenth International Conference on Learning Representations . OpenReview.net, 2026. [35] S. Wei, C. Luo, Q. Zhu, and Y. Luo, “PDMP: Rethinking balanced multimodal learning via performance-dominant modality prioritization,” 
+
+arXiv preprint arXiv:2604.05773 , 2026. [36] V. Papyan, X. Han, and D. L. Donoho, “Prevalence of neural collapse during the terminal phase of deep learning training,” Proceedings of the National Academy of Sciences , vol. 117, no. 40, pp. 24 652–24 663, 2020. [37] Z. Zhu, T. Ding, J. Zhou, X. Li, C. You, J. Sulam, and Q. Qu, “A geometric analysis of neural collapse with unconstrained features,” in 
+
+Advances in Neural Information Processing Systems , vol. 34, 2021, pp. 29 820–29 834. [38] Y. Yang, S. Chen, X. Li, L. Xie, Z. Lin, and D. Tao, “Inducing neural collapse in imbalanced learning: Do we really need a learnable classifier at the end of deep neural network?” in Advances in Neural Information Processing Systems , vol. 35, 2022. [39] X. Li, S. Liu, J. Zhou, X. Lu, C. Fernandez-Granda, Z. Zhu, and Q. Qu, “Understanding and improving transfer learning of deep models via neural collapse,” Transactions on Machine Learning Research , 2024. [40] A. Bardes, J. Ponce, and Y. LeCun, “Vicreg: Variance-invariance-covariance regularization for self-supervised learning,” in International Conference on Learning Representations , 2022. [41] R. Arandjelovic and A. Zisserman, “Look, listen and learn,” in Proceed-ings of the IEEE International Conference on Computer Vision , 2017, pp. 609–617. [42] H. Cao, D. G. Cooper, M. K. Keutmann, R. C. Gur, A. Nenkova, and R. Verma, “Crema-d: Crowd-sourced emotional multimodal actors dataset,” IEEE Transactions on Affective Computing , vol. 5, no. 4, pp. 377–390, 2014. [43] H. Chen, W. Xie, A. Vedaldi, and A. Zisserman, “Vggsound: A large-scale audio-visual dataset,” in International Conference on Acoustics, Speech, and Signal Processing (ICASSP) , 2020, pp. 721–725. [44] A. Bagher Zadeh, P. P. Liang, S. Poria, E. Cambria, and L.-P. Morency, “Multimodal language analysis in the wild: CMU-MOSEI dataset and interpretable dynamic fusion graph,” in Proceedings of the 56th Annual Meeting of the Association for Computational Linguistics (Volume 1: Long Papers) . Melbourne, Australia: Association for Computational Linguistics, Jul. 2018, pp. 2236–2246. [45] K. Soomro, A. R. Zamir, and M. Shah, “Ucf101: A dataset of 101 human actions classes from videos in the wild,” arXiv preprint arXiv:1212.0402 ,2012. [46] X. Wang, D. Kumar, N. Thome, M. Cord, and F. Precioso, “Recipe recognition with large multimodal food dataset,” in 2015 IEEE Interna-tional Conference on Multimedia & Expo Workshops (ICMEW) . IEEE, 2015, pp. 1–6. [47] S. Xu, M. Cui, C. Huang, H. Wang, and D. Hu, “Balancebench-mark: A survey for multimodal imbalance learning,” arXiv preprint arXiv:2502.10816 , 2025. [48] K. He, X. Zhang, S. Ren et al. , “Deep residual learning for image recognition,” in Proceedings of the IEEE/CVF Conference on Computer Vision and Pattern Recognition , 2016. [49] J. Devlin, M.-W. Chang, K. Lee, and K. Toutanova, “BERT: Pre-training of deep bidirectional transformers for language understanding,” in Proceedings of the 2019 Conference of the North American Chapter of the Association for Computational Linguistics: Human Language Technologies . Association for Computational Linguistics, 2019, pp. 4171–4186. [50] Y. Yang, F. Wan, Q.-Y. Jiang, and Y. Xu, “Facilitating multimodal classification via dynamically learning modality gap,” in Advances in Neural Information Processing Systems , A. Globerson, L. Mackey, D. Belgrave, A. Fan, U. Paquet, J. Tomczak, and C. Zhang, Eds., vol. 37. Curran Associates, Inc., 2024, pp. 62 108–62 122. [51] D. Hu, X. Jiang, Z. Sun, H. Yang, C. Peng, P. Yan, H. T. Shen, and X. Xu, “Geometric gradient divergence modulation for imbalanced multimodal learning,” in Proceedings of the 33rd ACM International Conference on Multimedia , 2025, pp. 1337–1345.
