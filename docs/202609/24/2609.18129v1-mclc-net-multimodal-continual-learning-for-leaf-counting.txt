@@ -1,0 +1,786 @@
+Title: MCLC-NET: Multimodal Continual Learning for Leaf Counting
+
+URL Source: https://arxiv.org/pdf/2609.18129v1
+
+Published Time: Thu, 17 Sep 2026 00:45:18 GMT
+
+Number of Pages: 16
+
+Markdown Content:
+> 1
+
+# MCLC-NET: Multimodal Continual Learning for Leaf Counting 
+
+Ruchi Bhatt, Pratibha Kumari, Shreya Bansal, Vedant Agnihotri, Dwarikanath Mahapatra, Mukesh Saini 
+
+Abstract —Leaf counting is an important task in plant phenotyping for monitoring plant growth and estimating crop yield. Most existing methods rely on RGB images, but their performance is often affected by occlusion, lighting variations, and other real-world challenges. Additional modalities, such as depth and thermal images, can provide useful complementary information. However, multimodal leaf counting remains underexplored. Also, many existing methods assume that all training data are available simulta-neously, which is impractical in real agricultural settings, where data is collected over time from multiple sources. To address these challenges, we propose MCLC-NET, a multimodal continual learning framework for leaf counting. It learns tasks sequentially using a memory-based strategy with a memory buffer to retain important samples from previous tasks. We also introduce MMLC, a real-world multimodal leaf-counting dataset designed for a domain-incremental scenario (DIS) in CL. It contains RGB, depth, and thermal images collected across different crop types under varying environmental conditions, arranged in three orderings: crop-wise, time-wise, and mixed. Experimental results, averaged over three random seeds, demonstrate that MCLC-NET consistently outperforms existing meth-ods across all three task orderings, achieving the lowest AMSE of 0.675 ±0.027, 0.542 ±0.069, and 0.745 ±0.057, respectively. The MMLC dataset is available at MMLC Dataset. 
+
+Index Terms —multimodal, leaf counting, experience re-play, continual learning 
+
+I. I NTRODUCTION 
+
+One of the key tasks in agricultural research is plant phenotyping [1], [2], which involves analyzing visible plant traits to monitor growth and development. Among these traits, leaf counting [3] is particularly important, as it provides valuable insights into the plant’s health [4], [5], growth stage [1], [6], and expected yield potential [7] [8]. Traditionally, researchers have developed image-based methods to automate leaf counting that rely solely on unimodal images, typically RGB images. While RGB     
+
+> The authors Ruchi Bhatt, Shreya Bansal, Vedant Agnihotri, and Mukesh Saini are with the Department of Computer Science & En-gineering, Indian Institute of Technology Ropar, Punjab, India (email: ruchi.21csz0007@iitrpr.ac.in; shreya.22csz0010@iitrpr.ac.in; 09vedan-tagnihotri1@gmail.com; mukesh@iitrpr.ac.in), Pratibha Kumari is with the Department of Informatics and Data Science, University of Regens-burg, Regensburg, Germany (pratibha.Kumari@ur.de) Dwarikanath Mahapatra is with the Department of Computer Science at Khalifa University, UAE (dwarikanath.mahapatra@ku.ac.ae).
+
+images are easily captured and widely used, they often face difficulties in real agricultural conditions. Prob-lems such as occlusion, varying lighting, and complex backgrounds can affect their performance in real-world conditions [9]. As a result, models trained only on RGB data may not generalize well in practical scenarios. To improve this, researchers have begun exploring multi-modal approaches that combine RGB data with other modalities, such as depth and thermal images. Each modality provides different information. RGB captures color and texture, thermal images reflect temperature-related patterns, and depth images provide information about relative object distance. When used together, these modalities can complement each other and help the model better handle challenging conditions, such as poor lighting or occluded leaves. Despite its vast potential, only a few studies have explored leaf counting using multimodal data [9], making this an underexplored area. Also, existing multimodal datasets suitable for leaf counting, such as MSU-PID [10], are limited in number and are primarily collected in controlled environments. These settings may not reflect the variability and com-plexity of real field conditions. To address this limitation, we collect a new dataset from real farms comprising RGB, depth, and thermal images of different crops under varying conditions. Most existing leaf-counting methods rely on one-time training and deployment of deep models and assume that all training data is available at once. In practice, this assumption does not hold, as in real deployments, data is not available all at once. Instead, it is collected sequentially over time across different sources, seasons, locations, and environmental conditions. This makes the retraining from scratch impractical due to computational and storage constraints. This creates a need for models that can continuously adapt to new data distributions while retaining previously learned knowledge. However, a key challenge in such settings is that models tend to forget previously learned information when trained on new data. This issue is known as ”catastrophic forgetting” [11]. Because of this, standard deep models are not well-suited to real-world agricultural applications where conditions are constantly changing. CL [12], [13] addresses this problem by allowing models to learn se-arXiv:2609.18129v1 [cs.CV] 16 Sep 2026 2
+
+quentially from new data while retaining past knowledge. This approach allows the model to adapt to changing environments, such as new crop types, growth stages, or imaging conditions, without losing performance on older data. We formulate leaf counting as a domain-incremental scenario (DIS) problem [14], where the task remains the same but the data distribution changes across domains such as crop type, capture time, and envi-ronmental conditions. Unlike class-incremental learning [15], the goal is not to learn new categories but to adapt to these distribution shifts while preventing catastrophic forgetting. Among CL strategies, namely regularization [12], architectural [16], and rehearsal-based (memory-based) [13], rehearsal-based methods are widely used due to their simplicity and effectiveness. According to the literature, generative replay avoids storing past data but requires complex sample generation [17]. In contrast, memory-based replay is simpler, often more effective, and widely used in CL [18], which motivates our choice in this work. Although rehearsal-based CL methods have shown promising performance, most existing approaches are primarily designed for classification problems and unimodal settings. Their direct application to multimodal leaf counting is challenging due to the regression nature of the task and the need to effectively utilize complementary information from multiple modalities. Moreover, existing memory-based replay strategies often rely on random sampling, which may result in the storage of redundant or less informative samples. In contrast, the proposed framework focuses on multimodal continual regression. It uses uncertainty-and diversity-aware sample selection rather than random sampling to retain representative samples from previous tasks while adapting to new domains. In this paper, we propose a rehearsal-based frame-work, Multimodal Continual Learning for Leaf Count-ing (MCLC), that combines the strengths of multi-modal data and CL to provide a robust, adaptive leaf-counting model. MCLC integrates samples from multi-modal datasets into a single representation and learns sequentially across tasks using a memory-based CL strategy. We store a few important samples from previous tasks and use them to represent past data while learning new tasks. Here, each task refers to a subset of data, defined by crop type, capture time, and environmental conditions. This DIS setup reflects real-world agricul-tural scenarios and highlights the need for CL in leaf counting. To support this, we introduce the Multimodal Leaf Counting (MMLC) dataset, collected from real farms. To the best of our knowledge, we are the first to explore multimodal continual learning for domain-incremental leaf counting using RGB, depth, and thermal modalities. The main contributions of this paper are highlighted below:  
+
+> •
+
+We propose MCLC, a multimodal memory-based CL framework for leaf counting that combines uncertainty-aware and diversity-aware sample se-lection to retain informative samples from previous tasks while adapting to new tasks.  
+
+> •
+
+We introduce MMLC, a real-world multimodal leaf counting dataset containing paired RGB, depth, and thermal images collected from different crops under varying environmental conditions for domain-incremental CL. The rest of the paper is structured as follows. Section II contains the related works. Section III consists of a detailed description of the proposed dataset. Section IV includes the proposed methodology. Section V consists of the experiments and results, followed by an ablation study in Section VI. The conclusion is given in section VII followed by limitations and future work in section VIII. II. R ELATED WORK 
+
+Leaf counting is important for plant phenotyping [1] as it helps monitor plant growth [26] [27], develop-ment [28], and health [29]. Many deep learning-based methods have been proposed for automatic leaf-counting [22] [30]. In this section, we briefly review existing leaf-counting methods, the use of multimodal data for counting, and recent advances in CL, particularly in multimodal settings. 
+
+Leaf counting methods. Existing leaf counting paradigms fall into four main categories: direct re-gression [9], [19], [21], segmentation-based [31], [32], density estimation [33], [34], and object detection meth-ods [22], [35]. While most works rely on RGB images, some have explored multimodal data (e.g., depth, ther-mal, NIR, fluorescence) to improve robustness [7], [9]. However, existing studies use static settings and do not address the challenges of learning from sequential data. In contrast, in this work, we explore leaf counting from a CL perspective using multimodal inputs, addressing both distribution shifts and scalability in real-world agricul-tural environments for the first time. 
+
+Multimodal Continual Learning. CL methods are broadly categorized into regularization-based [12], architectural-based [16], and rehearsal-based approaches [13], [36]. Regularization-based methods aim to preserve previously acquired knowledge by constraining updates to important model parameters, without requiring access to past data. Architectural-based methods allocate distinct portions of the network to different tasks, using either fixed-capacity or dynamically expanding architectures to accommodate 3
+
+TABLE I: Comparison of existing methods with our proposed approach. DIL refers to domain-incremental learning.                                                                              
+
+> Method Regression CL DIL Modalities Application Field Data Dataset / Remarks
+> Giuffrida et al. [19] ✓✗✗RGB Leaf Count ✓CVPPP Dobrescu et al. [7] ✓✗✗RGB, NIR, Fluorescence, Depth Leaf Count ✓CVPPP + Custom Giuffrida et al. [9] ✓✗✗RGB, NIR, Fluorescence Leaf Count ✓MSU-PID Xu et al. [20] ✗✗✗RGB Segmentation ✓DeepLab-like Itzhaky et al. [21] ✗✗✗RGB Density Map ✓Leaf segmentation Tu et al. [22] ✗✗✗RGB Detection ✓YOLO-based Sun et al. [23] ✗✓✗RGB, Text, Audio Classification ✗Modality dropout Srinivasan et al. [24] ✗✓✗Image, Text Vision-Language applications ✗CLIP-based Zhao et al. [25] ✗✓✗RGB Disease Classification ✓AgriCL
+> MCLC (Ours) ✓✓✓RGB, Depth, Thermal Leaf Count ✓MMLC (our dataset)
+
+new information. Rehearsal-based approaches mitigate forgetting by storing and replaying representative samples from prior tasks. Within this category, experience replay (ER) [37] utilizes a memory buffer to retain raw data samples, while generative replay [38] relies on generative models to synthesize past data. Although generative methods reduce storage requirements, they introduce significant complexity. In contrast, ER has proven to be simpler, more effective, and widely adopted in recent studies [18], and is therefore explored in this work. A key challenge in ER is to select representative samples for the memory buffer. Earlier works, such as iCaRL [39], use a herding strategy to select samples closest to the class means, approximating the data distribution with limited memory. Similarly, prototype-based methods maintain representative feature distributions for replay and knowledge retention [40]. Also, Prototype-Guided Memory Replay [41] further improves replay efficiency by using class-level prototypes to select or generate informative samples. However, these approaches are primarily designed for classification tasks, where clear class boundaries exist, and class prototypes can be defined. In contrast, our work focuses on a regression setting for leaf counting, where outputs are continuous and defining class prototypes is not straightforward. Therefore, instead of relying on class-wise representatives, we propose a hybrid uncertainty-diversity sampling strategy, which selects samples based on prediction uncertainty and feature-space diversity. This enables the model to retain both informative and non-redundant samples, making it more suitable for multimodal regression-based CL. Some recent efforts have extended multimodal CL to other domains. Sun et al. update features and knowledge across tasks, even when modalities are missing [23]. Wang et al. focus on cross-modal retrieval with con-tinual indexing [42], while a general framework has been developed for vision-language tasks [24]. Other studies have explored multimodal CL in robotics [43], activity monitoring [44], [45], and agriculture [46]. In agriculture [47], [48], CL has been applied to plant disease detection [25], [49], [50], plant recognition [51], and stress classification [52], but to the best of our knowledge, CL in leaf counting is still underexplored. Although CL is widely explored in classification, its use in multimodal regression remains underexplored [53]. This work presents the first CL approach for leaf counting, using multimodal data to support continual adaptation in dynamic agricultural environments. From Table I, we observe that earlier methods mainly used RGB images and focused on static datasets for tasks such as leaf counting or segmentation. Although some included additional modalities such as NIR or fluorescence, none addressed CL, which provides tempo-ral data across tasks. Some recent works have explored CL, but mostly for classification tasks using single-modality data or non-visual inputs. These are often not designed for plant counting and rarely use real field data. To the best of our knowledge, no prior work has explored leaf counting in a CL setting using multimodal inputs, making our approach a novel contribution that addresses an existing gap in the literature. Our work uses RGB, depth, and thermal modalities for leaf-counting. This addresses both the need for multimodal fusion and continual adaptation in a real-world agricultural setting, enabling sequential learning over time. III. P ROPOSED DATASET 
+
+We introduce a novel MMLC dataset for leaf-counting under a DIS in CL. The dataset contains 6.3K+ images across RGB, depth, and thermal modalities, captured in real agricultural fields at different times of day. The datasets include four vegetable crop types, including 
+
+capsicum , zucchini , cucumber , and cauliflower , showing diversity in shape and appearance. The samples were collected within the first four weeks of plant growth, a crucial period for early phenotypic analysis. The image triplets, consisting of RGB, depth, and thermal images, were captured with a Google Pixel 5 smartphone camera , an Intel® RealSense™ D435 sensor , and a 
+
+Fluke TiX580 infrared sensor , respectively. All plant 4
+
+Fig. 1: Overview of the proposed MMLC dataset. Top : It shows example images (RGB, depth, and thermal) from the 8 splits created from the MMLC dataset. Bottom : It presents the order of the splits in our 4 crops created for a CL setting. The three crop sequences CS 1, CS 2, and CS 3 are formed by following an ordering by crop type, capture time, and mixed, respectively. images were acquired from a consistent top-down per-spective at approximately 1 meter to ensure uniformity in data collection. To incorporate natural environmental variation, the plants were captured twice a day, once in the morning and once in the evening, enabling the dataset to reflect changes in illumination and temperature throughout the day. To enable CL benchmarking and evaluation on our MMLC dataset, we adopt a DIS in which tasks within a given sequence exhibit potential data distribution shifts, also termed ”domain shifts” [54]. In the MMLC dataset, the variation in data arises either due to changes in the crop species ( capsicum , zucchini , cucumber , and 
+
+cauliflower ) or the lighting/thermal conditions based on the time of capture ( morning or evening ). We propose a partition of the MMLC dataset into eight splits (S1, 
+
+. . . , S8), treated as eight tasks. Specifically, we group samples by crop type and capture time. Thus, we obtain a total of 8 tasks across 4 crop types and 2 capture times. A few samples from each of the splits are shown in Figure 1. Other splits, e.g., grouping samples only by crop type or capture time, can be used to simulate different DIS. For an exhaustive CL benchmarking, we provide three possible orderings of the eight splits, termed CS 1, CS 2,and CS 3, from MMCL as discussed below: 
+
+CS 1 (Crop-wise): In this crop sequence, tasks are organized based on crop type. The first two tasks in-clude images of capsicum for the morning and evening, respectively. Tasks 3 and 4 contain morning and evening images of a cucumber; tasks 5 and 6 contain morning and evening images of a zucchini; and tasks 7 and 8 contain morning and evening images of a cauliflower. This setup ensures the model is exposed to one crop at a time across different times of the day before moving to the next crop. 
+
+CS 2 (Time-wise): Here, tasks are arranged based on the time of image capture. Tasks 1 to 4 consist of morning images of capsicum, cucumber, zucchini, and cauliflower, respectively. Tasks 5 to 8, then present the evening images of these same crops in the same order. This setup allows the model to first learn representations influenced by time of day, then generalize across crops. 
+
+CS 3 (Mixed): This sequence introduces a mix of crop types and capture times in a non-linear order. Task 1 contains morning images of capsicum; task 2 has evening images of cucumber; task 3 introduces a new crop, zucchini, in the morning; and task 4 has another new crop, cauliflower, in the evening. Tasks 5 to 8 revisit the previous crops at different times: morning images of cucumber, evening images of capsicum, morning images of cauliflower, and evening images of zucchini. This sequence mimics a more realistic and unpredictable data stream. IV. M ETHODOLOGY 
+
+We address the challenge of leaf counting in real-world agricultural environments, where non-stationary 5
+
+Algorithm 1 Multimodal Continual Learning  
+
+> 1:
+
+Input: Tasks {T 1, . . . , Tn} with data volume 
+
+{D 1, . . . , Dn}; buffer size B 
+
+> 2:
+
+Output: Final model Mn trained with replay  
+
+> 3:
+
+Initialize memory buffer B0 ← ∅  
+
+> 4:
+
+Initialize model M0 
+
+> 5:
+
+for t = 1 to n do  
+
+> 6:
+
+Step 1: Train model on current task with replay and distillation  
+
+> 7:
+
+for each mini-batch (x, y ) ∼ D t do  
+
+> 8:
+
+Compute prediction ˆy ← M t(x) 
+
+> 9:
+
+Compute task loss ℓt ← ℓ(ˆ y, y ) 
+
+> 10:
+
+Replay: Sample (xb, f b, y b) from Bt−1 
+
+> 11:
+
+ℓreplay ← ℓ(Mt(xb), y b) + ℓ(R(fb), y b) 
+
+> 12:
+
+if t > 1 then  
+
+> 13:
+
+Compute distillation loss:  
+
+> 14:
+
+ℓdistill ← ∥ ϕt(x) − ϕt−1(x)∥22 + ∥M t(x) −Mt−1(x)∥22 
+
+> 15:
+
+end if  
+
+> 16:
+
+Update model using:  
+
+> 17:
+
+ℓ ← ℓt + λ1ℓreplay + λ2ℓdistill  
+
+> 18:
+
+end for  
+
+> 19:
+
+Step 2: Update memory buffer  
+
+> 20:
+
+for each (xit, y it) ∈ D t do  
+
+> 21:
+
+Compute uncertainty via MC Dropout:  
+
+> 22:
+
+U(xit) ← Var ({M (k) 
+
+> t
+
+(xit)}Tk=1 ) 
+
+> 23:
+
+Compute feature embedding f it ← ϕ(xit) 
+
+> 24:
+
+Compute diversity:  
+
+> 25:
+
+δ(xit) ← min x′∈B t−1 ∥f it − ϕ(x′)∥2 
+
+> 26:
+
+Compute score:  
+
+> 27:
+
+S(xit) ← αU(xit) + βδ (xit) 
+
+> 28:
+
+end for  
+
+> 29:
+
+Select top-B samples based on S(x) to form Bt 
+
+> 30:
+
+Store (x, f, y ) in Bt 
+
+> 31:
+
+Freeze current model: Mt−1 ← M t 
+
+> 32:
+
+end for  
+
+> 33:
+
+Return: Final model Mn
+
+data distributions arise from changing environmental and plant conditions. To ensure robust and consistent performance in such dynamic scenarios, we propose an MCLC framework illustrated in Figure 2 that combines multimodal feature fusion with a CL strategy. In the following subsections, we formally define the problem, describe the proposed MCLC pipeline, and introduce the CL mechanism designed to mitigate catastrophic forget-ting. The complete training procedure is summarized in Algorithm 1. 
+
+A. Problem Formulation 
+
+We consider a DIS in which a model is sequentially trained on different tasks (or episodes), each of which may involve domain shifts. Let there be n tasks denoted as {T 1, T2, . . . , Tn}, where each task Tt corresponds to the tth domain, i.e., a combination of a plant species and imaging conditions in our setting. Each task is associated with a data volume Dt = {(xit, y it)}Nt
+
+> i=1
+
+, where Nt
+
+is the total number of samples in Dt, xit represents a multimodal input and yit is the corresponding leaf count. Each input xit comprises three modalities: RGB, thermal, and depth. Specifically, we denote 
+
+xit =
+
+n
+
+xi,m t | m ∈ { RGB , Thermal , Depth }
+
+o
+
+∈ X t,
+
+where xi, RGB  
+
+> t
+
+∈ RH×W ×3 is a 3-channel image, and 
+
+xi, Thermal  
+
+> t
+
+, x i, Depth  
+
+> t
+
+∈ RH×W are single-channel images. Here, H and W denote the image height and width, respectively. Each ground truth label yit ∈ R. For simplicity, we will refer to the multimodal input as xit
+
+throughout the rest of the paper, with the understanding that it implicitly includes all three modalities: RGB, thermal, and depth, unless explicitly stated otherwise. Ideally, the goal is to learn a model Mθ , parameter-ized by θ, that minimizes the cumulative loss across all tasks in the sequence ( {T 1, T2, . . . , Tn}) for leaf counting (Eq. 1). 
+
+arg min 
+
+> θn
+
+X
+
+> t=1
+
+X 
+
+> (xit,y it)∈D t
+
+ℓ(Mθ (xit), y it) (1) where ℓ denotes the regression loss function, which we define as Mean Squared Error (MSE) in our setting. This objective cannot be directly optimized, as the model has access only to the current data volume Dt
+
+at the tth training session. So, our objective is to model each task Tt in sequence using a deep regression model 
+
+Mt with parameters θt, such that performance on previ-ous tasks is preserved. Since previous task data is not re-tained, we store a subset of samples in a buffer Bt during training. This buffer enables each new model Mt+1 to retain knowledge of prior tasks {T 1, . . . , Tt}. This buffer 
+
+Bt is constructed by sampling from the current data volume Dt based on a hybrid strategy combining un-certainty and diversity (see Sec. IV-C). Specifically, we compute uncertainty using multiple stochastic forward passes with dropout activated, which captures prediction variability. Further, instead of storing only raw samples, we store both input samples and their corresponding fused feature representations. The selected samples are then added to the buffer and used in future training to mitigate forgetting. At each task Tt, we train the model Mt on buffer-aware data volume eDt, the union of the current data volume and buffered samples from previous tasks as given in (Eq. 2). 
+
+eDt = Dt ∪ B t−1 (2) 6
+
+Fig. 2: Overview of Multimodal Continual Leaf Counting (MCLC) framework. It processes paired RGB, depth, and thermal images to predict leaf count. Features from each modality are extracted using a modality encoder block, adaptively weighted via modality attention, fused using cross-attention, and passed to an MLP regressor for prediction. To mitigate catastrophic forgetting, the model is trained on the current task Tt and on memory samples from a buffer Bt−1 that stores input samples, feature representations, and labels. After each training session, samples from Tt are evaluated using a unified uncertainty-diversity score, where uncertainty is estimated via Monte Carlo dropout and diversity via feature embedding distance. The top-B samples are stored in the buffer for future training. Additionally, knowledge from previous tasks is preserved using distillation between Mt−1 and Mt.The learning objective is to minimize the MSE for each task Tt (Eq. 3) 
+
+ℓt = 1
+
+| eDt|
+
+X 
+
+> (x,y )∈eDt
+
+(Mt(x; θt) − y)2 (3) where ℓt denotes the regression loss for task Tt, im-plemented using Smooth L1 loss for improved stability against outliers. While only the current data volume Dt
+
+and buffered samples from Bt−1 are used for training at each step, we evaluate the final model Mn on all task data volumes {D 1, . . . , Dn} to assess overall continual performance. 
+
+B. Multimodal Leaf Counting 
+
+Our MCLC framework comprises four main com-ponents: a modality-encoder block (MEB), a modality attention block, a cross-attention fusion module, and a regression head. The architecture processes multimodal inputs to predict a single leaf count, as summarized in Algorithm 2. 
+
+Modality Encoder Block: Each modality, RGB, depth, and thermal, is processed by a dedicated modality encoder (ME) based on the ResNet-50 ar-chitecture. Let the input image for modality m ∈{RGB , Depth , Thermal } be denoted as xi,m t .We define the modality encoder fm(·) and a projection head gm(·) for each modality such that: 
+
+zi,m t = gm
+
+
+
+fm
+
+
+
+xi,m t
+
+ 
+
+, zi,m t ∈ R512 (4) where: fm(·) is the modality-specific encoder (ResNet-50-based), and gm(·) is a projection head comprising a flattening layer and a fully connected layer that projects the 2048-dimensional feature to a 512-dimensional embedding, with ReLU activation and dropout regularization. zi,m t is the resulting 512-dimensional embedding for the modality m of the sample 
+
+i from the task Tt.
+
+Modality Attention: Before fusion, we introduce a modality attention mechanism to adaptively weight the contribution of each modality. Given embeddings 7
+
+zi, RGB  
+
+> t
+
+, z i, Depth  
+
+> t
+
+, z i, Thermal  
+
+> t
+
+, we compute attention weights as: 
+
+[wRGB , w Depth , w Thermal ] = Softmax 
+
+
+
+h([ zi, RGB  
+
+> t
+
+,zi, Depth  
+
+> t
+
+, z i, Thermal  
+
+> t
+
+]) 
+
+ (5) There h(·) is a two-layer MLP followed by Softmax to generate normalized attention weights for the RGB, depth, and thermal modalities. The re-weighted embed-dings are: 
+
+˜zi,m t = wm · zi,m t (6) This allows the model to dynamically focus on more informative modalities. 
+
+Cross-Attention Fusion: Different modality embed-dings are fused using a multi-head cross-attention mech-anism. The RGB embedding serves as the query (Q), while the depth and thermal embeddings act as keys (K) and values (V). We stack the depth and thermal embeddings to form the K and V matrices: 
+
+K = V = Stack 
+
+
+
+zi, Depth  
+
+> t
+
+, z i, Thermal 
+
+> t
+
+
+
+∈ R2×512 (7) The cross-attention module (CA) computes the fused representation as: 
+
+ϕ(xit) = zit = CA 
+
+
+
+Q = zi, RGB  
+
+> t
+
+, K, V 
+
+
+
+∈ R1×512 (8) where CA denotes a multi-head cross-attention mech-anism with 4 attention heads operating on 512-dimensional modality embeddings and ϕ(·) denotes the fused feature extractor for input xit. The output zit
+
+is a fused 512-dimensional feature vector containing integrated multimodal information. 
+
+Regression Head : The fused features zit are passed through a multi-layer perceptron to predict the leaf count as a single scalar value ˆyit.
+
+C. Continual Learning Strategy 
+
+To mitigate catastrophic forgetting, we devise a novel CL strategy in our MCLC framework. The key compo-nents are: 
+
+Experience Replay (ER) : To mimic the past tasks, a global buffer is maintained with a fixed allowed size, B.The model is trained not only with the new data volume 
+
+Dt but also with the buffer Bt−1 which contains a few exemplars from already seen tasks {T 1, . . . , Tt}. In each training batch, we randomly sample a subset of stored samples from Bt−1. The replay mechanism operates at two levels: (1) Feature-level replay , where stored fused features are directly used to train the regression head, and (2) Input-level replay , where stored raw samples are passed through the full model. The combined replay loss is defined as: 
+
+ℓreplay = λ1 · ℓ(R(f ), y ) + λ2 · ℓ(Mt(x), y ) (9) 
+
+Algorithm 2 Multimodal Leaf Counting Mt 
+
+> 1:
+
+Input: Multimodal sample 
+
+xit = {xi, RGB  
+
+> t
+
+, x i, Depth  
+
+> t
+
+, x i, Thermal  
+
+> t
+
+} ∈ eDt 
+
+> 2:
+
+Step 1: Modality Encoding  
+
+> 3:
+
+for each modality m ∈ { RGB , Depth , Thermal } do  
+
+> 4:
+
+zi,m t ← gm(fm(xi,m t )) ∈ R512  
+
+> 5:
+
+end for  
+
+> 6:
+
+Step 2: Modality Attention  
+
+> 7:
+
+[wRGB , w Depth , w Thermal ] ←
+
+Softmax (h([ zi, RGB  
+
+> t
+
+, z i, Depth  
+
+> t
+
+, z i, Thermal  
+
+> t
+
+]))  
+
+> 8:
+
+˜zi,m t ← wm · zi,m t 
+
+> 9:
+
+Step 3: Cross-Attention Fusion  
+
+> 10:
+
+Q ← ˜zi, RGB  
+
+> t
+> 11:
+
+K ← Stack (˜ zi, Depth  
+
+> t
+
+, ˜zi, Thermal  
+
+> t
+
+) 
+
+> 12:
+
+V ← K 
+
+> 13:
+
+zit ← CA (Q, K, V ) 
+
+> 14:
+
+Step 4: Regression  
+
+> 15:
+
+ˆyit ← RegHead (zit ) 
+
+> 16:
+
+Output: Predicted leaf count ˆyit
+
+where f denotes stored fused features, R is the regression head, and λ1, λ 2 are weighting factors. In our implementation, the weighting factors are set to λ1 = 0 .3
+
+and λ2 = 0 .7 for feature-level and input-level replay, respectively. 
+
+Uncertainty-Diversity Sampling : When adding new samples to the buffer, we propose to prioritize those with high uncertainty and diversity. We measure uncertainty (U(xit)) using Monte Carlo dropout, which captures prediction variability under stochastic forward passes. Specifically, we perform T forward passes with dropout enabled and compute the variance of predictions: 
+
+U(xit) = Var 
+
+
+
+{M (k) 
+
+> t
+
+(xit)}Tk=1 
+
+
+
+(10) where M(k) 
+
+> t
+
+denotes the model with dropout active during the kth forward pass. In our implementation, un-certainty is estimated using 5 stochastic forward passes with dropout enabled during inference. Further, instead of a strict two-stage filtering, we compute a unified score that jointly considers uncertainty and diversity. For each candidate sample (xit, y it), we compute a diversity score using Minimum Embedding Distance (MED) with respect to the existing buffer: 
+
+δ(xit) = min 
+
+> x′∈B t−1
+
+ϕ(xit) − ϕ(x′) 2 (11) The final selection score is computed as: 
+
+S(xit) = α · U (xit) + β · δ(xit) (12) 8
+
+where α and β are weighting factors. The top B
+
+samples with the highest scores are selected to update the buffer: 
+
+Bt = arg max  
+
+> Bx∈eDt
+
+S(x) (13) The buffer maintains a fixed memory and is updated after each task by retaining samples with the highest combined uncertainty-diversity scores. This unified score ensures that selected samples are both uncertain (infor-mative) and diverse (less redundant w.r.t. past memory), thereby improving the quality of the buffer in CL. 
+
+Knowledge Distillation: To further preserve knowl-edge from previous tasks, we incorporate a distillation mechanism. After each task, a frozen copy of the previ-ous model Mt−1 is maintained. During training of Mt,we enforce consistency between the current and previous model in both feature and output space: 
+
+ℓdistill = ∥ϕt(x) − ϕt−1(x)∥22 + ∥M t(x) − M t−1(x)∥22
+
+(14) This helps stabilize representations and reduce catas-trophic forgetting. The overall training objective combines current task loss, replay loss, and distillation loss: 
+
+ℓ = ℓt + ℓreplay + ℓdistill (15) V. EXPERIMENTS AND RESULTS 
+
+In this section, we describe the experimental setup, the compared methods, the evaluation metrics, and the computational complexity. We then provide a quantita-tive and qualitative analysis of the proposed model’s performance relative to baseline methods and state-of-the-art approaches. 
+
+A. Experimental Setup 
+
+We evaluate our proposed method, MCLC, in a CL setting for multimodal leaf counting. Each task contains images from all three modalities, with the objective of predicting the leaf count. 
+
+Training and implementation details. All methods are trained sequentially across tasks using Smooth L1 and Mean Squared Error (MSE) losses for leaf counting. The buffer is used to retain the representative samples selected using the hybrid uncertainty-diversity criterion. To ensure fairness and a statistically reliable comparison, all experiments are repeated using three random seeds (42, 123, and 999). The reported results correspond to the mean and standard deviation across these three runs. The additional implementation details of the MCLC are given in Table II. 
+
+Datasets Used . We evaluate our approach and existing works using three datasets: MMLC, MSU-PID, and TABLE II: Implementation details                
+
+> Parameter Value
+> Backbone Network ResNet-50 Embedding Dimension 512 Attention Heads 4Optimizer Adam Learning Rate 10 −4
+> Batch Size 8Training Epochs 30 Dropout Rate 0.3 Buffer Size {30,40,50,80 }
+> MC Dropout Passes 5Replay Weights {0.3, 0.7 }
+> Distillation Weight 0.05 Random Seed {42, 123, 999 }
+> GPU NVIDIA H100
+
+CVPPP. The MMLC dataset is our proposed benchmark for multimodal CL in leaf counting and has been de-scribed in detail in section III. It comprises RGB, depth, and thermal modalities. For experimental evaluation, we consider three dataset sequences, CS1, CS2, and CS3, to simulate different domain incremental CL settings. We consider the MSU-PID dataset [10], a publicly available multimodal leaf-counting dataset comprising RGB, thermal, and fluorescence images. Since it was not originally designed for CL evaluation, we adapted it to the CL setting by creating six sequential splits. MSU-PID contains approximately 1,000 samples from two crops (Arabidopsis and Beans), captured hourly over a period of 16 days. It serves as an additional benchmark for evaluating multimodal leaf-counting performance. Similar to MMLC, we adopt an 80:20 train:test division for each split. Additionally, we include the unimodal publicly available CVPPP dataset [55], a widely used benchmark for leaf counting based on RGB images of Arabidopsis and Tobacco plants. We used CVPPP to evaluate different leaf-counting paradigms. The de-tailed statistics and task distributions of the multimodal datasets are reported in Table III. TABLE III: Train-test details of the splits curated from the MSU-PID [10] and the MMLC datasets for CL experiments.                                         
+
+> Splits S1 S2 S3 S4 S5 S6 S7 S8 MMLC
+> Train 533 664 637 609 617 663 590 758 Test 133 166 158 151 153 165 146 187
+> MSU-PID
+> Train 87 88 88 88 88 85 --Test 38 38 38 38 38 37 --9
+
+B. Comparable Methods 
+
+We compare two types of baselines, rehearsal-based and regularization-based methods, and a recent state-of-the-art approach. Rehearsal-based methods include ER [37], which stores past examples, and DER++ [56], which extends ER by enforcing consistency in pre-dictions across time. Both are evaluated with mem-ory sizes of {30 , 40 , 50 , 80 }. The GEM [13] and A-GEM [36] control interference by projecting gradients using stored samples per task. We experiment with buffer sizes {4, 5, 6, 10 } per task for GEM and A-GEM. Regularization-based methods include EWC [12], which constrains parameter updates to those important for previous tasks. These are evaluated with regularization coefficients λ ∈ { 1, 2, 3}. We also include the recent state-of-the-art method AVQACL [57], which performs CL through adaptive quantization and contrastive learn-ing and is evaluated with buffer sizes of {30 , 40 , 50 , 80 }.In addition, we report results for three non-continual baselines: a naive model trained sequentially without any forgetting mitigation, which is considered a lower bound; cumulative training, where a model is retrained on all data seen so far; and joint training on the union of all task data, both of which are considered an upper bound. TABLE IV: Train-test performance matrix for n = 6 .                                          
+
+> Train \Test Te 1Te 2Te 3Te 4Te 5Te 6
+> Tr 1R1,1R1,2R1,3R1,4R1,5R1,6
+> Tr 2R2,1R2,2R2,3R2,4R2,5R2,6
+> Tr 3R3,1R3,2R3,3R3,4R3,5R3,6
+> Tr 4R4,1R4,2R4,3R4,4R4,5R4,6
+> Tr 5R5,1R5,2R5,3R5,4R5,5R5,6
+> Tr 6R6,1R6,2R6,3R6,4R6,5R6,6
+
+C. Evaluation metrics 
+
+After training on the tth task using training data T r t, we evaluate the model on all test data 
+
+T e 1, T e 2, . . . , T e n. This results in a train-test matrix 
+
+R ∈ Rn×n, where Rt,j denotes the MSE on the test task 
+
+j after training on tasks up to t. The sample train-test matrix is shown in the Table IV. This matrix captures the stability-plasticity trade-off [58] between the model’s ability to acquire new knowledge (plasticity) and its ability to retain prior knowledge (stability). To evaluate performance, we used standard CL metrics commonly used in the literature. For overall perfor-mance, we compute the average mean squared error (AMSE) across all tasks after completing the final task 
+
+T based on [13]: AMSE = 1
+
+T
+
+> T
+
+X
+
+> j=1
+
+RT,j (16) Further, Backward Transfer (BWT) and Forward Transfer (FWT) [59] are used to evaluate forgetting and knowledge transfer. The lower the value, the better the model’s performance. 
+
+D. Computational Complexity and Scalability 
+
+The proposed MCLC framework enables efficient se-quential learning without retraining on all previously seen data. Instead, a bounded memory buffer is used to preserve representative samples from earlier tasks, thereby reducing storage and retraining requirements during continual adaptation. Using a memory buffer size of 80, the framework required an average training time of 13.06 minutes per task with a peak GPU memory usage of 3.75 GB. During inference, the model required only 10.68 ms per sample using a single forward pass. In addition, the modality attention and cross-attention modules introduced relatively low computational over-head compared to the backbone feature extractors. These characteristics show that MCLC can efficiently adapt to new tasks while maintaining low training, memory, and inference overhead, making it suitable for practical multimodal continual learning scenarios. 
+
+E. Quantitative result analysis 
+
+We experimented with two multimodal datasets, namely MMLC and MSU-PID, and compared the MCLC model against baselines and state-of-the-art methods. Table V shows the performance of the methods on the best-performing hyperparameters, λ and buffer size on MCLC. Among all CL methods, the proposed MCLC consistently achieves the best performance across all three sequences. Specifically, MCLC obtains the low-est average AMSE of 0.675 ±0.027, 0.542 ±0.069, and 0.745 ±0.057 for CS1, CS2, and CS3, respectively. It also achieves the lowest BWT values of 0.280 ±0.115, 0.145 ±0.116, and 0.055 ±0.038, along with the low-est FWT values of 0.661 ±0.104, 0.644 ±0.037, and 0.594 ±0.050 for the respective task sequences, indicat-ing improved knowledge retention and forward transfer. Among the CL approaches compared, ER achieves the second-best performance in most cases, followed by A-GEM. In contrast, EWC, DER++, and AVQACL produce comparatively higher AMSE, BWT, and FWT values. Although rehearsal-based methods generally outperform regularization-based approaches such as EWC, DER++ performs poorly in our experiments. This is because it combines memory with logit distillation, which is designed for classification. When applied to regression-based leaf counting, distilling continuous outputs prop-agates prediction errors across tasks, resulting in error accumulation and reduced stability. 10 
+
+TABLE V: Performance comparison of CL and non-CL methods across three MMLC dataset sequences (CS1, CS2, and CS3). For each method, the best-performing hyperparameters (Param.) are selected based on the lowest AMSE. Best and second-best CL performances are Bold and Underlined respectively.                                                                                                                                          
+
+> Method CS1 CS2 CS3 Param. BWT ↓FWT ↓AMSE ↓Parameters BWT ↓FWT ↓AMSE ↓Parameters BWT ↓FWT ↓AMSE ↓
+> CL
+> EWC λ= 1 2.058 ±0.447 2.402 ±0.602 3.110 ±1.626 λ= 3 2.845 ±1.244 3.255 ±1.356 4.905 ±5.179 λ= 2 18.935 ±29.857 19.310 ±30.015 2.328 ±0.237 GEM B=10x8 0.647 ±0.084 1.130 ±0.080 1.160 ±0.063 B=10x8 2.917 ±3.656 1.398 ±0.199 1.107 ±0.054 B=10x8 0.680 ±0.159 1.095 ±0.068 1.167 ±0.291 A-GEM B=10x8 0.733 ±0.217 1.111 ±0.029 0.954 ±0.061 B=6x8 1.057 ±0.106 1.409 ±0.103 1.055 ±0.071 B=10x8 0.676 ±0.056 1.076 ±0.050 1.082 ±0.057 DER++ B=40 1.576 ±1.703 21.301 ±1.866 24.462 ±2.159 B=80 1.108 ±0.463 22.119 ±0.163 25.157 ±0.929 B=50 1.758 ±0.786 21.613 ±2.484 26.132 ±2.456 ER B=80 0.565 ±0.144 0.826 ±0.056 0.843 ±0.090 B=80 0.564 ±0.069 0.790 ±0.031 0.743 ±0.049 B=80 0.394 ±0.038 0.624 ±0.061 0.749 ±0.120 AVQACL B=50 1.368 ±0.300 2.084 ±0.281 2.241 ±0.114 B=50 1.422 ±0.145 2.154 ±0.121 1.585 ±0.128 B=40 1.325 ±0.267 1.979 ±0.236 1.561 ±0.115
+> MCLC B=80 0.280 ±0.115 0.661 ±0.104 0.675 ±0.027 B=80 0.145 ±0.116 0.644 ±0.037 0.542 ±0.069 B=80 0.055 ±0.038 0.594 ±0.050 0.745 ±0.057 Non-CL  Naive –1.570 ±0.510 1.854 ±0.474 1.518 ±0.303 –1.966 ±0.713 2.428 ±0.543 2.674 ±1.873 –1.722 ±0.397 2.085 ±0.419 2.222 ±0.361 Cumulative –0.128 ±0.106 0.303 ±0.135 0.232 ±0.072 –0.271 ±0.254 0.398 ±0.227 0.219 ±0.066 –0.090 ±0.049 0.153 ±0.027 0.157 ±0.32 Joint –––0.186 ±0.025 –––0.193 ±0.015 –––0.177 ±0.019
+
+TABLE VI: Performance comparison of CL and non-CL methods on MSU-PID dataset. For each method, the best-performing hyperparameters are selected based on the lowest AMSE. Best and second-best CL performances are Bold and Underlined, respectively. 
+
+Method MSU-PID Parameters BWT ↓ FWT ↓ AMSE ↓
+
+> CL
+
+EWC [12] λ=2 1.062 ± 0.575 1.203 ± 0.105 0.882 ± 0.074 GEM [13] B=10x8 1.134 ± 0.356 1.103 ± 0.067 0.869 ± 0.052 A-GEM [36] B=10x8 1.073 ± 0.574 1.116 ± 0.098 0.813 ± 0.084 DER++ [56] B=80 3.656 ± 14.338 36.909 ± 6.826 37.616 ± 6.954 ER [37] B=80 1.144 ± 0.590 1.031 ± 0.133 0.750 ± 0.109 AVQACL [57] B=80 0.095 ± 0.292 1.183 ± 0.186 1.030 ± 0.170 MCLC (Ours) B=80 2.244 ± 0.148 0.979 ± 0.104 0.664 ± 0.071 Non-CL  Naive – 0.948 ± 0.255 1.334 ± 0.145 1.097 ± 0.320 Cumulative – 0.998 ± 0.354 1.032 ± 0.048 0.753 ± 0.118 Joint – – – 0.642 ± 0.109 
+
+Table VI shows the performance of the methods on the best-performing hyperparameters, λ and buffer size on MSU-PID. Among all CL methods, the MCLC achieves the best overall performance, with the low-est average AMSE of 0.664 ±0.071 and the lowest FWT of 0.979 ±0.104, indicating better generalization to new tasks and improved forward knowledge trans-fer. Although AVQACL achieves the lowest BWT (0.095 ±0.292), MCLC provides a better balance be-tween knowledge retention and adaptation, resulting in the best overall continual learning performance. ER achieves the second-best performance with an AMSE of 0.750 ±0.109 and an FWT of 1.031 ±0.133, demon-strating the effectiveness of rehearsal-based learning. In comparison, EWC, GEM, and A-GEM show higher errors, while DER++ performs significantly worse, as on the MMLC dataset. Among the non-CL methods, the Joint achieves an AMSE of 0.642 ±0.109, serving as an upper bound because it has access to all training data. Compared with all CL methods, the proposed MCLC achieves the lowest AMSE in the CL setting, demonstrating its robustness and effectiveness on the MSU-PID dataset. Figure 3 shows the task-wise AMSE of different methods across the three task sequences of the MMLC dataset. Overall, ER, GEM, A-GEM, and MCLC show a gradual reduction in AMSE as more tasks are learned, indicating improved adaptation in the CL setting. Among the CL methods, MCLC consistently maintains one of the lowest AMSE values across almost all tasks and follows a trend close to the upper-bound methods, Joint Training and Cumulative. ER also demonstrates stable performance but generally exhibits slightly higher errors than MCLC. In contrast, AVQACL and Naive show larger fluctuations across tasks, indicating less stable learning under changing task distributions. Similarly, cumulative and joint training methods maintain consis-tently low error rates because they have access to all previously seen data during training. For visual clarity, EWC and DER++ are omitted because their larger AMSE values compress the remaining curves. Overall, these results show that MCLC achieves stable learning across different task sequences while effectively reduc-ing catastrophic forgetting. A similar trend is observed in Figure 4 on the MSU-PID dataset. Although MCLC starts with a relatively higher AMSE after the first task, its error decreases rapidly and remains consistently low across subsequent tasks. ER also demonstrates stable performance with comparatively low AMSE, whereas AVQACL exhibits larger fluctuations, particularly during 11 1 2 3 4 5 6 7 8Tasks 0510 15 20 25 30 35 Average MSE (AMSE)               
+
+> ER GEM MCLC (our) AVQACL AGEM Naive Joint Training Cumulative 12345678Tasks 0246810 12 14 16 Average MSE (AMSE)
+> ER GEM MCLC (our) AVQACL AGEM Naive Joint Training Cumulative 12345678Tasks 0246810 Average MSE (AMSE)
+> ER GEM MCLC (our) AVQACL AGEM Naive Joint Training Cumulative
+
+(a) CS1 (b) CS2 (c) CS3 Fig. 3: AMSE after learning each task for different CL methods under three task sequences of the MMLC dataset. 1 2 3 4 5 6Tasks 0123456789Average MSE (AMSE) 
+
+EWC ER GEM MCLC (our) AVQACL AGEM Naive Joint Training Cumulative 
+
+Fig. 4: AMSE after learning each task on MSU-PID for different CL methods. the early tasks. GEM and A-GEM perform competitively but generally maintain higher errors than MCLC and ER. As with the MMLC dataset, cumulative and joint training achieve consistently low errors, whereas DER++ is omit-ted for better visualization. Overall, MCLC demonstrates stable knowledge retention and achieves one of the lowest AMSE values throughout the CL process. 
+
+F. Qualitative result analysis 
+
+To provide further insight into the behavior of the proposed MCLC framework, Figure 5 presents repre-sentative qualitative examples from the test set, including both successful and failure cases. Each example includes the corresponding RGB, thermal, and depth modalities, along with the ground-truth (GT) leaf count, predicted (Pred.) leaf count, and absolute error (AE). As shown in Figure 5(a), accurate predictions are obtained when the plant is clearly visible and complementary information is available across all three modalities. The RGB image provides clear visual information, while the thermal and depth images offer complementary cues that help the model estimate the leaf count correctly. As a result, the prediction error is negligible. Figure 5(b) shows examples where the prediction error is higher. These images contain small plants, uneven illumination, or low-contrast depth and thermal information, making the leaf structure less distinct. Such conditions can lead to an incorrect estimate of the leaf count. Despite these challenging cases, the proposed framework performs reliably on most test samples. 
+
+Fig. 5: Qualitative analysis of the MCLC framework. VI. A BLATION STUDY 
+
+To comprehensively evaluate the contributions of the various components of our proposed MCLC framework, we conduct a detailed ablation study. This includes (i) comparison among standard leaf counting paradigms to identify the most suitable leaf counting paradigm, (ii) impact of continual multimodal fusion, (iii) performance across different dataset sequences, (iv) effect of memory size and regularization hyperparameters, and (v) perfor-mance on other datasets for generalizability. 
+
+A. Choice of Leaf Counting Paradigm 
+
+We begin by comparing four standard leaf counting paradigms: segmentation, regression, density estimation, 12 
+
+and object detection on the CVPPP [55] dataset in a non-CL setting. It is a benchmark dataset for leaf counting consisting solely of RGB images. As shown in Table VII, regression achieves the lowest Train MSE (0.34) and Test MSE (1.08), significantly outperforming others. Hence, regression is chosen as the core paradigm for predicting leaf count in our domain incremental CL setting. TABLE VII: Performance evaluation of different existing leaf-counting methods on the CVPPP dataset .            
+
+> Method Train MSE ↓Test MSE ↓
+> Segmentation [31] 0.66 1.21 Regression [9] 0.34 1.08
+> Density estimation [33] 23.90 21.43 Object detection [22] 16.95 62.43
+
+B. Effect of Continual Multimodal Fusion 
+
+We evaluated different multimodal fusion meth-ods within the proposed MCLC framework under the domain-incremental CL setting. For a fair comparison, all fusion methods were implemented using the same CL framework. Specifically, we compared our multimodal fusion strategy with [60], which performs statistical fusion using the mean and variance of modality-specific features; [61], a recent transformer-based multimodal learning framework that models cross-modal interac-tions through attention; and [62], a recent parameter-efficient multimodal framework that employs dynamic sparse cross-modality fusion for feature integration. As shown in Table VIII, MCLC consistently outperforms, achieving the lowest BWT (0.432), FWT (0.855), and AMSE (0.861). These results demonstrate that MCLC’s continual multimodal fusion strategy is more effective at integrating complementary information from multiple modalities while preserving previously learned knowl-edge in the CL setting. TABLE VIII: Comparison of multimodal fusion methods under the CL setting.                   
+
+> Method BWT ↓FWT ↓AMSE ↓
+> Havaei et al. [60] 0.86 2.146 1.671 Shah et al. [61] 1.830 2.171 1.669 Cai et al. [62] 1.449 1.632 1.256 MCLC (ours) 0.432 0.855 0.8610
+
+C. Impact of Performance across Task Sequences 
+
+To understand how task order influences performance, we evaluated existing methods on the MMLC dataset across three task sequences: CS1, CS2, and CS3. As shown in Table IX, the performance of most CL meth-ods varies with task sequences, demonstrating that task ordering has a significant impact on CL. In CS 1, tasks are grouped by crop type, result-ing in gradual domain transitions. This enables rel-atively stable learning for most methods. For exam-ple, ER achieves an AMSE of 0.843 ±0.090, while the MCLC further reduces the error to 0.675 ±0.027 using a buffer size of 80. Regularization-based EWC, however, exhibits considerably higher errors, with the best AMSE of 3.110 ±1.626. In CS 2, tasks are or-ganized by image capture time, thereby introducing greater variation across crops. This sequence is more challenging for most methods, as reflected in the substantial performance degradation of EWC, whose AMSE increases to 9.002 ±12.715 even with its best-performing hyperparameter. ER remains relatively robust with an AMSE of 0.743 ±0.049, whereas the proposed MCLC achieves the lowest AMSE of 0.542 ±0.069, together with the lowest BWT (0.145 ±0.116) and FWT (0.644 ±0.037), demonstrating improved knowledge re-tention and forward transfer. In CS 3, tasks are ar-ranged in a non-linear mixed order that combines dif-ferent crops and capture times. This sequence, there-fore, introduces abrupt distributional changes. Although this sequence causes noticeable performance fluctuations for several methods, the proposed MCLC continues to achieve the best overall performance with an AMSE of 0.745 ±0.057, outperforming ER (0.749 ±0.120) and AVQACL (1.561 ±0.115). In contrast, EWC exhibits extremely high variability, with BWT and FWT values of 18.935 ±29.857 and 19.310 ±30.015, indicating high sensitivity to task ordering. From these observations, we conclude that task se-quencing significantly influences CL performance. Also, regularization-based methods such as EWC are highly sensitive to task order and distributional shifts. More-over, rehearsal-based methods provide greater stability and consistently lower errors across sequences. More importantly, the proposed MCLC consistently achieves the lowest AMSE across all three sequences while main-taining low BWT and FWT values, demonstrating strong robustness, effective knowledge retention, and improved generalization under diverse multimodal CL scenarios. 
+
+D. Impact of Buffer and Hyperparameters 
+
+Buffer size and hyperparameters have a clear impact on performance across all sequences, as shown in Table IX. Regularization-based methods such as EWC rely on the regularization parameter λ to preserve previously learned knowledge. However, EWC exhibits inconsistent performance across different values of λ, with large variations in both the mean and standard deviation. In particular, increasing λ does not consistently improve 13 
+
+TABLE IX: Performance comparison of different methods under different hyperparameter (Param.) settings across three task sequences: CS 1, CS 2, and CS 3 of the MMLC dataset. 
+
+Method Param. CS 1 CS 2 CS 3
+
+BWT ↓ FWT ↓ AMSE ↓ BWT ↓ FWT ↓ AMSE ↓ BWT ↓ FWT ↓ AMSE ↓
+
+EWC [12] 
+
+λ = 1 2.058 ±0.447 2.402 ±0.602 3.110 ±1.626 4.456 ±4.365 4.787 ±4.459 9.002 ±12.715 2.087 ±0.599 2.643 ±0.928 2.596 ±0.734 
+
+λ = 2 5.592 ±6.786 10.036 ±13.845 11.829 ±17.133 3.675 ±2.681 3.995 ±2.733 6.897 ±8.877 18.935 ±29.857 19.310 ±30.015 2.328 ±0.237 
+
+λ = 3 2.358 ±1.026 2.699 ±0.810 4.055 ±3.835 2.845 ±1.244 3.255 ±1.356 4.905 ±5.179 177.998 ±305.667 178.405 ±305.771 2.492 ±0.424 GEM [13] 
+
+B=4 ×8 0.794 ±0.190 1.466 ±0.364 1.305 ±0.007 0.691 ±0.376 1.567 ±0.049 1.295 ±0.135 0.662 ±0.281 1.186 ±0.030 1.200 ±0.101 
+
+B=5 ×8 0.714 ±0.308 1.231 ±0.049 1.221 ±0.092 0.573 ±0.451 1.706 ±0.332 1.399 ±0.225 0.613 ±0.179 1.213 ±0.081 1.202 ±0.120 
+
+B=6 ×8 0.549 ±0.363 1.205 ±0.079 1.184 ±0.033 1.012 ±0.308 1.789 ±0.552 1.277 ±0.042 0.729 ±0.047 1.149 ±0.065 1.301 ±0.040 
+
+B=10 ×8 0.647 ±0.084 1.130 ±0.080 1.160 ±0.063 2.917 ±3.656 1.398 ±0.199 1.107 ±0.054 0.680 ±0.159 1.095 ±0.068 1.167 ±0.291 A-GEM [36] 
+
+B=4 ×8 0.769 ±0.300 1.295 ±0.056 1.071 ±0.032 1.252 ±0.114 1.577 ±0.117 1.130 ±0.079 0.835 ±0.105 1.288 ±0.075 1.301 ±0.053 
+
+B=5 ×8 0.736 ±0.345 1.278 ±0.151 1.089 ±0.106 1.189 ±0.090 1.544 ±0.061 1.164 ±0.016 0.676 ±0.242 1.217 ±0.099 1.221 ±0.103 
+
+B=6 ×8 0.692 ±0.386 1.263 ±0.091 1.052 ±0.062 1.057 ±0.106 1.409 ±0.103 1.055 ±0.071 0.774 ±0.078 1.216 ±0.091 1.225 ±0.103 
+
+B=10 ×8 0.733 ±0.217 1.111 ±0.029 0.954 ±0.061 0.987 ±0.035 1.315 ±0.046 1.077 ±0.020 0.676 ±0.056 1.076 ±0.050 1.082 ±0.057 DER++ [56] 
+
+B=30 2.721 ±1.485 23.220 ±2.344 27.249 ±2.383 2.245 ±1.257 23.960 ±1.510 26.949 ±1.264 2.576 ±1.823 22.832 ±1.135 27.671 ±0.908 
+
+B=40 1.576 ±1.703 21.301 ±1.866 24.462 ±2.159 1.959 ±0.980 23.159 ±0.843 26.453 ±1.327 2.695 ±0.874 21.602 ±2.216 26.686 ±1.731 
+
+B=50 1.975 ±1.292 22.271 ±1.694 26.995 ±1.633 1.514 ±1.280 21.918 ±1.572 25.591 ±1.990 1.758 ±0.786 21.613 ±2.484 26.132 ±2.456 
+
+B=80 1.465 ±0.787 20.386 ±1.287 25.022 ±1.699 1.108 ±0.463 22.119 ±0.163 25.157 ±0.929 2.038 ±1.432 22.004 ±2.027 26.638 ±1.645 ER [37] 
+
+B=30 0.737 ±0.079 1.106 ±0.149 1.001 ±0.070 0.798 ±0.135 0.993 ±0.216 1.005 ±0.095 0.651 ±0.100 0.898 ±0.022 1.052 ±0.104 
+
+B=40 0.735 ±0.136 0.949 ±0.157 0.996 ±0.165 0.765 ±0.094 0.997 ±0.095 0.898 ±0.062 0.503 ±0.088 0.773 ±0.056 0.945 ±0.035 
+
+B=50 0.630 ±0.153 0.927 ±0.060 0.899 ±0.012 0.714 ±0.067 0.941 ±0.092 0.863 ±0.045 0.467 ±0.172 0.745 ±0.064 0.894 ±0.093 
+
+B=80 0.565 ±0.144 0.826 ±0.056 0.843 ±0.090 0.564 ±0.069 0.790 ±0.031 0.743 ±0.049 0.394 ±0.038 0.624 ±0.061 0.749 ±0.120 AVQACL [57] 
+
+B=30 1.788 ±0.536 2.516 ±0.495 2.726 ±1.421 1.641 ±0.267 2.354 ±0.261 1.889 ±0.145 1.198 ±0.201 1.893 ±0.136 1.617 ±0.094 
+
+B=40 1.401 ±0.172 2.114 ±0.152 2.565 ±0.631 1.692 ±0.246 2.445 ±0.217 1.843 ±0.171 1.325 ±0.267 1.979 ±0.236 1.561 ±0.115 
+
+B=50 1.368 ±0.300 2.084 ±0.281 2.241 ±0.114 1.422 ±0.145 2.154 ±0.121 1.585 ±0.128 1.272 ±0.305 1.963 ±0.300 1.748 ±0.286 
+
+B=80 2.018 ±0.847 2.681 ±0.962 2.629 ±0.635 1.655 ±0.381 2.405 ±0.364 1.780 ±0.083 1.375 ±0.304 2.050 ±0.311 1.933 ±0.510 
+
+MCLC (Ours) 
+
+B=30 0.334 ±0.090 0.772 ±0.176 1.376 ±0.477 0.192 ±0.108 0.769 ±0.018 0.736 ±0.176 0.097 ±0.020 0.686 ±0.080 1.063 ±0.235 
+
+B=40 0.218 ±0.071 0.654 ±0.157 0.972 ±0.272 0.145 ±0.163 0.756 ±0.111 0.742 ±0.213 0.258 ±0.219 0.714 ±0.132 1.084 ±0.145 
+
+B=50 0.186 ±0.083 0.557 ±0.063 0.795 ±0.201 0.174 ±0.038 0.709 ±0.052 0.655 ±0.088 0.297 ±0.201 0.721 ±0.143 1.066 ±0.308 
+
+B=80 0.280 ±0.115 0.661 ±0.104 0.675 ±0.027 0.145 ±0.116 0.644 ±0.037 0.542 ±0.069 0.055 ±0.038 0.594 ±0.050 0.745 ±0.057 
+
+performance. This indicates that simply strengthening the regularization term is insufficient to effectively pre-vent catastrophic forgetting under large distributional changes. For memory-based methods, the buffer memory plays an important role in improving performance. As the buffer memory increases from 4 × 8 to 10 × 8,both GEM and A-GEM generally achieve lower AMSE values. For example, GEM achieves its best performance with a buffer size of 10 × 8, obtaining AMSE values of 1.160 ±0.063 in CS1, 1.107 ±0.054 in CS2, and 1.167 ±0.291 in CS3. Similarly, A-GEM also benefits from larger buffer memory, obtaining its lowest AMSE values of 0.954 ±0.061, 1.055 ±0.071, and 1.082 ±0.057 across CS1, CS2, and CS3, respectively. These results suggest that increasing buffer memory helps reduce forgetting, although the performance improvement grad-ually saturates. ER shows the clearest effect of buffer size. As the buffer memory increases from 30 to 80, the AMSE consistently decreases across all task sequences. For instance, the AMSE improves from 1.001 ±0.070 to 0.843 ±0.090 in CS1, from 1.005 ±0.095 to 0.743 ±0.049 in CS2, and from 1.052 ±0.104 to 0.749 ±0.120 in CS3. Similarly, AVQACL benefits from larger buffer sizes and achieves its best performance with more memory, although its comparatively large standard deviations in-dicate greater sensitivity to initialization across different random seeds. Compared with all existing methods, the proposed MCLC consistently achieves the best perfor-mance across different buffer settings. Even with mod-erate buffer sizes of 30 and 40, MCLC performs compet-itively, and increasing the buffer size to 80 further im-proves performance, achieving the lowest AMSE values of 0.675 ±0.027, 0.542 ±0.069, and 0.745 ±0.057 across CS1, CS2, and CS3, respectively. Moreover, MCLC also achieves the lowest BWT and FWT values in most settings. Overall, these results show that memory plays acrucial role in CL, and increasing buffer size gener-ally improves performance. More importantly, the way memory is utilized is equally important. The proposed MCLC method demonstrates that selecting high-quality, representative samples yields better performance than simply increasing memory size. 
+
+E. Evaluating Generalization Across Datasets 
+
+To further validate the effectiveness of our approach, we conducted experiments on an additional dataset, MSU-PID, using the same set of CL methods. As shown in Table X, the results follow trends similar to those observed on the MMLC dataset. Rehearsal-based methods clearly benefit from increased buffer sizes. For example, ER shows a consistent reduction in AMSE as the buffer size increases, improving from 0.968 ±0.009 (B=30) to 0.750 ±0.109 (B=80). Simi-larly, GEM and A-GEM also achieve lower AMSE values with larger buffers, reaching their best perfor-mance of 0.869 ±0.052 and 0.813 ±0.084, respectively, 14 
+
+at B=10 ×8. However, regularization-based methods like EWC still perform relatively worse, with AMSE remain-ing between 0.882 ±0.074 and 0.896 ±0.135, highlight-ing their limitations in handling changing data distribu-tions. DER++ performs significantly worse, with very high AMSE values, indicating instability in this domain incremental CL setting. AVQACL shows competitive performance at smaller buffer sizes but does not im-prove consistently as buffer size increases. Notably, our proposed MCLC outperforms all baselines, achieving the lowest AMSE of 0.664 ±0.071 ( B=80) along with the lowest FWT of 0.979 ±0.104. These results indicate that MCLC effectively preserves prior knowledge while adapting to new tasks, making it a robust and scalable solution across diverse datasets. TABLE X: Performance comparison of different ap-proaches under various hyperparameter settings on the MSU-PID dataset.                                                                                                                                                                                                                                                                   
+
+> Approach Parameter BWT ↓FWT ↓AMSE ↓
+> EWC [12]
+> λ=1 1.029 ±0.514 1.246 ±0.118 0.883 ±0.079
+> λ=2 1.062 ±0.575 1.203 ±0.105 0.882 ±0.074
+> λ=3 1.082 ±0.553 1.245 ±0.045 0.896 ±0.135 GEM [13]
+> B=4x8 0.918 ±0.455 1.405 ±0.141 1.020 ±0.169
+> B=5x8 1.190 ±0.652 1.202 ±0.024 1.058 ±0.154
+> B=6x8 0.975 ±0.421 1.218 ±0.094 0.996 ±0.042
+> B=10x8 1.134 ±0.356 1.103 ±0.067 0.869 ±0.052 A-GEM [36]
+> B=4x8 0.984 ±0.437 1.234 ±0.059 0.920 ±0.066
+> B=5x8 1.009 ±0.541 1.121 ±0.103 0.849 ±0.082
+> B=6x8 1.135 ±0.665 1.125 ±0.164 0.859 ±0.016
+> B=10x8 1.073 ±0.574 1.116 ±0.098 0.813 ±0.084 DER++ [56]
+> B=30 -5.514 ±19.024 44.641 ±3.120 49.140 ±4.562
+> B=40 -4.497 ±14.004 37.022 ±3.555 37.943 ±4.602
+> B=50 -3.888 ±17.017 38.897 ±4.775 41.953 ±5.590
+> B=80 -3.656 ±14.338 36.909 ±6.826 37.616 ±6.954 ER [37]
+> B=30 0.986 ±0.347 1.139 ±0.050 0.968 ±0.009
+> B=40 1.031 ±0.383 1.050 ±0.022 0.857 ±0.099
+> B=50 1.119 ±0.564 1.046 ±0.064 0.862 ±0.032
+> B=80 1.144 ±0.590 1.031 ±0.133 0.750 ±0.109 AVQACL [57]
+> B=30 0.104 ±0.467 1.385 ±0.333 1.180 ±0.136
+> B=40 0.060 ±0.630 1.336 ±0.357 1.277 ±0.380
+> B=50 0.104 ±0.565 1.345 ±0.311 1.349 ±0.451
+> B=80 0.095 ±0.292 1.183 ±0.186 1.030 ±0.170
+> MCLC (Ours)
+> B=30 2.113 ±0.248 1.099 ±0.081 0.936 ±0.161
+> B=40 2.159 ±0.188 1.071 ±0.055 0.864 ±0.006
+> B=50 2.154 ±0.201 1.053 ±0.053 0.798 ±0.028
+> B=80 2.244 ±0.148 0.979 ±0.104 0.664 ±0.071
+
+VII. C ONCLUSION 
+
+We address leaf counting in dynamic agricultural environments using a CL framework with multimodal data. We propose MCLC, which combines cross-modal fusion with a replay-based memory to learn tasks se-quentially while reducing forgetting. Unlike traditional methods, MCLC can adapt to changing data distri-butions while retaining previously learned knowledge. The experimental results, averaged over three random seeds, show that MCLC consistently outperforms the baseline methods across all data sequences.For instance, in CS1, it achieves the lowest AMSE of 0.675 ±0.027, while in CS2 and CS3 it further achieves AMSE val-ues of 0.542 ±0.069 and 0.745 ±0.057, respectively. It also maintains low BWT and FWT values, indicating effective knowledge retention and forward transfer across different task orders. Compared with EWC and memory-based methods such as ER, GEM and A-GEM, MCLC consistently achieves better performance, particularly with larger buffer sizes. Overall, MCLC provides areliable and scalable solution for multimodal continual leaf counting. Its ability to handle distribution changes, reduce forgetting, and make effective use of memory makes it useful not only for plant phenotyping but also for other real-world CL applications. VIII. L IMITATIONS AND FUTURE WORK 
+
+Although the proposed MCLC framework demon-strates strong performance for multimodal continual leaf counting, it assumes the availability of aligned RGB, depth, and thermal modalities during both training and inference. In practical agricultural deployments, some modalities may be missing, noisy, or affected by sen-sor failures, environmental conditions, or unavailability. Such scenarios may reduce the effectiveness of mul-timodal fusion and continual adaptation. Also, MCLC currently relies on a fixed memory buffer, which may be challenging for large-scale, long-term CL settings. Future work will focus on developing more robust multimodal CL strategies that handle missing modalities and noisy sensor inputs and on more memory-efficient buffer mechanisms for real-world agricultural applica-tions. ACKNOWLEDGMENTS 
+
+The authors acknowledge ANNAM.AI, an AI-CoE of the Ministry of Education, Govt. of India, at the Indian Institute of Technology Ropar, for providing resources and support to execute this work. This work is also supported by a grant from DST, Govt. of India, for the Technology Innovation Hub at IIT Ropar in the framework of the National Mission on Interdisciplinary Cyber-Physical Systems. REFERENCES [1] M. Buzzy, V. Thesma, M. Davoodi, and J. Mohammadpour Velni, “Real-time plant leaf counting using deep object detection net-works,” Sensors, vol. 20, no. 23, p. 6896, 2020. [2] Z. Li, R. Guo, M. Li, Y. Chen, and G. Li, “A review of computer vision technologies for plant phenotyping,” Computers and Electronics in Agriculture, vol. 176, p. 105672, 2020. [3] A. Quamer, N. Asgari, and J. M. Pearce, “Two-stage deep learning model for non-destructive leaf counting in tomato crops,” Computers and Electronics in Agriculture, vol. 247, p. 111717, 2026. [4] M. Minervini, A. Fischbach, H. Scharr, and S. A. Tsaftaris, “Finely-grained annotated datasets for image-based plant phe-notyping,” Pattern recognition letters, vol. 81, pp. 80–89, 2016. 15 
+
+[5] J. Chen, J. Chen, D. Zhang, Y. Sun, and Y. A. Nanehkaran, “Using deep transfer learning for image-based plant disease identification,” Computers and Electronics in Agriculture, vol. 173, p. 105393, 2020. [6] Y. Yue, J.-H. Li, L.-F. Fan, L.-L. Zhang, P.-F. Zhao, Q. Zhou, N. Wang, Z.-Y. Wang, L. Huang, and X.-H. Dong, “Prediction of maize growth stages based on deep learning,” Computers and Electronics in Agriculture, vol. 172, p. 105351, 2020. [7] A. Dobrescu, M. Valerio Giuffrida, and S. A. Tsaftaris, “Lever-aging multiple datasets for deep leaf counting,” in Proceedings of the IEEE International Conference on Computer Vision workshops, 2017, pp. 2072–2079. [8] S. Sarkar, A. Dey, R. Pradhan, U. M. Sarkar, C. Chatterjee, A. Mondal, and P. Mitra, “Crop yield prediction using multimodal meta-transformer and temporal graph neural networks,” IEEE Transactions on AgriFood Electronics, vol. 2, no. 2, pp. 545– 553, 2024. [9] M. V. Giuffrida, P. Doerner, and S. A. Tsaftaris, “Pheno-deep counter: A unified and versatile deep learning architecture for leaf counting,” The Plant Journal, vol. 96, no. 4, pp. 880–890, 2018. [10] J. A. Cruz, X. Yin, X. Liu, S. M. Imran, D. D. Morris, D. M. Kramer, and J. Chen, “Multi-modality imagery database for plant phenotyping,” Machine Vision and Applications, vol. 27, no. 5, pp. 735–749, 2016. [11] P. Kumari, D. Reisenb¨ uchler, L. Luttner, N. S. Schaadt, F. Feuer-hake, and D. Merhof, “Continual domain incremental learning for privacy-aware digital pathology,” in International Conference on Medical Image Computing and Computer-Assisted Intervention. Springer, 2024, pp. 34–44. [12] J. Kirkpatrick, R. Pascanu, N. Rabinowitz, J. Veness, G. Des-jardins, A. A. Rusu, K. Milan, J. Quan, T. Ramalho, A. Grabska-Barwinska et al., “Overcoming catastrophic forgetting in neural networks,” Proceedings of the national academy of sciences, vol. 114, no. 13, pp. 3521–3526, 2017. [13] D. Lopez-Paz and M. Ranzato, “Gradient episodic memory for continual learning,” Advances in neural information processing systems, vol. 30, 2017. [14] M. J. Mirza, M. Masana, H. Possegger, and H. Bischof, “An efficient domain-incremental learning approach to drive in all weather conditions,” in Proceedings of the IEEE/CVF conference on computer vision and pattern recognition, 2022, pp. 3001– 3011. [15] X. Tao, X. Hong, X. Chang, S. Dong, X. Wei, and Y. Gong, “Few-shot class-incremental learning,” in Proceedings of the IEEE/CVF conference on computer vision and pattern recognition, 2020, pp. 12 183–12 192. [16] J. Yoon, E. Yang, J. Lee, and S. J. Hwang, “Lifelong learn-ing with dynamically expandable networks,” arXiv preprint arXiv:1708.01547, 2017. [17] H. Shin, J. K. Lee, J. Kim, and J. Kim, “Continual learning with deep generative replay,” Advances in neural information processing systems, vol. 30, 2017. [18] S. A. Bidaki, A. Mohammadkhah, K. Rezaee, F. Hassani, S. Es-kandari, M. Salahi, and M. M. Ghassemi, “Online continual learning: A systematic literature review of approaches, chal-lenges, and benchmarks,” arXiv preprint arXiv:2501.04897, 2025. [19] M. V. Giuffrida, M. Minervini, and S. A. Tsaftaris, “Learning to count leaves in rosette plants,” In CVPPP workshop, page 13. British Machine Vision Association, 2015. [20] L. Xu, Y. Li, Y. Sun, L. Song, and S. Jin, “Leaf instance segmentation and counting based on deep object detection and segmentation networks,” in 2018 Joint 10th International Conference on Soft Computing and Intelligent Systems (SCIS) and 19th International Symposium on Advanced Intelligent Systems (ISIS). IEEE, 2018, pp. 180–185. [21] Y. Itzhaky, G. Farjon, F. Khoroshevsky, A. Shpigler, and A. Bar-Hillel, “Leaf counting: Multiple scale regression and detection using deep cnns.” in BMVC, vol. 328. Newcastle, 2018. [22] Y.-L. Tu, W.-Y. Lin, and Y.-C. Lin, “Automatic leaf counting using improved yolov3,” in 2020 International Symposium on Computer, Consumer and Control (IS3C). IEEE, 2020, pp. 197– 200. [23] F. Sun, H. Liu, C. Yang, and B. Fang, “Multimodal continual learning using online dictionary updating,” IEEE Transactions on Cognitive and Developmental Systems, vol. 13, no. 1, pp. 171–178, 2020. [24] T. Srinivasan, T.-Y. Chang, L. Pinto Alva, G. Chochlakis, M. Ros-tami, and J. Thomason, “Climb: A continual learning benchmark for vision-and-language tasks,” Advances in Neural Information Processing Systems, vol. 35, pp. 29 440–29 453, 2022. [25] Y. Zhao, C. Jiang, D. Wang, X. Liu, W. Song, and J. Hu, “Identification of plant disease based on multi-task continual learning,” Agronomy, vol. 13, no. 12, p. 2863, 2023. [26] S. Bansal, M. Singh, S. Barda, N. Goel, and M. Saini, “Pa-rdfknet: Unifying plant age estimation through rgb-depth fusion and knowledge distillation,” IEEE Transactions on AgriFood Electronics, vol. 2, no. 2, pp. 226–235, 2024. [27] A. Bono, G. Vivaldi, C. Guaragnella, and T. D’Orazio, “A visual approach for estimating plant growth during the life cycle of a vineyard,” IEEE Transactions on AgriFood Electronics, vol. 4, no. 1, pp. 395–408, 2026. [28] R. R. Donapati, R. Cheruku, and P. Kodali, “Real-time seed detection and germination analysis in precision agriculture: A fusion model with u-net and cnn on jetson nano,” IEEE Transactions on AgriFood Electronics, vol. 1, no. 2, pp. 145– 155, 2023. [29] P. Garg, A. Mishra, R. Raja, A. Kumar, M. V. Joshi, and V. S. Palaparthy, “Multimodal data fusion by integrating iot-enabled sensors and images for jamun crop disease detection with machine learning,” IEEE Transactions on AgriFood Electronics, vol. 3, no. 2, pp. 582–590, 2025. [30] Y.-L. Tu, W.-Y. Lin, and Y.-C. Lin, “Toward automatic plant phenotyping: starting from leaf counting,” Multimedia Tools and Applications, vol. 81, no. 9, pp. 11 865–11 879, 2022. [31] D. Kuznichov, A. Zvirin, Y. Honen, and R. Kimmel, “Data augmentation for leaf segmentation and counting tasks in rosette plants,” in Proceedings of the IEEE/CVF Conference on Computer Vision and Pattern Recognition (CVPR) Workshops, June 2019. [32] M. Deb, K. G. Dhal, A. Das, A. G. Hussien, L. Abualigah, and A. Garai, “A cnn-based model to count the leaves of rosette plants (lc-net),” Scientific Reports, vol. 14, no. 1, p. 1496, 2024. [33] S. Aich and I. Stavness, “Improving object counting with heatmap regulation,” arXiv preprint arXiv:1803.05494, 2018. [34] W. Xie, J. A. Noble, and A. Zisserman, “Microscopy cell count-ing and detection with fully convolutional regression networks,” Computer methods in biomechanics and biomedical engineering: Imaging & Visualization, vol. 6, no. 3, pp. 283–292, 2018. [35] S. Lu, Z. Song, W. Chen, T. Qian, Y. Zhang, M. Chen, and G. Li, “Counting dense leaves under natural environments via an improved deep-learning-based object detection algorithm,” Agriculture, vol. 11, no. 10, p. 1003, 2021. [36] A. Chaudhry, M. Ranzato, M. Rohrbach, and M. Elho-seiny, “Efficient lifelong learning with a-gem,” arXiv preprint arXiv:1812.00420, 2018. [37] D. Rolnick, A. Ahuja, J. Schwarz, T. Lillicrap, and G. Wayne, “Experience replay for continual learning,” Advances in neural information processing systems, vol. 32, 2019. [38] Z. Wang, C. Subakan, E. Tzinis, P. Smaragdis, and L. Char-lin, “Continual learning of new sound classes using generative replay,” in 2019 IEEE Workshop on Applications of Signal Processing to Audio and Acoustics (WASPAA). IEEE, 2019, pp. 308–312. [39] S.-A. Rebuffi, A. Kolesnikov, G. Sperl, and C. H. Lampert, “icarl: Incremental classifier and representation learning,” in Proceedings of the IEEE conference on Computer Vision and Pattern Recognition, 2017, pp. 2001–2010. [40] M. Zhang, T. Wang, J. H. Lim, G. Kreiman, and J. Feng, “Variational prototype replays for continual learning,” arXiv preprint arXiv:1905.09447, 2019. [41] S. Ho, M. Liu, L. Du, L. Gao, and Y. Xiang, “Prototype-guided memory replay for continual learning,” IEEE transactions on 16 
+
+neural networks and learning systems, vol. 35, no. 8, pp. 10 973– 10 983, 2023. [42] K. Wang, L. Herranz, and J. van de Weijer, “Continual learn-ing in cross-modal retrieval,” in Proceedings of the IEEE/CVF conference on computer vision and pattern recognition, 2021, pp. 3628–3638. [43] T. Lesort, V. Lomonaco, A. Stoian, D. Maltoni, D. Filliat, and N. D´ ıaz-Rodr´ ıguez, “Continual learning for robotics: Definition, framework, learning strategies, opportunities and challenges,” Information fusion, vol. 58, pp. 52–68, 2020. [44] S. Gai, Z. Chen, and D. Wang, “Multi-modal meta continual learning,” in 2021 International Joint Conference on Neural Networks (IJCNN). IEEE, 2021, pp. 1–8. [45] Y. Cai and M. Rostami, “Dynamic transformer architecture for continual learning of multimodal tasks,” arXiv preprint arXiv:2401.15275, 2024. [46] J. Li, D. Chen, X. Qi, Z. Li, Y. Huang, D. Morris, and X. Tan, “Label-efficient learning in agriculture: A comprehensive review,” Computers and Electronics in Agriculture, vol. 215, p. 108412, 2023. [47] G. M. Dimitri, A. Kocian, F. Scarselli, M. Gori, and S. Chessa, “Continual learning for agrifood: A systematic review,” IEEE Transactions on AgriFood Electronics, vol. 4, no. 1, pp. 117– 127, 2026. [48] Y. Li and J. Yang, “Meta-learning baselines and database for few-shot classification in agriculture,” Computers and Electronics in Agriculture, vol. 182, p. 106055, 2021. [49] M. Pag´ e-Fortin, “Class-incremental learning of plant and dis-ease detection: Growing branches with knowledge distillation,” in Proceedings of the IEEE/CVF International Conference on Computer Vision, 2023, pp. 593–603. [50] D. Li, Z. Yin, Y. Zhao, J. Li, and H. Zhang, “Rehearsal-based class-incremental learning approaches for plant disease classification,” Computers and Electronics in Agriculture, vol. 224, p. 109211, 2024. [51] H.-Y. Chien, K.-H. Liu, and C. Lin, “Plant species recognition based on continual learning strategy,” in IGARSS 2024-2024 IEEE International Geoscience and Remote Sensing Symposium. IEEE, 2024, pp. 10 363–10 367. [52] A. S. Reza, F. U. Zaima, M. M. Annisa, and T. Sattar, “Optimiz-ing cnn memory efficiency: a continual learning solution for plant stress classification,” Ph.D. dissertation, Brac University, 2024. [53] Y. He and B. Sick, “Clear: An adaptive continual learning framework for regression tasks,” AI Perspectives, vol. 3, no. 1, p. 2, 2021. [54] P. Kumari, J. Chauhan, A. Bozorgpour, B. Huang, R. Azad, and D. Merhof, “Continual learning in medical image analysis: A comprehensive review of recent advancements and future prospects,” Medical Image Analysis, p. 103730, 2025. [55] J. Bell and H. M. Dee, “Aberystwyth leaf evaluation dataset,” URL: https://doi. org/10.5281/zenodo, vol. 168158, no. 17-36, p. 2, 2016. [56] P. Buzzega, M. Boschini, A. Porrello, D. Abati, and S. Calderara, “Dark experience for general continual learning: a strong, simple baseline,” Advances in neural information processing systems, vol. 33, pp. 15 920–15 930, 2020. [57] K. Wu, X. Li, X. Li, C. Hu, and G. Wu, “Avqacl: A novel bench-mark for audio-visual question answering continual learning,” in Proceedings of the Computer Vision and Pattern Recognition Conference, 2025, pp. 3252–3261. [58] M. Mermillod, A. Bugaiska, and P. Bonin, “The stability-plasticity dilemma: Investigating the continuum from catastrophic forgetting to age-limited learning effects,” p. 504, 2013. [59] N. D´ ıaz-Rodr´ ıguez, V. Lomonaco, D. Filliat, and D. Maltoni, “Don’t forget, there is more than forgetting: new metrics for continual learning,” arXiv preprint arXiv:1810.13166, 2018. [60] M. Havaei, N. Guizard, N. Chapados, and Y. Bengio, “Hemis: Hetero-modal image segmentation,” in Medical Image Computing and Computer-Assisted Intervention–MICCAI 2016: 19th International Conference, Athens, Greece, October 17-21, 2016, Proceedings, Part II 19. Springer, 2016, pp. 469–477. [61] R. Shah, R. Mart´ ın-Mart´ ın, and Y. Zhu, “Mutex: Learning unified policies from multimodal task specifications,” arXiv preprint arXiv:2309.14320, 2023. [62] J. Cai, J. Su, Q. Li, W. Yang, S. Wang, T. Zhao, S. He, and W. Liu, “Keep the balance: A parameter-efficient symmetrical framework for rgb+ x semantic segmentation,” in Proceedings of the Computer Vision and Pattern Recognition Conference, 2025, pp. 10 587–10 598.

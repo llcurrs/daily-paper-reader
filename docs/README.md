@@ -6,35 +6,41 @@
 </div>
 
 ## 每次日报
-- 最新运行日期：2026-09-23
-- 运行时间：2026-09-23 21:59:10 UTC
+- 最新运行日期：2026-09-24
+- 运行时间：2026-09-24 22:07:12 UTC
 - 运行状态：成功
-- 本次总论文数：4
-- 精读区：0
-- 速读区：4
+- 本次总论文数：7
+- 精读区：2
+- 速读区：5
 
 ### 今日简报（AI）
-1) 今天速读4篇、精读0篇，已列速读中MMAP以7.0/10领先。  
-2) 最值得看的是MMAP的多模态缺失感知预训练，以及ISAC LiDAR缺失恢复、GeoBalance几何感知平衡这类“缺失+重建”方向。  
-3) 普通读者建议先读7分的MMAP，再按兴趣选6分的ISAC LiDAR恢复或GeoBalance。
-- 详情：[/202609/23/README](/202609/23/README)
+今日精读2篇、速读5篇，共筛出7篇遥感与多模态方向新论文。最值得关注的是《Semantic-Guided Fusion Network》在多源遥感图像分类上的9.0分表现，以及《PBLH Estimation》用双编码器Transformer从卫星辐射数据估算边界层高度的思路。普通读者可优先浏览这两篇的摘要与方法图，再按兴趣跟进速读中的图像配准融合与火星地表表征工作。
+- 详情：[/202609/24/README](/202609/24/README)
 
 ### 精读区论文标签
-- 本次无精读推荐。
+1. [Semantic-Guided Fusion Network for Multi-Source Remote Sensing Image Classification](/202609/24/2609.27854v1-semantic-guided-fusion-network-for-multi-source-remote-sensing-image-classification)  
+   标签：评分：9.0/10、query:multi-modal
+   evidence：面向多源遥感图像分类的语义引导融合网络并处理空间错位
+2. [PBLH Estimation from Satellite Radiances via a Dual-Encoder Transformer](/202609/24/2609.28286v1-pblh-estimation-from-satellite-radiances-via-a-dual-encoder-transformer)  
+   标签：评分：8.0/10、query:multi-modal
+   evidence：处理卫星过境数据的多模态与空间不完整特性
 
 ### 速读区论文标签
-1. [MMAP: Multimodal Missing-Aware Pretraining for Longitudinal Alzheimer's Prediction](/202609/23/2609.26617v1-mmap-multimodal-missing-aware-pretraining-for-longitudinal-alzheimers-prediction)  
+1. [Diff-RF: Mutually Reinforced Image Registration and Fusion via Degradation-Aware Learning](/202609/24/2609.28235v1-diff-rf-mutually-reinforced-image-registration-and-fusion-via-degradation-aware-learning)  
    标签：评分：7.0/10、query:multi-modal
-   evidence：缺失模态下的缺失感知多模态预训练
-2. [Distributed ISAC-Enabled Multimodal Recovery of Missing 2-D LiDAR Measurements](/202609/23/2609.22742v1-distributed-isac-enabled-multimodal-recovery-of-missing-2-d-lidar-measurements)  
+   evidence：退化条件下的多模态图像配准与融合
+2. [MCLC-NET: Multimodal Continual Learning for Leaf Counting](/202609/24/2609.18129v1-mclc-net-multimodal-continual-learning-for-leaf-counting)  
    标签：评分：6.0/10、query:multi-modal
-   evidence：借助ISAC多模态恢复缺失LiDAR测量
-3. [GeoBalance: Geometry-Aware Monitoring and Reconstruction with Asymmetric Optimization for Balanced Multimodal Learning](/202609/23/2609.23533v1-geobalance-geometry-aware-monitoring-and-reconstruction-with-asymmetric-optimization-for-balanced-multimodal-learning)  
+   evidence：多源数据随时间到达下的多模态持续学习
+3. [MarsRecon: Self-Supervised and Multimodal Surface Representations for Mars](/202609/24/2609.22379v1-marsrecon-self-supervised-and-multimodal-surface-representations-for-mars)  
    标签：评分：6.0/10、query:multi-modal
-   evidence：平衡多模态学习与弱模态表示崩溃
-4. [ROAM-ASD: Robust Open-World Active Speaker Detection with Flexible Multimodal Fusion](/202609/23/2609.26648v1-roam-asd-robust-open-world-active-speaker-detection-with-flexible-multimodal-fusion)  
+   evidence：从火星轨道影像学习视觉与多模态地表表征
+4. [MMAP: Multimodal Missing-Aware Pretraining for Longitudinal Alzheimer's Prediction](/202609/24/2609.26617v1-mmap-multimodal-missing-aware-pretraining-for-longitudinal-alzheimers-prediction)  
    标签：评分：6.0/10、query:multi-modal
-   evidence：对输入流缺失鲁棒的灵活多模态融合
+   evidence：面向缺失模态的缺失感知多模态预训练
+5. [S2A:Semantic-to-Spatial Alignment for Alignment-Free RGB-T Salient Object Detection](/202609/24/2609.27413v1-s2asemantic-to-spatial-alignment-for-alignment-free-rgb-t-salient-object-detection)  
+   标签：评分：6.0/10、query:multi-modal
+   evidence：面向显著目标检测的RGB-T跨模态融合
 
 
 <div class="dpr-home-promo-card">
