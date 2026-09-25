@@ -6,41 +6,29 @@
 </div>
 
 ## 每次日报
-- 最新运行日期：2026-09-24
-- 运行时间：2026-09-24 22:07:12 UTC
+- 最新运行日期：2026-09-25
+- 运行时间：2026-09-25 22:31:56 UTC
 - 运行状态：成功
-- 本次总论文数：7
-- 精读区：2
-- 速读区：5
+- 本次总论文数：3
+- 精读区：1
+- 速读区：2
 
 ### 今日简报（AI）
-今日精读2篇、速读5篇，共筛出7篇遥感与多模态方向新论文。最值得关注的是《Semantic-Guided Fusion Network》在多源遥感图像分类上的9.0分表现，以及《PBLH Estimation》用双编码器Transformer从卫星辐射数据估算边界层高度的思路。普通读者可优先浏览这两篇的摘要与方法图，再按兴趣跟进速读中的图像配准融合与火星地表表征工作。
-- 详情：[/202609/24/README](/202609/24/README)
+今日精读1篇、速读2篇，聚焦可见光-红外与多模态融合检测。最值得看的是 FoCal（8.0分）用频域跨模态交互与光谱校准提升航拍可见光-红外目标检测，SemMSA（7.0分）则解决不完整数据下的多模态情感分析。普通读者可先读 FoCal 的思路，再按需跟进多模态鲁棒性方向。
+- 详情：[/202609/25/README](/202609/25/README)
 
 ### 精读区论文标签
-1. [Semantic-Guided Fusion Network for Multi-Source Remote Sensing Image Classification](/202609/24/2609.27854v1-semantic-guided-fusion-network-for-multi-source-remote-sensing-image-classification)  
-   标签：评分：9.0/10、query:multi-modal
-   evidence：面向多源遥感图像分类的语义引导融合网络并处理空间错位
-2. [PBLH Estimation from Satellite Radiances via a Dual-Encoder Transformer](/202609/24/2609.28286v1-pblh-estimation-from-satellite-radiances-via-a-dual-encoder-transformer)  
+1. [FoCal: Frequency-Oriented Cross-Modal Interaction and Spectral Calibration for Aerial Visible-Infrared Object Detection](/202609/25/2609.29125v1-focal-frequency-oriented-cross-modal-interaction-and-spectral-calibration-for-aerial-visible-infrared-object-detection)  
    标签：评分：8.0/10、query:multi-modal
-   evidence：处理卫星过境数据的多模态与空间不完整特性
+   evidence：航空可见光与红外遥感数据的跨模态融合
 
 ### 速读区论文标签
-1. [Diff-RF: Mutually Reinforced Image Registration and Fusion via Degradation-Aware Learning](/202609/24/2609.28235v1-diff-rf-mutually-reinforced-image-registration-and-fusion-via-degradation-aware-learning)  
+1. [SemMSA: Latent Semantic-Aided Robust Multimodal Sentiment Analysis with Incomplete Data](/202609/25/2609.30238v1-semmsa-latent-semantic-aided-robust-multimodal-sentiment-analysis-with-incomplete-data)  
    标签：评分：7.0/10、query:multi-modal
-   evidence：退化条件下的多模态图像配准与融合
-2. [MCLC-NET: Multimodal Continual Learning for Leaf Counting](/202609/24/2609.18129v1-mclc-net-multimodal-continual-learning-for-leaf-counting)  
+   evidence：面向缺失模态的鲁棒多模态学习
+2. [SARFusion: Scene-Aware Routing Fusion for Robust Camera-LiDAR 3D Object Detection](/202609/25/2609.29235v1-sarfusion-scene-aware-routing-fusion-for-robust-camera-lidar-3d-object-detection)  
    标签：评分：6.0/10、query:multi-modal
-   evidence：多源数据随时间到达下的多模态持续学习
-3. [MarsRecon: Self-Supervised and Multimodal Surface Representations for Mars](/202609/24/2609.22379v1-marsrecon-self-supervised-and-multimodal-surface-representations-for-mars)  
-   标签：评分：6.0/10、query:multi-modal
-   evidence：从火星轨道影像学习视觉与多模态地表表征
-4. [MMAP: Multimodal Missing-Aware Pretraining for Longitudinal Alzheimer's Prediction](/202609/24/2609.26617v1-mmap-multimodal-missing-aware-pretraining-for-longitudinal-alzheimers-prediction)  
-   标签：评分：6.0/10、query:multi-modal
-   evidence：面向缺失模态的缺失感知多模态预训练
-5. [S2A:Semantic-to-Spatial Alignment for Alignment-Free RGB-T Salient Object Detection](/202609/24/2609.27413v1-s2asemantic-to-spatial-alignment-for-alignment-free-rgb-t-salient-object-detection)  
-   标签：评分：6.0/10、query:multi-modal
-   evidence：面向显著目标检测的RGB-T跨模态融合
+   evidence：对不可靠退化模态的鲁棒自适应融合
 
 
 <div class="dpr-home-promo-card">
