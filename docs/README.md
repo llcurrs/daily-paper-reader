@@ -6,29 +6,24 @@
 </div>
 
 ## 每次日报
-- 最新运行日期：2026-09-25
-- 运行时间：2026-09-25 22:31:56 UTC
+- 最新运行日期：2026-09-26
+- 运行时间：2026-09-26 21:27:35 UTC
 - 运行状态：成功
-- 本次总论文数：3
-- 精读区：1
-- 速读区：2
+- 本次总论文数：1
+- 精读区：0
+- 速读区：1
 
 ### 今日简报（AI）
-今日精读1篇、速读2篇，聚焦可见光-红外与多模态融合检测。最值得看的是 FoCal（8.0分）用频域跨模态交互与光谱校准提升航拍可见光-红外目标检测，SemMSA（7.0分）则解决不完整数据下的多模态情感分析。普通读者可先读 FoCal 的思路，再按需跟进多模态鲁棒性方向。
-- 详情：[/202609/25/README](/202609/25/README)
+今日速读 1 篇：BrainIAC 用交互式 3D 分割与在线自适应，应对多模态 MRI 脑病变异质性。值得关注的是它把跨模态泛化和在线自适应结合，减少对人工重标注的依赖。普通读者可留意这类"边用边学"的分割工具在临床落地时对标注成本和模态缺失的实测表现。
+- 详情：[/202609/26/README](/202609/26/README)
 
 ### 精读区论文标签
-1. [FoCal: Frequency-Oriented Cross-Modal Interaction and Spectral Calibration for Aerial Visible-Infrared Object Detection](/202609/25/2609.29125v1-focal-frequency-oriented-cross-modal-interaction-and-spectral-calibration-for-aerial-visible-infrared-object-detection)  
-   标签：评分：8.0/10、query:multi-modal
-   evidence：航空可见光与红外遥感数据的跨模态融合
+- 本次无精读推荐。
 
 ### 速读区论文标签
-1. [SemMSA: Latent Semantic-Aided Robust Multimodal Sentiment Analysis with Incomplete Data](/202609/25/2609.30238v1-semmsa-latent-semantic-aided-robust-multimodal-sentiment-analysis-with-incomplete-data)  
+1. [BrainIAC: Interactive 3D Brain Lesion Segmentation across Heterogeneous MRI Modalities with Online Adaptation](/202609/26/2609.23026v1-brainiac-interactive-3d-brain-lesion-segmentation-across-heterogeneous-mri-modalities-with-online-adaptation)  
    标签：评分：7.0/10、query:multi-modal
-   evidence：面向缺失模态的鲁棒多模态学习
-2. [SARFusion: Scene-Aware Routing Fusion for Robust Camera-LiDAR 3D Object Detection](/202609/25/2609.29235v1-sarfusion-scene-aware-routing-fusion-for-robust-camera-lidar-3d-object-detection)  
-   标签：评分：6.0/10、query:multi-modal
-   evidence：对不可靠退化模态的鲁棒自适应融合
+   evidence：通过零填充与随机模态丢弃处理缺失模态
 
 
 <div class="dpr-home-promo-card">
