@@ -6,24 +6,24 @@
 </div>
 
 ## 每次日报
-- 最新运行日期：2026-09-26
-- 运行时间：2026-09-26 21:27:35 UTC
+- 最新运行日期：2026-09-27
+- 运行时间：2026-09-27 22:25:17 UTC
 - 运行状态：成功
 - 本次总论文数：1
 - 精读区：0
 - 速读区：1
 
 ### 今日简报（AI）
-今日速读 1 篇：BrainIAC 用交互式 3D 分割与在线自适应，应对多模态 MRI 脑病变异质性。值得关注的是它把跨模态泛化和在线自适应结合，减少对人工重标注的依赖。普通读者可留意这类"边用边学"的分割工具在临床落地时对标注成本和模态缺失的实测表现。
-- 详情：[/202609/26/README](/202609/26/README)
+今日速读 1 篇：分布式 ISAC 助力缺失二维 LiDAR 测量的多模态恢复（6.0/10）。该方向尝试用通信感知一体化补全 LiDAR 缺失数据，对自动驾驶感知鲁棒性有参考价值。普通读者可关注其多模态融合思路，但该文评分中等，建议等更多验证后再判断实用性。
+- 详情：[/202609/27/README](/202609/27/README)
 
 ### 精读区论文标签
 - 本次无精读推荐。
 
 ### 速读区论文标签
-1. [BrainIAC: Interactive 3D Brain Lesion Segmentation across Heterogeneous MRI Modalities with Online Adaptation](/202609/26/2609.23026v1-brainiac-interactive-3d-brain-lesion-segmentation-across-heterogeneous-mri-modalities-with-online-adaptation)  
-   标签：评分：7.0/10、query:multi-modal
-   evidence：通过零填充与随机模态丢弃处理缺失模态
+1. [Distributed ISAC-Enabled Multimodal Recovery of Missing 2-D LiDAR Measurements](/202609/27/2609.22742v1-distributed-isac-enabled-multimodal-recovery-of-missing-2-d-lidar-measurements)  
+   标签：评分：6.0/10、query:multi-modal
+   evidence：多传感器融合恢复缺失感知测量
 
 
 <div class="dpr-home-promo-card">
