@@ -6,24 +6,31 @@
 </div>
 
 ## 每次日报
-- 最新运行日期：2026-09-27
-- 运行时间：2026-09-27 22:25:17 UTC
+- 最新运行日期：2026-09-28
+- 运行时间：2026-09-28 23:57:34 UTC
 - 运行状态：成功
-- 本次总论文数：1
+- 本次总论文数：3
 - 精读区：0
-- 速读区：1
+- 速读区：3
 
 ### 今日简报（AI）
-今日速读 1 篇：分布式 ISAC 助力缺失二维 LiDAR 测量的多模态恢复（6.0/10）。该方向尝试用通信感知一体化补全 LiDAR 缺失数据，对自动驾驶感知鲁棒性有参考价值。普通读者可关注其多模态融合思路，但该文评分中等，建议等更多验证后再判断实用性。
-- 详情：[/202609/27/README](/202609/27/README)
+1) 今日成功速读3篇、精读0篇，多模态情感分析、RGB-T对齐融合和摄影测量DSM增强三线并进。
+2) 最值得看的是7
+- 详情：[/202609/28/README](/202609/28/README)
 
 ### 精读区论文标签
 - 本次无精读推荐。
 
 ### 速读区论文标签
-1. [Distributed ISAC-Enabled Multimodal Recovery of Missing 2-D LiDAR Measurements](/202609/27/2609.22742v1-distributed-isac-enabled-multimodal-recovery-of-missing-2-d-lidar-measurements)  
+1. [Reliability-aware Cross-sample Enhancement for Robust Multimodal Sentiment Analysis](/202609/28/2609.30470v1-reliability-aware-cross-sample-enhancement-for-robust-multimodal-sentiment-analysis)  
+   标签：评分：7.0/10、query:multi-modal
+   evidence：噪声与缺失模态下的鲁棒多模态学习
+2. [SAGE: Source-Anchored Guidance via Frequency Equalization for Hierarchical RGB-T Alignment and Fusion](/202609/28/2609.30703v1-sage-source-anchored-guidance-via-frequency-equalization-for-hierarchical-rgb-t-alignment-and-fusion)  
    标签：评分：6.0/10、query:multi-modal
-   evidence：多传感器融合恢复缺失感知测量
+   evidence：跨不同传感器的RGB-T对齐与融合
+3. [Enhancing Photogrammetric Digital Surface Models with Pretrained Diffusion Models and Multimodal Conditioning](/202609/28/2609.31199v1-enhancing-photogrammetric-digital-surface-models-with-pretrained-diffusion-models-and-multimodal-conditioning)  
+   标签：评分：6.0/10、query:multi-modal
+   evidence：以卫星-激光雷达多模态条件扩散精化数字表面模型
 
 
 <div class="dpr-home-promo-card">
