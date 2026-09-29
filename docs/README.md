@@ -6,31 +6,27 @@
 </div>
 
 ## 每次日报
-- 最新运行日期：2026-09-28
-- 运行时间：2026-09-28 23:57:34 UTC
+- 最新运行日期：2026-09-29
+- 运行时间：2026-09-29 22:35:31 UTC
 - 运行状态：成功
-- 本次总论文数：3
+- 本次总论文数：2
 - 精读区：0
-- 速读区：3
+- 速读区：2
 
 ### 今日简报（AI）
-1) 今日成功速读3篇、精读0篇，多模态情感分析、RGB-T对齐融合和摄影测量DSM增强三线并进。
-2) 最值得看的是7
-- 详情：[/202609/28/README](/202609/28/README)
+今日速读2篇论文，聚焦无配对可见光-红外行人重识别与联邦多模态人体活动识别。最值得关注的是语义模态补偿（7.0分）如何缓解跨模态差异，以及多智能体强化学习（6.0分）在联邦多模态感知中的协作优化。普通读者可先看第一篇了解跨模态对齐思路，再按需跟进联邦学习与强化学习的结合应用。
+- 详情：[/202609/29/README](/202609/29/README)
 
 ### 精读区论文标签
 - 本次无精读推荐。
 
 ### 速读区论文标签
-1. [Reliability-aware Cross-sample Enhancement for Robust Multimodal Sentiment Analysis](/202609/28/2609.30470v1-reliability-aware-cross-sample-enhancement-for-robust-multimodal-sentiment-analysis)  
+1. [Semantic Modality Compensation for Unsupervised Visible-Infrared Person Re-identification under Unpaired Settings](/202609/29/2609.34294v1-semantic-modality-compensation-for-unsupervised-visible-infrared-person-re-identification-under-unpaired-settings)  
    标签：评分：7.0/10、query:multi-modal
-   evidence：噪声与缺失模态下的鲁棒多模态学习
-2. [SAGE: Source-Anchored Guidance via Frequency Equalization for Hierarchical RGB-T Alignment and Fusion](/202609/28/2609.30703v1-sage-source-anchored-guidance-via-frequency-equalization-for-hierarchical-rgb-t-alignment-and-fusion)  
+   evidence：通过模态补偿处理不完整模态对应
+2. [Federated Multi-Modal Human Activity Recognition using Multi-Agent Reinforcement Learning](/202609/29/2609.33492v1-federated-multi-modal-human-activity-recognition-using-multi-agent-reinforcement-learning)  
    标签：评分：6.0/10、query:multi-modal
-   evidence：跨不同传感器的RGB-T对齐与融合
-3. [Enhancing Photogrammetric Digital Surface Models with Pretrained Diffusion Models and Multimodal Conditioning](/202609/28/2609.31199v1-enhancing-photogrammetric-digital-surface-models-with-pretrained-diffusion-models-and-multimodal-conditioning)  
-   标签：评分：6.0/10、query:multi-modal
-   evidence：以卫星-激光雷达多模态条件扩散精化数字表面模型
+   evidence：对传感器遮挡或缺失鲁棒的自适应融合
 
 
 <div class="dpr-home-promo-card">
