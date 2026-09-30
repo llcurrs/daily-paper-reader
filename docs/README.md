@@ -6,27 +6,34 @@
 </div>
 
 ## 每次日报
-- 最新运行日期：2026-09-29
-- 运行时间：2026-09-29 22:35:31 UTC
+- 最新运行日期：2026-09-30
+- 运行时间：2026-09-30 23:26:24 UTC
 - 运行状态：成功
-- 本次总论文数：2
+- 本次总论文数：3
 - 精读区：0
-- 速读区：2
+- 速读区：3
 
 ### 今日简报（AI）
-今日速读2篇论文，聚焦无配对可见光-红外行人重识别与联邦多模态人体活动识别。最值得关注的是语义模态补偿（7.0分）如何缓解跨模态差异，以及多智能体强化学习（6.0分）在联邦多模态感知中的协作优化。普通读者可先看第一篇了解跨模态对齐思路，再按需跟进联邦学习与强化学习的结合应用。
-- 详情：[/202609/29/README](/202609/29/README)
+今天速读 3 篇论文，聚焦遥感去云、表格知识迁移与多模态信息分解，暂无精读。
+
+最值得关注的是 7.0 分的《GeoCR》，它尝试从异构观测中学习通用去云先验；另两篇 6.0 分工作则分别探索用游戏式偏斜迁移增强图像模型、以及监督式多模态信息分解。
+
+普通读者可优先了解 GeoCR 在真实遥感场景中的泛化表现，并留意另两篇方法能否复用到自己的跨模态任务中。
+- 详情：[/202609/30/README](/202609/30/README)
 
 ### 精读区论文标签
 - 本次无精读推荐。
 
 ### 速读区论文标签
-1. [Semantic Modality Compensation for Unsupervised Visible-Infrared Person Re-identification under Unpaired Settings](/202609/29/2609.34294v1-semantic-modality-compensation-for-unsupervised-visible-infrared-person-re-identification-under-unpaired-settings)  
+1. [GeoCR: Learning a Generalist Cloud Removal Prior from Heterogeneous Observations](/202609/30/2609.32510v1-geocr-learning-a-generalist-cloud-removal-prior-from-heterogeneous-observations)  
    标签：评分：7.0/10、query:multi-modal
-   evidence：通过模态补偿处理不完整模态对应
-2. [Federated Multi-Modal Human Activity Recognition using Multi-Agent Reinforcement Learning](/202609/29/2609.33492v1-federated-multi-modal-human-activity-recognition-using-multi-agent-reinforcement-learning)  
+   evidence：统一RGB、多光谱与SAR的多模态遥感云去除
+2. [Learning Through Game: Skewed Transfer of Tabular Knowledge to Strengthen Image Model](/202609/30/2609.32272v1-learning-through-game-skewed-transfer-of-tabular-knowledge-to-strengthen-image-model)  
    标签：评分：6.0/10、query:multi-modal
-   evidence：对传感器遮挡或缺失鲁棒的自适应融合
+   evidence：测试阶段表格模态缺失的多模态迁移学习
+3. [Structured Latent Modeling for Supervised Multimodal Information Decomposition](/202609/30/2609.35502v1-structured-latent-modeling-for-supervised-multimodal-information-decomposition)  
+   标签：评分：6.0/10、query:multi-modal
+   evidence：结构化隐变量建模将共享与模态特有信息分解,可用于多模态融合
 
 
 <div class="dpr-home-promo-card">
