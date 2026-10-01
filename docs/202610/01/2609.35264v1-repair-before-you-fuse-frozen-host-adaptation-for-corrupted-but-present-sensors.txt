@@ -1,0 +1,443 @@
+Title: Repair Before You Fuse: Frozen-Host Adaptation for Corrupted-but-Present Sensors
+
+URL Source: https://arxiv.org/pdf/2609.35264v1
+
+Published Time: Tue, 29 Sep 2026 04:04:44 GMT
+
+Number of Pages: 8
+
+Markdown Content:
+# Repair Before You Fuse: Frozen-Host Adaptation for Corrupted-but-Present Sensors 
+
+Gia-Huy Thai 1, Quang-Thinh Ly 2, Anh-Minh Phan 3, and Tuan Dang 4
+
+Abstract — Camera-LiDAR detectors can continue to con-sume unreliable features even when both sensors remain present, synchronized, and calibrated. We introduce Boundary Feature Repair (BFR), a frozen-host adaptation framework that learns task-supervised residual corrections at modality interfaces the detector already consumes. BFR-C repairs each camera feature level read by fusion, whereas BFR-L aligns host-conditioned LiDAR candidates to a selected boundary and routes site-wise innovations relative to the frozen anchor. Their jointly trained composition is BFR-CL. Zero-initialized per-channel scales make every variant an exact detector-level identity before optimization; only the repair modules train, while the encoders, fusion consumer, router, detection head, and host normalization statistics remain fixed. At inference, BFR requires neither clean references, corruption metadata, temporal history, nor online updates. Across the complete 20-corruption, five-severity KITTI-C grid, BFR-C reduces RCE from 14 .07 to 11 .92 on MVX-Net and from 14 .29 to 11 .00 on Focals Conv-F relative to their reproduced frozen baselines. On the latter host, BFR-L raises AP cor from 73 .65 to 74 .48 , while BFR-CL reaches 77 .01 AP cor and 10 .46 RCE with 86 .02 clean AP. On nuScenes-R, BFR-CL raises the reproduced MoME baseline’s mAP robustness ratio from 80 .1 to 81 .4. These results establish boundary repair as a targeted retrofit for corrupted-but-present sensing without retraining the deployed detector. 
+
+I. I NTRODUCTION 
+
+A sensor need not disappear to fail. In camera-LiDAR detection, both sensors can remain connected, synchronized, and calibrated while providing degraded observations. Cam-era images may suffer from blur, noise, or poor illumination, while LiDAR measurements may contain sparse or spurious returns. Their encoders can still produce features with the ex-pected shape, allowing corrupted information to pass through the detector. Modern detectors combine these features at point-, voxel-, or proposal-level interfaces [1], [2], [3], in a shared bird’s-eye-view (BEV) representation [4], or through object queries and repeated modality interactions [5], [6]. The fusion module therefore receives unreliable information even though neither sensor appears to be missing. Existing methods address sensor degradation in several ways. Robust fusion approaches modify how a detector denoises, associates, selects, or routes information from different modalities [5], [7], [8], [9]. Methods for modality loss bypass the missing input or reconstruct its features.  
+
+> 1Gia-Huy Thai is with the University of Science, VNU-HCM, Ho Chi Minh City 700000, Vietnam.
+> 2Quang-Thinh Ly is with Michigan State University, East Lansing, MI 48824, USA.
+> 3Anh-Minh Phan is with the Center for Environmental Intelligence, VinUniversity, Hanoi 100000, Vietnam.
+> 4Tuan Dang is with the University of Arkansas, Fayetteville, AR 72701, USA. 3D Detection
+> Head
+> Sensor
+> Fusion
+> LiDAR
+> Boundary
+> Repair
+> Camera Images
+> LiDAR Points
+> Camera
+> Boundary
+> Repair
+> Camera
+> Encoder
+> LiDAR
+> Encoder
+> Results
+
+Fig. 1: Frozen-host boundary repair. BFR-C and BFR-L repair host-consumed camera and LiDAR features while the encoders, fusion consumer, router, and detection head (snowflakes) remain frozen. 
+
+ModalPatch, for example, keeps the detector frozen and uses temporal history to predict a temporarily unavailable representation [10]. Image restoration, by contrast, aims to recover a clean sensor input. We focus on features that are available in the current frame but corrupted. Our goal is to correct them without retraining the detector or relying on previous observations. We propose Boundary Feature Repair (BFR), which learns residual corrections at modality-specific interfaces of the frozen detector. The camera branch, BFR-C, applies compact blocks to the final image feature levels used by fusion. At a selected LiDAR boundary, BFR-L constructs host-conditioned candidates, aligns them to the host feature do-main, and routes their differences from the frozen anchor independently at each boundary site. This interface-level rule admits representation-derived candidates at a dense BEV boundary and sparse candidates at intermediate LiDAR stages. The combined variant, BFR-CL, applies both repair branches. Figure 1 summarizes their placement in the frozen host. Zero-initialized channel scales make every BFR variant reproduce the original detector before training. Thereafter, only the repair modules optimize the downstream detection objective; the encoders, fusion consumer, router, detection head, and host normalization statistics remain fixed. BFR thus learns corrections that the frozen consumer can exploit from current evidence rather than reconstructing a generic clean feature. At inference, it requires no corruption labels, clean observations, temporal history, or online updates, but does not assume that completely missing evidence can be recovered. We evaluate BFR first on KITTI-C [11] and then on nuScenes [12] under common corruptions and structured sensor failures. On the complete 20-corruption, five-severity arXiv:2609.35264v1 [cs.RO] 28 Sep 2026 KITTI-C grid, both independently trained branches improve corruption AP relative to the same frozen Focals Conv-F host; jointly trained BFR-CL reaches 77 .01 AP cor with 
+
+86 .02 clean AP. BFR-C also transfers to MVX-Net without architectural retuning, reducing RCE by 2.15 points. On nuScenes-R [13], BFR-CL improves the reproduced MoME baseline’s mAP robustness ratio by 1.3 points. We report clean accuracy and individual corruption results alongside aggregate scores. We make three contributions.  
+
+> •
+
+We formulate BFR as exact-identity residual repair at modality boundaries of a frozen detector, applied per branch or jointly.  
+
+> •
+
+BFR-C places independent residual bottlenecks at ev-ery camera level read by pyramid-sampling, sparse-convolution, and query-fusion hosts.  
+
+> •
+
+BFR-L aligns host-conditioned candidates at selected dense or sparse LiDAR boundaries and routes site-wise, anchor-relative innovations. II. R ELATED WORK 
+
+A. Fusion Interfaces for Camera-LiDAR Detection 
+
+Fusion architectures differ in how they combine modalities and which features they pass to the downstream detector. Early methods combine separately encoded image and point features at the proposal level [1] or projected points and voxels [2]. PointPainting appends image-derived semantic scores to LiDAR points [3], while EPNet enriches point features with image semantics [14]. LoGoNet combines local proposal-level and global scene-level fusion [15], and Focals Conv-F integrates image features through focal sparse convolution [16]. BEVFusion maps both modalities into a shared bird’s-eye-view representation [4]. CMT directly pro-cesses camera and LiDAR tokens [17], UniTR uses a shared multimodal transformer backbone [18], and SparseFusion combines sparse candidates in a common 3D space [19]. TransFusion uses LiDAR-guided object queries to select image evidence [5], while DeepInteraction preserves separate modality representations through repeated cross-modal ex-changes [6]. Although their interfaces differ, these detectors train the fusion components jointly. BFR instead adapts the modality features read by an already-trained fusion consumer while leaving its downstream operations fixed. 
+
+B. Robust Fusion under Sensor Degradation 
+
+Robustness benchmarks reveal failures that clean evalua-tions may overlook. KITTI and nuScenes provide established driving benchmarks [20], [12]. Common-corruption bench-marks extend them with repeatable weather, sensor, motion, object, and alignment perturbations [11]. nuScenes-R focuses on structured camera and LiDAR failures [13]. MultiCorrupt evaluates ten degradation modes and shows that robustness depends strongly on the fusion strategy [21]. These bench-marks motivate our evaluation under both sensor corruption and severe sensor failures. Because their corruption recipes, severity levels, checkpoints, and evaluators differ, we report published results as context and base method claims on controlled comparisons with reproduced host baselines. Existing methods address degradation by changing the detector, its training, or the information available during inference. MetaBEV uses evolving BEV queries to aggregate available modalities [7], whereas UniBEV aligns modality-specific BEV maps for operation with different input com-binations [22]. RobBEV combines deformable cross-modal attention with temporal aggregation [23]. RoboFusion brings together foundation-model image features, frequency-domain denoising, and adaptive fusion [8]. MoME routes object queries among camera, LiDAR, and joint experts trained to handle sensor failures [9]. RoLiC uses bidirectional feature completion and task-aware distillation for failures affecting one or both modalities [24]. These approaches train detector components to handle degraded or missing inputs. ModalPatch keeps the detector frozen and predicts temporarily missing features from temporal history, followed by uncertainty-guided refinement [10]. BFR also keeps the detector frozen, but corrects degraded features that remain available in the current frame. It requires no temporal his-tory and does not aim to reconstruct a completely missing modality. 
+
+C. Frozen-Host Adaptation and Task-Aligned Repair 
+
+Residual learning provides a way to learn corrections around an identity mapping [25]. Residual adapters show that compact modules can specialize a largely shared visual network [26]. Feature denoising also modifies internal repre-sentations and is trained jointly with an adversarially robust model [27]. BFR trains only the residual repair modules while keeping the complete detector, including its normaliza-tion statistics, fixed. Zero-initialized channel scales preserve the original detector’s outputs before training. BFR-C applies these corrections to the camera feature pyramid [28], while BFR-L aligns candidate LiDAR features to a selected host boundary and mixes their innovations relative to its frozen anchor. Test-time adaptation addresses distribution shift by updat-ing a deployed model using target data. Tent adapts normal-ization parameters through entropy minimization [29]. MOS maintains and combines historical LiDAR-detector check-points online as corruptions change [30]. BFR is trained offline and requires neither optimization on target batches nor a checkpoint bank at inference. Rather than imposing a clean-feature reconstruction target, BFR optimizes directly through the frozen detector’s task loss and evaluates performance via downstream detection. This task-aligned objective and offline deployment distinguish it from both feature reconstruction and online adaptation. III. B OUNDARY FEATURE REPAIR 
+
+A. Frozen Consumer, Two Repair Boundaries 
+
+Let Ec and El be pretrained camera and LiDAR encoders, 
+
+G their fusion consumer, and H the detection head. The a)  Camera  Boundary Repair (BFR-C) b)  LiDAR  Boundary Repair (BFR-L)
+
+> BFR-C
+> ...
+> Camera
+> Encoder
+> 1x1
+> Conv
+> 3x3
+> Conv
+> 1x1
+> Conv
+> 1x1
+> Conv
+> 3x3
+> Conv
+> 1x1
+> Conv
+> 1x1
+> Conv
+> 3x3
+> Conv
+> 1x1
+> Conv
+> Candidate e
+> Branch
+> Candidate 2
+> Branch
+> LiDAR
+> Voxel
+> Encoder
+> Boundary
+> Alignment
+> ...
+> ...
+> ...
+> Heavy-tailed
+> Gating
+> BFR-L
+> Candidate 1
+> Branch
+
+Fig. 2: Boundary repair mechanisms. (a) BFR-C applies an independent project–spatial–restore residual Rl to every camera feature level consumed by the host, then gates the update with a zero-initialized channel scale γCl . (b) BFR-L aligns BEV-adapter, point-, and range-derived candidates Ba, Bp, and Br , routes their anchor-relative innovations with a learned-center heavy-tailed gate, and writes the mixture through γL. The sensor encoders remain frozen. 
+
+frozen host maps a camera-LiDAR pair (xc, x l) to 
+
+ˆy0 = H(G(B0, C 1: L)) , B0 = El(xl), C1: L = Ec(xc).
+
+(1) We consider corrupted-but-present inputs (˜ xc, ˜xl) whose shapes, timing association, and calibration remain valid even though their evidence is degraded. BFR follows represen-tations already consumed by the host: BFR-C maps the final camera pyramid C1: L to C′
+
+> 1: L
+
+, while BFR-L repairs one or more selected LiDAR boundaries and leaves every downstream host operation unchanged. We write B′ for the repaired LiDAR representation produced after these boundaries and their frozen suffix, distinguishing it from the unmodified host output B0. Their composition predicts 
+
+ˆyCL = H(G(B′, C ′
+
+> 1: L
+
+)) . (2) The encoders, fusion consumer, expert router, detection head, and all host normalization statistics are fixed. We use corruption type and severity only to construct training and evaluation inputs; we do not supply either to the actuators. 
+
+B. Camera Boundary Repair (BFR-C) 
+
+Figure 2(a) expands the camera actuator across the feature levels read by the host. Each level keeps its identity path, while its repair branch uses the same project–spatial–restore pattern with parameters that are independent across levels. For camera level l with cl channels, BFR-C applies 
+
+δCl = γCl ⊙ Rl(Cl), C′ 
+
+> l
+
+= Cl + δCl , (3) where γCl ∈ Rcl is broadcast spatially. The lightweight bottleneck is 
+
+Rl(Cl) = W 3 
+
+> l
+
+σ GN  W 2 
+
+> l
+
+σ GN  W 1 
+
+> l
+
+Cl
+
+ , (4) with 1 × 1, 3 × 3, and 1 × 1 convolutions, ReLU σ, and GroupNorm in the bottleneck. Parameters are independent across the feature levels a host consumes. MoME and MVX-Net use 256-channel inputs and a 64-channel bottleneck; Focals Conv-F uses a compact 16-to-64-channel instance. This preserves every feature shape and calibration operation downstream. For MVX-Net [2], [1], BFR-C repairs all five FPN levels immediately before calibrated point sampling. In Focals Conv-F, it repairs the single 16-channel layer1 feat2d tensor that the focal sparse-convolution module reads. In the MoME host [9], the same operator is shared across views and applied at both camera levels before query-level fusion. BFR-C therefore adapts different consumers through the same functional rule: repair the final current-frame camera representation, then leave the original fusion path untouched. 
+
+C. LiDAR Boundary Repair (BFR-L) 
+
+BFR-L is defined at a selected host boundary s, rather than by one fixed LiDAR representation. Let B(s)0 : Ω s → Rcs
+
+denote the frozen host anchor on spatial support Ωs. A set of host-conditioned builders produces candidate features eBe,indexed by e ∈ E s. The boundary-alignment operator Ae→s
+
+maps each candidate to the anchor interface, 
+
+B(s) 
+
+> e
+
+= Ae→s( eBe), B(s) 
+
+> e
+
+: Ω s → Rcs . (5) Thus, s selects the repaired host boundary, whereas u ∈
+
+Ωs indexes a site shared by the anchor and every aligned candidate. In Figure 2(b), the blue encoder denotes the frozen host prefix ending at s, which may be an intermediate sparse stage or a dense BEV output. The panel shows one site; the operation applies over the full domain. At site u, each aligned feature, including anchor e = 0 ,is projected to z(s) 
+
+> e
+
+(u) and compared with a learned center 
+
+α(s) 
+
+> e
+
+. BFR-L uses the polynomial-tail score 
+
+a(s) 
+
+> e
+
+(u) = β(s) 
+
+> e
+
+− log 
+
+
+
+1 + ∥z(s) 
+
+> e
+
+(u) − α(s) 
+
+> e
+
+∥2
+
+
+
+,w(s) 
+
+> e
+
+(u) = softmax e∈E s a(s) 
+
+> e
+
+(u).
+
+(6) where β(s)0 initializes a preference for the frozen anchor. The polynomial tail decays more slowly with projected distance than an exponential kernel; we treat this as a design choice rather than attributing the overall repair gain to the kernel alone. BFR-L routes innovations relative to the deployed host instead of averaging replacement features: 
+
+δ(s) 
+
+> e
+
+(u) = B(s) 
+
+> e
+
+(u) − B(s)0 (u),B′(s)(u) = B(s)0 (u) + γL ⊙ X
+
+> e∈E s
+
+w(s) 
+
+> e
+
+(u)δ(s) 
+
+> e
+
+(u). (7) The candidate builders are instantiated according to the host interface. In the full MoME route, BFR-L is inserted at the dense BEV boundary before the frozen expert router. A range route projects (x, y, z, intensity, time ) to a spherical grid, processes it with a compact encoder-decoder, gathers point features, and scatter-maxes them into BEV; a point route applies a shared MLP and BEV scatter; and an adapter route maps the host anchor. Their spatial and channel alignment is represented by Ae→s. The innovation gate also exposes 
+
+ρ = [ normalized entropy , w 0] to the existing query route; ρ
+
+is an internal feature, not a calibrated sensor-health label. On Focals Conv-F, two sparse routing instances with 16-channel hidden projections instead attach to the 64-channel x conv3 
+
+and x conv4 boundaries, preserve their sparse support and SubM indices, and use host-specific sparse candidates. Each instance follows the same aligned, anchor-relative routing and zero-scale writeback in Equation 7; Figure 2(b) depicts one such boundary. 
+
+a) BFR-CL: The full plug-in comprises both actuators: BFR-C repairs the camera feature pyramid, and BFR-L re-pairs the LiDAR representation in one jointly trained run on the same frozen host. Each actuator starts from its zero-scale identity, and no host parameter or normalization statistic is updated. BFR-C and BFR-L in the tables use the same modules trained alone. 
+
+D. Exact Identity and Learning Objective 
+
+All camera scales γCl and installed LiDAR scales γL are initialized to zero. Consequently, C′ 
+
+> l
+
+= Cl and B′(s) =
+
+B(s)0 at every repaired boundary before optimization. Every frozen suffix therefore receives exactly its original input, and Equation 2 gives ˆyCL = ˆ y0 up to numerical determinism. This detector-level identity holds for either branch alone and for their composition. It is an initialization property, not a guarantee of zero clean cost after training, which we measure explicitly. Both branches receive the unchanged host detection loss. For BFR-C, the clean-camera residual anchor is 
+
+LC = Ldet + λC mC
+
+X
+
+> l
+
+∥δCl ∥22
+
+|δCl | , (8) where mC indicates a camera-clean sample. We use 
+
+λC = 1 for the reported MoME BFR-CL model and 
+
+0 for the MVX-Net and Focals Conv-F models. In the full dense route, each aligned BFR-L candidate addi-tionally receives 0.5[SmoothL1( B(s) 
+
+> e
+
+, sg( B(s)0 )) + 0 .5(1 −
+
+cos( B(s) 
+
+> e
+
+, sg( B(s)0 )))] on occupied sites; this candidate-teacher term is not used by the Focals sparse route. Both routes use load-balancing, LayerScale, and clean-LiDAR residual weights of 0.01 , 0.01 , and 1.0, respectively, with prior-KL weight 0.05 inside load balancing. Only the repair modules receive gradients, and we remove all detached targets and auxiliary losses at inference. BFR is therefore optimized for utility to the frozen detection consumer rather than against a generic feature-reconstruction target. 
+
+E. Optimization and Inference 
+
+We optimize only the repair parameters offline. Frozen host BatchNorm layers remain in evaluation mode; we con-fine newly introduced normalization to the repair branches. At inference, we remove corruption sampling, clean indica-tors, distillation targets, and all auxiliary losses. BFR requires no clean twin, corruption classifier, severity input, temporal cache, target-batch optimization, or change to the detection output space. The added computation is reported in Table V. IV. E XPERIMENTS 
+
+A. Experimental Setup a) Datasets and metrics: We evaluate BFR primarily on KITTI-C [11], reporting Car 3D AP 40 at moderate diffi-culty over 20 corruption types and five severities. We define AP cor as their mean and RCE = 100(1 − AP cor /AP clean );RCE is interpreted jointly with clean AP because a lower clean score can reduce it mechanically. As a secondary benchmark, nuScenes [12] reports mAP and NDS on com-mon corruptions and the nuScenes-R sensor-failure proto-col [13]. Severity-2-only aggregates are written AP cor (s2) and RCE(s2). The six nuScenes-R cells follow the official composition and exclude heavier internal variants. 
+
+b) Implementation details: KITTI-C evaluates BFR on frozen Focals Conv-F [16] and MVX-Net [2] hosts. We train BFR-C on Focals Conv-F with AdamW [31] for six epochs at learning rate 4.63 × 10 −4, corruption probability 
+
+0.8, clean-camera residual weight λC = 0 , and a 12-family image mix over severities 1–3; two corruptions are composed with probability 0.3. The locked architecture transfers to MVX-Net without retraining and uses a learning rate of 
+
+10 −3. BFR-L on Focals Conv-F trains for six epochs at a learning rate of 2×10 −4 and a LiDAR corruption probability of 0.5. Its anchor logit is initialized to β0 = 2, while candidate logits start at zero. BFR-CL jointly trains both modules for six epochs with their inherited optimizer groups and independently sampled camera and LiDAR corruptions; it does not perform joint-specific hyperparameter selection. On nuScenes, the frozen MoME host [9] and normalization statistics remain fixed. BFR-CL trains for six epochs with 8,007 iterations per epoch; camera and LiDAR corruptions are sampled independently with probability 0.3 at severities 1-3, using the inherited recipe without retuning. 
+
+c) Evaluation protocol: We compare each BFR result with its corresponding reproduced frozen baseline using the same host checkpoint, evaluator, samples, and corruption realization. Published scores are retained only as context, and only rerun hosts are marked (repro.) . Complete five-severity grids use one training seed. We evaluate the nuScenes host TABLE I: KITTI-C Car 3D AP 40 at moderate difficulty. BFR variants are compared with their reproduced frozen baselines; † and ∗
+
+mark benchmark-reported and RoboFusion-author reproduced results, respectively. 
+
+Corruption LC Fusion MVX-Net [2] Focals Conv-F [16] EPNet [14] † LoGoNet [15] ∗ RoboFusion-L [8] RoboFusion-B [8] RoboFusion-T [8] (repro.) +BFR-C (repro.) +BFR-C +BFR-L +BFR-CL 
+
+None (AP clean ) 82.72 85.04 88.04 87.87 87.60 78.59 79.33 85.92 85.84 86.17 86.02 
+
+Weather 
+
+Snow 34.58 51.45 85.29 84.70 84.60 27.29 37.91 34.56 54.65 38.77 54.70 Rain 36.27 55.80 86.48 85.54 84.79 43.85 48.95 41.99 61.70 46.82 62.17 Fog 44.35 67.53 85.53 84.00 84.17 63.03 68.65 45.08 61.25 47.19 60.26 S.L. 69.65 75.54 85.50 85.15 84.75 73.80 75.46 80.04 81.79 81.59 82.39 
+
+Sensor 
+
+Density 82.09 83.68 85.71 84.34 84.11 77.08 78.48 84.96 85.15 85.48 85.34 Cutout 76.10 77.17 83.17 81.30 81.21 72.80 73.20 80.46 80.15 80.84 80.65 Crosstalk 82.10 82.00 84.12 82.45 83.07 77.46 78.61 85.83 85.70 86.09 85.96 Gaussian (L) 60.88 61.85 76.56 78.32 76.52 72.20 71.73 81.45 79.86 82.52 82.45 Uniform (L) 79.24 82.94 85.05 83.04 84.11 77.37 78.27 85.21 84.75 85.40 85.26 Impulse (L) 81.63 84.66 85.26 85.06 85.46 78.32 79.12 85.98 85.58 86.13 86.03 Gaussian (C) 80.64 84.29 82.16 84.63 82.17 70.48 75.26 81.37 80.82 79.85 81.66 Uniform (C) 81.61 84.45 83.30 85.20 83.30 75.60 77.20 83.00 83.02 83.06 83.50 Impulse (C) 81.18 84.20 83.51 84.55 82.91 70.65 75.14 80.59 80.78 78.60 81.57 
+
+Motion Moving Obj. 55.78 14.44 49.30 49.12 49.90 25.08 25.61 28.20 28.52 29.23 29.16 Motion Blur 74.71 84.52 84.17 84.56 84.18 74.95 77.87 81.12 83.22 82.18 83.56 
+
+Object 
+
+Local Density 76.73 78.63 83.21 82.53 83.22 75.68 77.04 83.39 83.58 83.93 83.80 Local Cutout 69.92 64.88 77.22 75.27 76.23 63.21 64.69 76.70 76.24 77.19 77.13 Local Gaussian 75.76 55.66 79.02 78.32 78.33 75.35 76.46 82.15 80.80 82.97 83.18 
+
+Local Uniform 81.71 79.94 84.69 83.70 84.37 78.12 78.80 85.03 84.71 85.66 85.59 Local Impulse 82.21 84.29 85.26 85.08 85.06 78.35 79.02 85.81 85.62 86.05 85.94 Average (AP cor ) 70.35 71.89 81.72 81.31 81.12 67.53 69.87 73.65 76.39 74.48 77.01 RCE (%) ↓ 14.94 15.46 7.17 7.46 7.38 14.07 11.92 14.29 11.00 13.57 10.46 Snow      
+
+> Focals Conv-F +BFR-CL (ours)
+> Rain Fog Moving Object
+> Ground Truth Truth Positives False Positives Improved Predictions
+
+Fig. 3: KITTI-C severity-2 Car examples for frozen Focals Conv-F (top) and joint BFR-CL (bottom). Black, green, and red denote ground truth, true positives, and false positives; dashed blue circles mark host misses detected by BFR-CL. Both use score ≥ 0.5 and center distance ≤ 1.5 m. and BFR-CL model on the same 6,019 validation samples, the complete severity-2 common-corruption grid, and six nuScenes-R failures. 
+
+B. KITTI-C Evaluation 
+
+In leaderboard-style comparisons, Best and Second mark the best and second-best available values in each displayed row. Protocol differences remain explicit in the captions and must be considered when interpreting these visual rankings. 
+
+a) Complete-grid and cross-host results: Table I is the principal complete-grid comparison. On Focals Conv-F, BFR-C improves AP cor by 2.74 points, from 73 .65 to 76 .39 ,and reduces RCE by 3.29 points, from 14 .29 to 11 .00 ; clean AP changes by only −0.08 , from 85 .92 to 85 .84 . BFR-L independently raises AP cor by 0.83 and clean AP by 0.25 ,while reducing RCE by 0.72 . Joint BFR-CL gives the largest Focals robustness improvement over the frozen host: AP cor 
+
+increases by 3.36 , RCE decreases by 3.83 , and clean AP increases by 0.10 .Relative to BFR-C alone, joint training adds 0.62 AP cor 
+
+and lowers RCE by another 0.54 points. The same BFR-C architecture transfers to MVX-Net without retuning: clean AP rises by 0.74 , AP cor by 2.34 , and RCE falls by 2.15 
+
+points. RoboFusion-L retains the strongest absolute aggre-gate, with 81 .72 AP cor and 7.17 RCE, but it is a separately trained system and therefore provides context rather than a final result. We report clean KITTI performance only through the clean rows paired with KITTI-C; we claim no separate validation table or test-server result. 
+
+b) Per-corruption analysis: The per-corruption rows reveal complementary, non-uniform responses. BFR-C im-proves all four weather corruptions on both hosts; on Focals Conv-F, its gains reach 20 .09 AP under snow, 19 .71 under rain, and 16 .17 under fog. Despite these large within-host recoveries, RoboFusion-L retains the highest absolute AP in every weather row. BFR-L has a smaller aggregate effect but improves crosstalk, each of the three LiDAR-noise corrup-tions, and all five object corruptions; under Gaussian LiDAR noise, it adds 1.07 AP over the host. Across all displayed methods, BFR-L or BFR-CL ranks first on crosstalk and all three LiDAR-noise rows, leads four of the five object rows, and ranks second on local cutout. Joint BFR-CL combines much of these behavior patterns: compared with BFR-C, it gains 2.59 under Gaussian LiDAR noise and 2.38 under local Gaussian corruption, while raising Gaussian-camera performance by 0.84 . It does not dominate every cell—for example, its fog AP is 0.99 below BFR-C—so the aggregate gain reflects complementary coverage rather than uniform improvement. 
+
+c) Qualitative results: Figure 3 illustrates detection changes behind the aggregate KITTI-C gains. Under snow, rain, and fog, BFR-CL increases the detected ground-truth cars from 1/15 , 5/19 , and 4/10 to 8/15 , 16 /19 , and 10 /10 ,with no additional false positives in these examples. Under moving-object corruption, it changes 14 /18 to 18 /18 with one additional false positive. These examples illustrate be-havior at a fixed threshold rather than estimate recall; the complete-grid evidence is in Table I. 
+
+C. nuScenes Evaluation 
+
+We report the jointly trained BFR-CL checkpoint as a system-level intervention and do not assign its gains causally to either branch. 
+
+a) Common corruptions: Table II follows the 21-corruption subset of RoboFusion Table 15. The published columns average five severities, whereas we evaluate our reproduced MoME baseline and BFR-CL at severity 2. Rankings across these protocol blocks are therefore con-textual. Relative to the reproduced host, BFR-CL improves AP cor (s2) by 1.00 point, from 62 .23 to 63 .23 , and reduces RCE(s2) by 2.07 points, from 12 .58 to 10 .51 ; clean mAP de-creases by 0.54 . Eleven of 21 corruption cells improve. The gains concentrate under strong sunlight ( +6 .56 ), crosstalk (+5 .51 ), compensation error ( +3 .01 ), and impulse camera noise ( +2 .55 ). Several mild density and LiDAR-noise cells decrease by less than 0.4, so the aggregate improvement is concentrated rather than uniform. 
+
+TABLE II: nuScenes-C mAP under common corruptions. LC-fusion results average five severities; the reproduced MoME base-line and BFR-CL use severity 2. † and ∗ mark published and author-reproduced results.                                                                                                                                    
+
+> Corruption LC Fusion MoME [9] BEVFusion [4] †DeepInteraction [6] ∗RoboFusion-L [8] (repro.) +BFR-CL None (mAP clean )68.45 69.90 69.91 71.19 70.65
+> Weather
+> Snow 62.84 62.36 67.12 64.00 64.72 Rain 66.13 66.48 67.58 68.63 68.22 Fog 54.10 54.79 67.01 68.50 68.06 S.L. 64.42 64.93 67.24 60.20 66.76
+> Sensor
+> Density 67.79 68.15 69.48 70.77 70.39 Cutout 66.18 66.23 69.18 70.28 69.90 Crosstalk 67.32 68.12 68.68 10.82 16.33 FOV Lost 27.17 42.66 39.48 51.92 53.84
+> Gaussian (L) 60.64 57.46 57.77 69.97 69.80 Uniform (L) 66.81 67.42 64.57 70.67 70.36 Impulse (L) 67.54 67.41 65.64 70.54 70.20 Gaussian (C) 64.44 66.52 66.73 62.12 64.42 Uniform (C) 65.81 65.90 65.77 67.15 67.32
+> Impulse (C) 64.30 65.65 64.82 61.59 64.14
+> Motion Compensation 27.57 39.95 41.88 41.80 44.81
+> Motion Blur 64.74 65.45 67.21 65.70 65.88
+> Object
+> Local Density 67.42 67.71 66.74 61.70 62.14 Local Cutout 63.41 65.19 68.82 59.79 60.46 Local Gaussian 64.34 64.75 65.08 69.85 69.68 Local Uniform 67.58 66.44 66.71 70.59 70.26 Local Impulse 67.91 67.86 66.53 70.30 70.05
+> Average (mAP cor )61.35 62.92 63.90 62.23 63.23
+> RCE (%) ↓10.36 9.97 8.58 12.58 10.51
+
+b) Structured sensor failures: Table III focuses the nuScenes-R comparison on fusion methods. We retain pub-lished robustness ratios from their sources; we recompute those for the reproduced MoME baseline and BFR-CL on the six displayed failures and each row’s clean score. BFR-CL raises the mAP robustness ratio by 1.3 points, from 
+
+80 .1 to 81 .4, and the NDS ratio by 0.4, from 85 .9 to 86 .3.Averaged across the six failures, mAP increases by 0.46 ,from 57 .03 to 57 .49 , whereas NDS changes by only 0.04 ,from 63 .22 to 63 .26 ; clean mAP and NDS decrease by TABLE III: nuScenes-R robustness under structured sensor failures. R is the mean corrupted-to-clean performance ratio across the displayed failures. 
+
+Method Clean Perf. ratio ( R) LiDAR failures Camera failures Beam reduction 
+
+4 beams 
+
+LiDAR drop 
+
+all 
+
+Limited FOV 
+
+[−60 , 60] 
+
+Object failure 
+
+rate = 0 .5
+
+View drop 
+
+6 drops 
+
+Occlusion 
+
+w/ obstacle 
+
+mAP NDS mAP NDS mAP NDS mAP NDS mAP NDS mAP NDS mAP NDS mAP NDS UniBEV [22] † 64.2 68.5 75.8 83.7 45.1 56.1 35.0 42.2 35.9 50.1 57.1 64.0 58.2 65.3 60.5 66.4 TransFusion [5] 66.9 70.9 54.4 66.8 – – 0.0 0.0 20.3 45.8 34.6 53.6 61.6 67.4 65.5 70.0 MetaBEV [7] 68.0 71.5 75.4 82.5 – 57.7 39.0 42.6 – 57.7 – 67.6 63.6 69.2 – 70.0 CMT [17] † 70.3 72.9 78.4 84.4 54.9 62.2 38.3 44.7 43.9 54.0 66.7 70.4 61.7 68.1 65.0 69.8 UniTR [18] † 70.5 73.3 54.8 68.5 47.7 59.6 0.1 1.5 22.4 48.1 38.3 55.6 60.4 67.4 62.7 68.9 SparseFusion [19] † 71.0 73.1 62.4 71.3 49.8 59.6 0.0 0.0 24.0 45.6 65.2 69.5 59.7 67.2 67.2 71.0 
+
+MoME [9] (repro.) 71.19 73.62 80.1 85.9 54.80 62.70 42.40 47.90 48.20 56.90 69.50 72.70 63.20 69.40 64.10 69.70 
+
+MoME [9] +BFR-CL 70.65 73.27 81.4 86.3 55.38 63.04 42.08 47.06 50.50 57.64 69.16 72.45 63.23 69.36 64.59 69.99 
+
+TABLE IV: Gate-kernel ablation for sparse BFR-L on Focals Conv-F. Entries are severity-2 mean ∆AP 40 relative to the reproduced frozen host. 
+
+Gate kernel 16 corruptions 8-corruption subset Constant +1.10 +0.64 Softmax ( e−d2
+
+) +1.12 +0.68 Laplace ( e−d) +1.19 +0.85 Polynomial tail +1.27 +0.90 
+
+0.54 and 0.35 , respectively. Thus, the ratio improvement is accompanied by a modest absolute mAP gain, while the NDS-ratio change partly reflects the lower clean score. Improvements concentrate under limited field of view ( +2 .30 
+
+mAP), four-beam LiDAR ( +0 .58 ), and occlusion ( +0 .49 ), whereas complete LiDAR drop and object failure decrease by 0.32 and 0.34 . This contrast delineates the operating regime: boundary repair exploits retained evidence rather than replacing an absent modality. 
+
+D. Mechanism Analysis a) BFR-L gate choice: Table IV compares routing rules for the reported sparse Focals BFR-L route. Every entry is the mean AP 40 change relative to the same reproduced frozen host at severity 2. The eight-corruption subset contains fog, snow, crosstalk, density, cutout, and the three LiDAR-noise corruptions; the 16-corruption set additionally includes rain, strong sunlight, moving-object corruption, and five local object corruptions. All four gates improve over the host on both subsets, showing that Table IV selects a routing rule rather than establishing the overall value of BFR-L. The polynomial tail gives the largest point estimates, improving mean AP 40 by 
+
+1.27 over 16 corruptions and by 0.90 over the nested eight. Its margins over Laplace are only 0.08 and 0.05 , respectively. On snow, polynomial-tail and Laplace routing gain 4.83 
+
+and 4.78 AP, compared with 3.50 for the Gaussian-distance softmax and 2.96 for a constant mixture. Given the small margins, we treat the polynomial tail as the reported point-estimate choice rather than a statistically resolved winner. For this route, β0 = 2 initializes the anchor logit two units above the candidate logits and biases early routing toward the frozen feature; the zero-initialized write-back scale γL,rather than this prior, guarantees exact identity. 
+
+b) BFR-C repair response: Residual probes offer a con-sistent diagnostic. At the fine KITTI-C FPN level, residual-to-feature amplitude rises from 0.041 on clean input to 0.163 under Gaussian and 0.190 under impulse noise. Under KITTI impulse, energy concentration in image ground-truth regions rises to 1.89 relative to uniform spatial energy. These observations show corruption-responsive structure, but do not themselves establish causal object repair. 
+
+E. Efficiency 
+
+TABLE V: Model complexity and inference cost. Parameters are totals, and GFLOPs are incremental BFR overhead; dashes denote unavailable measurements.                                                         
+
+> Model / route Params (M) Latency (ms) FPS VRAM (MiB) Plug-in GFLOPs
+> RoboFusion
+> RoboFusion-L [8] 97.54 –3.1 ––RoboFusion-B [8] 81.01 –3.5 ––RoboFusion-T [8] 13.94 –6.0 ––
+> Boundary Feature Repair
+> Focals Conv-F [16] (host) 47.49 43.5 23.0 1009 –
+> +BFR-C 47.53 42.7 23.4 1021 2.28
+> +BFR-L 47.55 45.6 21.9 1046 6.04
+> +BFR-CL 47.59 47.0 21.3 1059 8.34 MoME [9] (host) 87.59 254.5 3.9 3901 –
+> +BFR-C 87.73 253.9 3.9 3901 0.70
+> +BFR-L 88.30 259.8 3.8 3904 46.16
+> +BFR-CL 88.44 260.3 3.8 3905 46.85
+
+Table V reports full forward-test latency, including vox-elization and post-processing. Because the RoboFusion and BFR rows follow different measurement protocols, their speeds are contextual rather than directly comparable; we interpret overhead within each frozen model. FR-C adds 0.039M parameters, 2.28 GFLOPs, and 12 MiB. Its measured 
+
+0.8 ms reduction is due to timing variation, not evidence of a speedup. BFR-L adds 2.1 ms and 6.04 GFLOPs, whereas BFR-CL adds 3.5 ms and 8.34 GFLOPs. On MoME, BFR-CL adds 5.8 ms and 46.85 GFLOPs. The lightweight efficiency claim therefore applies only to BFR-C; BFR-L and BFR-C apply only to imputation to repair LiDAR features. V. C ONCLUSION 
+
+Boundary Feature Repair adapts corrupted-but-present camera and LiDAR representations at interfaces already consumed by a frozen multimodal detector. BFR-C repairs the camera feature levels supplied to fusion, while BFR-L aligns host-conditioned candidates to selected LiDAR bound-aries and routes anchor-relative innovations; zero-initialized scales preserve the complete host at initialization. Controlled comparisons with reproduced baselines on KITTI-C and nuScenes show that these boundary modules can improve corruption robustness while keeping the encoders, fusion consumer, router, detection head, and host normalization statistics fixed. Clean scores and complete-drop results de-limit the claim: BFR repairs exploitable evidence in the current observation rather than reconstructing a missing modality. REFERENCES [1] D. Xu, D. Anguelov, and A. Jain, “Pointfusion: Deep sensor fusion for 3d bounding box estimation,” in Proceedings of the IEEE Conference on Computer Vision and Pattern Recognition (CVPR) , June 2018. [2] V. A. Sindagi, Y. Zhou, and O. Tuzel, “Mvx-net: Multimodal voxelnet for 3d object detection,” in 2019 International Conference on Robotics and Automation (ICRA) , 2019, pp. 7276–7282. [3] S. Vora, A. H. Lang, B. Helou, and O. Beijbom, “Pointpainting: Se-quential fusion for 3d object detection,” in 2020 IEEE/CVF Conference on Computer Vision and Pattern Recognition (CVPR) , 2020, pp. 4603– 4611. [4] Z. Liu, H. Tang, A. Amini, X. Yang, H. Mao, D. L. Rus, and S. Han, “Bevfusion: Multi-task multi-sensor fusion with unified bird’s-eye view representation,” in 2023 IEEE International Conference on Robotics and Automation (ICRA) , 2023, pp. 2774–2781. [5] X. Bai, Z. Hu, X. Zhu, Q. Huang, Y. Chen, H. Fu, and C.-L. Tai, “Transfusion: Robust lidar-camera fusion for 3d object detection with transformers,” in Proceedings of the IEEE/CVF Conference on Computer Vision and Pattern Recognition (CVPR) , June 2022, pp. 1090–1099. [6] Z. Yang, J. Chen, Z. Miao, W. Li, X. Zhu, and L. Zhang, “Deepin-teraction: 3d object detection via modality interaction,” Advances in Neural Information Processing Systems , vol. 35, pp. 1992–2005, 2022. [7] C. Ge, J. Chen, E. Xie, Z. Wang, L. Hong, H. Lu, Z. Li, and P. Luo, “Metabev: Solving sensor failures for bev detection and map segmentation,” arXiv preprint arXiv:2304.09801 , 2023. [8] Z. Song, G. Zhang, L. Liu, L. Yang, S. Xu, C. Jia, F. Jia, and L. Wang, “Robofusion: towards robust multi-modal 3d object detection via sam,” in Proceedings of the Thirty-Third International Joint Conference on Artificial Intelligence , ser. IJCAI ’24, 2024. [9] K. Park, Y. Kim, D. Kim, and J. W. Choi, “Resilient sensor fusion under adverse sensor failures via multi-modal expert fusion,” in 2025 IEEE/CVF Conference on Computer Vision and Pattern Recognition (CVPR) , 2025, pp. 6720–6729. [10] S. Li, L. Ma, and X. Li, “Modalpatch: A plug-and-play module for robust multi-modal 3d object detection under modality drop,” arXiv preprint arXiv:2603.02481 , 2026. [11] Y. Dong, C. Kang, J. Zhang, Z. Zhu, Y. Wang, X. Yang, H. Su, X. Wei, and J. Zhu, “Benchmarking robustness of 3d object detection to common corruptions in autonomous driving,” in 2023 IEEE/CVF Conference on Computer Vision and Pattern Recognition (CVPR) .IEEE, 2023, pp. 1022–1032. [12] H. Caesar, V. Bankiti, A. H. Lang, S. Vora, V. E. Liong, Q. Xu, A. Kr-ishnan, Y. Pan, G. Baldan, and O. Beijbom, “nuscenes: A multimodal dataset for autonomous driving,” in 2020 IEEE/CVF Conference on Computer Vision and Pattern Recognition (CVPR) , 2020, pp. 11 618– 11 628. [13] K. Yu, T. Tao, H. Xie, Z. Lin, T. Liang, B. Wang, P. Chen, D. Hao, Y. Wang, and X. Liang, “Benchmarking the robustness of lidar-camera fusion for 3d object detection,” in 2023 IEEE/CVF Conference on Computer Vision and Pattern Recognition Workshops (CVPRW) .IEEE, 2023, pp. 3188–3198. [14] T. Huang, Z. Liu, X. Chen, and X. Bai, “Epnet: Enhancing point features with image semantics for 3d object detection,” in European conference on computer vision . Springer, 2020, pp. 35–52. [15] X. Li, T. Ma, Y. Hou, B. Shi, Y. Yang, Y. Liu, X. Wu, Q. Chen, Y. Li, Y. Qiao, and L. He, “Logonet: Towards accurate 3d object detection with local-to-global cross-modal fusion,” in Proceedings of the IEEE Conference on Computer Vision and Pattern Recognition (CVPR) , 2023. [16] Y. Chen, Y. Li, X. Zhang, J. Sun, and J. Jia, “Focal sparse con-volutional networks for 3d object detection,” in 2022 IEEE/CVF Conference on Computer Vision and Pattern Recognition (CVPR) ,2022, pp. 5418–5427. [17] J. Yan, Y. Liu, J. Sun, F. Jia, S. Li, T. Wang, and X. Zhang, “Cross modal transformer: Towards fast and robust 3d object detection,” in 2023 IEEE/CVF International Conference on Computer Vision (ICCV) , 2023, pp. 18 222–18 232. [18] H. Wang, H. Tang, S. Shi, A. Li, Z. Li, B. Schiele, and L. Wang, “Unitr: A unified and efficient multi-modal transformer for bird’s-eye-view representation,” in 2023 IEEE/CVF International Conference on Computer Vision (ICCV) , 2023, pp. 6769–6779. [19] Y. Xie, C. Xu, M.-J. Rakotosaona, P. Rim, F. Tombari, K. Keutzer, M. Tomizuka, and W. Zhan, “Sparsefusion: Fusing multi-modal sparse representations for multi-sensor 3d object detection,” in 2023 IEEE/CVF International Conference on Computer Vision (ICCV) ,2023, pp. 17 545–17 556. [20] A. Geiger, P. Lenz, and R. Urtasun, “Are we ready for autonomous driving? the kitti vision benchmark suite,” in 2012 IEEE Conference on Computer Vision and Pattern Recognition , 2012, pp. 3354–3361. [21] T. Beemelmanns, Q. Zhang, C. Geller, and L. Eckstein, “Multicorrupt: A multi-modal robustness dataset and benchmark of lidar-camera fusion for 3d object detection,” in 2024 IEEE Intelligent Vehicles Symposium (IV) , 2024, pp. 3255–3261. [22] S. Wang, H. Caesar, L. Nan, and J. F. P. Kooij, “Unibev: Multi-modal 3d object detection with uniform bev encoders for robustness against missing sensor modalities,” in 2024 IEEE Intelligent Vehicles Symposium (IV) , 2024, pp. 2776–2783. [23] J. Wang, F. Li, Y. An, X. Zhang, and H. Sun, “Toward robust lidar-camera fusion in bev space via mutual deformable attention and temporal aggregation,” IEEE Transactions on Circuits and Systems for Video Technology , vol. 34, no. 7, pp. 5753–5764, 2024. [24] L. Wang, S. Sun, and J. Zhao, “Rolic: A robust lidar-camera fusion framework for 3d object detection,” IEEE Transactions on Image Processing , vol. 35, pp. 6846–6859, 2026. [25] K. He, X. Zhang, S. Ren, and J. Sun, “Deep residual learning for image recognition,” in Proceedings of the IEEE Conference on Computer Vision and Pattern Recognition (CVPR) , June 2016. [26] S.-A. Rebuffi, H. Bilen, and A. Vedaldi, “Learning multiple visual domains with residual adapters,” Advances in neural information processing systems , vol. 30, 2017. [27] C. Xie, Y. Wu, L. v. d. Maaten, A. L. Yuille, and K. He, “Feature denoising for improving adversarial robustness,” in Proceedings of the IEEE/CVF Conference on Computer Vision and Pattern Recognition (CVPR) , June 2019. [28] T.-Y. Lin, P. Dollar, R. Girshick, K. He, B. Hariharan, and S. Belongie, “Feature pyramid networks for object detection,” in Proceedings of the IEEE Conference on Computer Vision and Pattern Recognition (CVPR) , July 2017. [29] D. Wang, E. Shelhamer, S. Liu, B. Olshausen, and T. Darrell, “Tent: Fully test-time adaptation by entropy minimization,” in International Conference on Learning Representations , 2021. [Online]. Available: https://openreview.net/forum?id=uXl3bZLkr3c [30] Z. Chen, J. Meng, M. Baktashmotlagh, Y. Zhang, Z. Huang, and Y. Luo, “MOS: Model synergy for test-time adaptation on liDAR-based 3d object detection,” in The Thirteenth International Conference on Learning Representations , 2025. [Online]. Available: https://openreview.net/forum?id=Y6aHdDNQYD [31] I. Loshchilov and F. Hutter, “Decoupled weight decay regularization,” in International Conference on Learning Representations , 2019. [Online]. Available: https://openreview.net/forum?id=Bkg6RiCqY7
