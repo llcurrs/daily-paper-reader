@@ -6,29 +6,41 @@
 </div>
 
 ## 每次日报
-- 最新运行日期：2026-10-01
-- 运行时间：2026-10-01 23:33:21 UTC
+- 最新运行日期：2026-10-02
+- 运行时间：2026-10-02 23:10:18 UTC
 - 运行状态：成功
-- 本次总论文数：2
+- 本次总论文数：6
 - 精读区：0
-- 速读区：2
+- 速读区：6
 
 ### 今日简报（AI）
-今日速读2篇：遥感变化检测与传感器修复融合成为焦点，精读暂缺。  
-最值得看的是“区域-局部Copula证据融合”用于异质遥感变化检测，以及“先修复、再融合”的冻结宿主适配，两篇均6.0分。  
-普通读者可先扫摘要和方法图，重点判断修复与融合顺序、证据融合思路是否适合自己的数据场景。
-- 详情：[/202610/01/README](/202610/01/README)
+- 今日共生成 6 篇推荐（精读 0 篇，速读 6 篇）
+- 速读：《When Integral Meets Decomposition: A Signal-Level Self-Supervised Feature Decompose Paradigm for Multi-Modal Image Fusion》（7.0/10）, 《S2T-Unet: A Structure-to-Style Framework for Inter-Modality MRI Translation》（6.0/10）, 《FedSocket: Recipient-Executable Knowledge Exchange for Heterogeneous Multimodal Federated Learning》（6.0/10）
+- 这些结果覆盖了当下较热的方向，建议先看精读区论文的关键问题与方法。
+- 详情：[/202610/02/README](/202610/02/README)
 
 ### 精读区论文标签
 - 本次无精读推荐。
 
 ### 速读区论文标签
-1. [Region-Local Copula Evidence Fusion for Heterogeneous Remote Sensing Change Detection](/202610/01/2609.32716v1-region-local-copula-evidence-fusion-for-heterogeneous-remote-sensing-change-detection)  
+1. [When Integral Meets Decomposition: A Signal-Level Self-Supervised Feature Decompose Paradigm for Multi-Modal Image Fusion](/202610/02/2609.39004v1-when-integral-meets-decomposition-a-signal-level-self-supervised-feature-decompose-paradigm-for-multi-modal-image-fusion)  
+   标签：评分：7.0/10、query:multi-modal
+   evidence：基于自监督特征分解的多模态图像融合
+2. [S2T-Unet: A Structure-to-Style Framework for Inter-Modality MRI Translation](/202610/02/2609.36866v1-s2t-unet-a-structure-to-style-framework-for-inter-modality-mri-translation)  
    标签：评分：6.0/10、query:multi-modal
-   evidence：面向异构多源遥感变化检测的证据融合方法
-2. [Repair Before You Fuse: Frozen-Host Adaptation for Corrupted-but-Present Sensors](/202610/01/2609.35264v1-repair-before-you-fuse-frozen-host-adaptation-for-corrupted-but-present-sensors)  
+   evidence：通过跨模态翻译合成缺失模态
+3. [FedSocket: Recipient-Executable Knowledge Exchange for Heterogeneous Multimodal Federated Learning](/202610/02/2609.37582v1-fedsocket-recipient-executable-knowledge-exchange-for-heterogeneous-multimodal-federated-learning)  
    标签：评分：6.0/10、query:multi-modal
-   evidence：多模态融合中受损传感器特征的修复
+   evidence：异构多模态学习中的缺失模态处理
+4. [Aligning the Incomplete: Joint Distribution Calibration for Multimodal EEG-Eye Emotion Recognition](/202610/02/2609.39413v1-aligning-the-incomplete-joint-distribution-calibration-for-multimodal-eeg-eye-emotion-recognition)  
+   标签：评分：6.0/10、query:multi-modal
+   evidence：多模态识别中的缺失模态补全
+5. [CAMOS: Coupled Oscillatory State-Space Model for Multimodal Clinical Time-Series](/202610/02/2609.39484v1-camos-coupled-oscillatory-state-space-model-for-multimodal-clinical-time-series)  
+   标签：评分：6.0/10、query:multi-modal
+   evidence：多模态缺失模态的建模与学习
+6. [Hetero-modal learning and corruption-resistant hetero-modal inference for joint segmentation of white matter hyperintensities and ischaemic stroke lesions in MRI](/202610/02/2610.00553v1-hetero-modal-learning-and-corruption-resistant-hetero-modal-inference-for-joint-segmentation-of-white-matter-hyperintensities-and-ischaemic-stroke-lesions-in-mri)  
+   标签：评分：6.0/10、query:multi-modal
+   evidence：面向不完整模态集的异模态学习与分割
 
 
 <div class="dpr-home-promo-card">

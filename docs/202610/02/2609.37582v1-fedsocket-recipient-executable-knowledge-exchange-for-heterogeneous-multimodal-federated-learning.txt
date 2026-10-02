@@ -1,0 +1,908 @@
+Title: FedSocket: Recipient-Executable Knowledge Exchange for Heterogeneous Multimodal Federated Learning
+
+URL Source: https://arxiv.org/pdf/2609.37582v1
+
+Published Time: Wed, 30 Sep 2026 01:55:38 GMT
+
+Number of Pages: 17
+
+Markdown Content:
+# FedSocket: Recipient-Executable Knowledge Exchange for Heterogeneous Multimodal Federated Learning 
+
+## Xinyuan Zhao Sun Yat-sen University 
+
+## Abstract 
+
+Federated knowledge must remain usable by recipients with different modalities, private architectures, and tasks. We present FedSocket, which makes recipient execution a de-sign requirement of the exchanged model. A shared Q com-bines recipient-computable inputs, task-owned outputs, and ownership-aware aggregation, connecting heterogeneous private models through a common prediction interface. Pri-vate models teach local Q copies; the returned Q supports local learning and Joint inference, with only Q parameters and counts exchanged. Across six datasets, FedSocket im-proves missing-modality recipient accuracy over Local by 14.44 and 15.51 percentage points on MELD and UCF-51. Under matched inference capacity, Joint exceeds indepen-dent ensembles by 11.06 points in UCF-51 accuracy and 4.87 points in mean bidirectional Flickr30k R@1. Joint also improves over Q alone on all four heterogeneous end-points, demonstrating the value of combining local and ex-changed predictions. Teacher controls, sharing-path inter-ventions, and component factorials identify the roles of su-pervision, sharing, and deployment. FedSocket makes ex-changed knowledge directly usable from federated training to recipient inference. 
+
+## 1. Introduction 
+
+Multimodal federated learning connects clients that differ in what they observe, how they model it, and what they predict. A video–audio donor and a video-only recipient share a task but have different inputs; an image classifier and an image–text retriever share a modality but have dif-ferent outputs. Donor-only features prevent recipient exe-cution, while incompatible task heads prevent direct output aggregation. Knowledge exchange must address both mis-matches while preserving local model choice. Parameter averaging shares a common model [14, 15]; distillation, messenger models, and prototypes accommo-date heterogeneous private models [12, 22, 25, 26]. Multi-modal methods address modality selection, incomplete in-puts, representation exchange, and fusion [7, 16, 18, 21, 28]. These advances motivate a joint compatibility requirement: exchanged knowledge must accept available inputs, pro-duce task-valid outputs, and support aggregation across clients. Its usefulness should persist through deployment. We introduce FedSocket, a recipient-executable knowl-edge interface realized by a shared Q model. Fixed modality mappings decouple Q from private encoders. Task-owned heads preserve classification and retrieval semantics, while a gated shared residual carries cross-task updates. Private models teach local Q copies; the server returns their ag-gregated knowledge for local learning and Joint prediction. Only Q parameters and counts are communicated. FedSocket makes the same exchanged predictor valid across input, task, and deployment boundaries. For exam-ple, CIFAR and Flickr share image-connected parameters while retaining classification and retrieval outputs; AG and Flickr share the text path. The returned Q transfers knowl-edge during training and remains executable at the recipi-ent. Across six datasets, teacher controls, path isolation, and capacity-matched alternatives separately test how Q learns, shares, and contributes to prediction. Our contributions are: • Recipient-executable knowledge. We jointly specify input, output, and aggregation compatibility, enabling shared prediction across heterogeneous modalities, pri-vate architectures, and tasks. • Task-valid sharing from training to deployment. Qseparates task-owned prediction blocks from gated cross-task residuals, learns from private models, and returns for local teaching and inference. Path isolation tests the shared connection. • Controlled gains across six datasets. Capacity-matched alternatives establish deployment value; teacher and com-ponent controls identify learning and sharing effects, complemented by backbone and partition analyses. arXiv:2609.37582v1 [cs.CV] 29 Sep 2026 (a) Local teaching (b) Recipient-executable Q (c) Sharing and inference 
+
+> Data and private models stay local
+> CIFAR-100 | 3 image clients
+> Teach Distill
+> AG News | 3 text clients
+> Teach Distill
+> Flickr30k | 4 image-text clients
+> Teach Distill
+> Upload Q parameters + counts Broadcast global Q
+> Inside Q
+
++      
+
+> Server
+> Inference
+> Round:
+> Images
+> Private model Frozen interface
+> Global Q (frozen) Local Q (learns)
+> Text
+> Private model Frozen interface
+> Global Q (frozen) Local Q (learns)
+> Image + text
+> Private model Frozen interface
+> Global Q (frozen) Local Q (learns)
+> Task-modality adapter
+> Task + modality embeddings Task expert Shared low-rank residual
+> Gate
+> Task head
+> Class logits / retrieval embeddings
+> Task-owned parameters Within-task averaging Shared parameters Conflict-aware merge
+> Updated global Q
+> Private QJoint
+> 1 Broadcast Q 2 Update private model 3 Train local Q 4 Aggregate Q
+
+Figure 1. One exchanged model for local teaching, cross-task sharing, and recipient prediction. (a) Private models teach local Q copies through recipient-computable inputs. (b) Task-owned branches preserve output semantics while a gated residual shares knowledge. (c) Compatible blocks are aggregated and returned for local learning and Joint inference. Only Q parameters and counts cross the boundary. 
+
+## 2. Related Work 
+
+Heterogeneous federated knowledge exchange. Fe-dAvg aggregates a shared model, and FedProx stabilizes local optimization under statistical and systems hetero-geneity [14, 15]. Knowledge distillation transfers predic-tions between models [11], allowing architectures to dif-fer. FedMD uses predictions on common public exam-ples [12]; FedGEMS selectively fuses client knowledge for a larger server model, and FedET uses heterogeneous en-sembles [4, 5]. FedProto exchanges class prototypes to reg-ularize local models [22]. These approaches provide differ-ent exchange objects with corresponding input, output, and representation requirements. FML retains personalized models while aggregating a mutually distilled meme model [19]; FedKD shares a small mentee trained with local mentors through adaptive mutual distillation and compressed updates [25]. MH-pFLID uses a public-data-free messenger with receiver and transmitter modules for heterogeneous private architectures [26]. Fed-Socket builds on shared-model exchange by coupling recip-ient computation with parameter ownership: classifiers and retrievers share compatible Q blocks while retaining task-valid outputs, and recipients reuse the returned Q in Joint inference. This coupled interface is the focus of our con-tribution. Table 14 compares exchange requirements and evaluated deployments. 
+
+Multimodal federation and missing modalities. Fed-Multimodal benchmarks modality heterogeneity [8]. FedMSplit adapts multimodal multi-task collaboration to heterogeneous active sensors, while Harmony disentangles multimodal training to exploit modality heterogene-ity [2, 16]. MFedMC and BMSFed select clients or modality components to control communication and modality bias [7, 30]. Federated prompt tuning aligns in-structions under heterogeneous and incomplete multimodal inputs [18]; ModalityMirror and TACTFL transfer or align information under missing modalities [9, 20]. FedSocket instead makes the exchanged predictor itself executable after aggregation across private architectures and task outputs. 
+
+Cross-task representation exchange. CreamFL uses public image–text representations to bridge model, modal-ity, and task gaps [28]. FedHTCM couples cross-modal distillation with task-conflict handling [27]; FedAMB addresses modality dominance through adaptive distilla-tion [10]; FedAFD combines alignment, adversarial fusion, and distillation [21]. FedSocket exchanges compatible Q parameters while retaining classification and retrieval heads within their owning tasks. Image/text isolation measures the utility of the resulting shared paths. 
+
+Transfer objectives and multimodal optimization. 
+
+Contrastive representation distillation and cross-modal KD improve knowledge transfer between representations or modalities [3, 23]. OGM and PMR address imbalanced multimodal optimization [6, 17]. Our conditional target follows Bregman prediction [1], and compatible shared updates use PCGrad-style projection [29]. 3. Recipient-Executable Knowledge Exchange 
+
+Client k ∈ K owns local data Dk = {(xMk 
+
+> i
+
+, y i)} and pri-vate model fk(·; θk), where Mk denotes available modali-ties. Same-task donors observe (xS , x n) and recipients ob-serve xS ; heterogeneous tasks may have distinct label or re-trieval spaces. Private parameters θk are never aggregated. A fixed modality mapping hm supplies um = hm(xm)
+
+to Q(·; ϕ) with task and modality identifiers. The exchange contract has three obligations (Fig. 1). 
+
+Input computability. Every Q input uses an available modality independently of private encoder states. Clients execute the same hm for modality m while retaining their native private architectures. 
+
+Output validity. Each task supervises its own classifica-tion or retrieval outputs; local distillation compares predic-tions within that task’s output space. 
+
+Aggregation ownership. Corresponding Q blocks are merged according to ownership. Shared residuals carry cross-task updates, and task-specific heads are averaged within their owning task. Input choice determines who can execute Q, task ownership determines what it predicts, and aggregation ownership determines where each update is shared. The three choices are coupled: a common in-put interface makes shared parameters reusable, while task-owned heads translate the resulting representation into valid local outputs. Classification and retrieval clients thus reuse an aggregated predictor while retaining different private ar-chitectures and output spaces. 
+
+## 4. FedSocket: Learning and Deploying Q 
+
+4.1. Recipient-Computable Q and Task-Owned Outputs 
+
+For a complete-modality donor with temperature-scaled distribution tk(xS , x n), the ideal within-task target avail-able through z = hS (xS ) is 
+
+Q∗ 
+
+> S
+
+(z) = ED [tk(xS , x n) | hS (xS ) = z]. (1) This forward-KL projection [1] motivates learning donor behavior from observed inputs, with local labels anchoring the target to the recipient task. Its population interpretation and anchoring bound are in Sec. C. Q reads fixed local features, independently of private encoders. The task-heterogeneous interface uses frozen ResNet-18 image and GloVe-mean text features projected to R256 . For task t and modality m, an adapter and learned embeddings form b = At,m (u) + et + em. Q combines a task-private expert and a gated shared residual: 
+
+qt,m (u) = Et(b) + σ(gt)R(b). (2) Hidden width is 256 and residual rank is 48. Classification heads are task-specific; Flickr uses a normalized retrieval head. Shared residuals and modality embeddings carry ex-change across tasks; owned heads preserve their output se-mantics. Private models include MLP/CNN/Transformer recipients, ResNet-18 image classifiers, BiGRU text clas-sifiers, and modality-specific retrieval encoders (Sec. I). 
+
+4.2. Bidirectional Local Knowledge Transfer 
+
+Private models first warm up on local labels. At each round, global Q is frozen while the private model learns; a trainable local Q copy then learns from the private model. For classi-fication, with logits p, q , label-smoothed cross-entropy and reliability-weighted distillation give 
+
+Lpriv = CE ls (p, y ) + λKD LRKD (p, sg( q); y)+ λfus Lfus (p, q, y ), (3) 
+
+LQ = CE ls (q, y ) + λrel LRKD (q, sg( p); y). (4) The second argument supplies the teacher; sg freezes it. Re-liability weights combine teacher entropy and label correct-ness. Retrieval uses multi-positive contrastive supervision and symmetric score-distribution distillation, with fused-score supervision for the private branch. MELD uses group cross-fitting: donor targets for a held group exclude that group from teacher training. Recipients use their available inputs and local labels. Exact weights, retrieval losses, and cross-fitting equations are retained in Sec. A. 
+
+4.3. Compatible Server Aggregation 
+
+Clients upload Q parameters, sample counts, and permit-ted class counts. Task-owned adapters, experts, embed-dings, gates, and heads are averaged within the owning task; a classification-head row uses only clients with a pos-itive count for that class. Shared task updates ∆t undergo PCGrad-style conflict projection [29], followed by 
+
+ϕr+1 = ϕr + |T | −1 X
+
+> t
+
+e∆t. (5) Image embeddings connect CIFAR/Flickr, and text em-beddings connect AG/Flickr. The same-task instance uses sample-weighted Q averaging and a 0.5 server stabilizer. Full merge equations appear in Sec. A. 
+
+4.4. Reusing Q at Recipient Inference 
+
+Private retains fk; Q retains the modality interface and Q; Joint retains both branches with a development-frozen mixture. Classification uses a class-count-dependent Q weight; an absent class receives weight one. Retrieval uses direction-specific score mixtures. Checkpoints and coef-ficients are selected on development data before testing. These three endpoints expose knowledge retained during training and the value of retaining Q at inference. Only Q parameters and permitted counts cross the boundary; private models, samples, features, and sample-level predictions re-main local. Complete calibration and payload accounting are in Secs. A and I. 
+
+## 5. Experimental Design 
+
+5.1. Protocol Instances 
+
+The six datasets instantiate two evaluation families un-der the same input/output/aggregation contract. The same-task instance uses sample-weighted Q averaging, while the task-heterogeneous instance uses task-owned blocks and cross-task residual merging; their results are not pooled. 
+
+RQ1, teacher effect: on MELD, CREMA-D, and UCF-51, does private-to-Q supervision improve over Label Q and single-modal supervision for missing-modality recipi-ents? RQ2, deployment effect: on CIFAR-100, AG News, and Flickr30k, how does the complete Joint deployment compare with its Private-only and Q-only branches? Here “public Q” denotes the globally shared branch, not public data. RQ3, sharing effect: which tasks benefit from the image- and text-connected paths? RQ4, returned compo-nents: across all four heterogeneous endpoints, what are the main effects and interaction of KD and fusion? Main endpoints and primary ablations use paired five-seed runs. Table 1 summarizes the evaluated interfaces; complete dataset protocols appear in Tab. 15. Flickr30k main re-sults, mechanism comparisons, and endpoint figures use the five-fold 200-image protocol. Each seed contributes one five-fold aggregate; complete R@1/5/10 endpoints appear in Tab. 10. 
+
+5.2. Statistical and Selection Protocol 
+
+Main and mechanism results use five seeds. We report mean and sample standard deviation across seed-level endpoints. Same-task seeds are {1, 7, 11 , 21 , 42 }; task-heterogeneous and mechanism seeds are {101 , 202 , 303 , 404 , 505 }. Set A supplies primary paired controls (Tab. 17); set B supplies additional endpoint summaries (Tab. 24) under the same hy-perparameters. Set-A contrasts use matched seed vectors; set-B contrasts use differences of endpoint means. The two sets are reported separately. Heterogeneous Full endpoints consistently use Tab. 4. Primary client partitions are fixed. Repartitioning uses three splits and three seeds per split; its intervals treat the three split means as replicates. Client– seed points and retrieval folds are not additional indepen-dent replicates. Same-task all-client accuracy pools test samples. For client k with nk,s test samples and accuracy ak,s in seed 
+
+s, the endpoint is 
+
+AAll  
+
+> s
+
+=
+
+P 
+
+> k∈K
+
+nk,s ak,s 
+
+P 
+
+> k∈K
+
+nk,s 
+
+. (6)                     
+
+> Table 1. Evaluation settings. T/A/V/I: text/audio/video/image. Ar-rows indicate donor-to-recipient modality access. Flickr uses five-fold 200-image evaluation. Full protocols: Tab. 15.
+> Dataset Client inputs Primary metric
+> Same task with missing modalities
+> MELD T+A →TAccuracy CREMA-D V+A →VAccuracy UCF-51 V+A →VAccuracy
+> Heterogeneous tasks and architectures
+> CIFAR-100 3 image clients Accuracy AG News 3 text clients Accuracy Flickr30k 4 image–text clients I2T/T2I R@1
+
+We report mean and sample SD across the five AAll  
+
+> s
+
+val-ues. Heterogeneous classification instead averages the fixed client endpoints within each seed. For paired differences ds, intervals use 
+
+¯d ± t0.975 ,n −1sd/√n. We enumerate all 2n sign flips for the two-sided paired test. At n = 5, its minimum 
+
+p = 2 /32 = 0 .0625 exceeds 0.05. We report unadjusted 
+
+t intervals and exact sign-flip results as complementary summaries; intervals use the assumptions of the paired t
+
+procedure. No family-wise significance is claimed. Development data select checkpoints and fusion coeffi-cients, which are then frozen for the reported test evalua-tion. 
+
+5.3. Baselines, Controls, and Ablations 
+
+The controls have distinct scopes. Label Q removes private-to-Q teacher supervision; Single-modal Q tests a restricted Q source in same-task runs. Task-isolated Q removes the cross-task path. No Q →private removes KD and fusion training, while a matched 2 × 2 factorial toggles them sep-arately. Joint is the complete FedSocket deployment; Pri-vate and public Q are deployable branch-specific endpoints used to localize contributions, and Local is an indepen-dently trained reference. Capacity controls compare Con-ditional Joint with DEV-selected independent and check-point ensembles. FedSocket follows FedAFD benchmark conditions; published rows provide protocol context, Pri-vate is the single-model comparison, and Joint is interpreted with the matched-capacity controls (Tabs. 17, 18 and 20 and Sec. 6.3). 
+
+## 6. Results 
+
+6.1. RQ1: Conditional Supervision for Recipients 
+
+FedSocket produces the highest mean recipient Joint ac-curacy on all three missing-modality datasets (Tab. 2and Fig. 2). Relative to independently trained Local models, the gains are 14 .44 ± 6.59 pp on MELD, 0.59 ± 0.76 pp on CREMA-D, and 15 .51 ± 1.35 pp on UCF-51. These gains Table 2. Same-task Joint accuracy (%; mean ± sample SD, five seeds). All: pooled client test samples; Rec.: missing-modality recipients. Red/underline: best/second-best means. MELD CREMA-D UCF-51 Method All Rec. All Rec. All Rec. Local 54 .13 ± 0.95 53 .81 ± 6.54 74 .79 ± 0.32 74 .65 ± 0.50 71 .70 ± 0.13 71 .32 ± 0.21 
+
+Label Q 61 .90 ± 0.78 66 .97 ± 2.21 74 .81 ± 0.59 74 .48 ± 0.64 81 .22 ± 0.78 84 .62 ± 1.12 
+
+Single-modal Q 61 .60 ± 0.69 67 .23 ± 2.01 74 .49 ± 0.38 74 .12 ± 0.64 81 .73 ± 0.22 85 .32 ± 0.35 
+
+FedSocket 62 .16 ± 0.77 68 .24 ± 1.99 75 .45 ± 0.34 75 .24 ± 0.46 82 .83 ± 0.93 86 .83 ± 1.31 
+
+establish the complete deployed system; paired teacher controls then isolate the incremental value of private-to-Q supervision. Full exceeds Label Q by 1.27 ± 0.84 pp ,
+
+0.76 ± 0.76 pp , and 2.22 ± 0.35 pp , with positive gains in all five MELD and UCF-51 seeds and four of five CREMA-D seeds. Full also exceeds Single-modal Q by 
+
+1.01 pp /1.51 pp on MELD/UCF-51. Endpoint decomposition shows where the system gains appear. FedSocket Private improves over Local by 0.40 pp ,
+
+0.40 pp , and 0.95 pp on MELD/CREMA-D/UCF-51, while retaining Q at inference contributes a further 14 .04 pp ,
+
+0.19 pp , and 14 .56 pp (Tabs. 3 and 16). The returned Q carries the largest deployment gains on MELD and UCF-51, making Joint the strongest operating point. Teacher su-pervision also improves the CREMA-D mean, with positive Full-versus-Label-Q gains in four of five seeds. 
+
+6.2. RQ2: Deployment Across Heterogeneous Tasks 
+
+FedSocket connects task-owned classifiers and retrievers through one Q interface. Joint combines local predictions with returned knowledge and achieves the highest mean on every heterogeneous endpoint (Tab. 4). Private and public Q expose the contributions of its two branches. Its paired gain over public Q is 3.27 ± 1.68 pp on CIFAR-100, 2.65 ±
+
+0.90 pp on AG News, and 4.50 ± 0.41 pp /4.33 ± 0.82 pp on Flickr I2T/T2I (Tab. 13). All four gains are positive in every seed, and Joint also leads classification macro F1 (Tab. 9). Conditional Joint also exceeds independent alternatives with matched inference capacity (Tab. 5). On UCF-51 it exceeds a parameter-, FLOP-, and latency-matched inde-pendent Private ensemble by 11 .06 pp pooled accuracy. On Flickr30k, its mean bidirectional five-fold R@1 exceeds the independent Conditional–Private ensemble by 4.87 pp .Each reported paired comparison favors Conditional Joint in all five seeds. All reported alternatives use DEV-frozen selections; complete endpoints, paired intervals, selection details, and resources are reported in Sec. G. 
+
+6.3. Comparison with Published Methods 
+
+All task-heterogeneous experiments follow the FedAFD benchmark conditions, including non-IID client/task com-position, modality access, and the five-fold Flickr evalua-
+
+Table 3. Same-task recipient accuracy decomposition (pp; paired mean ± sample SD, five seeds). J − L = ( P − L) + ( J − P ) for Joint, Q-trained Private, and independent Local. Dataset P − L J − P J − L
+
+MELD 0.40 ± 1.26 14 .04 ± 6.60 14 .44 ± 6.59 
+
+CREMA-D 0.40 ± 1.17 0.19 ± 0.68 0.59 ± 0.76 
+
+UCF-51 0.95 ± 0.46 14 .56 ± 1.27 15 .51 ± 1.35 MELD CREMA-D UCF-51 60 80      
+
+> Recipient Joint accuracy (%)
+> (a) Recipient deployment
+> Local Label Q Single Q FedSocket
+> 0510 15 20 25
+> FedSocket paired gain (pp)
+> MELD CREMA-D UCF-51
+> (b) Paired deployment gains
+> vs. Local vs. Label Q
+
+Figure 2. Recipient Joint accuracy (a) and paired gains over Local/Label Q (b). Open points: seeds; filled points/bars: means/sample SD. Population gaps appear in Fig. 7. 
+
+tor [21]. Private exceeds published FedAFD on CIFAR and Flickr. Joint retains Q and leads all four means, so Tab. 6 re-ports both endpoints. Same-task comparisons align modal-ity and metric with MFedMC on MELD [30] and BMS-Fed on CREMA-D [7]. UCF-51 AMID is a centralized observed-modality reference [3], not a federated baseline. Baseline rows retain the published values, while FedSocket rows use five seeds under the aligned conditions. Private is the direct single-model comparison; Joint is evaluated against matched-capacity controls in Tabs. 5 and 11. Table 4. Task-heterogeneous endpoints (%; mean ± sample SD, five seeds). Joint retains both branches. Flickr: five-fold 200-image R@1. Red/underline: best/second-best means. Task / metric Private Public Q Joint CIFAR Acc. 45 .13 ± 0.39 50 .32 ± 0.48 53 .59 ± 1.28 
+
+AG News Acc. 49 .73 ± 0.48 75 .85 ± 1.11 78 .50 ± 0.42 
+
+Flickr I2T R@1 35 .09 ± 0.26 37 .86 ± 0.82 42 .37 ± 0.51 
+
+Flickr T2I R@1 30 .38 ± 0.45 31 .13 ± 0.73 35 .46 ± 0.48 
+
+Table 5. Matched inference-capacity controls (%; mean ± sam-ple SD, five seeds). Flickr cells are I2T/T2I R@1. “Independent matched” is parameter-matched on UCF and Conditional–Private on Flickr. Red/underline: best/second best. Method UCF-51 Acc. Flickr R@1 Conditional Joint 82 .83 ± 0.93 42 .37 ± 0.51 / 35 .46 ± 0.48                           
+
+> Independent matched 71 .77 ±0.17 36 .56 ±0.21 /31 .54 ±0.05
+> Independent 2×full 71 .70 ±0.19 –Dual checkpoint 71 .70 ±0.13 21 .58 ±1.03 /18 .39 ±0.67
+
+Table 6. Protocol-aligned task-heterogeneous reference values (%). Published rows follow FedAFD Tab. 2(b) [21]; FedSocket rows are five-seed means. Private uses one model; Joint retains Q. CIFAR/AG: accuracy; Flickr: five-fold R@1. Method CIFAR AG I2T T2I LOCAL [21] 28.07 48.35 22.33 18.44 FedMD [12] 22.54 48.18 19.13 15.63 FedGEMS [4] 22.84 48.30 18.93 16.05 FedET [5] 31.86 49.38 22.63 18.22 CreamFL [28] 22.14 42.16 18.38 15.49 FedMKD [13] 24.99 47.99 22.33 18.37 FedDFA [24] 23.09 43.79 19.68 17.13 FedAFD [21] 33.18 51.98 32.48 25.68 FedSocket (Private) 45.13 49.73 35.09 30.38 FedSocket (Joint) 53.59 78.50 42.37 35.46 Table 7. Published same-task references and FedSocket all-client accuracy (%; mean ± SD, five seeds). Reference settings: MELD, natural distribution and 5 MB; CREMA-D, 50% single-modal clients. †AMID is centralized. Dataset Published ref. Private Joint MELD MFedMC [30] 53.31 61 .11 ± 1.13 62 .16 ± 0.77 
+
+CREMA-D BMSFed [7] 59.8 74 .87 ± 0.62 75 .45 ± 0.34 
+
+UCF-51 † AMID [3] 73.8 72 .50 ± 0.29 82 .83 ± 0.93 
+
+6.4. RQ3: Cross-Task Sharing Through Q 
+
+On the primary image-connected path, shared Q exceeds task-isolated Q by 1.42 ± 0.40 pp on CIFAR and 2.06 ±
+
+0.13 pp /1.34 ± 0.37 pp on Flickr I2T/T2I, with five positive pairs each (Tab. 13). Private gains over Label Q are 1.31 ±
+
+0.57 pp , 1.11 ± 0.14 pp , and 1.19 ± 0.48 pp (Tab. 17). On the text path, the Full-minus-isolated Q mean differences are +1 .36 pp /+0 .81 pp for Flickr I2T/T2I and −0.16 pp for AG (75.85 versus 76.01; Fig. 3 and Tab. 24). Thus the text path primarily benefits retrieval in these comparisons; AG Q remains close to its isolated counterpart. 
+
+6.5. RQ4: Separating KD and Fusion 
+
+The paired KD ×fusion factorial has positive KD effects at every Private and Joint endpoint (Tab. 8). Fusion is positive at all Joint endpoints ( +0 .32 –+7 .92 pp ), with its strongest role appearing when both branches are deployed. KD ×fusion Joint interactions are positive, largest on AG (+15 .51 pp ). Thus KD contributes consistently to Pri-vate, while fusion benefits Joint (Tab. 18). In the separate gate ×PCGrad design, both Joint main-effect means are pos-itive on every task and largest on AG (Tab. 25). 
+
+6.6. Additional Deployment and Capacity Evidence 
+
+The exact-private control holds the Private predictor fixed and matches parameters and profiler operations, leaving the Q branch as the differing predictor (Tab. 11). CIFAR and AG Joint exceed independent Joint by 2.68 pp and 13 .86 pp 
+
+in mean accuracy. Full endpoints match Tab. 4; endpoint SDs and resources appear in Tab. 23. Together with UCF and Flickr independent-ensemble controls, these results support conditional Q’s deployment value under matched inference capacity. UCF results cover MLP, CNN, and Transformer pri-vate groups (Tab. 12). Joint exceeds Private in each group mean; the paired accuracy gains are 15 .02 pp , 18 .57 pp ,and 1.82 pp . The gains are largest for MLP and CNN; the Transformer mean remains positive, with full intervals and complementary macro F1/UAR reported in Tabs. 27 and 28. These within-group comparisons extend the deployment ev-idence across three private architecture families. Classification macro F1 complements accuracy (Tab. 9); Joint has the highest primary mean on CIFAR and AG. The gate/PCGrad Joint effects in Tab. 8 are positive on every task mean, with positive interactions throughout. Retrieval R@1/5/10 appears in Tab. 10; partition-level teacher gains, complete factorial cells, and resources appear in Sec. L. 
+
+## 7. Analysis and Discussion 
+
+A shared predictor with local task semantics. Fed-Socket assigns compatibility to the exchanged model. Com-mon modality mappings make its inputs available to re-cipients, task-owned branches preserve valid outputs, and shared blocks carry updates between related tasks. Q can therefore move through local teaching, server aggregation, Table 8. Component effects (pp; five seeds). Separate 2 × 2 de-signs: KD/fusion reports paired mean ± SD; gate/PCGrad reports contrasts of cell means (Tab. 25). Interaction: combined minus singles plus reference. Flickr: five-fold R@1.                                             
+
+> Effect CIFAR AG I2T T2I
+> Private: KD ×fusion
+> KD 4.94 ±0.19 3.23 ±0.44 17 .19 ±0.47 15 .51 ±0.42
+> Fusion 1.64 ±0.25 −0.24 ±0.15 −0.32 ±0.40 −0.22 ±0.14
+> Interaction 3.26 ±0.57 −0.48 ±0.40 0.62 ±0.68 0.71 ±0.74
+> Joint: KD ×fusion
+> KD 5.84 ±1.36 17 .30 ±1.65 4.24 ±0.30 3.76 ±0.43
+> Fusion 2.13 ±0.72 7.92 ±0.39 0.72 ±0.18 0.32 ±0.26
+> Interaction 3.03 ±1.25 15 .51 ±1.56 2.00 ±0.58 0.94 ±0.27
+> Joint: gate ×PCGrad
+> Gate 1.81 8.09 0.97 0.46
+> PCGrad 1.96 8.12 1.31 0.58
+> Interaction 3.88 15 .66 2.15 1.48 0123
+> Full − isolated Q (pp)
+> CIFAR Q I2T Q T2I Q
+> (a) Image path: paired estimates
+> 0123
+> Full − isolated Q (pp)
+> AG Q I2T Q T2I Q -0.16 +1.36 +0.81
+> (b) Text path: mean differences
+
+Figure 3. Full minus isolated Q. (a) Primary image-path pairs: seeds, means, and 95% paired t intervals. (b) Text-path differences of endpoint means from Tab. 24. Table 9. Primary classification macro F1 (%; mean ± sample SD, five seeds). Dataset Private Public Q Joint CIFAR-100 36 .88 ± 0.43 49 .44 ± 0.48 49 .70 ± 1.23 
+
+AG News 38 .79 ± 0.65 74 .25 ± 1.57 76 .90 ± 0.42 
+
+and recipient deployment without changing private archi-tectures. The conditional target and label anchoring de-scribe the knowledge available through the recipient inter-face (Eqs. (1) and (28)). 
+
+Table 10. Flickr retrieval (%; mean ± sample SD, five seeds). Each seed aggregates five 200-image folds. †Mean R averages the six recall means; only this point estimate is reported. Metric Private Public Q Joint I2T R@1 35 .09 ± 0.26 37 .86 ± 0.82 42 .37 ± 0.51 
+
+I2T R@5 64 .58 ± 0.45 65 .30 ± 0.49 70 .21 ± 0.62 
+
+I2T R@10 75 .84 ± 0.46 75 .76 ± 0.43 80 .26 ± 0.46 
+
+T2I R@1 30 .38 ± 0.45 31 .13 ± 0.73 35 .46 ± 0.48 
+
+T2I R@5 61 .82 ± 0.29 61 .47 ± 0.56 66 .93 ± 0.32 
+
+T2I R@10 74 .65 ± 0.22 73 .58 ± 0.49 78 .34 ± 0.28 
+
+Mean R † 57 .06 57 .52 62 .26 
+
+Evidence for each role of Q. Full versus Label Qmeasures private-teacher supervision; Full versus iso-lated Q measures cross-task reuse; and Joint versus its branches measures deployment (Tabs. 2 and 13). Image-path gains are positive in every primary pair, and the text path improves Flickr retrieval means. Keeping Q adds 14 .04 pp /14 .56 pp over Private on MELD/UCF-51. Matched-capacity alternatives on UCF, Flickr, CIFAR, and AG support the value of the learned exchange path beyond an independent second predictor (Tabs. 5 and 11). 
+
+Why the coupled predictor matters. Joint combines class-dependent scores. Its Q weight increases as local class support decreases and equals one for an absent class (Eq. (21)). Thus shared scores can contribute more strongly for locally underrepresented classes, while private scores re-main available for other decisions. Branch accuracy alone does not determine the margins of this combined predictor. AG illustrates the distinction: Full Joint reaches 78.50% versus 64.48% for Label Q, despite a lower Q-only accu-racy (75.85% versus 77.49%; Tab. 24). The controls di-rectly test the value of this coupling. With the Private pre-dictor fixed, conditional Q yields a 13 .86 pp Joint advan-tage over independent Q; the separate KD ×fusion factorial yields a 15 .51 pp Joint interaction (Tabs. 8 and 11). To-gether, these results support learning Q for its contribution to the deployed combination. 
+
+Deployment choices. Joint uses both branches for predic-tion; Private supports deployment without Q, and Q pro-vides the exchanged predictor alone. Their endpoints and resource measurements expose the available trade-offs. Table 11. Exact-private capacity control (%; mean ± SD, five seeds). ∆: difference of endpoint means. Private branches and parameter/FLOP counts match.                   
+
+> Task Conditional J Independent J ∆mean (pp) CIFAR 53 .59 ±1.28 50 .91 ±0.34 +2 .68
+> AG News 78 .50 ±0.42 64 .64 ±0.97 +13 .86
+
+Table 12. UCF backbone-group accuracy (%; mean ± SD, five seeds). Comparisons are within group; paired gains and intervals appear in Tab. 28.                         
+
+> Backbone Private QJoint MLP 76 .23 ±0.50 83 .04 ±2.06 91 .25 ±0.98
+> CNN 61 .31 ±1.95 77 .69 ±0.97 79 .88 ±0.97
+> Transformer 80 .05 ±1.53 75 .67 ±1.75 81 .87 ±2.97
+
+Table 13. Paired evidence for sharing and deployment (pp; mean ± sample SD, five seeds). Mechanism contrasts use primary control set A. Every reported contrast is positive in 5/5 seeds; dashes denote unreported comparisons. CIFAR/AG: accuracy; Flickr: five-fold R@1. Evidence Contrast CIFAR AG News Flickr I2T Flickr T2I Sharing Q − isolated Q +1 .42 ± 0.40 – +2 .06 ± 0.13 +1 .34 ± 0.37 
+
+Teaching Q − Label Q +1 .41 ± 0.39 – +2 .64 ± 0.69 +2 .07 ± 0.57 
+
+Returned training Private − no Q →P +6 .58 ± 0.42 – +16 .87 ± 0.63 +15 .29 ± 0.49 
+
+Deployment Joint − Private +8 .46 ± 1.12 +28 .77 ± 0.17 +7 .28 ± 0.54 +5 .09 ± 0.47 
+
+Joint − Q +3 .27 ± 1.68 +2 .65 ± 0.90 +4 .50 ± 0.41 +4 .33 ± 0.82 
+
+Resources and portability. Backbone groups extend evaluation to MLP, CNN, and Transformer recipients, and development curves show stable training plateaus (Tab. 12 and Fig. 6). Each task-heterogeneous run up-loads/downloads 1.4609/1.4608 GB (Sec. I). 
+
+## 8. Scope and Generalization 
+
+The interface is evaluated for registered recipients with fixed modality mappings and classification/retrieval tasks. UCF studies cover three private backbone families. Compo-nent and capacity controls quantify aggregate deployment effects; classwise error overlap and calibration contribu-tions remain to be resolved. Repartitioning probes the incremental teacher contribu-tion: mean Full-versus-Label-Q gains are positive, with split-level intervals spanning zero (Tab. 26). Both alterna-tives retain Q at inference, so this contrast measures teach-ing within a common deployment. Unseen task compositions, zero-shot registration, formal privacy mechanisms, and broader hardware profiling are di-rections for extending the interface. 
+
+## 9. Conclusion 
+
+FedSocket makes federated knowledge executable at the re-cipient. Its shared Q combines computable inputs, task-owned outputs, and compatible aggregation, allowing het-erogeneous private models to teach a common predictor and reuse it during learning and inference. Across six datasets, recipient gains, shared-path interventions, and capacity-matched alternatives demonstrate the value of this design for classification and retrieval. Private, Q, and Joint expose distinct deployment choices, while component studies con-nect training decisions to their outcomes. FedSocket thus connects federation and deployment through an exchanged model that recipients can use directly. References 
+
+[1] Arindam Banerjee, Xin Guo, and Hui Wang. On the optimality of conditional expectation as a Bregman predictor. IEEE Trans. Inf. Theory , 51(7):2664–2669, 2005. 2, 3, 9, 11 [2] Jiayi Chen and Aidong Zhang. FedMSplit: Correlation-adaptive fed-erated multi-task learning across multimodal split networks. In ACM SIGKDD , pages 87–96, 2022. 2 [3] Mengxi Chen, Linyu Xing, Yu Wang, and Ya Zhang. Enhanced multimodal representation learning with cross-modal KD. In CVPR ,pages 11766–11775, 2023. 2, 5, 6 [4] Sijie Cheng, Jingwen Wu, Yanghua Xiao, and Yang Liu. FedGEMS: Federated learning of larger server models via selective knowledge fusion. arXiv preprint arXiv:2110.11027 , 2021. 2, 6 [5] Yae Jee Cho, Andre Manoel, Gauri Joshi, Robert Sim, and Dimitrios Dimitriadis. Heterogeneous ensemble knowledge transfer for train-ing large models in federated learning. In IJCAI , pages 2881–2887, 2022. 2, 6 [6] Yunfeng Fan, Wenchao Xu, Haozhao Wang, Junxiao Wang, and Song Guo. PMR: Prototypical modal rebalance for multimodal learning. In CVPR , pages 20029–20038, 2023. 2 [7] Yunfeng Fan, Wenchao Xu, Haozhao Wang, Fushuo Huo, Jinyu Chen, and Song Guo. Overcome modal bias in multi-modal fed-erated learning via balanced modality selection. In ECCV , 2024. 1, 2, 5, 6 [8] Tiantian Feng, Digbalay Bose, Tuo Zhang, Rajat Hebbar, Anil Ramakrishna, Rahul Gupta, Mi Zhang, Salman Avestimehr, and Shrikanth Narayanan. FedMultimodal: A benchmark for multimodal federated learning. In ACM SIGKDD , pages 4035–4045, 2023. 2 [9] Tiantian Feng, Tuo Zhang, Salman Avestimehr, and Shrikanth Narayanan. ModalityMirror: Enhancing audio classification in modality heterogeneity federated learning via multimodal distilla-tion. In ACM NOSSDAV , pages 78–83, 2025. 2 [10] Seungjin Han, Juyeob Lee, Sangmin Lee, and Eunil Park. FedAMB: Adaptive modality balancing for dominance-robust multimodal fed-erated distillation. In IJCAI , pages 4330–4338, 2026. 2 [11] Geoffrey Hinton, Oriol Vinyals, and Jeff Dean. Distilling the knowl-edge in a neural network. arXiv preprint arXiv:1503.02531 , 2015. 2[12] Daliang Li and Junpu Wang. FedMD: Heterogenous federated learn-ing via model distillation. arXiv preprint arXiv:1910.03581 , 2019. 1, 2, 6, 12 [13] Mingyi Li, Xiao Zhang, Qi Wang, Tengfei Liu, Ruofan Wu, Weiqiang Wang, Fuzhen Zhuang, Hui Xiong, and Dongxiao Yu. Resource-aware federated self-supervised learning with global class representations. In NeurIPS , pages 10008–10035, 2024. 6 [14] Tian Li, Anit Kumar Sahu, Manzil Zaheer, Maziar Sanjabi, Ameet Talwalkar, and Virginia Smith. Federated optimization in heteroge-neous networks. In MLSys , pages 429–450, 2020. 1, 2 [15] Brendan McMahan, Eider Moore, Daniel Ramage, Seth Hampson, and Blaise Ag"uera y Arcas. Communication-efficient learning of deep networks from decentralized data. In AISTATS , pages 1273– 1282, 2017. 1, 2 [16] Xiaomin Ouyang, Zhiyuan Xie, Heming Fu, Sitong Cheng, Li Pan, Neiwen Ling, Guoliang Xing, Jiayu Zhou, and Jianwei Huang. Har-mony: Heterogeneous multi-modal federated learning through dis-entangled model training. In ACM MobiSys , pages 530–543, 2023. 1, 2 [17] Xiaokang Peng, Yake Wei, Andong Deng, Dong Wang, and Di Hu. Balanced multimodal learning via on-the-fly gradient modulation. In 
+
+CVPR , pages 8238–8247, 2022. 2 [18] Thu Hang Phung, Duong M. Nguyen, Thanh Trung Huynh, Quoc Viet Hung Nguyen, Trong Nghia Hoang, and Phi Le Nguyen. Feder-ated prompt-tuning with heterogeneous and incomplete multimodal client data. In ICCV , pages 3936–3946, 2025. 1, 2 [19] Tao Shen, Jie Zhang, Xinkang Jia, Fengda Zhang, Gang Huang, Pan Zhou, Kun Kuang, Fei Wu, and Chao Wu. Federated mutual learning. 
+
+arXiv preprint arXiv:2006.16765 , 2020. 2, 12 [20] Guanxiong Sun, Majid Mirmehdi, Zahraa S. Abdallah, Raul Santos-Rodriguez, Ian James Craddock, and Telmo M. Silva Filho. TACTFL: Temporal contrastive training for multi-modal federated learning with similarity-guided model aggregation. In BMVC , 2025. 2[21] Min Tan, Junchao Ma, Yinfu Feng, Jiajun Ding, Wenwen Pan, Tingt-ing Han, Qian Zheng, Zhenzhong Kuang, and Zhou Yu. FedAFD: Multimodal federated learning via adversarial fusion and distillation. In CVPR , 2026. 1, 2, 5, 6, 12 [22] Yue Tan, Guodong Long, Lu Liu, Tianyi Zhou, Qinghua Lu, Jing Jiang, and Chengqi Zhang. FedProto: Federated prototype learning across heterogeneous clients. In AAAI , pages 8432–8440, 2022. 1, 2 [23] Yonglong Tian, Dilip Krishnan, and Phillip Isola. Contrastive repre-sentation distillation. In ICLR , 2020. 2 [24] Zichen Wang, Feng Yan, Tianyi Wang, Cong Wang, Yuanchao Shu, Peng Cheng, and Jiming Chen. Fed-DFA: Federated distillation for heterogeneous model fusion through the adversarial lens. In AAAI ,pages 21429–21437, 2025. 6 [25] Chuhan Wu, Fangzhao Wu, Lingjuan Lyu, Yongfeng Huang, and Xing Xie. Communication-efficient federated learning via knowl-edge distillation. Nature Communications , 13:2032, 2022. 1, 2, 12 [26] Luyuan Xie, Manqing Lin, Tianyu Luan, Cong Li, Yuejian Fang, Qingni Shen, and Zhonghai Wu. MH-pFLID: Model heterogeneous personalized federated learning via injection and distillation for med-ical data analysis. In ICML , pages 54561–54575, 2024. 1, 2, 12 [27] Kangning Yin, Xinhui Ji, Zhen Ding, Shaoqi Hou, and Zhiguo Wang. Towards heterogeneous tasks conflict avoidance for cross-modal fed-erated learning via knowledge distillation. Information Sciences ,721:122601, 2025. 2, 12 [28] Qiying Yu, Yang Liu, Yimu Wang, Ke Xu, and Jingjing Liu. Multi-modal federated learning via contrastive representation ensemble. In 
+
+ICLR , 2023. 1, 2, 6, 12 [29] Tianhe Yu, Saurabh Kumar, Abhishek Gupta, Sergey Levine, Karol Hausman, and Chelsea Finn. Gradient surgery for multi-task learn-ing. In NeurIPS , 2020. 2, 3, 11 [30] Liangqi Yuan, Dong-Jun Han, Su Wang, Devesh Upadhyay, and Christopher G. Brinton. Communication-efficient multimodal fed-erated learning: Joint modality and client selection. arXiv preprint arXiv:2401.16685 , 2024. Version 2, revised March 2026. 2, 5, 6 
+
+## A. Complete Objectives and Implementation 
+
+A.1. Recipient-Conditioned Task Projection 
+
+For a complete-modality donor, define the temperature-scaled predictive distribution 
+
+tk(xS , x n) = softmax( Fk(xS , x n)/T ) . (7) For a fixed donor population D, the conceptual target ob-served through z = hS (xS ) is 
+
+Q∗ 
+
+> S
+
+(z) = ED [tk(xS , x n) | hS (xS ) = z] . (8) Equation (1) states the optimal recipient-side projection of a fixed donor within one task. Under forward KL, the condi-tional expectation is the unrestricted minimizer, following the standard Bregman prediction property [1]. FedSocket turns this projection into a federated learning objective by combining teacher supervision with label anchoring, reli-ability weighting, and an explicit input/output/aggregation contract (Sec. C). A.2. Interfaces and Private Models 
+
+Q inputs are fixed local features, separate from private en-coders. Same-task runs use precomputed text or visual fea-tures; task-heterogeneous runs use frozen ResNet-18 image features and GloVe-mean text features with a fixed orthogo-nal projection, both in R256 . Feature dimensions and donor backbones are detailed in Sec. I. Private models remain local: same-task recipients use MLP, temporal CNN, or Transformer variants; CIFAR-100 and AG News use ResNet-18/PIE and GloVe–BiGRU/PIE encoders. Flickr30k uses independent modality encoders and normalized 256-dimensional embeddings; its private score is scaled cosine similarity, with all captions of an im-age treated as positives. 
+
+A.3. FedSocket Architecture 
+
+For task t and modality m, Q first applies a task–modality input adapter At,m and adds learned task and modality em-beddings: 
+
+b = At,m (u) + et + em. (9) The hidden representation combines a task-private expert 
+
+Et with a gated low-rank shared residual R:
+
+qt,m (u) = Et(b) + σ(gt)R(b). (10) In the implementation, the hidden width is 256 and the shared residual rank is 48. Classification tasks use task-specific linear heads, whereas Flickr30k uses a shared 256-dimensional normalized retrieval head. Task-private com-ponents prevent incompatible label spaces from being aver-aged; R and the modality embeddings form the cross-task exchange path. 
+
+A.4. Stage I: Private Warm-Up and Same-Task Cross-Fitting 
+
+Private models are first trained with their native supervised objectives. In the cross-fitted same-task protocol, donor training groups are split into two folds by dialogue or video group. A full-modality teacher trained without the held group produces out-of-fold logits tOOF  
+
+> i
+
+. The teacher con-tains an observed-modality public prior plus a bounded pri-vate correction: 
+
+tOOF  
+
+> i
+
+= Qprior (vi) + 1 .5 tanh 
+
+ rk(vi, a i) − rk
+
+3
+
+
+
+. (11) The cached logits stay local and are never server messages. Every label-trained prior, residual component, and center-ing statistic follows the same group exclusion when pro-ducing an out-of-fold target. 
+
+A.5. Stage II: Q as Teacher of the Private Model 
+
+At round r, the server broadcasts Q(·; ϕr ), which remains frozen during private updates. Let pk and qgk denote classi-fication logits. For teacher logits q, define reliability using Shannon entropy H over the task’s C classes: 
+
+ci(q) = 1 − H(softmax( qi)) log C , (12) 
+
+wi(q, y ) = ci(q) (0 .25 + 0 .75 1[arg max qi = yi]) . (13) The reliability-weighted distillation loss, with wi =
+
+wi(q, y ), is 
+
+LRKD (p, q ; y) = 1
+
+P 
+
+> i
+
+wi + ϵ
+
+X
+
+> i
+
+wiT 2
+
+· KL(softmax( qi/T )∥ softmax( pi/T )) .
+
+(14) With label-smoothed cross-entropy CE ls , the private classi-fication loss is 
+
+Lcls priv = CE ls (pk, y )+ λKD LRKD (pk, sg( qgk ); y)+ λfus Lfus (pk, q gk , y ).
+
+(15) For retrieval, Q produces normalized embeddings qI , q T
+
+and score matrix Sq = 15 qI (qT )⊤. The private loss is 
+
+Lret priv = LMPNCE (Sp)+ λKD LsymKL (Sp, sg( Sq )) + λfus LMPNCE ((1 − g)Sp + gS q ).
+
+(16) Thus returned Q knowledge changes the private model even when Q is not used at deployment. 
+
+A.6. Stage III: Q as Student of the Private Model 
+
+Each client creates a trainable local copy Q(·; ϕrk). For clas-sification, 
+
+Lcls  
+
+> Q,k
+
+= CE ls (qk, y ) + λrel LRKD (qk, sg( pk); y). (17) For retrieval, 
+
+Lret  
+
+> Q,k
+
+= LMPNCE (Sqk ) + λrel LsymKL (Sqk , sg( Spk )) . (18) Equations (15)–(18) reverse the teacher and student roles. The second argument of LRKD supplies the teacher distri-bution and reliability weight; sg freezes that branch. Sym-bols p, q denote logits, and Lfus applies supervised training to the fused branch before the development-calibrated infer-ence rule is fixed. For the same-task cross-fitted protocol, local Q instead combines a label anchor and reliable out-of-fold teacher correction: 
+
+Lsame  
+
+> Q,k
+
+= CE( qk, y )+ α1[arg max tOOF = y]T 2
+
+· KL( tOOF  
+
+> T
+
+∥qk,T ).
+
+(19) Recipients train only from their observed modality using lo-cal labels and a reliability-gated global-Q distillation term. A.7. Heterogeneous Server Aggregation 
+
+Clients upload (ϕrk, n k) and, for classification, a class-count vector ck. Raw samples, private features, private-model parameters, and sample-level logits are excluded. Task-private adapters, experts, embeddings, gates, and output heads are aggregated only among clients of the owning task. A classification-head row is averaged only across clients with a positive count for that class, preventing untouched rare-class rows from diluting an update. For shared parameters, let ∆t denote the task-level aver-age update and initialize e∆t = ∆ t. Conflicting task direc-tions are projected in a PCGrad-style merge [29]: 
+
+e∆t ← e∆t − min(0 , ⟨ e∆t, ∆s⟩)
+
+∥∆s∥22 + ϵ ∆s, s̸ = t, (20) followed by ϕr+1 = ϕr + |T | −1 P 
+
+> t
+
+e∆t. Image modality embeddings are shared by CIFAR-100 and Flickr30k; text embeddings are shared by AG News and Flickr30k. The same-task implementation (Fig. 4) uses sample-weighted Q averaging followed by a 0.5 server stabilizer; no cross-task projection is needed. 
+
+A.8. Development Calibration and Inference 
+
+We report three endpoints: Private uses fk, public Q uses Q, and Joint combines them. For non-IID classification, the local training histogram determines a class-specific Q weight and score 
+
+ωk,c = ρk med( c+ 
+
+> k
+
+)
+
+ck,c + ρk med( c+ 
+
+> k
+
+) ,sjoint  
+
+> k,c
+
+= (1 − ωk,c )πpriv  
+
+> k,c
+
++ ωk,c πQk,c .
+
+(21) Here c+ 
+
+> k
+
+contains positive counts, ωk,c = 1 for an absent class, and development data select ρk before testing. Pre-diction uses arg max c sjoint  
+
+> k,c
+
+; probability metrics renormal-ize the class-dependent scores. Flickr30k analogously uses development-frozen, direction-specific mixtures of private and Q score matrices. 
+
+A.9. Training, Deployment, and Boundary 
+
+Each round broadcasts Q, updates the private model, trains a local Q copy, and aggregates only owned Q blocks. Private deployment retains fk; Q retains hm and Q; Joint retains both plus the frozen fusion rule. Registration is a training-time attachment rather than zero-shot enrollment. Only Q parameters and permitted counts cross the boundary. Pay-load accounting and implementation details are in Sec. I. 
+
+## B. Exchange-Object Comparison 
+
+Table 14 compares the inputs, uploads, output spaces, and recipient deployments supported by the closest exchange objects. 
+
+## C. Population Interpretation of the Condi-tional Interface 
+
+Let t(X) be a fixed teacher probability vector and Z =
+
+hS (XS ) the information available to the recipient. Expec-tations in the following projection are under a fixed donor population D. Consider an unrestricted measurable proba-bility predictor q(Z) and finite expected forward-KL risk 
+
+R(q) = EKL( t(X)∥q(Z)) . (22) Writing μ(Z) = E[t(X) | Z] and conditioning on Z gives 
+
+R(q) = R(μ) + EKL( μ(Z)∥q(Z)) . (23) To verify this identity, expand both KL terms and use 
+
+E[tc(X) log qc(Z)] = E[μc(Z) log qc(Z)] for every class 
+
+c. Nonnegativity of KL gives q∗(Z) = μ(Z) almost surely. This standard conditional Bregman result [1] characterizes the population target; finite-sample estimation and feder-ated optimization are evaluated empirically. The training objective includes more than this un-weighted projection. For fixed nonnegative reliability weights w(X, Y ) and constants a, b ≥ 0, a simplified common-temperature label-and-teacher loss is 
+
+L(q) = Ea CE( eY , q (Z)) + b w (X, Y )CE( t(X), q (Z)) , (24) where eY is a one-hot label vector. Provided the denomina-tor is positive, its unrestricted minimizer is 
+
+q∗(z) = 
+
+a Pr( Y = · | Z = z)+b E[w(X, Y )t(X) | Z = z]
+
+a + b E[w(X, Y ) | Z = z] . (25) Minimizing conditional cross-entropy gives this mixture: labels anchor the target, while reliability weights control each teacher’s contribution. Temperature scaling, minibatch normalization, and finite-model optimization determine the implemented approximation. 
+
+Recipient-label risk. Let R be a recipient population with the same label space and let ηR(z) = Pr R(Y =
+
+· | Z = z). Write μD (z) = ED [t(X) | Z = z]
+
+for the unweighted donor projection above. Assume re-cipient interface values are covered by the donor distribu-tion ( P ZR ≪ P ZD ) and the cross-entropies are finite. For 
+
+CR(q) = ER[− log qY (Z)] , conditioning on Z gives 
+
+CR(μD ) − C R(ηR)= ER
+
+KL( ηR(Z)∥μD (Z)) . (26) An ideal sufficient condition for zero mismatch is t(X) = Pr D (Y = · | X) together with Pr D (Y = · | Z) = ηR(Z):Table 14. Capability boundary of the closest exchange-object methods. “Sample-indexed upload” denotes logits or representations attached to shared examples; model parameters are not counted. “Recipient branch” requires a returned shared model whose inputs are available to the receiving client and whose outputs are valid for its task. Entries summarize the methods’ stated contracts and evaluated endpoints, not possible extensions.                                              
+
+> Method Common public examples Sample-indexed upload Output organization Recipient branch Evaluated inference FedMD [12] Required Logits Common output space No Private FML [19] Not required None Adapted client heads Training meme Private FedKD [25] Not required None Common task outputs Yes (same task) Mentor/mentee MH-pFLID [26] Not required None Receiver/transmitter modules Yes Private CreamFL [28] Required Representations Global server space No Client/server FedHTCM [27] Required Representations Multitask global space No Client/global FedAFD [21] Required Representations Client/server task models No Client/server
+> FedSocket Not required None Task-owned heads Yes Private/Q/Joint
+
+the tower property then gives μD = ηR. Without this align-ment, exact donor projection can leave a recipient-label mismatch. The empirical recipient endpoints directly test whether the learned interface is useful under the evaluated populations. 
+
+How label anchoring limits population mismatch. The same-label conditional alignment above also clarifies the role of anchoring. For the simplified weighted objective, let W (z) = ED [w | z], μw(z) = ED [wt | z]/W (z) when 
+
+W (z) > 0, and λ(z) = bW (z)/(a + bW (z)) . Assume the donor label conditional equals ηR(z) on recipient support, and a > 0. Then the population target is 
+
+qa(z) = (1 − λ(z)) ηR(z) + λ(z)μw(z). (27) Convexity of KL in its second argument and qa,c ≥ (1 −
+
+λ)ηR,c yield 
+
+CR(qa) − C R(ηR) ≤ ER
+
+"
+
+min 
+
+(λ KL( ηR∥μw),
+
+− log(1 − λ)
+
+)# 
+
+.
+
+(28) For W = 0 , take λ = 0 and qa = ηR. The first inequality uses convexity of KL; the second uses the coordinatewise lower bound on qa. The bound requires aligned donor– recipient label conditionals. Under label shift, anchoring uses ηD and need not bound recipient risk. Thus recipient utility depends on conditional alignment as well as donor fidelity, motivating the partition-level evaluation. This pop-ulation bound does not describe finite-sample optimization. 
+
+## D. Experimental Protocol Summary 
+
+Five-fold retrieval evaluator. Each Flickr seed con-tributes one aggregate over five 200-image folds, not five in-dependent random seeds. Mean R is the arithmetic mean of the six reported I2T/T2I recall means at ranks 1, 5, and 10; it is reported as a point estimate. The complete R@1/5/10 endpoints are in Tab. 10. 
+
+## E. Recipient Endpoints and Class-Balanced Metrics 
+
+Tab. 16 separates private and joint predictions for the missing-modality recipients. Macro F1 and unweighted av-erage recall (UAR) supplement accuracy; all three metrics use the same per-seed evaluator. In MELD, FedSocket pri-vate accuracy exceeds Local by 0.40 ± 1.26 pp (4/5 positive seeds), while joint inference adds 14 .04 ± 6.60 pp to that private branch. The corresponding UCF-51 differences are 
+
+0.95 ± 0.46 pp and 14 .56 ± 1.27 pp , both positive in all five seeds. CREMA-D shows a smaller joint gain, consistent with its main accuracy result. All-client accuracy pools test samples across clients (Eq. (6)). The reported sample counts are 1,807 donors and 155 recipients for MELD, 349 and 837 for CREMA-D, and 554 and 1,390 for UCF-51. Donor–recipient differences re-main descriptive comparisons of different populations, not paired causal effects of missing a modality. 
+
+## F. Absolute Ablation Results 
+
+Tab. 17 reports primary control set A, which underlies the paired CIFAR-100 and Flickr30k ablations. Additional con-trol set B is reported separately in Tab. 24, under the same hyperparameter configuration. All Flickr entries use the five-fold evaluator. The Full/FedSocket rows match the main endpoint table; paired mechanism contrasts use the set-A controls. The Local and no-Q →private Private end-points coincide, as expected when Q assistance to the pri-vate branch is disabled. 
+
+KD ×fusion factorial endpoints. Tab. 18 gives the four five-seed cells underlying the factorial effects in the main paper. The eight Full endpoint vectors match the main re-sults seed by seed. The other cells toggle KD and fusion; effects are computed from the complete paired vectors. Table 15. Experimental protocol and primary endpoints. Dataset Client/modality setting Primary metric Protocol 
+
+Same task, different available modalities 
+
+MELD Text–audio donors; text recipients Accuracy Four-class selected cohort; group cross-fitting. CREMA-D Video–audio donors; video recipients Accuracy Six-class emotion; same-actor sentence-group split. UCF-51 Video–audio donors; video recipients Accuracy 20 clients; α = 0 .5; full supervision. 
+
+Heterogeneous tasks and private architectures 
+
+CIFAR-100 3 non-IID image clients Accuracy Task-heterogeneous training; Private, public Q, and Joint. AG News 3 non-IID text clients Accuracy Task-heterogeneous training; calibrated Joint endpoint. Flickr30k 4 image–text clients I2T/T2I R@1 Five-fold evaluation; 200 images per fold. Table 16. Same-task recipient test endpoints (%, mean ± sample standard deviation over five seeds). Accuracy is primary; macro F1 and UAR are supplementary. Local has no public branch; its columns repeat the same predictor. Red/underline: best/second best within each dataset and endpoint. Private Joint Dataset Method Acc. Macro F1 UAR Acc. Macro F1 UAR MELD Local 53 .81 ± 6.54 27 .78 ± 6.47 28 .51 ± 5.46 53 .81 ± 6.54 27 .78 ± 6.47 28 .51 ± 5.46 
+
+Label Q 53 .29 ± 6.22 28 .02 ± 6.58 28 .83 ± 5.72 66 .97 ± 2.21 44 .68 ± 5.96 43 .74 ± 4.83 
+
+Single-modal Q 53 .29 ± 6.22 28 .02 ± 6.58 28 .83 ± 5.72 67 .23 ± 2.01 45 .79 ± 4.79 44 .85 ± 4.13 
+
+FedSocket 54 .21 ± 6.36 28 .89 ± 7.22 29 .50 ± 6.12 68 .24 ± 1.99 46 .92 ± 4.61 45 .82 ± 3.94 
+
+CREMA-D Local 74 .65 ± 0.50 71 .14 ± 0.60 71 .36 ± 0.52 74 .65 ± 0.50 71 .14 ± 0.60 71 .36 ± 0.52 
+
+Label Q 74 .48 ± 0.64 70 .28 ± 0.72 70 .39 ± 0.82 74 .48 ± 0.64 70 .28 ± 0.72 70 .39 ± 0.82 
+
+Single-modal Q 74 .12 ± 0.64 69 .97 ± 0.99 69 .93 ± 0.86 74 .12 ± 0.64 69 .97 ± 0.99 69 .93 ± 0.86 
+
+FedSocket 75 .05 ± 0.95 71 .54 ± 1.27 71 .76 ± 1.32 75 .24 ± 0.46 71 .44 ± 0.44 71 .60 ± 0.41 
+
+UCF-51 Local 71 .32 ± 0.21 66 .41 ± 0.42 68 .30 ± 0.33 71 .32 ± 0.21 66 .41 ± 0.42 68 .30 ± 0.33 
+
+Label Q 71 .87 ± 0.55 68 .45 ± 0.91 70 .15 ± 0.95 84 .62 ± 1.12 82 .02 ± 1.16 85 .30 ± 0.79 
+
+Single-modal Q 71 .76 ± 0.87 67 .92 ± 1.24 69 .64 ± 1.30 85 .32 ± 0.35 83 .34 ± 0.35 86 .29 ± 0.30 
+
+FedSocket 72 .27 ± 0.48 68 .85 ± 0.86 70 .55 ± 0.82 86 .83 ± 1.31 84 .98 ± 1.25 87 .42 ± 0.53 
+
+## G. Matched Inference-Capacity Controls 
+
+These controls test whether Conditional Joint gains can be reproduced by a second private predictor alone. UCF-51 donors retain their multimodal Private predictor and only recipients receive the additional branch; Flickr30k uses the same five-fold 200-image evaluator as the main retrieval re-sults. Every control mixture weight and second checkpoint is selected on DEV and frozen before TEST. Target and control rows use complete frozen five-seed endpoint vectors without seed-wise selection or TEST-based retuning. For the closest matched comparison, UCF Conditional Joint and its parameter-matched independent ensemble both use 0.60M parameters, 0.01 profiler GFLOPs per sample, and 0.012 ms per sample at displayed preci-sion. On Flickr30k, Conditional Joint and the independent Conditional–Private ensemble both use 36.15M parameters; Conditional Joint uses 7.27 versus 7.29 GFLOPs and 0.260 versus 0.292 ms per sample. The archived probability/rank records and manuscript CSVs reproduce the reported end-points, and all control-selection records mark TEST as un-used for tuning. 
+
+## H. Supplementary Visual Evidence 
+
+The following diagrams and diagnostics complement the primary endpoint and mechanism results. xn never enters hS or Q input 
+
+> Raw samples, private features, and private backbones remain local
+
+(a) Same-task conditional projection       
+
+> Donor private Fk
+> xS+xn
+> Local Q student input interface
+> hS(xS)
+> Server QS
+> aggregate Q only
+> Returned Q teacher
+> QS(hS(xS))
+> Recipient private fj
+> xSonly
+> Each client is both donor (private-to-Q) and recipient (Q-to-private) Task heads stay distinct; incompatible private models are never averaged
+
+(b) Dual-role Q under task/model heterogeneity        
+
+> Private fA
+> image task Private fB
+> text task Private fC
+> retrieval task
+> Local QA
+> student Local QB
+> student Local QC
+> student
+> Server Q shared interface + task heads
+> Private update Q teaches f
+> Inference Private / Q / Joint
+
+Figure 4. Same-task conditional projection (left) and task-heterogeneous exchange (right). Both return an executable Q while private architectures and task semantics remain local. Table 17. Primary paired controls (set A; %, mean ± SD, five seeds). No return disables Q →private training; Q denotes the pub-lic branch. Flickr: five-fold 200-image R@1. 
+
+CIFAR Flickr30k Variant Endpoint Accuracy I2T R@1 T2I R@1 Local Private 38 .55 ± 0.13 18 .22 ± 0.74 15 .08 ± 0.26 
+
+No return Private 38 .55 ± 0.13 18 .22 ± 0.74 15 .08 ± 0.26 
+
+Q 48 .63 ± 0.30 34 .80 ± 0.85 29 .39 ± 0.38 
+
+Joint 45 .62 ± 0.95 37 .41 ± 0.58 31 .39 ± 0.28 
+
+Task-isolated Private 41 .66 ± 0.22 33 .57 ± 0.32 28 .94 ± 0.17 
+
+Q 48 .90 ± 0.30 35 .80 ± 0.76 29 .79 ± 0.56 
+
+Joint 49 .38 ± 0.79 40 .56 ± 0.50 34 .38 ± 0.24 
+
+Label Q Private 43 .82 ± 0.19 33 .98 ± 0.33 29 .19 ± 0.24 
+
+Q 48 .91 ± 0.31 35 .22 ± 0.84 29 .06 ± 0.37 
+
+Joint 52 .26 ± 0.98 40 .47 ± 0.87 34 .12 ± 0.27 
+
+FedSocket Private 45 .13 ± 0.39 35 .09 ± 0.26 30 .38 ± 0.45 
+
+Q 50 .32 ± 0.48 37 .86 ± 0.82 31 .13 ± 0.73 
+
+Joint 53 .59 ± 1.28 42 .37 ± 0.51 35 .46 ± 0.48 
+
+## I. Implementation and Reproducibility 
+
+Interface and private-model details. The same-task in-terface uses 300-dimensional precomputed text features for MELD and eight 1280-dimensional visual tokens for CREMA-D/UCF-51. Extra donor-only features are 1611-dimensional MELD audio and 852-dimensional AV au-dio. MELD donors combine text and audio bottle-necks; CREMA-D/UCF donors combine attention-pooled video and audio through visual, audio, gated, and joint heads. Task-heterogeneous experiments use an ImageNet-pretrained, frozen ResNet-18 image interface and a frozen 
+
+Table 18. KD ×fusion endpoints (%; mean ± SD, five seeds). P/J: Private/Joint. CIFAR/AG: accuracy; Flickr: five-fold R@1. Red/underline: best/second-best within each branch. 
+
+Setting CIFAR AG I2T T2I None / P 38 .55 ±0.13 46 .75 ±0.15 18 .22 ±0.74 15 .08 ±0.26 
+
+None / J 45 .62 ±0.95 53 .28 ±1.33 37 .41 ±0.58 31 .39 ±0.28 
+
+KD / P 41 .86 ±0.14 50 .21 ±0.39 35 .10 ±0.40 30 .24 ±0.34 
+
+KD / J 49 .95 ±0.97 62 .82 ±0.86 40 .65 ±0.60 34 .67 ±0.20 
+
+Fus. / P 38 .56 ±0.05 46 .74 ±0.07 17 .59 ±0.53 14 .51 ±0.36 
+
+Fus. / J 46 .23 ±0.72 53 .45 ±1.40 37 .13 ±0.75 31 .24 ±0.21 
+
+Full / P 45 .13 ±0.39 49 .73 ±0.48 35 .09 ±0.26 30 .38 ±0.45 
+
+Full / J 53 .59 ±1.28 78 .50 ±0.42 42 .37 ±0.51 35 .46 ±0.48 
+
+Table 19. DEV-selected mixture weights for the control alterna-tives (mean ± sample SD). TEST data are not used for selecting these weights. 
+
+Control Class/I2T T2I 
+
+UCF-51 
+
+Independent Private (matched) 0.70 ± 0.45 –Independent Private ( 2×) 0.44 ± 0.52 –Private dual checkpoint 0.00 ± 0.00 –
+
+Flickr30k 
+
+Conditional–Private 0.53 ± 0.15 0.47 ± 0.07 
+
+Private dual checkpoint 0.57 ± 0.14 0.53 ± 0.13 
+
+Local–Private 0.51 ± 0.15 0.48 ± 0.10 
+
+GloVe-mean text interface followed by a fixed orthogo-nal projection, each producing 256-dimensional features. These interfaces are not the trainable private encoders and are not communicated every round. Table 20. Complete inference-capacity controls (%, mean ± sample SD over five seeds). UCF-51 uses pooled accuracy and macro F1; Flickr30k uses five-fold I2T/T2I R@1. Red/underline: best/second best. Dataset Method Acc. Macro F1 I2T R@1 T2I R@1 UCF-51 Single Private 71 .70 ± 0.13 70 .99 ± 0.22 – –Conditional Private 72 .50 ± 0.29 71 .93 ± 0.40 – –Independent Private (param.-matched) 71 .77 ± 0.17 71 .04 ± 0.32 – –Independent Private ( 2× full) 71 .70 ± 0.19 70 .99 ± 0.28 – –Private dual checkpoint 71 .70 ± 0.13 70 .99 ± 0.22 – –Conditional Joint 82 .83 ± 0.93 80 .95 ± 1.25 – –Flickr30k Conditional Private – – 35 .09 ± 0.26 30 .38 ± 0.45 
+
+Independent Conditional–Private – – 36 .56 ± 0.21 31 .54 ± 0.05 
+
+Independent Local–Private – – 22 .29 ± 0.56 18 .89 ± 0.29 
+
+Private dual checkpoint – – 21 .58 ± 1.03 18 .39 ± 0.67 
+
+Conditional Joint – – 42 .37 ± 0.51 35 .46 ± 0.48 
+
+Table 21. Seed-index-aligned evidence against a generic extra-predictor explanation. Positive differences favor Conditional Joint. UCF uses accuracy; Flickr uses mean bidirectional five-fold R@1. With five independent nonzero pairs, the exact two-sided sign-flip test has minimum p = .0625 .Dataset Capacity control ∆ (pp) 95% CI Wins Exact p
+
+UCF-51 Conditional Private 10.33 [9.18, 11.48] 5/5 .0625 Independent Private (param.-matched) 11.06 [9.99, 12.13] 5/5 .0625 Independent Private ( 2× full) 11.13 [9.98, 12.28] 5/5 .0625 Private dual checkpoint 11.13 [9.97, 12.29] 5/5 .0625 Flickr30k Conditional Private 6.18 [5.76, 6.60] 5/5 .0625 Independent Conditional–Private 4.87 –† 5/5 –†
+
+Independent Local–Private 18.33 –† 5/5 –†
+
+Private dual checkpoint 18.93 [17.61, 20.25] 5/5 .0625  
+
+> †The Flickr independent ensembles use cyclic pairing of the five registered seeds. Because replicas are reused across rows, these two descriptive comparisons omit an independent-pair interval and sign-flip p-value.
+
+Table 22. Inference resources on an NVIDIA RTX 4090 at batch size 64. FLOPs are profiler-counted operations and conservative for unsupported operators; latency excludes data loading and host–device transfer. Dataset Method Params (M) GFLOPs ms/sample Peak MiB UCF-51 Conditional Joint 0.60 0.01 0.012 2.0 Conditional Private 0.43 0.00 0.007 2.0 Independent Private ( 2× full) 0.86 0.01 0.014 2.0 Independent Private (param.-matched) 0.60 0.01 0.012 2.0 Private dual checkpoint 0.86 0.01 0.014 2.0 Single Private 0.43 0.00 0.007 2.0 Flickr30k Conditional Private 18.07 3.64 0.147 392.0 Independent Conditional–Private 36.15 7.29 0.292 392.1 Private dual checkpoint 36.15 7.29 0.293 392.1 Conditional Joint 36.15 7.27 0.260 392.1 
+
+Optimization and release. The task-heterogeneous con-figuration trains for 40 communication rounds after a 10-epoch private warm-up. Per-round local schedules use two image epochs, two text epochs, and five Flickr30k epochs; learning rates are 5×10 −2, 5×10 −4, 2×10 −4, and 3×10 −4
+
+for image, text, multimodal-private, and Q updates, respec-tively. The KD, fusion, and relation weights are 0.5, 0.25, and 0.2. Development data select checkpoints and fixed fu-sion coefficients. Release contents and evaluation aggrega-tion are specified in Sec. K. −4 −2 024             
+
+> Macro-F1 gain (pp)
+> Pooled r= 0.14
+> (a) 25% recipient data
+> MELD CREMA-D UCF-51
+> −1.5 −1.0 −0.5 0.0 0.5 1.0
+> Full −observed-modal teacher (pp)
+> −4 −2 024
+> Macro-F1 gain (pp)
+> Pooled r= 0.19
+> (b) 100% recipient data
+
+Figure 5. Teacher-advantage diagnostic at 25% and 100% recipi-ent data. Markers are seeds; the vertical axis is FedSocket minus Label Q macro F1 (pp). Donor advantage has a weak pooled linear association with the gain over Label Q. 5 10 15 20 25 30 35 40 
+
+> Federated round
+> 50 55 60 65 70 75
+> Accuracy (%)
+> Upload: 1.46 GB
+> Classification DEV
+> CIFAR-100 AG News
+
+Figure 6. CIFAR-100 and AG News development accuracy (five-seed mean ± SD), measured during primary training. 
+
+Communication accounting. If Q contains PQ transmit-ted parameters and Kr is the participating set in round r, the float32 uplink payload is approximately 4PQ
+
+PRr=1 |K r | +
+
+Bmeta . This excludes initial interface distribution, orches-tration, storage, and transport framing. Each recorded task-heterogeneous run transfers 1.4609 decimal GB upstream and 1.4608 GB downstream, with a 3.652 MB Q state and 800 recorded messages. 
+
+## J. Interpreting Training and Inference Gains 
+
+Training and inference contrasts. For a fixed dataset, seed, population, and metric, write Ls, Ps, and Js for in-dependently trained Local, Q-trained Private, and Joint per-formance. The exact accounting identity is 
+
+Js − Ls = ( Ps − Ls) + ( Js − Ps). (29) The first term measures the change retained by the Private model after Q-assisted training; the second measures the benefit of retaining Q at inference. Joint may use additional information and capacity, so Tab. 3 reports both terms rather than attributing the total gain to distillation alone. 
+
+Factorial identification. Let Yab,s denote an endpoint in seed s when KD is enabled by a ∈ { 0, 1} and fusion train-ing by b ∈ { 0, 1}. The balanced within-seed main effects are 
+
+∆KD ,s = 12 [( Y10 ,s − Y00 ,s ) + ( Y11 ,s − Y01 ,s )] (30) and analogously ∆Fus ,s = 12 [( Y01 ,s − Y00 ,s ) + ( Y11 ,s −
+
+Y10 ,s )] . The interaction is Y11 ,s − Y10 ,s − Y01 ,s + Y00 ,s .Tabs. 8 and 18 report the mean and sample SD of these five paired seed-level effects. The simpler no-Q comparison re-mains a combined-path contrast, whereas the factorial sep-arates these two components within the measured configu-ration. 
+
+## K. Evaluation Aggregation and Release 
+
+Same-task “All” accuracy pools test samples; heteroge-neous classification averages fixed client endpoints; Flickr uses five-fold 200-image retrieval. Primary results use five seeds; partition intervals use three split means. We will re-lease code, configurations, split manifests, feature check-points, preprocessing, cross-fitting, calibration, and exports, mapping each reported row to its seeds and evaluator. 
+
+## L. Additional Controls and Partition Sensitiv-ity 
+
+Set B provides additional endpoint summaries under the same hyperparameters as paired set A (Tab. 17). Full fol-lows Tab. 4; set-B contrasts compare endpoint means, sep-arately from set A. Repartitioning uses three splits, three seeds per split, and split-level intervals. 
+
+Capacity and sharing. Exact-private controls match Private predictors, parameters, and counted operations (Tab. 23). RTX 4090 measurements use batch size 64; latency excludes loading and transfers. Additional Label-Q/isolation endpoints appear in Tab. 24; text-path effects use the Q means. Table 23. Exact-private endpoints and resources. Cond./Indep.: conditional/independent Joint. Accuracy: mean ± SD, five seeds; GFLOPs and latency: per sample. Full matches Tab. 4; mean dif-ferences: Tab. 11. 
+
+CIFAR-100 AG News Metric Cond. Indep. Cond. Indep. Joint (%) 53 .59 ± 1.28 50 .91 ± 0.34 78 .50 ± 0.42 64 .64 ± 0.97 
+
+Param. (M) 23.679 23.679 13.401 13.401 GFLOPs 4.7574 4.7574 0.0067 0.0067 Latency (ms) 0.150 0.163 0.053 0.056 Activ. (MiB) 320.14 320.14 45.69 45.69 
+
+Table 24. Main Full endpoints and additional controls (set B; %, mean ± SD, five seeds). Both use the main settings. Primary paired set A is in Tab. 17. Text-path mean differences in Fig. 3 use these Q rows. 
+
+Endpoint CIFAR AG News I2T T2I 
+
+Full (main endpoints) 
+
+Private 45 .13 ± 0.39 49 .73 ± 0.48 35 .09 ± 0.26 30 .38 ± 0.45 
+
+Q 50 .32 ± 0.48 75 .85 ± 1.11 37 .86 ± 0.82 31 .13 ± 0.73 
+
+Joint 53 .59 ± 1.28 78 .50 ± 0.42 42 .37 ± 0.51 35 .46 ± 0.48 
+
+Label Q 
+
+Private 43 .95 ± 0.14 51 .28 ± 0.92 33 .78 ± 0.63 28 .87 ± 0.25 
+
+Q 48 .98 ± 0.33 77 .49 ± 1.70 35 .34 ± 1.04 29 .32 ± 0.30 
+
+Joint 52 .07 ± 0.42 64 .48 ± 1.09 40 .32 ± 0.38 33 .99 ± 0.40 
+
+Task-isolated Q 
+
+Private 41 .69 ± 0.15 49 .98 ± 0.34 33 .52 ± 0.67 28 .61 ± 0.29 
+
+Q 48 .83 ± 0.34 75 .92 ± 1.00 35 .66 ± 0.91 29 .89 ± 0.48 
+
+Joint 49 .74 ± 0.96 63 .02 ± 1.30 40 .24 ± 0.57 34 .41 ± 0.53 
+
+AG–Flickr text isolation 
+
+Private 41 .71 ± 0.18 49 .98 ± 0.35 33 .41 ± 1.06 28 .77 ± 0.33 
+
+Q 48 .80 ± 0.39 76 .01 ± 1.07 36 .50 ± 0.99 30 .32 ± 0.32 
+
+Joint 49 .54 ± 1.00 62 .42 ± 0.91 40 .54 ± 0.44 34 .48 ± 0.38 
+
+Table 25. Gate ×PCGrad alternative cells (%; mean ± SD, five seeds). Learn./Fix.: learned/fixed gate. Learned+PCGrad is Full in Tab. 24. Main effects average two cell-mean contrasts; these cells reproduce Tab. 8. 
+
+Gate / merge CIFAR AG News I2T T2I 
+
+Private 
+
+Learn./Mean 41 .71 ±0.16 49 .74 ±0.44 33 .63 ±0.91 28 .56 ±0.19 
+
+Fix./PCGrad 41 .70 ±0.19 49 .77 ±0.41 33 .72 ±0.65 28 .61 ±0.34 
+
+Fix./Mean 41 .72 ±0.16 49 .76 ±0.43 33 .45 ±0.80 28 .89 ±0.34 
+
+Q
+
+Learn./Mean 48 .83 ±0.39 75 .85 ±0.99 35 .70 ±1.17 29 .98 ±0.19 
+
+Fix./PCGrad 48 .85 ±0.32 75 .71 ±1.23 35 .14 ±0.90 30 .05 ±0.19 
+
+Fix./Mean 48 .85 ±0.32 75 .75 ±1.23 35 .14 ±0.88 30 .04 ±0.23 
+
+Joint 
+
+Learn./Mean 49 .69 ±0.88 62 .55 ±1.23 39 .99 ±0.57 34 .14 ±0.45 
+
+Fix./PCGrad 49 .84 ±1.10 62 .58 ±0.80 40 .33 ±0.61 34 .26 ±0.47 
+
+Fix./Mean 49 .82 ±1.20 62 .29 ±0.82 40 .10 ±0.81 34 .42 ±0.50 
+
+Table 26. Partition sensitivity of the incremental teacher contri-bution: Full minus Label Q Joint (pp). Each split averages three paired seeds; 95% CIs use three split means. Positive counts refer to the nine runs.                                      
+
+> Metric Split 1 Split 2 Split 3 Mean Split-level 95% CI Positive AG Acc. +0 .283 +0 .217 −0.023 +0 .159 [−0.24 ,+0 .56] 6/9 I2T R@1 +0 .217 +0 .180 −0.013 +0 .128 [−0.18 ,+0 .43] 6/9 T2I R@1 +0 .153 +0 .143 −0.013 +0 .094 [−0.14 ,+0 .33] 6/9 UCF Acc. +0 .253 +0 .200 −0.017 +0 .146 [−0.21 ,+0 .50] 6/9 UCF F1 +0 .270 +0 .220 −0.017 +0 .158 [−0.22 ,+0 .54] 6/9 UCF UAR +0 .263 +0 .210 −0.017 +0 .152 [−0.22 ,+0 .52] 6/9 MELD CREMA-D UCF-51 −5 0510 15
+> Recipient − donor (pp)
+> Local Label Q Single Q FedSocket
+
+Figure 7. Recipient minus donor Joint accuracy (pp). Open sym-bols: seeds; filled symbols/bars: mean ± SD. Groups have differ-ent populations, so gaps are descriptive rather than causal effects of missing modalities. Table 27. UCF backbone-group endpoints (%; mean ± SD, five seeds). Each group has five clients ( β = 0 .75 ). Comparisons are paired within group; cross-group differences do not isolate archi-tecture effects. 
+
+Backbone Endpoint Acc. Macro F1 UAR MLP Private 76 .23 ± 0.50 67 .60 ± 0.82 71 .94 ± 0.75 
+
+MLP Public Q 83 .04 ± 2.06 76 .79 ± 2.55 79 .73 ± 2.19 
+
+MLP Joint 91 .25 ± 0.98 87 .83 ± 1.52 87 .77 ± 1.25 
+
+CNN Private 61 .31 ± 1.95 55 .71 ± 2.48 63 .09 ± 2.32 
+
+CNN Public Q 77 .69 ± 0.97 71 .51 ± 0.64 79 .48 ± 0.89 
+
+CNN Joint 79 .88 ± 0.97 77 .13 ± 1.20 82 .93 ± 0.71 
+
+Transformer Private 80 .05 ± 1.53 69 .85 ± 1.41 72 .75 ± 1.49 
+
+Transformer Public Q 75 .67 ± 1.75 74 .38 ± 2.53 78 .74 ± 1.87 
+
+Transformer Joint 81 .87 ± 2.97 80 .77 ± 3.03 83 .43 ± 2.35 
+
+Table 28. Paired Joint minus Private accuracy by UCF group (pp; five seeds). 
+
+Backbone J−P accuracy (pp) 95% CI Positive MLP +15 .02 ± 1.41 [+13 .27 , +16 .77] 5/5 CNN +18 .57 ± 2.30 [+15 .71 , +21 .42] 5/5 Transformer +1 .82 ± 2.99 [−1.90 , +5 .53] 3/5
