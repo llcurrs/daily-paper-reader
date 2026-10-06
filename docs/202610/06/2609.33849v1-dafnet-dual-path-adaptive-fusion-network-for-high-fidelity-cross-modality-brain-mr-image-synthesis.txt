@@ -1,0 +1,862 @@
+DAFNet: Dual-path Adaptive Fusion Network for High-
+Fidelity Cross-Modality Brain MR Image Synthesis 
+Jialin Liu1, Xiaoliang Zhang1,2* 
+1Department of Biomedical Engineering, 2Department of Electrical Engineering, State University 
+of New York at Buffalo, Buffalo, New York 14260, U.S.A. 
+ 
+*Corresponding author: 
+Xiaoliang Zhang, Ph.D. 
+Bonner Hall 215E 
+Department of Biomedical Engineering 
+State University of New York at Buffalo 
+Buffalo, NY 14260 
+U.S.A. 
+ 
+Email: xzhang89@buffalo.edu 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+
+
+Abstract: Cross-modality MRI synthesis using deep learning can streamline clinical 
+workflows, compensate for missing image contrasts, and reduce examination time; 
+however, existing methods often require substantial computational resources, limiting 
+their practical accessibility. To address this limitation, we propose and investigate a 
+lightweight yet effective framework, termed the Dual-path Adaptive Fusion Network 
+(DAFNet), for T1-to-T2 images synthesis. DAFNet is based on cGAN (conditional 
+generative adversarial networks) structure, and the generator employs a dual‑path 
+encoder that adaptively combines depth‑wise separable convolutions and dilated 
+convolutions to capture both fine-grained details and broader contextual features. A 
+novel Dual-path Adaptive Fusion Module (DAFM) is introduced to dynamically 
+combine these feature streams through channel-wise complementary weighting, 
+enabling efficient and adaptive feature integration. This fusion mechanism is further 
+applied to the final skip connection to enhance reconstruction fidelity, while the 
+decoder adopts a standard transposed convolution architecture. Coupled with a 
+conventional conditional GAN discriminator, the proposed model maintains low 
+computational complexity while improving perceptual image fidelity. Experimental 
+results demonstrate that DAFNet achieves superior performance compared with 
+baseline U-Net and conventional cGAN models, reaching a peak signal-to-noise ratio 
+(PSNR) of 26.43 dB while significantly reducing model size. This result indicates that 
+DAFNet provides an effective balance between synthesis fidelity and computational 
+efficiency, making it a promising solution for deployment on standard computing 
+hardware and for broader clinical and research applications in MRI contrast synthesis.   
+ 
+Key words: Deep Learning; MRI synthesis; Cross-Modality Imaging; U-Net; 
+Lightweight networks; Conditional GAN 
+ 
+
+
+1. Introduction 
+Magnetic resonance imaging (MRI) [1, 2] provides a wide range of tissue 
+contrasts, each offering distinct clinical and research value. Among the most 
+commonly used contrasts, T1-weighted (T1w) images provide detailed anatomical 
+information and clear gray–white matter delineation, whereas T2-weighted (T2w) 
+images are particularly sensitive to fluid content, edema, and various pathological 
+changes. These complementary properties make multi-contrast MRI valuable for  
+comprehensive tissue characterization and clinical diagnosis [3, 4]. However, 
+acquiring multiple image contrasts requires separate pulse sequences, leading to 
+prolonged examination time, increase cost, and greater susceptibility to motion 
+artifacts [5]. Considerable efforts have therefore been devoted to accelerating MRI 
+acquisition [6-17]. Parallel imaging reduces acquisition time by undersampling k-
+space and using the spatial sensitivity profiles of multichannel receiver arrays to 
+reconstruct the missing information [18-21], whereas compressed sensing exploits 
+image sparsity and incoherent undersampling to recover images from substantially 
+reduced k-space data [22-25]. Although these techniques can significantly accelerate 
+MRI, higher acceleration factors are generally accompanied by penalties in signal-to-
+noise ratio (SNR), reconstruction quality, or both [26-28]. The intrinsically higher 
+SNR available at high and ultrahigh magnetic field strengths can provide additional 
+SNR [29-37] reserve for accelerated imaging; however, higher field strengths also 
+introduce technical challenges [38-56] and are not universally available. Thus, despite 
+major advances in acquisition acceleration, obtaining multiple MR contrasts within a 
+short examination remains an important practical challenge. 
+Cross-modality MRI synthesis provides a fundamentally different and 
+complementary approach to this problem by computationally generating a desired 
+image contrast from one or more already acquired contrasts [57]. Rather than solely 
+accelerating the acquisition of each individual sequence, synthesis of a clinically 
+useful contrast from an existing acquisition has the potential to eliminate the need for 
+
+
+an additional sequence in selected applications, thereby further reducing examination 
+time and providing missing contrasts when an acquisition is unavailable or unusable. 
+In recent years, deep learning methods have demonstrated considerable potential for 
+cross-modality MRI synthesis. Convolutional neural networks (CNNs), particularly 
+U-Net–based architectures[58], have been widely adopted because their encoder–
+decoder structures and skip connections facilitate the preservation of spatial 
+information. However, conventional CNN-based approaches may produce overly 
+smooth images and may have difficulty recovering realistic textures and fine 
+anatomical details. 
+To improve perceptual image quality, generative adversarial networks 
+(GANs)[59] have been introduced for MRI synthesis. Conditional GAN (cGAN) 
+frameworks [60, 61], such as pix2pix, incorporate adversarial training to encourage 
+the generation of visually realistic images. Other approaches, including 
+CycleGAN[62, 63], further enable cross-modality translation without requiring 
+strictly paired training data. Despite these advances, GAN-based approaches may 
+suffer from training instability and can involve relatively complex network 
+architectures, resulting in substantial computational and memory requirements. Such 
+requirements may limit their practical accessibility, particularly in clinical or research 
+environments where high-performance computing resources are not readily available.  
+To address these challenges, we propose a lightweight and efficient deep 
+learning framework, termed the Dual-path Adaptive Fusion Network (DAFNet), for 
+T1-to-T2 brain MRI synthesis. The core of DAFNet is a dual-path encoder designed 
+to extract complementary image features using depthwise separable dilated 
+convolutions and depthwise separable convolutions . The dilated-convolution 
+pathway provides an enlarged receptive field for capturing broader contextual 
+information, whereas the complementary pathway emphasizes local and fine-grained 
+structural features. To effectively integrate information from these two pathways, we 
+introduce a novel Dual-path Adaptive Fusion Module (DAFM), which performs 
+
+
+channel-wise adaptive fusion through a complementary weighting mechanism. This 
+design allows the network to dynamically balance features from the two pathways 
+while reducing model complexity compared with conventional concatenation-based 
+feature fusion. 
+The adaptive fusion mechanism is incorporated throughout the encoder and is 
+also applied to the final skip connection to enhance feature integration during image 
+reconstruction. The DAFNet generator is paired with a conditional PatchGAN 
+discriminator to further improve perceptual quality and the fidelity of the synthesized 
+images through adversarial learning. By combining dual-path feature extraction, 
+adaptive feature fusion, and a lightweight network architecture, DAFNet is designed 
+to achieve a favorable balance between synthesis fidelity and computational 
+efficiency [64, 65]. 
+The proposed method was evaluated using a publicly available dataset of paired 
+T1w and T2w brain MR images and compared with baseline U-Net and conventional 
+cGAN models. DAFNet demonstrated improved quantitative and qualitative synthesis 
+performance while substantially reducing the number of generator parameters. These 
+characteristics suggest that DAFNet may provide an efficient approach to cross-
+modality MRI synthesis, with particular potential for applications in resource-
+constrained clinical and research environments where access to high-performance 
+computing hardware is limited. 
+  
+2. Methods 
+2.1 Dataset 
+The dataset used in this study was obtained from a publicly available resource 
+released by the Adolescent Health and Development in Context (AHDC) study 
+
+
+(OpenNeuro accession: ds005901)[66]. This longitudinal dataset contains structural 
+MRI scans from 119 subjects, including paired T1-weighted (T1w) and T2-weighted 
+(T2w) images. 
+All images are provided in NIfTI format. For each subject, T1w and T2w images 
+are stored within the same directory under an “anat” subfolder, ensuring consistent 
+pairing between modalities. Only structural T1w and T2w images were used in this 
+study. Detailed acquisition parameters, participant demographics, and ethical 
+considerations are available through the original dataset repository. 
+ 
+2.2 Deep Learning Model 
+The proposed Dual-path Adaptive Fusion Network (DAFNet) consists of a U-
+Net–based generator with a dual-path encoder and an adaptive feature fusion 
+mechanism. The generator is paired with a conditional PatchGAN discriminator to 
+enhance perceptual realism through adversarial training. 
+2.2.1 Dual-path Adaptive Fusion Module (DAFM) 
+The Dual-path Adaptive Fusion Module (DAFM) is designed to efficiently 
+integrate features extracted from two parallel convolutional paths. Given two feature 
+maps, the module first concatenates them along the channel dimension, followed by a 
+convolutional layer to reduce the number of channels to one-eighth of the original 
+size. The model structure is shown in Figure 1.  
+To capture global contextual information efficiently, spatial compression is 
+applied through pooling operations to reduce feature dimensions. The resulting 
+representation is processed through convolutional and fully connected layers to 
+generate a compact feature vector. A sigmoid activation function is then applied to 
+produce channel-wise weights in the range of [0, 1]. 
+
+
+Feature fusion is performed using a complementary weighting mechanism: one 
+feature map is scaled by the learned weights, while the other is scaled by the 
+complementary weights (1 − w). The final output is obtained through element-wise 
+weighted summation. 
+ 
+This design enables adaptive, channel-wise feature selection while avoiding the 
+parameter overhead of traditional concatenation-based fusion. By leveraging global 
+feature information, the module dynamically balances the contribution of each path, 
+allowing the network to capture both large-scale contextual structures and fine-
+grained details, while maintaining a lightweight architecture. 
+ 
+2.2.2 U-Net Generator Architecture 
+Figure 1 Structure of the Dual-path Adaptive Fusion Module (DAFM). The module 
+adaptively fuses features from two parallel paths using channel-wise complementary 
+weighting based on global feature representation. 
+
+
+   The generator in DAFNet is based on a U-Net architecture with a dual-path 
+encoder and a standard decoder. Both the encoder and decoder consist of four layers. 
+As shown in Figure 2.  
+ 
+In the encoder, each layer contains two parallel convolutional paths. As shown in 
+Figure 3. The first path employs depthwise separable dilated convolutions (kernel 
+size 3×3) to capture features with a large receptive field, while the second path uses a 
+combination of standard convolution and depthwise separable convolution to extract 
+fine structural details. The outputs of these two paths are fused using the DAFM. 
+The fused feature maps are passed through pooling and activation layers and 
+propagated to subsequent layers. Skip connections are preserved to retain high-
+resolution spatial information. The decoder consists of four layers. As shown in 
+Figure 4. Each of the first three layers performs transposed convolution for 
+upsampling, followed by concatenation with the corresponding encoder features via 
+skip connections. The combined features are processed using convolutional layers 
+Figure 2 Overall architecture of the proposed DAFNet. The framework 
+consists of a U-Net–based generator with a dual-path encoder and adaptive 
+fusion modules, paired with a conditional PatchGAN discriminator. 
+
+
+with batch normalization and ReLU activation. 
+In the final decoder layer, the DAFM is applied to fuse the upsampled feature 
+map with the corresponding skip connection from the first encoder layer. A final 1×1 
+convolution produces the synthesized T2-weighted image. 
+2.2.3 Conditional PatchGAN Discriminator Architecture 
+The proposed model employs a conventional conditional PatchGAN 
+discriminator. As shown in Figure 5. It processes the input and target image through 
+separate initial convolution branches. A notable architectural addition is the 
+integration of the same DAFM within each of its middle layers. In each layer, features 
+from the two input branches are adaptively fused using this module, generating 
+channel-wise weights to guide their combination, before being passed to the next 
+layer. This design enables dynamic, data-driven fusion of conditional and generated 
+Figure 3 Structure of an encoder layer in DAFNet. Each layer includes two parallel 
+convolutional paths for multi-scale feature extraction, followed by adaptive fusion 
+using the DAFM. 
+
+
+information at multiple feature scales. The final layer outputs a patch-based 
+discrimination map to guide the generator by calculating the adversarial loss based on 
+this discrimination map. 
+2.2.4 Loss function 
+Figure 4 Structure of a decoder layer in DAFNet. The decoder performs 
+upsampling via transposed convolution and integrates skip connections from the 
+encoder, with adaptive fusion applied in the final layer. 
+Figure 5 Architecture of the conditional PatchGAN discriminator. The discriminator 
+processes paired inputs and patch-wise classification, with adaptive fusion applied at 
+intermediate layers to integrate conditional and generated features. 
+
+
+A two-phase training strategy was employed to improve stability and 
+reconstruction performance. 
+During the pre-training phase (first 8 epochs), only the generator was optimized 
+using a weighted combination of reconstruction losses, including mean squared error 
+(MSE, weight = 20), structural similarity index (SSIM[67], weight = 0.3), L1 loss 
+(weight = 15), and a contrast enhancement loss (weight = 50). Pixel-value weighting 
+was applied to emphasize anatomically relevant intensity ranges, which stabilizes 
+optimization and improves feature learning in critical regions. No adversarial loss was 
+used in this phase. 
+Starting from epoch 9, adversarial training was introduced. The generator loss 
+was defined as the weighted sum of the reconstruction loss and an adversarial loss 
+with an initial weight of 0.1. The adversarial component was implemented using a 
+least-squares GAN (LSGAN) formulation. 
+The discriminator was trained using both real image pairs (T1w + real T2w) and 
+generated pairs (T1w + synthesized T2w), with label smoothing applied (target values 
+of 0.9 for real samples and 0.1 for generated samples). 
+An adaptive training strategy was used to improve convergence. If either the 
+generator or discriminator validation loss did not improve for 5 consecutive epochs, a 
+corresponding early-stopping counter was incremented. When the discriminator 
+counter reached 5, its learning rate and adversarial loss weight were reduced by half, 
+and the counter was reset. When the generator counter reached 5, training was 
+terminated and the best-performing model was saved. Model checkpoints were saved 
+every 5 epochs. 
+The SSIM loss was implemented as (1 − SSIM) to ensure consistency with loss 
+minimization objectives. 
+ 
+
+
+3. Experiments 
+3.1 Preprocessing 
+ All preprocessing steps were applied consistently to ensure spatial alignment 
+and data uniformity. T1-weighted and T2-weighted images were first separated into 
+modality-specific groups while preserving subject-level pairing. 
+All volumes were cropped to a uniform size of 256 × 256 × 64. Cropping was 
+performed by removing low-intensity background regions from the image boundaries, 
+and identical cropping coordinates were applied to both T1w and T2w images to 
+maintain spatial correspondence. 
+The dataset was split at the subject level, with 100 subjects used for training and 
+19 subjects used for testing. 
+Data augmentation was applied to the training set only. Each volume underwent 
+a random rotation of ±10° along the longitudinal axis to improve generalization. 
+Intensity normalization was performed by scaling voxel values from the original 
+range [0, 4095] to [0, 1], which stabilizes optimization and prevents gradient 
+instability during training. 
+To reduce computational cost, 3D volumes were decomposed into 2D slices. 
+Axial slices were extracted from each volume, resulting in multiple training samples 
+per subject while significantly reducing memory requirements. 
+ 
+3.2 Training Strategy 
+.A two-phase training strategy was adopted to improve stability and 
+reconstruction performance. 
+
+
+During the pre-training phase (first 8 epochs), only the generator was optimized 
+using a weighted combination of pixel-level reconstruction losses, including mean 
+squared error (MSE, weight = 20), structural similarity index (SSIM, weight = 0.3), 
+L1 loss (weight = 15), and a contrast enhancement loss (weight = 50). Pixel-value 
+weighting was applied to emphasize anatomically relevant intensity ranges, which 
+stabilizes optimization and improves feature learning in critical regions. No 
+adversarial loss was used in this phase. 
+Starting from epoch 9, adversarial training was introduced. The generator loss 
+was defined as the weighted sum of the reconstruction loss and an adversarial loss 
+with an initial weight of 0.1. The adversarial component was implemented using a 
+least-squares GAN (LSGAN) formulation. 
+The discriminator was implemented as a conditional PatchGAN and trained 
+using both real image pairs (T1w + real T2w) and generated pairs (T1w + synthesized 
+T2w). Label smoothing was applied, with target values of 0.9 for real samples and 0.1 
+for generated samples, to improve training stability. 
+An adaptive training strategy was employed to further enhance convergence. If 
+either the generator or discriminator validation loss did not improve for 5 consecutive 
+epochs, a corresponding early-stopping counter was incremented. When the 
+discriminator counter reached 5, its learning rate and the adversarial loss weight were 
+reduced by half, and the counter was reset. When the generator counter reached 5, 
+training was terminated and the best-performing model was saved. Model checkpoints 
+were also saved every 5 epochs. 
+4. Results 
+4.1 Qualitative Evaluation 
+Visual comparisons of synthesized T2-weighted images are presented in Figure 6 
+and Figure 7. Compared with baseline U-Net and conventional cGAN models, the 
+
+
+proposed DAFNet demonstrates improved structural fidelity and visual realism. 
+Specifically, images generated by the U-Net model appear noticeably blurred, 
+with reduced contrast between different brain tissues and poorly defined anatomical 
+boundaries. The cGAN model improves overall sharpness; however, it introduces 
+excessive contrast in certain regions, leading to unrealistic signal amplification, 
+particularly in white matter structures. 
+In contrast, DAFNet produces images with clearer anatomical boundaries, more 
+consistent tissue contrast, and fewer artifacts. The synthesized images more closely 
+resemble the ground-truth T2-weighted images in both structural detail and intensity 
+distribution. 
+As illustrated in Figure 7, DAFNet achieves superior reconstruction in 
+challenging regions such as the orbital area, where it preserves fine structural details 
+that are either blurred or distorted in the baseline methods.  
+ 
+Figure 6 Comparison of synthesized T2-weighted MRI images from different models (case: 
+s116). Representative results from U-Net, cGAN, and DAFNet are shown alongside the 
+ground-truth T2-weighted image. DAFNet demonstrates improved structural fidelity, sharper 
+tissue boundaries, and more realistic contrast compared with baseline methods. 
+
+
+ 
+Figure 7 Comparison of synthesized T2-weighted MRI images from different models (case: 
+s120). In the orbital region, DAFNet preserves fine anatomical structures and reduces 
+artifacts, whereas U-Net and cGAN exhibit blurring and structural distortion. 
+Table 1 Quantitative evaluation of MRI synthesis performance. Comparison of peak signal-
+to-noise ratio (PSNR), structural similarity index (SSIM), and mean squared error (MSE) for 
+U-Net, cGAN, and the proposed DAFNet. Values are reported as mean ± standard deviation. 
+“G” and “D” denote the number of parameters in the generator and discriminator, 
+respectively.  
+Methods 
+PSNR 
+SSIM 
+MSE 
+# parameters 
+U-Net 
+24.24 ± 0.41 
+0.7810 ± 0.231 
+0.0031 ± 0.0012 
+54.41M 
+cGANs 
+25.33 ± 0.96 
+0.7918 ± 0.132 
+0.0027 ± 0.0061 
+54.41M(G) + 2.77M(D) 
+DAFNet 
+26.43 ± 0.77 
+0.852 ± 0.065 
+0.0021 ± 0.0008 
+11.59M(G) + 7.28M(D) 
+ 
+4.2 Quantitative Evaluation 
+Quantitative results are summarized in  
+Table 1. The proposed DAFNet achieves the best overall performance across all 
+
+
+evaluation metrics. 
+Compared with the baseline U-Net model, DAFNet improves the peak signal-to-
+noise ratio (PSNR) from 24.24 ± 0.41 dB to 26.43 ± 0.77 dB, increases the structural 
+similarity index (SSIM) from 0.7810 ± 0.231 to 0.852 ± 0.065, and reduces the mean 
+squared error (MSE) from 0.0031 ± 0.0012 to 0.0021 ± 0.0008. 
+Compared with the cGAN model, DAFNet also demonstrates consistent 
+improvements, increasing PSNR from 25.33 ± 0.96 dB to 26.43 ± 0.77 dB, improving 
+SSIM from 0.7918 ± 0.132 to 0.852 ± 0.065, and reducing MSE from 0.0027 ± 
+0.0061 to 0.0021 ± 0.0008. 
+In addition to improved reconstruction accuracy, DAFNet significantly reduces 
+model complexity. The number of generator parameters is reduced from 54.41M (U-
+Net) to 11.59M, representing a reduction of approximately 78.7%. Although the 
+discriminator in DAFNet contains 7.28M parameters, the overall architecture remains 
+computationally efficient compared with conventional GAN-based models. 
+These results demonstrate that the proposed dual-path adaptive fusion 
+mechanism effectively improves synthesis performance while maintaining a 
+lightweight model design. 
+4.3 Evaluation Metrics 
+The peak signal-to-noise ratio (PSNR) measures the similarity between 
+synthesized and ground-truth images based on pixel intensity differences, with higher 
+values indicating better reconstruction quality. 
+The mean squared error (MSE) quantifies the average squared difference 
+between corresponding pixel values, where lower values indicate better performance. 
+The structural similarity index (SSIM) evaluates perceptual similarity by 
+considering luminance, contrast, and structural information, with values closer to 1 
+
+
+indicating higher image quality. 
+5. Conclusion and Discussion 
+5.1 Conclusion 
+In this study, we developed DAFNet, a lightweight deep learning framework for 
+cross-modality T1-to-T2 brain MRI synthesis. By incorporating the proposed Dual-
+path Adaptive Fusion Module (DAFM) into the dual-path encoder and the final skip 
+connection of a U-Net–based generator, DAFNet enables efficient and adaptive 
+integration of complementary image features. The dual-path architecture captures 
+both fine-grained structural information and broader contextual features, while the 
+DAFM dynamically balances their contributions through channel-wise 
+complementary weighting. 
+ Quantitative evaluation demonstrated that DAFNet consistently outperformed 
+the baseline U-Net and conventional cGAN models across all evaluated image-quality 
+metrics, including peak signal-to-noise ratio (PSNR), structural similarity index 
+(SSIM), and mean squared error (MSE). DAFNet achieved a PSNR of 26.43 ± 0.77 
+dB, an SSIM of 0.852 ± 0.065, and an MSE of 0.0021 ± 0.0008. Qualitative 
+evaluation further showed improved preservation of anatomical boundaries and tissue 
+contrast, with fewer visible artifacts compared with the baseline methods. 
+ Importantly, these improvements were achieved with a substantially smaller 
+generator. The number of generator parameters was reduced by approximately 78.7%, 
+from 54.41 million in the baseline U-Net and cGAN generators to 11.59 million in 
+DAFNet. Thus, the proposed architecture improves synthesis fidelity while 
+substantially reducing model size. This combination of reconstruction performance 
+and model efficiency makes DAFNet a promising approach for cross-modality MRI 
+synthesis, particularly for clinical and research environments in which access to high-
+performance computing resources may be limited. 
+
+
+5.2 Discussion 
+The results of this study demonstrate the potential of adaptive feature fusion for 
+improving the efficiency and fidelity of cross-modality MRI synthesis. The 
+performance of DAFNet suggests that increasing network size is not necessarily 
+required to improve synthesis quality. Instead, efficiently extracting and integrating 
+complementary features may provide a more effective strategy. In DAFNet, the two 
+encoder pathways are designed to capture information at different spatial scales, while 
+the DAFM adaptively determines their relative contributions. This design may help 
+explain why DAFNet achieved improved quantitative and qualitative performance 
+despite using substantially fewer generator parameters than the baseline models. 
+The improved synthesis performance may also be attributed to the 
+complementary roles of the reconstruction and adversarial objectives. The 
+reconstruction losses encourage voxel-wise and structural consistency with the 
+reference T2w images, whereas the conditional PatchGAN discriminator promotes 
+more realistic local image characteristics. The two-stage training strategy, in which 
+the generator is first pretrained using reconstruction losses before adversarial training 
+is introduced, was designed to improve training stability and reduce the likelihood 
+that adversarial learning would dominate before the generator had established a 
+reasonable T1w-to-T2w mapping. 
+Several limitations of the present study should nevertheless be considered. First, only 
+minimal preprocessing was applied to the dataset, and no explicit image registration 
+was performed between the paired T1w and T2w images.  Consequently, residual 
+spatial misalignment may remain between the two modalities. Because the network is 
+trained using paired images and reconstruction losses that depend on spatial 
+correspondence, such misregistration may interfere with learning of the underlying 
+cross-modality relationship and may also influence quantitative metrics based on 
+direct comparison between synthesized and reference images.  
+
+
+Second,  intersubject anatomical variability and residual differences in spatial 
+correspondence between T1w and T2w images may contribute to variations in 
+synthesis quality. These factors could partially account for localized artifacts, reduced 
+sharpness, or differences in intensity distribution observed in some synthesized 
+images. Future studies incorporating image registration and more systematic 
+background removal may improve spatial consistency between paired images and 
+allow the effects of the proposed network architecture to be evaluated more 
+accurately. 
+ Third, although DAFNet substantially reduces the number of generator 
+parameters, parameter count alone does not fully characterize computational 
+efficiency. Other measures, including floating-point operations, memory consumption, 
+and inference time on different hardware platforms, were not evaluated in the present 
+study. These measurements will be important in future work to more comprehensively 
+assess the computational advantages of DAFNet and its feasibility for deployment on 
+standard computing hardware. 
+The present evaluation was also conducted using a single publicly available brain 
+MRI dataset. Further validation using larger and more diverse datasets will therefore 
+be necessary to determine the generalizability of the proposed approach across 
+different populations, scanners, field strengths, acquisition protocols, and imaging 
+centers. More extensive data augmentation and repeated data-splitting strategies, such 
+as Monte Carlo cross-validation [68, 69], could provide a more robust assessment of 
+model performance and reduce potential dependence on a particular training–test 
+split. 
+ Future work will focus on further optimization of the network and training 
+strategy, including adaptive adjustment of the adversarial loss weight and 
+discriminator complexity. Extension from the current 2D implementation to a 3D 
+framework may also allow the network to exploit through-plane anatomical 
+information and improve spatial consistency across adjacent slices, although this 
+
+
+would increase computational and memory requirements. Finally, evaluation on 
+multi-center datasets and direct assessment of inference time, memory requirements, 
+and performance on standard computing hardware will be important for establishing 
+the practical utility of the proposed lightweight architecture. 
+Overall, the present results demonstrate that DAFNet can achieve improved T1-
+to-T2 MRI synthesis with a substantially reduced generator size. The proposed dual-
+path architecture and adaptive fusion mechanism provide an efficient means of 
+integrating complementary local and contextual features, offering a promising 
+foundation for further development of computationally efficient cross-modality MRI 
+synthesis. 
+ 
+ 
+Reference 
+[1] 
+P. C. Lauterbur, "Image Formation by Induced Local Interactions: Examples 
+Employing Nuclear Magnetic Resonance," Nature, vol. 242, pp. 190-191, 
+1973. 
+[2] 
+A. N. G. Garroway, P. K.; Mansfield, P., "Image formation in NMR by a 
+selective irradiative process," Journal of Physics C: Solid State Physics, vol. 7, 
+no. 24, pp. L457-L462, 1974. 
+[3] 
+A. Akita et al., "Comparison of T2-weighted and contrast-enhanced T1-
+weighted MR imaging at 1.5 T for assessing the local extent of cervical 
+carcinoma," (in English), Eur Radiol, vol. 21, no. 9, pp. 1850-1857, Sep 2011, 
+doi: 10.1007/s00330-011-2122-6. 
+[4] 
+S. A. Mirowitz, P. Apicella, W. R. Reinus, and A. M. Hammerman, "Mr-
+Imaging of Bone-Marrow Lesions - Relative Conspicuousness on T1-
+Weighted, Fat-Suppressed T2-Weighted, and Stir Images," (in English), Am J 
+Roentgenol, vol. 162, no. 1, pp. 215-221, Jan 1994, doi: DOI 
+10.2214/ajr.162.1.8273669. 
+[5] 
+S. Li, W. J. Yan, X. Y. Zhang, W. Hu, L. Ji, and Q. Yue, "Dual-Network Deep 
+Learning for Accelerated Head and Neck MRI: Enhanced Image Quality and 
+Reduced Scan Time," (in English), Head Neck-J Sci Spec, vol. 47, no. 12, pp. 
+3349-3359, Dec 2025, doi: 10.1002/hed.28255. 
+[6] 
+D. L. Zhang X, Payne K, Waks M, Adriany G, Ugurbil K., "A Wrap-on 
+Decoupled Coaxial Transmission Line (CTL) Transceive Array for Head MR 
+Imaging at 10.5T.," presented at the Proc Int Soc Magn Reson Med Sci Meet 
+
+
+Exhib Int Soc Magn Reson Med Sci Meet Exhib 2023, 2023. 
+[7] 
+G. Adriany et al., "Transmit and receive transmission line arrays for 7 Tesla 
+parallel imaging," Magn Reson Med, vol. 53, no. 2, pp. 434-45, Feb 2005. 
+[Online]. Available: 
+http://www.ncbi.nlm.nih.gov/entrez/query.fcgi?cmd=Retrieve&db=PubMed&
+dopt=Citation&list_uids=15678527  
+[8] 
+A. A. Bhosale, L. L. Ying, and X. Zhang, "An 8-Channel High-permittivity 
+Dielectric Material-Coated Half-Wave Dipole Antenna Array for Knee 
+Imaging at 7T," Proc Int Soc Magn Reson Med Sci Meet Exhib Int Soc Magn 
+Reson Med Sci Meet Exhib, vol. 30, May 2022. [Online]. Available: 
+https://www.ncbi.nlm.nih.gov/pubmed/36071705. 
+[9] 
+P. Huang, C. Zhang, X. Zhang, X. Li, L. Dong, and L. Ying, "Self-Supervised 
+Deep Unrolled Reconstruction Using Regularization by Denoising," IEEE 
+Trans Med Imaging, vol. 43, no. 3, pp. 1203-1213, Mar 2024, doi: 
+10.1109/TMI.2023.3332614. 
+[10] 
+W. Huang et al., "A Coarse-to-Fine Deformable Transformation Framework 
+for Unsupervised Multi-Contrast MR Image Registration with Dual 
+Consistency Constraint," IEEE Trans Med Imaging, vol. 40, no. 10, pp. 2589-
+2599, Oct 2021, doi: 10.1109/TMI.2021.3059282. 
+[11] 
+Y. Pang and X. Zhang, "Sparse Parallel Transmission using Optimized Sparse 
+k-space trajectory by Simulated Annealing," in the 18th Annual Meeting of 
+ISMRM, Stockholm, Sweden, 2010, p. 4921.  
+[12] 
+Y. Pang and X. Zhang, "Multi-voxel Excitation using Compressed Sensing 
+Typed Sparse Pulse," in the 18th Annual meeting of ISMRM Stockholm, 
+Sweden, 2010, p. 4952.  
+[13] 
+Y. Pang and X. Zhang, "Interpolated compressed sensing for 2D multiple slice 
+fast MR imaging," PLoS One, vol. 8, no. 2, p. e56098, 2013. [Online]. 
+Available: 
+http://www.ncbi.nlm.nih.gov/entrez/query.fcgi?cmd=Retrieve&db=PubMed&
+dopt=Citation&list_uids=23409130  
+[14] 
+B. Wu et al., "Flexible transceiver array for ultrahigh field human MR 
+imaging," Magn Reson Med, vol. 68, no. 4, pp. 1332-8, Oct 2012. [Online]. 
+Available: 
+http://www.ncbi.nlm.nih.gov/entrez/query.fcgi?cmd=Retrieve&db=PubMed&
+dopt=Citation&list_uids=22246803  
+[15] 
+Z. Xie and X. Zhang, "An 8-channel microstrip array coil for mouse parallel 
+MR imaging at 7T by using magnetic wall decoupling technique," in the 16th 
+Annual Meeting of ISMRM, Toronto, Canada, P. o. t. t. A. M. o. ISMRM, Ed., 
+May 3 -9 2008, p. 2973.  
+[16] 
+X. Yan, R. Xue, and X. Zhang, "Closely-spaced double-row microstrip RF 
+arrays for parallel MR imaging at ultrahigh fields," Appl Magn Reson, vol. 46, 
+no. 11, pp. 1239-1248, Nov 2015, doi: 10.1007/s00723-015-0712-1. 
+[17] 
+Q. Yang, H. Zhang, J. Xia, and X. Zhang, "Evaluation of magnetic resonance 
+image segmentation in brain low-grade gliomas using support vector machine 
+
+
+and convolutional neural network," Quant Imaging Med Surg, vol. 11, no. 1, 
+pp. 300-316, Jan 2021, doi: 10.21037/qims-20-783. 
+[18] 
+D. K. Sodickson and W. J. Manning, "Simultaneous acquisition of spatial 
+harmonics (SMASH): fast imaging with radiofrequency coil arrays," Magn 
+Reson Med, vol. 38, no. 4, pp. 591-603., 1997. 
+[19] 
+K. P. Pruessmann, M. Weiger, M. B. Scheidegger, and P. Boesiger, "SENSE: 
+sensitivity encoding for fast MRI," Magn Reson Med, vol. 42, no. 5, pp. 952-
+62., 1999. 
+[20] 
+M. A. Griswold et al., "Generalized autocalibrating partially parallel 
+acquisitions (GRAPPA)," (in eng), Magn Reson Med, vol. 47, no. 6, pp. 1202-
+10, Jun 2002, doi: 10.1002/mrm.10171. 
+[21] 
+M. A. Ohliger et al., "Combined parallel and partial fourier MR reconstruction 
+for accelerated 8-channel hyperpolarized carbon-13 in vivo magnetic 
+resonance Spectroscopic imaging (MRSI)," J Magn Reson Imaging, vol. 38, 
+no. 3, pp. 701-13, Sep 2013. [Online]. Available: 
+http://www.ncbi.nlm.nih.gov/entrez/query.fcgi?cmd=Retrieve&db=PubMed&
+dopt=Citation&list_uids=23293097  
+[22] 
+M. Lustig, Donoho, D., & Pauly, J. M., "Sparse MRI: The application of 
+compressed sensing for rapid MR imaging," Magnetic resonance in medicine, 
+vol. 58(6), pp. 1182–1195, 2007, doi: https://doi.org/10.1002/mrm.21391. 
+[23] 
+Y. Pang, J. Jiang, and X. Zhang, "Ultrafast Fetal MR Imaging using 
+Interpolated Compressed Sensing," Proc Intl Soc Mag Reson Med, p. 2224, 
+2014. 
+[24] 
+Y. Pang, D. Vigneron, and X. Zhang, "Interpolated Compressed Sensing MR 
+Image Reconstruction in Phase Encoding for the Brain," Proc. Intl. Soc. Mag. 
+Reson. Med, vol. 23, p. 3499, 2015. 
+[25] 
+Y. Pang and X. Zhang, "Interpolated Compressed Sensing MR Image 
+Reconstruction using Neighboring Slice k-space Data," Proceedings of the 
+20th Annual Meeting of ISMRM, p. 2275, 2012. 
+[26] 
+B. Wu et al., "Multi-channel microstrip transceiver arrays using harmonics for 
+high field MR imaging in humans," IEEE Trans Med Imaging, vol. 31, no. 2, 
+pp. 183-91, Feb 2012. [Online]. Available: 
+http://www.ncbi.nlm.nih.gov/entrez/query.fcgi?cmd=Retrieve&db=PubMed&
+dopt=Citation&list_uids=21878410  
+[27] 
+B. Wu et al., "Shielded microstrip array for 7T human MR imaging," IEEE 
+Trans Med Imaging, vol. 29, no. 1, pp. 179-84, Jan 2010. [Online]. Available: 
+http://www.ncbi.nlm.nih.gov/entrez/query.fcgi?cmd=Retrieve&db=PubMed&
+dopt=Citation&list_uids=19822470  
+[28] 
+B. Wu et al., "7T human spine imaging arrays with adjustable inductive 
+decoupling," IEEE Trans Biomed Eng, vol. 57, no. 2, pp. 397-403, Feb 2010. 
+[Online]. Available: 
+http://www.ncbi.nlm.nih.gov/entrez/query.fcgi?cmd=Retrieve&db=PubMed&
+dopt=Citation&list_uids=19709956  
+[29] 
+K. Ugurbil, "Magnetic resonance imaging at ultrahigh fields," IEEE Trans 
+
+
+Biomed Eng, vol. 61, no. 5, pp. 1364-79, May 2014, doi: 
+10.1109/TBME.2014.2313619. 
+[30] 
+X. Zhang, "Sensitivity enhancement of traveling wave MRI using free local 
+resonators: an experimental demonstration," Quant Imaging Med Surg, vol. 7, 
+no. 2, pp. 170-176, Apr 2017, doi: 10.21037/qims.2017.02.10. 
+[31] 
+X. Zhang, Y. Pang, and D. Vigneron, "SNR Enhancement by free local 
+resonators for traveling wave MRI," Proceedings of the 22nd Scientific 
+Meeting and Exhibition of ISMRM, Milan, vol. 1357, p. 1357, 2014. 
+[32] 
+H. Lei, X. H. Zhu, X. L. Zhang, K. Ugurbil, and W. Chen, "In vivo 31P 
+magnetic resonance spectroscopy of human brain at 7 T: an initial experience," 
+Magn Reson Med, vol. 49, no. 2, pp. 199-205, Feb 2003. [Online]. Available: 
+http://www.ncbi.nlm.nih.gov/entrez/query.fcgi?cmd=Retrieve&db=PubMed&
+dopt=Citation&list_uids=12541238. 
+[33] 
+H. Qiao, X. Zhang, X.-H. Zhu, F. Du, and W. Chen, "In vivo 31P MRS of 
+human brain at high/ultrahigh fields: a quantitative comparison of NMR 
+detection sensitivity and spectral resolution between 4 T and 7 T," Magnetic 
+Resonance Imaging, vol. 24, no. 10, pp. 1281-1286, 2006/12/01/ 2006, doi: 
+https://doi.org/10.1016/j.mri.2006.08.002. 
+[34] 
+O. Rutledge, T. Kwak, P. Cao, and X. Zhang, "Design and test of a double-
+nuclear RF coil for (1)H MRI and (13)C MRSI at 7T," J Magn Reson, vol. 
+267, pp. 15-21, Jun 2016, doi: 10.1016/j.jmr.2016.04.001. 
+[35] 
+B. Wu, Y. Li, C. Wang, D. B. Vigneron, and X. Zhang, "Multi-reception 
+strategy with improved SNR for multichannel MR imaging," PLoS One, vol. 
+7, no. 8, p. e42237, 2012. [Online]. Available: 
+http://www.ncbi.nlm.nih.gov/entrez/query.fcgi?cmd=Retrieve&db=PubMed&
+dopt=Citation&list_uids=22879921  
+[36] 
+X. Zhang, K. Ugurbil, and W. Chen, "Microstrip RF surface coil design for 
+extremely high-field MRI and spectroscopy," Magn Reson Med, vol. 46, no. 3, 
+pp. 443-50., 2001. 
+[37] 
+X. Zhang, K. Ugurbil, and W. Chen, "A microstrip transmission line volume 
+coil for human head MR imaging at 4T," J Magn Reson, vol. 161, no. 2, pp. 
+242-51, Apr 2003. [Online]. Available: 
+http://www.ncbi.nlm.nih.gov/entrez/query.fcgi?cmd=Retrieve&db=PubMed&
+dopt=Citation&list_uids=12713976  
+[38] 
+X. Zhang, K. Ugurbil, R. Sainati, and W. Chen, "An inverted-microstrip 
+resonator for human head proton MR imaging at 7 tesla," IEEE Trans Biomed 
+Eng, vol. 52, no. 3, pp. 495-504, Mar 2005. [Online]. Available: 
+http://www.ncbi.nlm.nih.gov/entrez/query.fcgi?cmd=Retrieve&db=PubMed&
+dopt=Citation&list_uids=15759580  
+[39] 
+X. Zhang, C. Wang, Z. Xie, and B. Wu, "Non-resonant microstrip (NORM) 
+RF coils: an unconventional RF solution to MR imaging and spectroscopy," in 
+Proceedings of International Society for Magnetic Resonance in Medicine, 
+Toronto, Canada, 2008, vol. 16, p. 435.  
+[40] 
+A. A. Bhosale, D. Gawande, and X. Zhang, "B1 field flattening and length 
+
+
+control of half-wave dipole antenna with discrete dielectric coating," Proc Int 
+Soc Magn Reson Med Sci Meet Exhib Int Soc Magn Reson Med Sci Meet 
+Exhib, vol. 30, May 2022. [Online]. Available: 
+https://www.ncbi.nlm.nih.gov/pubmed/36071703. 
+[41] 
+A. A. Bhosale, D. Gawande, and X. Zhang, "A Dielectric Material Coated 
+Half-Wave Dipole antenna for Ultrahigh Field MRI at 7T/300MHz," Proc Int 
+Soc Magn Reson Med Sci Meet Exhib Int Soc Magn Reson Med Sci Meet 
+Exhib, vol. 30, May 2022. [Online]. Available: 
+https://www.ncbi.nlm.nih.gov/pubmed/36071701. 
+[42] 
+A. A. Bhosale, Y. Zhao, and X. Zhang, "Electric field and SAR reduction in 
+high-impedance RF arrays by using high permittivity materials for 7T MR 
+imaging," PLoS One, vol. 19, no. 7, p. e0305464, 2024, doi: 
+10.1371/journal.pone.0305464. 
+[43] 
+Y. Pang, X. Zhang, Z. Xie, C. Wang, and D. B. Vigneron, "Common-mode 
+differential-mode (CMDM) method for double-nuclear MR signal excitation 
+and reception at ultrahigh fields," IEEE Trans Med Imaging, vol. 30, no. 11, 
+pp. 1965-73, Nov 2011. [Online]. Available: 
+http://www.ncbi.nlm.nih.gov/entrez/query.fcgi?cmd=Retrieve&db=PubMed&
+dopt=Citation&list_uids=21693414  
+[44] 
+K. Payne, L. L. Ying, and X. Zhang, "Hairpin RF resonators for MR imaging 
+transceiver arrays with high inter-channel isolation and B(1) efficiency at 
+ultrahigh field 7 T," J Magn Reson, vol. 345, p. 107321, Dec 2022, doi: 
+10.1016/j.jmr.2022.107321. 
+[45] 
+K. Payne, Y. Zhao, A. A. Bhosale, and X. Zhang, "Dual-Tuned Coaxial-
+Transmission-Line RF Coils for Hyperpolarized (13)C and Deuterium (2)H 
+Metabolic MRS Imaging at Ultrahigh Fields," IEEE Trans Biomed Eng, vol. 
+71, no. 5, pp. 1521-1530, May 2024, doi: 10.1109/TBME.2023.3341760. 
+[46] 
+Y. Li, Z. Xie, Y. Pang, D. Vigneron, and X. Zhang, "ICE decoupling technique 
+for RF coil array designs," Med Phys, vol. 38, no. 7, pp. 4086-93, Jul 2011. 
+[Online]. Available: 
+http://www.ncbi.nlm.nih.gov/entrez/query.fcgi?cmd=Retrieve&db=PubMed&
+dopt=Citation&list_uids=21859008  
+[47] 
+Z. Xie and X. Zhang, "A novel decoupling technique for non-overlapped 
+microstrip array coil at 7T MR imaging," in the 16th Annual Meeting of 
+ISMRM, Toronto, Canada, P. o. t. t. A. M. o. ISMRM, Ed., May 3 -9 2008, p. 
+1068.  
+[48] 
+Q. X. Yang et al., "Analysis of wave behavior in lossy dielectric samples at 
+high field," Magn Reson Med, vol. 47, no. 5, pp. 982-9, May 2002. [Online]. 
+Available: 
+http://www.ncbi.nlm.nih.gov/entrez/query.fcgi?cmd=Retrieve&db=PubMed&
+dopt=Citation&list_uids=11979578. 
+[49] 
+Q. X. Yang et al., "Manipulation of image intensity distribution at 7.0 T: 
+passive RF shimming and focusing with dielectric materials," J Magn Reson 
+Imaging, vol. 24, no. 1, pp. 197-202, Jul 2006. [Online]. Available: 
+
+
+http://www.ncbi.nlm.nih.gov/entrez/query.fcgi?cmd=Retrieve&db=PubMed&
+dopt=Citation&list_uids=16755543  
+[50] 
+Y. Pang, D. B. Vigneron, and X. Zhang, "Parallel traveling-wave MRI: a 
+feasibility study," Magn Reson Med, vol. 67, no. 4, pp. 965-78, Apr 2012. 
+[Online]. Available: 
+http://www.ncbi.nlm.nih.gov/entrez/query.fcgi?cmd=Retrieve&db=PubMed&
+dopt=Citation&list_uids=21858863  
+[51] 
+Y. Pang and X. Zhang, "Precompensation for mutual coupling between array 
+elements in parallel excitation," Quant Imaging Med Surg, vol. 1, no. 1, pp. 4-
+10, Dec 2011. [Online]. Available: 
+http://www.ncbi.nlm.nih.gov/entrez/query.fcgi?cmd=Retrieve&db=PubMed&
+dopt=Citation&list_uids=23243630  
+[52] 
+Y. Pang, B. Wu, C. Wang, D. B. Vigneron, and X. Zhang, "Numerical Analysis 
+of Human Sample Effect on RF Penetration and Liver MR Imaging at 
+Ultrahigh Field," Concepts Magn Reson Part B Magn Reson Eng, vol. 39B, 
+no. 4, pp. 206-216, Oct 2011. [Online]. Available: 
+http://www.ncbi.nlm.nih.gov/entrez/query.fcgi?cmd=Retrieve&db=PubMed&
+dopt=Citation&list_uids=22337345  
+[53] 
+X. Zhang, M. Waks, L. DelaBarre, K. Payne, K. Ugurbil, and G. Adriany, 
+"Design and Test of a Flexible Two-row CTL Array and Its Detunable 
+Resonant Elements for 10.5 T MR Imaging," Proc Intl Soc Mag Reson Med, p. 
+4593, 2023. 
+[54] 
+Y. Zhao, K. Payne, L. Ying, and X. Zhang, "A Coupled Multimodal Planar 
+Transmit RF Array for Ultrahigh Field Spine MR Imaging," IEEE Trans 
+Biomed Eng, vol. 73, no. 1, pp. 442-450, Jan 2026, doi: 
+10.1109/TBME.2025.3584217. 
+[55] 
+Y. Zhao and X. Zhang, "A dual-tuned concentric multimodal RF coil for 7 T 
+(1)H/(31)P MRSI: concurrently enhancing B(1) efficiency over single-tuned 
+references," J Magn Reson, vol. 388, p. 108073, Jul 2026, doi: 
+10.1016/j.jmr.2026.108073. 
+[56] 
+X. Zhang et al., "A circular-polarized double-tuned (31P and 1H) TEM coil for 
+human head MRI/MRS at 7T," in Proc. Intl. Soc. Mag. Reson. Med, 2003/7/10 
+2003, p. 423. [Online]. Available: https://cds.ismrm.org/ismrm-2003/0423.pdf. 
+[Online]. Available: https://cds.ismrm.org/ismrm-2003/0423.pdf 
+[57] 
+G. Maskell, "Why does demand for medical imaging keep rising?," (in 
+English), Bmj-Brit Med J, vol. 379, Nov 2 2022, doi: ARTN o2614 
+10.1136/bmj.o2614. 
+[58] 
+O. Ronneberger, P. Fischer, and T. Brox, "U-Net: Convolutional Networks for 
+Biomedical Image Segmentation," (in English), Lect Notes Comput Sc, vol. 
+9351, pp. 234-241, 2015, doi: 10.1007/978-3-319-24574-4_28. 
+[59] 
+J. P.-A. Ian J. Goodfellow, Mehdi Mirza, Bing Xu, David Warde-Farley, 
+Sherjil Ozairz, Aaron Courville, Yoshua Bengiox, "Generative Adversarial 
+Nets," Neural Information Processing Systems, vol. 2672-2680, 2014. 
+[60] 
+P. Isola, J. Y. Zhu, T. H. Zhou, and A. A. Efros, "Image-to-Image Translation 
+
+
+with Conditional Adversarial Networks," (in English), Proc Cvpr Ieee, pp. 
+5967-5976, 2017, doi: 10.1109/Cvpr.2017.632. 
+[61] 
+Q. Y. Yang, N. N. Li, Z. X. Zhao, X. Y. Fan, E. I. C. Chang, and Y. Xu, "MRI 
+Cross-Modality Image-to-Image Translation," (in English), Sci Rep-Uk, vol. 
+10, no. 1, Feb 28 2020, doi: ARTN 3753 10.1038/s41598-020-60520-6. 
+[62] 
+S. L. Wei et al., "Deep-learning-based cross-modality translation from Stokes 
+image to bright-field contrast," (in English), J Biomed Opt, vol. 28, no. 10, Oct 
+1 2023, doi: 10.1117/1.Jbo.28.10.102911. 
+[63] 
+J. Y. Zhu, T. Park, P. Isola, and A. A. Efros, "Unpaired Image-to-Image 
+Translation using Cycle-Consistent Adversarial Networks," (in English), Ieee I 
+Conf Comp Vis, pp. 2242-2251, 2017, doi: 10.1109/Iccv.2017.244. 
+[64] 
+J. Tsao, "Ultrafast Imaging: Principles, Pitfalls, Solutions, and Applications," 
+(in English), J Magn Reson Imaging, vol. 32, no. 2, pp. 252-266, Aug 2010, 
+doi: 10.1002/jmri.22239. 
+[65] 
+R. Rzedzian et al., "Real-Time Nuclear Magnetic-Resonance Clinical Imaging 
+in Pediatrics," (in English), Lancet, vol. 2, no. 8362, pp. 1281-1282, 1983. 
+[Online]. Available: <Go to ISI>://WOS:A1983RS76800006. 
+[66] 
+C. R. B. Baldwin M. Way, Dylan D. Wagner, Jodi L. Ford, Bethany Boettner, 
+Ping Bai. Structural and functional MRI dataset from the Adolescent Health 
+and Development in Context (AHDC) study in Columbus, Ohio, OpenNeuro, 
+doi: 10.18112/openneuro.ds005901.v1.0.0. 
+[67] 
+Z. Wang, A. C. Bovik, H. R. Sheikh, and E. P. Simoncelli, "Image quality 
+assessment: From error visibility to structural similarity," (in English), Ieee T 
+Image Process, vol. 13, no. 4, pp. 600-612, Apr 2004, doi: 
+10.1109/Tip.2003.819861. 
+[68] 
+P. Burman, "A Comparative-Study of Ordinary Cross-Validation, Nu-Fold 
+Cross-Validation and the Repeated Learning-Testing Methods," (in English), 
+Biometrika, vol. 76, no. 3, pp. 503-514, Sep 1989, doi: Doi 10.2307/2336116. 
+[69] 
+R. R. Picard and R. D. Cook, "Cross-Validation of Regression-Models," (in 
+English), J Am Stat Assoc, vol. 79, no. 387, pp. 575-583, 1984, doi: Doi 
+10.2307/2288403. 
+ 
+ 
+Authorship Contribution Statement 
+Jialin Liu: Methodology, Software, Formal Analysis, Investigation, Resources, 
+Data Curation, Writing – Original Draft, Visualization. Xiaoliang Zhang: 
+Conceptualization, Methodology, Formal Analysis, Investigation, Resources, Writing 
+– Editing, Validation, Supervision, Project Administration. 
