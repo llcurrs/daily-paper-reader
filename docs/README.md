@@ -6,32 +6,36 @@
 </div>
 
 ## 每次日报
-- 最新运行日期：2026-10-06
-- 运行时间：2026-10-06 23:37:41 UTC
+- 最新运行日期：2026-10-08
+- 运行时间：2026-10-08 00:17:58 UTC
 - 运行状态：成功
-- 本次总论文数：4
-- 精读区：2
-- 速读区：2
+- 本次总论文数：5
+- 精读区：0
+- 速读区：5
 
 ### 今日简报（AI）
-今日筛选4篇多模态学习论文，精读聚焦缺失模态下的皮肤病变分类与鲁棒性几何分析。最值得关注的是“缺失临床元数据时如何蒸馏特权信息”和“多模态是否越多越稳”这两个方向，均获8.0分。普通读者可优先了解缺失模态鲁棒性结论，再按需关注低光无人机检测与血管感知基准。
-- 详情：[/202610/06/README](/202610/06/README)
+今日速读5篇，重点落在多模态推理与多组学/多模态时序的自适应学习。最值得看的是《Efficient Multimodal Inference through Adaptive Acquisition and Sequential Fusion》（7.0/10），关注如何按需获取并顺序融合模态以省算力；其次是多组学对齐表示与时序选择性测试时适应两篇（各6.0/10）。普通读者可先读7分那篇的摘要与方法图，理解“少看也能准”的思路即可。
+- 详情：[/202610/08/README](/202610/08/README)
 
 ### 精读区论文标签
-1. [Masked Privileged-Information Distillation for Multimodal Skin Lesion Classification Under Missing Clinical Metadata](/202610/06/2610.03991v1-masked-privileged-information-distillation-for-multimodal-skin-lesion-classification-under-missing-clinical-metadata)  
-   标签：评分：8.0/10、query:multi-modal
-   evidence：以掩码蒸馏实现缺失模态下的多模态分类
-2. [Do More Modalities Always Help? A Geometric Perspective on Missing-Modality Robustness](/202610/06/2610.04792v1-do-more-modalities-always-help-a-geometric-perspective-on-missing-modality-robustness)  
-   标签：评分：8.0/10、query:multi-modal
-   evidence：刻画多模态深度学习中的缺失模态鲁棒性
+- 本次无精读推荐。
 
 ### 速读区论文标签
-1. [ReDiffNet: Differential RGB-Infrared Learning for Low-Light UAV Oriented Vehicle Detection](/202610/06/2610.05074v1-rediffnet-differential-rgb-infrared-learning-for-low-light-uav-oriented-vehicle-detection)  
+1. [Efficient Multimodal Inference through Adaptive Acquisition and Sequential Fusion](/202610/08/2610.07466v1-efficient-multimodal-inference-through-adaptive-acquisition-and-sequential-fusion)  
    标签：评分：7.0/10、query:multi-modal
-   evidence：顾及模态可靠性空间变化的RGB-红外多模态融合
-2. [VesselBench-800K: A Large-scale Perception Benchmark for Multimodal Vessel Detection, Counting, and Density Estimation](/202610/06/2609.37003v1-vesselbench-800k-a-large-scale-perception-benchmark-for-multimodal-vessel-detection-counting-and-density-estimation)  
+   evidence：自适应选择模态子集的多模态推理
+2. [ARO: Aligned Representation learning for multi-Omics data](/202610/08/2610.06443v1-aro-aligned-representation-learning-for-multi-omics-data)  
    标签：评分：6.0/10、query:multi-modal
-   evidence：面向舰船感知的大规模多模态遥感基准
+   evidence：多组学缺失模态重建
+3. [Source-Learned Reliance for Selective Test-Time Adaptation of Multimodal Time Series](/202610/08/2610.07499v1-source-learned-reliance-for-selective-test-time-adaptation-of-multimodal-time-series)  
+   标签：评分：6.0/10、query:multi-modal
+   evidence：缺失模态鲁棒的多模态自适应
+4. [Dynamic Alignment and Calibration for Multimodal Learning](/202610/08/2610.07928v1-dynamic-alignment-and-calibration-for-multimodal-learning)  
+   标签：评分：6.0/10、query:multi-modal
+   evidence：样本级跨模态对齐与校准融合
+5. [RSJEV: Discriminative Remote Sensing Scene Classification with Multimodal Large Language Models](/202610/08/2610.08539v1-rsjev-discriminative-remote-sensing-scene-classification-with-multimodal-large-language-models)  
+   标签：评分：6.0/10、query:multi-modal
+   evidence：多模态大模型用于遥感场景分类
 
 
 <div class="dpr-home-promo-card">

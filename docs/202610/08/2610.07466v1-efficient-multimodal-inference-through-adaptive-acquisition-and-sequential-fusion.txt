@@ -1,0 +1,1531 @@
+Title: Efficient Multimodal Inference through Adaptive Acquisition and Sequential Fusion
+
+URL Source: https://arxiv.org/pdf/2610.07466v1
+
+Published Time: Wed, 07 Oct 2026 00:30:55 GMT
+
+Number of Pages: 40
+
+Markdown Content:
+Preprint 
+
+# EFFICIENT MULTIMODAL INFERENCE THROUGH ADAP -
+
+# TIVE ACQUISITION AND SEQUENTIAL FUSION 
+
+Payal Mohapatra 1∗ Haodong Yang 2∗ Yueyuan Sui 2 Stephen Xia 2 Benjamin Lundell 1 Qi Zhu 21Arm Inc., USA 2Northwestern University, USA 
+
+ABSTRACT 
+
+Multimodal systems often encode every available input, even when a subset suffices for prediction. Adaptive acquisition can reduce this cost by using predictions from incrementally fused evidence to decide which modality to encode next and when to stop . However, sequential fusion makes these predictions order-dependent, so decisions based on them may need to distinguish factorially many histories of the same acquired set. We introduce S EMARC, which couples a Sequential Modal-ity Aggregator (S EMA) with an Adaptive Runtime Controller (ARC) and uses acquired evidence to select each modality before its encoder runs. S EMA executes only selected encoder and fusion branches, updates a fixed-size state, and predicts after each acquisition without recomputing earlier branches. We supervise every acquisition prefix under randomized modality subsets and orders to encourage consistent predictions across acquisition orders. ARC combines a set-dependent marginal-utility prior with residual fitted-Q learning to select the next available modality or stop, without inspecting unacquired inputs or retaining acquisition order. Across six multimodal classification datasets and eleven baselines, S E-MARC achieves 3.2% higher macro-F1 and 61.4% lower total inference GFLOPs on average relative to each dataset’s most accurate baseline. End-to-end latency falls by 44.0% across GPU and CPU and by 47.2% on Android INT8 relative to the fastest measured baseline, on average. Under varying runtime modality missingness, S EMARC still skips available modalities, matching or exceeding the best baseline macro-F1 in 21 of 24 conditions with 14.8% lower total GFLOPs on average. S EMARC thus offers a practical path toward efficient multimodal inference across heterogeneous devices. 
+
+1 INTRODUCTION 
+
+Multimodal applications increasingly integrate video, audio, language, inertial measurements, depth, and wireless signals (Liang et al., 2021; Yang et al., 2023). Most frameworks use modality-specific encoders followed by fusion, with substantial research on handling noisy (Zhang et al., 2023) or missing (Mohapatra et al., 2025; 2024; 2023; Wang et al., 2023; Han et al., 2024) inputs. However, processing every modality adds computation, energy, and latency as modality counts and deployment scales grow (Sui et al., 2026). This raises a complementary question: which available modalities need to be processed for each input? Figure 1 illustrates this opportunity. Evidence from works on submodular modality selection (Cheng et al., 2022) and −1 0 1Video Audio Text MoCap1 MoCap2 MoCap3           
+
+> Neutral −1 01
+> Angry −1 01
+> Happy −1 01
+> Sad −1 0+1 Shapley contribution Classes → ← Modalities
+> Figure 2: Modality contributions vary across sam-ples. Class-wise Shapley contributions on IEMOCAP motivate sample-adaptive acquisition.
+
+information-theoretic analysis (Liang et al., 2023) suggests that overlapping task-relevant information can make a subset of modalities sufficient for prediction. Recent modality inter-action analyses further reveal sample-level variations (Yang et al., 2025), motivating sample-adaptive modality use. Even a simple Shapley analysis (Figure 2) reveals variation in modality contributions across classes and among samples within each class. However, these analyses typically assess modality value post hoc: target-conditioned interaction esti-
+
+> ∗
+
+Equal contribution; shared first authorship. 
+
+1arXiv:2610.07466v1 [cs.LG] 5 Oct 2026 Preprint Exit                  
+
+> Monolithic Fusion
+> (a)
+> Selective Fusion
+> Sequential Multimodal Aggregator (SeMA )
+> Adaptive Runtime Controller
+> (ARC )
+> Pays for every modality
+> Processes unused modalities
+> Selects and pays only for required modalities at run-time
+> M1 M2 M3 M4
+> (b)
+> (c)
+> (d)
+> M1 M2 M3 M4
+> Enc1 Enc2 Enc3 Enc4
+> M1 M2 M3 M4
+> 123
+> 16 24 32 40
+> Latency per inference (s)
+> 80 120 160 200
+> Energy per inference (J)
+> F1=0.67 F1=0.64 F1=0.59 F1=0.56
+> SeMARC (Ours) AdaMML (Selective) MBT (Monolithic) DyMo (Selective)
+
+Figure 1: Select before processing to avoid its cost. (a) Monolithic fusion processes every modality. (b) Post-encoding selection pays for unused representations. (c) S EMARC couples ARC and S EMA to acquire and incrementally fuse modalities or stop, executing only selected branches. (d) On Android (INT8), S EMARC achieves lower latency and energy and higher F1 (annotated) than the shown baselines. 
+
+mates and correctness-based Shapley scores rely on ground-truth labels (Yang et al., 2025; Covert et al., 2020), while prediction-based attributions require access to the inputs being explained (Covert et al., 2022). This motivates adaptive runtime estimation of modality value from acquired evidence, enabling the system to select the next modality or stop before incurring unnecessary computation. But translating selective use into computational savings requires attention to when selection occurs (Figure 1a–c) and how the fusion is carried out subsequently. Selective fusion based on encoded features or lightweight modality previews can reduce downstream computation (Xue & Marculescu, 2023; Panda et al., 2021). However, it still incurs the cost of obtaining those modality features, including from modalities ultimately discarded. Active feature acquisition works address which inputs to query and when to stop (Shim et al., 2018), but reducing acquisition cost alone does not ensure reuse of multimodal computation across successive modalities. Motivated by these complementary directions, we propose to couple modality acquisition decisions with incremental multimodal fusion: selecting each modality before executing its encoder and fusion branch for every sample, reusing accumulated computation as evidence arrives, and stopping when further processing is no longer worthwhile. We propose SEMARC , a framework for sample-adaptive modality acquisition and incremental multimodal fusion (Figures 1c and 3). The system must choose the next modality or stop while reusing earlier computation. Yet incremental fusion can yield different predictions across orders of the same acquired evidence, and explicitly accounting for this dependence can require distinguishing factorially many acquisition histories. Our Sequential Modality Aggregator (S EMA) reuses a compact bottleneck state and predicts after each acquisition. Training combines a modality-dropout curriculum, randomized orders, and prediction supervision with distillation at each step, encouraging consistent predictions across orders of the same acquired evidence. We relate prediction disagreement to prefix risk and use the approximate information state framework to characterize when a compact summary can serve as an approximately Markovian state. Our Adaptive Runtime Controller (ARC) 
+
+uses current predictions, acquired-set identity, and modality availability without explicitly retaining acquisition order. Trained on the frozen S EMA, it combines an offline, set-dependent marginal-utility prior with standard residual fitted-Q learning to select the next modality or stop. At runtime, each acquisition executes only the selected encoder and fusion branch, updating the prediction for the next decision without rerunning earlier branches or processing unselected modalities. Our contributions are threefold:  
+
+> ▶
+
+Coupled incremental fusion and acquisition. We introduce S EMARC, which couples incremen-tal bottleneck fusion (S EMA) with an acquisition controller (ARC) through prefix predictions trained to be consistent across acquisition orders. Acquisition and stopping decisions govern incremental encoder and fusion execution, reusing earlier computation and leaving unselected branches unexecuted.  
+
+> ▶
+
+Design rationale and supporting analysis. We examine order sensitivity in sequential fusion and motivate randomized-order prefix supervision. Supporting analysis relates population prediction risk to order disagreement and separately identifies the additional assumptions required for compact-state control.  
+
+> ▶
+
+Broad empirical validation. Across six datasets and eleven baselines, S EMARC averages 61.4% lower total GFLOPs and 3.2% higher macro-F1 relative to each dataset’s most accurate baseline, with practical latency gains on GPU, CPU, and Android. Under 10 to 40% test-time missingness, it retains the best macro-F1 in 21 of 24 conditions while skipping modalities that are present, at 14.8% lower total GFLOPs than the best baseline, so the savings come from selection rather than 2Preprint from missing inputs alone. Further component replacements, ablations, and diagnostics examine the proposed coupled design and acquisition behavior. 
+
+2 RELATED WORKS 
+
+Efficient and incomplete multimodal inference. Multimodal Bottleneck Transformer (MBT) (Na-grani et al., 2021) limits cross-modal communication through bottleneck tokens; ShaSpec (Wang et al., 2023) and MAESTRO (Mohapatra et al., 2025) handle incomplete inputs; MMEE (Hamed et al., 2024) exits at early layer; DyMo (Du et al., 2026) selects reliable recovered modalities. AdaMML (Panda et al., 2021) selects modalities from inexpensive previews; DynMM (Xue & Marculescu, 2023) gates modality/fusion paths; HCMS (Weng et al., 2023) gates costly modalities in an audio-first hierarchy; multimodal early exiting (Hamed et al., 2024) adapts depth. Our S EMARC selects each subsequent available modality from acquired evidence before encoding and fusion, reusing accumulated state. 
+
+Static and adaptive modality acquisition. Greedy selection (Cheng et al., 2022; He et al., 2024) uses approximate submodularity for cardinality-constrained, dataset-level modality subsets. Joint-AFA (Shim et al., 2018) jointly learns cost-sensitive acquisition, stopping, and classification with order-invariant set encoding. A2MT (Kossen et al., 2022) schedules observations per timestep using predictive feedback over a fixed horizon, balancing prediction quality and acquisition costs while excluding computation costs. Concurrent, independently developed EAMA (Peroni et al., 2026) iteratively acquires unobserved modality subsets by estimated utility, stopping when none offers positive net utility. Complementing these methods, S EMARC couples acquisition and incremental fusion per sample, using each updated prefix prediction to choose one whole modality branch or STOP without rerunning earlier branches. 
+
+Sequential fusion and order robustness. MoDN (Trottet et al., 2023) and MultiModN (Swamy et al., 2023) reuse state for intermediate predictions; MultiModN skips absent modules, evaluates a fixed order, and discusses permutation training. Deep Sets (Zaheer et al., 2017) constructs invariant set functions; Janossy pooling (Murphy et al., 2018) studies symmetrization of order-sensitive functions, including random permutation training. S EMARC trains sequential fusion over randomized modality subsets and orders with prefix supervision, relates expected prediction disagreement to excess prefix cross-entropy risk, and evaluates only the realized acquisition path at inference. Separately, we specialize the approximate information state framework (Subramanian et al., 2022) to characterize the additional reward and action-conditioned transition assumptions needed for control from compact predictive summaries. 
+
+3 METHODOLOGY 
+
+We aim to improve inference efficiency by selectively processing available modalities while preserving predictive performance. For each sample x, let A ⊆ { 1, . . . , M } denote the available modalities. A controller decides which available modality to process next and when to stop, using only acquired evidence and modality availability. These decisions precede the execution of each selected branch, avoiding the cost of encoding and fusing unselected modalities. Incremental fusion enables these sequential decisions to reuse previous computation, but can make predictions depend on acquisition order. Ideally, different processing orders of the same sample and acquired modality set should yield consistent predictions. This motivates co-designing the fusion network and controller around an order-robust summary of the acquired evidence. SEMARC addresses these requirements by coupling S EMA, which incrementally fuses selected modalities and is trained for order-robust prediction after each acquisition, with ARC, which uses the resulting summary and modality availability to select the next modality or stop. As shown in Figure 3, each decision precedes the selected branch’s execution, leaving unselected encoder and fusion branches unexecuted. 3.1 MODALITY -BRANCHED SEQUENTIAL BOTTLENECK AGGREGATOR NETWORK (S EMA) SEMA adapts the attention-bottleneck mechanism of MBT (Nagrani et al., 2021) for sequential fusion of selected modalities, producing a prediction after each acquisition. Let σ = ( σ1, . . . , σ n)
+
+3Preprint Dropout + Random Ordering 
+
+> script cap
+
+ℒ𝑐 
+
+Modality 
+
+encoders  Sequential fusion + prefix readout 
+
+> Freeze
+
+1. Build the fixed prior (Offline) 
+
+SeMA frozen 
+
+Ordered-prefix 
+
+cache 
+
+Group by acquired set 
+
+Class-conditional gains 
+
+> cap T
+
+𝑇 𝑆 
+
+class × modality 
+
+2. Combine prior and residual 
+
+State  psi sub 
+
+𝜓 𝑠 
+
+Acquired / available 
+
+> 1 sub , cap S sub s , end
+
+1𝑆 𝑠 , 1 𝒜 
+
+> p sub s ,cap H open paren p sub s close paren ,margin open paren p sub
+
+𝑝 𝑠 , 𝐻(𝑝 𝑠 ), margin (𝑝 𝑠 )
+
+> s over cap M ,vertical bar script cap A.
+
+𝑠/𝑀, |𝒜|/𝑀 
+
+Fixed prior  cap Q
+
+𝑄 0
+
+Acq.: 
+
+> conf open paren p sub s close paren plus open bracket p sub s to the down tack , cap T sub , cap S sub s , end subscript , close bracket sub j minus numerator , lambda w sub j end numerator , over denominator , sum sub , m
+
+conf (𝑝 𝑠 ) + [𝑝 𝑠 ⊤𝑇 𝑆 𝑠 ]𝑗 − 𝜆𝑤 𝑗 
+
+∑𝑚∈𝒜 𝑤 𝑚 
+
+STOP:  conf open paren p sub s 
+
+conf (𝑝 𝑠 )
+
+Trainable residual  usub 𝑢 𝜃 
+
+Zero-initialized output 
+
++
+
+> cap Q sub theta equals cap Q sub 0 plus u sub
+
+𝑄 𝜃 = 𝑄 0 + 𝑢 𝜃 
+
+> cap Q sub theta , open paren psi sub s ,acq open
+
+𝑄 𝜃 (𝜓 𝑠 , acq (1)) 
+
+> start equation
+
+⋮
+
+> cap Q sub theta , open paren psi sub s ,acq open paren
+
+𝑄 𝜃 (𝜓 𝑠 , acq (𝑀)) 
+
+> cap Q sub theta , open paren psi sub s ,STOP
+
+𝑄 𝜃 (𝜓 𝑠 , STOP )
+
+3. Fit cached transitions  STOP uses terminal reward 
+
+Cached transition 
+
+> open paren psi sub s ,a. ,r sub s ,psi sub , s plus 1 end
+
+(𝜓 𝑠 , 𝑎, 𝑟 𝑠 , 𝜓 𝑠+1 ) Double-DQN target  subscript base , q hat ,  𝑞̂ 
+
+> 𝑠,𝑎
+
+Online selects; target evaluates  Fitted-Q regression 
+
+Update residual 
+
+> psub
+
+𝑝 𝑠 
+
+> psub
+
+𝑝 𝑛 
+
+Training Curriculum : 
+
+(a) Train SeMA  (b) Train ARC on frozen SeMA    
+
+> Modality encoders Bottleneck Tokens Training Frozen
+
+Figure 3: SEMARC training. (a) S EMA learns prefix predictions ps under modality dropout and randomized orders, with classification supervision and same-forward distillation from detached pn, the prediction after all 
+
+n retained modalities. (b) 1. Group frozen-backbone ordered-prefix predictions by acquired set S to estimate class-conditional marginal gains TS . 2. Combine the fixed cost-aware prior Q0 and trainable residual uθ to score acquisition and stopping actions using acquired evidence and availability. 3. Fit cached-action values to Double-DQN targets, updating only the residual; STOP uses its terminal reward. 
+
+denote an acquisition order of distinct modalities from A. After step s, σ1: s denotes the ordered prefix and Ss = {σ1, . . . , σ s} the corresponding acquired set. 
+
+Modality-specific bottleneck attention. Each modality j has an input projection Wj , an encoder 
+
+Enc j , and a fusion module Fj . At step s, only the selected branch j = σs executes, producing 
+
+hj = Enc j (xj Wj ). Information from earlier acquisitions is carried by zs−1 ∈ RK×d, a compact representation comprising K bottleneck tokens of feature dimension d; the initial tokens z0 are learned. We prepend the bottleneck tokens to the modality tokens; this configuration yields higher macro-F1 than suffix placement in our pilot analyses (discussed more in Figure 7). The fusion module jointly attends over these bottleneck tokens and the current modality tokens, producing 
+
+[ezs; h′
+
+s] = Fj ([ zs−1; hj ]) , where [ ·; · ] denotes token concatenation. It applies Lf pre-normalized transformer layers followed by layer normalization, yielding a bottleneck proposal ezs and fused modality tokens h′
+
+s.
+
+Sequential bottleneck aggregation and prefix prediction. The first bottleneck proposal initializes 
+
+z1 = ez1. Subsequent proposals update the running mean: zs = (1 − 1
+
+s )zs−1 + 1
+
+s ezs = 1
+
+s
+
+Psr=1 ezr,for s ≥ 2. The bottleneck retains K tokens regardless of the number of acquired modalities 1. To predict, we average the layer-normalized tokens in h′
+
+s to obtain a modality summary rs. Their running mean is ¯hs = 1
+
+s
+
+Psr=1 rr . A shared classifier g produces logits os = g(¯hs) and probabilities 
+
+ps = softmax( os). Here, ps predicts from the realized prefix σ1: s, with predicted class ˆys =arg max k ps(k). Both zs and ¯hs are updated from their previous aggregates and the current branch outputs, without re-executing previously processed encoder or fusion branches. The controller can therefore use each prefix prediction to continue acquisition or stop, leaving unselected branches unexecuted. 
+
+Training across subsets and orders. We combine modality dropout with randomized-order prefix supervision. We linearly increase the base dropout probability after an initial warm-up with all modalities, then hold it fixed. Each forward pass samples a nonempty retained set of n modalities and a uniform random permutation σ of that set. Every prefix receives classification supervision. We additionally use the prediction after processing all retained modalities as a same-forward distillation target, ¯p = sg( pn), where sg denotes stop-gradient. With cross-entropy loss ℓ, we minimize 
+
+Lc = ℓ(on, y ) + λds 
+
+n
+
+nX
+
+s=1 
+
+ℓ(os, y ) + λkd 
+
+n
+
+nX
+
+s=1 
+
+KL(¯ p ∥ ps). (1) The three terms supervise the full retained prefix, supervise every prefix, and distill the same-forward full-prefix prediction, respectively. The weights λds and λkd control prefix supervision and distillation. Conditional on the retained set and prefix length s, the acquired set Ss is uniform over its s-element 
+
+1The mean update does not impose permutation invariance: each proposal depends on the preceding bottleneck state and can therefore change with acquisition order. 
+
+4Preprint subsets (Appendix K.1). Together, modality dropout and order resampling expose the backbone to different acquisition paths. 
+
+Order sensitivity: analysis and empirical evidence. Different acquisition orders of the same modality subset reveal the same evidence, but sequential fusion can introduce order-dependent predictions. Randomized ordering and prefix supervision train these paths toward a common conditional label distribution, while modality dropout exposes this training to different retained sets. 
+
+Proposition 3.1 (Prefix risk bounds order disagreement) . Fix an available set A and a nonempty acquired set S ⊆ A . Let pσS denote the prediction after processing S in order σ, and let ϵS be its population prefix cross-entropy above the Bayes minimum, averaged over samples and uniformly sampled orders independent of the samples. For two such independent orders σ and τ evaluated on the same acquired evidence, E[TV( pσS , p τS )] ≤ √2ϵS , (2) 
+
+where TV is total variation distance. 2 3 4 5 6 
+
+> Modalities in the fixed subset, | S|
+> −6 −4 −2 024
+> Macro-F1 deviation from subset mean (pts)  Random-order trained Fixed-order trained
+
+Figure 4: Macro-F1 deviation from the mean across acquisition orders of each fixed modality subset. 
+
+Implication. Low excess prefix loss makes the predictions ap-proach a common, order-independent posterior on average. Prefix supervision thus targets the excess-risk term governing disagree-ment across acquisition paths, while inference evaluates only the realized path. Same-forward distillation complements this mech-anism when the full-prefix targets are stable across orders and the prefix-to-target KL divergence is small (Complete proof in Appendix K.1). 
+
+Empirical evidence. Figure 4 shows that randomized-order training yields smaller macro-F1 devia-tions across different orders of a fixed acquired subset than fixed-order training, which illustrates our approximate robustness to prefix ordering. 3.2 PRIOR -A UGMENTED ADAPTIVE RUN -TIME CONTROLLER (ARC) An acquired set of s modalities admits s! acquisition orders, which order-sensitive fusion may map to different predictive summaries. The approximate order robustness of S EMA (Proposition 3.1) motivates a compact state for ARC comprising acquired-set identity, modality availability, and the predictive summary, without explicitly encoding acquisition order. We formulate this sequential deci-sion problem and use the approximate information state (AIS) framework to analyze the conditions under which this compact state supports effective control. 
+
+Sequential acquisition and controller state. We freeze S EMA before training ARC. Each sample x
+
+with a nonempty available set A defines an episode. After prefix σ1: s, s ≥ 1, the controller observes 
+
+ψs = 1Ss ∥ 1A ∥ ps ∥ H(ps) ∥ margin( ps) ∥ sM ∥ |A| 
+
+> M
+
+. (3) Here 1S ∈ { 0, 1}M is the modality mask of S, ∥ denotes concatenation, H(ps) is predictive entropy, and margin( ps) is the difference between the two largest probabilities. The final entries normalize acquired and available modality counts. All features use only acquired evidence and availability. Admissible actions are Us = {acq( j) : j ∈ A \ Ss} ∪ { STOP }. Acquiring j executes its branch, updates the backbone aggregates, and produces ψs+1 with Ss+1 = Ss ∪ { j}. Stopping returns ˆys
+
+and ends the episode; it is the only admissible action when Ss = A. We use ψs as the state of a finite-horizon MDP approximation for learning acquisition and stopping decisions. The AIS analysis below characterizes the loss from this history compression under bounded reward and transition approximation errors. 
+
+Reward and acquisition cost. Stopping after s acquisitions gives terminal reward Rs and episodic return Gs: Rs = β(y) ⊮[ˆ ys = y], Gs = Rs − λ
+
+P 
+
+> m∈Ss
+
+wm
+
+P 
+
+> m∈A
+
+wm
+
+. (4) Here β(y) ∝ 1/ freq( y) is normalized to unit mean, wm > 0 is modality m’s fixed relative acqui-sition cost, and λ ≥ 0 controls the acquisition penalty. Acquiring modality j incurs a penalty of 
+
+λw j / P 
+
+> m∈A
+
+wm. We use uniform costs, wm = 1 , as our default setting for comparability with other methods, giving a per-modality penalty of λ/ |A| , and examine sensitivity to nonuniform costs in 5Preprint Section 4.2. The controller is trained to maximize expected undiscounted return, using labels only during offline training. 
+
+Theoretical support: Approximate Information State (AIS). We analyze this MDP approximation through the AIS framework. The modality masks determine admissible actions and acquisition costs exactly; the remaining approximation errors concern expected stopping rewards and action-conditioned successor-state distributions. We specialize Theorem 9 of Subramanian et al. (2022) to our finite-horizon, undiscounted acquisition problem. 
+
+Corollary 3.2 (Conditional AIS bound for modality acquisition) . Let Hs denote the complete ac-quired history and βmax = max k β(k). Consider a model on ψs that preserves modality availability, admissible actions, acquired-set updates, and nonnegative acquisition costs, with stopping rewards in 
+
+[0 , β max ]. Assume, uniformly over all reachable histories, that its stopping-reward function approx-imates E[Rs | Hs] within ϵr and, for every admissible acquisition, its successor-state distribution approximates the conditional distribution of ψs+1 given Hs and that action within ϵp in total varia-tion. Define the normalized state-compression error δ = max {ϵr/β max , ϵ p}. If bπ is optimal for this model and executed through ψs, then 
+
+0 ≤ V ⋆(Hs) − V bπ (Hs) ≤ 2 [ ϵr + ( |A| − s)βmax ϵp] ≤ 2βmax (|A| − s + 1) δ, (5) 
+
+where V ⋆ and V bπ are expected remaining returns in the original process under the optimal history-dependent policy and bπ, respectively. Thus, ϵr measures error in the terminal reward, while each of the at most |A| − s remaining acquisitions contributes transition error on the reward scale through 
+
+βmax ϵp2.
+
+Implication. Together, Proposition 3.1 and Corollary 3.2 identify state compression as the interface between backbone and controller: S EMA suppresses acquisition-order dependence, while the AIS result characterizes when the resulting compact state ψs supports near-optimal control. Under these conditions, the acquisition problem can be solved through Bellman planning on ψs rather than the complete acquisition history. This motivates the value-based controller developed next: we construct an informative prior over acquisition values and then refine those values with fitted-Q learning. 
+
+Construction of the Q-prior. We cache frozen S EMA predictions for every ordered modality prefix and group them by acquired set. Let Π( S) denote the cached orders of S. For sample i, define the order-averaged correctness and the marginal gain of modality j / ∈ S as 
+
+vi(S) = 1
+
+|Π( S)|
+
+X
+
+> σ∈Π( S)
+
+⊮[ˆ yi(S, σ ) = yi], ∆i,j (S) = vi(S ∪ { j}) − vi(S). (6) Averaging these gains within each class gives a table TS ∈ RC×M : [TS ]k,j = Ei[∆ i,j (S) | yi = k],
+
+j / ∈ S, where Ei denotes the empirical average over cached samples. With conf( ps) = max k ps(k),the fixed prior is Q0(ψs, acq( j)) = conf( ps) + [ p⊤ 
+
+> s
+
+TSs ]j − λw j
+
+P 
+
+> m∈A
+
+wm
+
+,Q0(ψs, STOP ) = conf( ps).
+
+(7) The predictive distribution weights class-specific gains, providing a set-dependent initialization without requiring labels or unacquired inputs at inference. 
+
+Interpretation of the acquisition prior. The tables TS retain the class-conditional marginal contri-butions averaged in Shapley attribution (Shapley, 1953), while preserving their dependence on the acquired set. Weighting these gains by ps provides a sample-conditioned estimate of order-averaged correctness gain. The prior initializes action values, while residual learning targets the class-weighted, multistep return. Appendix K.3 establishes the Shapley connection and states the assumptions required for an exact conditional expected-gain interpretation. 
+
+Residual fitted-Q learning. We keep Q0 fixed and learn an additive correction: 
+
+Qθ (ψs, a ) = Q0(ψs, a ) + uθ (ψs, a ). (8) The residual’s output layer is initialized to zero, so Qθ = Q0 initially. We use fitted-Q regres-sion (Ernst et al., 2005) with Double-DQN targets (Van Hasselt et al., 2016). Using the reward 
+
+> 2Formal definitions and the derivation using an equivalent fixed-horizon representation of stopping are given in Appendix K.2.
+
+6Preprint and acquisition penalty in Equation 4, we construct the Double-DQN target for each legal cached transition as, 
+
+bqs,a =
+
+
+
+Rs, a = STOP ,
+
+− λw j
+
+P 
+
+> m∈A
+
+wm
+
++ Q¯θ (ψs+1 , a +), a = acq( j), (9) where a+ = arg max a′∈U s+1 Qθ (ψs+1 , a ′). The online network selects the successor action, and the target network, with parameters ¯θ, evaluates it. Over the legal cached transitions DQ, we minimize 
+
+LQ(θ) = EDQ [( Qθ (ψs, a ) − bqs,a )2], where the expectation is the empirical average and targets are held constant during each regression update. Only the residual parameters are optimized; network, cache-splitting, and target-update details are deferred to the appendix. 3.3 SEMARC O PERATION AT RUN TIME 
+
+Given the available set, we first acquire the modality with the highest offline-estimated population Shapley value among the modalities. After an initial acquisition from the nonempty available set A,SEMA emits ps and ARC constructs ψs to select a⋆s = arg max a∈U s Qθ (ψs, a ). Acquiring another modality executes only its encoder and fusion branch, updates the stored bottleneck and readout aggregates, and repeats the loop. Stopping returns ˆys and is the only admissible action when all available modalities are acquired. This adapts computation per sample without rerunning earlier branches or executing unselected ones. 
+
+4 RESULTS AND DISCUSSION 
+
+We evaluate S EMARC against eleven multimodal baselines on six datasets, covering full and simulated partial modality availability and heterogeneous compute platforms. 
+
+Datasets. We evaluate S EMARC on six multimodal time-series classification benchmarks: IEMO-CAP (Busso et al., 2008), MM-Fi (Yang et al., 2023), CMI (Child Mind Institute, 2025), CZU-MHAD (Chao et al., 2022), EAV (Lee et al., 2024), and UTD-MHAD (Chen et al., 2015). Training, validation, and test subjects are disjoint within each evaluation split. EAV uses three independently randomized cross-subject splits; test subjects may overlap across runs. Appendix B provides full preparation details and the other dataset protocols, including rebalanced splits. 
+
+Baselines. We compare S EMARC with eleven baselines grouped by selection timing. Monolithic fusion : MAESTRO , ShaSpec , MBT and DecAlign (Qian et al., 2026) all fuse every available input. 
+
+Fixed-sequential fusion : MultiModN processes externally available modalities sequentially without learning their order or stopping. Selective fusion : Greedy Modality Selection (GMS) chooses a dataset-level subset under a fixed budget; AdaMML selects per segment using multimodal previews; 
+
+DynMM routes through data-dependent fusion paths; DyMo selects among recovered modalities; and an early exit baseline MMEE which exits along a predetermined computation graph. None selects the next unseen modality from accumulated prefix evidence with learned stopping. Proactive sequential acquisition : Joint-AFA learns feature acquisition and stopping; we treat each modality as a feature group. Baselines use published hyperparameters, with search for unspecified settings. We report mean macro-F1, GFLOPs, latency, and energy in the main text; full statistics and implementation details are given in Appendices E and C, respectively. Per-sample compute covers the full path from raw modality streams to logits or, when explicitly labeled GF f , only the post modality-encoding to logits stage; Appendix D specifies selector accounting. 4.1 PREDICTIVE PERFORMANCE AND INFERENCE EFFICIENCY 
+
+Higher F1 at lower average compute. SEMARC achieves the highest mean macro-F1 on four of six datasets (Table 1). On CMI, the F1 is 0.556 versus 0.561 for DecAlign, while total compute falls from 23.33 to 0.43 GFLOPs. On MM-Fi, total computation falls from 18,098 GFLOPs for AdaMML to 738 GFLOPs for S EMARC, a reduction of approximately 95.9%; their post-extraction costs are 0.17 and 0.07 GFLOPs, respectively. By selecting each modality before executing its branch, S EMARC avoids extraction for unselected inputs and uses approximately 47.9% of the available modalities on average. On average, S EMARC improves macro-F1 by approximately 3.2% and reduces total GFLOPs by 61.4% relative to each dataset’s highest-F1 baseline. 7Preprint Table 1: Macro-F1 and mean total GFLOPs (GF) over three folds. Parentheses show post-encoder fusion cost (GF f ). Bold and underlining mark the best and second-best values per metric. Complete results: Appendix E.1. 
+
+Type Method IEMOCAP MM-Fi CMI CZU-MHAD EAV UTD-MHAD 
+
+F1 ↑ GF (GF f ) ↓ F1 ↑ GF (GF f ) ↓ F1 ↑ GF (GF f ) ↓ F1 ↑ GF (GF f ) ↓ F1 ↑ GF (GF f ) ↓ F1 ↑ GF (GF f ) ↓
+
+Monolithic 
+
+MAESTRO .51 ±.04 6696 (.23) .18 ±.09 18098 (.28) .47 ±.02 0.28 (.28) .25 ±.16 6091 (.30) .53 ±.02 6230 (.15) .70 ±.02 7306 (.19) ShaSpec .61 ±.03 6697 (1.51) .66 ±.08 18099 (1.68) .53 ±.01 2.14 (2.14) .59 ±.06 6093 (2.17) .60 ±.05 6231 (.97) .71 ±.13 7307 (1.29) MBT .64 ±.02 6696 (.41) .77 ±.19 18098 (.46) .55 ±.01 0.55 (.55) .82 ±.11 6091 (.56) .61 ±.03 6230 (.26) .81 ±.06 7306 (.35) DecAlign .48 ±.01 6707 (11.41) .28 ±.19 18106 (8.45) .56 ±.02 23.33 (23.33) .36 ±.10 6114 (23.37) .62 ±.02 6232 (1.77) .75 ±.08 7310 (4.21) 
+
+Fixed-seq. MultiModN .58 ±.06 6696 (.76) .40 ±.06 18098 (.84) .45 ±.01 1.07 (1.07) .47 ±.09 6092 (1.08) .65 ±.04 6230 (.49) .66 ±.10 7306 (.64) 
+
+Selective 
+
+GMS .54 ±.08 4465 (.23) .40 ±.11 18092 (.49) .48 ±.01 0.11 (.11) .44 ±.10 6091 (.13 ) .66 ±.04 139 (.09 ) .61 ±.10 5185 (.17) AdaMML .59 ±.03 6696 (.20) .96 ±.02 18098 (.17) .52 ±.01 0.51 (.51) .83 ±.09 6091 (.17) .64 ±.07 6230 (.17) .75 ±.06 7306 (.19) DynMM .62 ±.01 6697 (1.78) .71 ±.30 18099 (1.40) .54 ±.01 3.13 (3.13) .75 ±.08 6092 (1.54) .66 ±.01 6230 (.54) .78 ±.05 7308 (1.91) DyMo .56 ±.05 6696 (.48) .54 ±.03 18098 (.52) .37 ±.01 0.65 (.65) .65 ±.12 6091 (.68) .60 ±.04 6230 (.28) .60 ±.06 7306 (.38) MMEE .61 ±.01 6696 (.38) .60 ±.05 18098 (.59) .48 ±.01 0.70 (.70) .57 ±.09 6091 (.73) .60 ±.07 6230 (.18) .65 ±.04 7306 (.44) 
+
+Proactive Joint-AFA .57 ±.04 1655 (.13 ) .11 ±.10 12059 (.21) .38 ±.03 0.07 (.07 ) .28 ±.05 6091 (.13 ) .54 ±.03 3321 (.16) .30 ±.04 755 (.04 )
+
+SEMARC (Ours) .67 ±.02 3311 (.28) .95 ±.04 738 (.07 ) .56 ±.01 0.43 (.43) .91 ±.10 6091 (.23) .69 ±.02 719 (.10) .83 ±.10 4706 (.19) 0.8 1.2 1.6 100 200 300 400 (a) GPU               
+
+> F1=0.67
+> 1.53 1.62 360 400
+> F1=0.59 F1=0.62 F1=0.56 F1=0.64
+> 6912 15 2000 3000 4000 (b) CPU
+> F1=0.67
+> 13.5 14.7 3600 3900
+> F1=0.59 F1=0.62 F1=0.56 F1=0.64
+> 16 24 32 40 80 120 160
+> (c) Android (INT8)
+> F1=0.67
+> 37.9 39.4 152 180
+> F1=0.59 F1=0.62 F1=0.56 F1=0.64
+> Latency per inference (s) Energy per inference (J)  SeMARC (Ours) MBT (Monolithic) AdaMML (Selective) DyMM (Selective) DyMo (Selective)
+
+Figure 5: Energy–latency trade-offs on IEMOCAP across GPU, CPU, and Android INT8. Lower-left is preferred. 
+
+Lower latency and energy across platforms. On IEMOCAP, SE-MARC achieves the highest dis-played macro-F1 (.67) at about half the latency of the fastest baseline on evaluated platforms. GPU and Android energy are also 50.9% and 41.9% lower than their respective lowest-energy baselines. These gains extend across the benchmark suite: SEMARC is fastest in 16 of 18 dataset-platform conditions, averaging 44.7% lower latency against each condition’s fastest baseline. Complete results and measurement details are given in Appendix F. 0.1 0.2 0.5 1 2 5 10 
+
+GFLOPs per inference (log scale)  
+
+> 0.35 0.40 0.45 0.50 0.55 0.60 0.65 0.70
+> Macro-F1
+> MBT MAESTRO ShaSpec DecALign MultiModN DyMM DyMo AdaMML MMEE GMS JAFA SeMA
+
+SeMARC      
+
+> 0% 10% 20% 30% 40%
+> Modality missingness: 0% 10% 20% 30% 40%
+
+Figure 6: IEMOCAP macro-F1 versus post-extraction GFLOPs ( GF f ) under 0–40% test-time modality miss-ingness. Upper-left is preferred. 
+
+Efficiency gains persist under modality miss-ingness. Figure 6 plots IEMOCAP macro-F1 against post-extraction GFLOPs ( GF f ). SE-MARC is Pareto non-dominated on IEMOCAP at every tested missingness level. Adding ARC to S EMA reduces post-extraction GFLOPs by 34.9–50.0% and total GFLOPs, including extrac-tion, by 50.5–63.9% across 0–40% missingness on IEMOCAP, with a decrease of at most .03 absolute macro-F1 points (Appendix G). This supports our premise that sample-adaptive ac-quisition can substantially reduce computation while largely preserving the backbone’s predic-tive quality. Across six datasets at 10–40% miss-ingness, S EMARC matches or exceeds the highest baseline macro-F1 in 21 of 24 conditions and is Pareto non-dominated in 23 of 24 using either total GFLOPs or post-encoder fusion GFLOPs ( GF f ). Relative to each condition’s best baseline, S EMARC averages 3.6% higher macro-F1, 14.8% lower total GFLOPs, and 38.4% lower post-extraction GFLOPs. Complete results are given in Appendix G. 4.2 FURTHER DESIGN ANALYSIS , A BLATIONS AND DIAGNOSTICS 
+
+Component replacements. Table 2 compares backbone and controller replacements across six datasets. (i) Adding ARC to MultiModN improves efficiency, reducing mean latency by 36.36% with a small decrease in mean macro-F1 from .533 to .527. However, this combination remains less accurate and slower than S EMARC. (ii) With S EMA fixed, ARC achieves higher mean macro-F1 (.77) than EAMA (.74), Joint-AFA (.75), and GMS (.73). It reduces mean latency by 43.46% relative to Joint-AFA and 32.62% relative to GMS, while EAMA is faster (463.50 versus 520.27 ms). GMS provides a static-selection comparison on the same backbone, help-ing isolate the contribution of adaptive acquisition. At the reported operating points, S EMARC achieves both higher mean macro-F1 and lower mean latency across the six datasets (Table 2). 8Preprint              
+
+> Table 2: Mean macro-F1 and GPU latency across six datasets.
+> Configuration F1 ↑t(ms) ↓
+> SEMARC .77 520.27 MultiModN + ARC .53 1078.90 SEMA + EAMA .74 463.50 SEMA + Joint-AFA .75 920.32 SEMA + GMS .73 772.08
+
+This supports the cross-dataset average benefit of our controller over this static selector. EAMA and Joint-AFA act as adaptive selector baselines. These results support our coupled design: a strong sequential predictor with acquisition and stopping decisions informed by accumulated evidence. They also motivate exploring richer subset-acquisition strategies coupled with S EMA. Complete results are given in Appendix H. 
+
+Ablation study. Figure 7 and Table 28 (Appendix I) highlight three findings. (i) Removing the Q-prior and randomized-order training reduces macro-F1 by 1.47% and 3.69%, respectively. (ii) Bottleneck-suffix yields 3.54% lower macro-F1, while removing prefix supervision and distillation together, retaining only final-prefix CE, reduces macro-F1 by 2.46%. (iii) Disabling STOP preserves approximately .67 macro-F1 but increases modality utilization from .65 to 1.00. Together, these results support the coupled design of S EMARC: S EMA reuses previous computation and is trained for order-robust prediction after each acquisition, while ARC uses the resulting evidence summary to select the next modality or stop, avoiding unnecessary encoder and fusion execution. video audio text m-hand m-head m-rot neutral angry happy sad 
+
+> True class
+> 00.5 1
+> P(j ∈ S ∣ y)
+
+Figure 8: Modality acquisition fre-quencies by true class. 0.2 0.5 0.8 (a)             
+
+> All
+> A0(6)
+> A0−
+> text(5)
+> A1−
+> audio(4)
+> A2−
+> video(3)
+> A3−
+> m-head(2)
+> Available set, An(modality count)
+> 0.0 0.5 1.0
+> 3.9/6 3.1/5 1.8/4 1.7/3 1.0/2
+> (b)
+> SeMARC SeMA (use all An)
+
+Figure 9: Availability cascade: (a) macro-F1; (b) fraction of available modalities acquired. 0 0.25 0.5 0.75 1 1.5 2    
+
+> Modality weighting, γ(λ= 0.5)
+> 0.0 0.2 0.4 0.6
+> Macro-F1
+> 0200 400 600 800
+> Latency (ms)
+> Macro-F1 Latency (ms)
+
+Figure 10: Modality-weight sensi-tivity at λ = 0 .5.Heuristic (no RL) No Q-prior (Q0 = 0 )Masks only (state) Fixed-order training Bottleneck su ffi xFinal-pre fi xCE only    
+
+> 0% -2% -4%
+> Relative macro-F1 change (%)
+> −3.68%
+> −1.47%
+> −3.44% −3.69% −3.54%
+> −2.46%
+> ARC SEMA
+
+Figure 7: Relative macro-F1 changes for selected ab-lations on IEMOCAP under full modality availability. Complete results: Appendix I. 
+
+Diagnostics. Our IEMOCAP diagnostics show three behaviors. (i) Under full availability, ARC selects text first using only the availability mask. When samples are grouped by true class, modal-ities’ acquisition frequencies vary, supporting our premise of adapting modality selection to each sample’s acquired evidence (Figure 8). (ii) Successively removing the preceding first pick elicits availability-aware fallback. S EMARC re-mains close to S EMA processing all remaining modalities while leaving approximately 35–55% of available modalities unacquired (Figure 9), demonstrating voluntary savings beyond missingness. (iii) At fixed λ, varying γ to iterate the modality-weight exponent wj in Equation 9 preserves approx-imately 0.67 macro-F1 while reducing reported latency by 88.3% (from 745 to 87 ms), illustrating the accuracy–latency trade-off (Figure 10). Complete results are provided in Appendix J. 
+
+5 CONCLUSION 
+
+We introduced S EMARC, coupling incremental fusion with adaptive acquisition and stopping so that acquired evidence determines subsequent computation. Across six datasets, S EMARC achieves 3.2% higher macro-F 1 and 61.4% lower total GFLOPs on average than each dataset’s most accurate baseline under full availability, with practical latency gains across devices and continued computational savings under modality missingness. 
+
+Limitations and future work. Our evaluation focuses on per-sample classification with fixed modality costs and batch-one inference. Our compact-state analysis provides conditional guarantees under reward and transition approximation assumptions; empirically assessing these assumptions and extending the analysis to the fitted neural controller remain directions for future work. Future work includes adapting acquisition to externally supplied, time-varying deployment costs, designing batching and scheduling for higher throughput, and incorporating memory across samples to support long-horizon tasks. 9Preprint 
+
+REFERENCES 
+
+Arun Babu, Changhan Wang, Andros Tjandra, Kushal Lakhotia, Qiantong Xu, Naman Goyal, Kritika Singh, Patrick Von Platen, Yatharth Saraf, Juan Pino, et al. Xls-r: Self-supervised cross-lingual speech representation learning at scale. arXiv preprint arXiv:2111.09296 , 2021. Alexei Baevski, Yuhao Zhou, Abdelrahman Mohamed, and Michael Auli. wav2vec 2.0: A framework for self-supervised learning of speech representations. Advances in neural information processing systems , 33:12449–12460, 2020. Carlos Busso, Murtaza Bulut, Chi-Chun Lee, Abe Kazemzadeh, Emily Mower, Samuel Kim, Jean-nette N Chang, Sungbok Lee, and Shrikanth S Narayanan. Iemocap: Interactive emotional dyadic motion capture database. Language resources and evaluation , 42(4):335–359, 2008. Xin Chao, Zhenjie Hou, and Yujian Mo. Czu-mhad: A multimodal dataset for human action recognition utilizing a depth camera and 10 wearable inertial sensors. IEEE Sensors Journal , 22 (7):7034–7042, 2022. Chen Chen, Roozbeh Jafari, and Nasser Kehtarnavaz. Utd-mhad: A multimodal dataset for hu-man action recognition utilizing a depth camera and a wearable inertial sensor. In 2015 IEEE International conference on image processing (ICIP) , pp. 168–172. IEEE, 2015. Runxiang Cheng, Gargi Balasubramaniam, Yifei He, Yao-Hung Hubert Tsai, and Han Zhao. Greedy modality selection via approximate submodular maximization. In Uncertainty in Artificial Intelli-gence , pp. 389–399. PMLR, 2022. Child Mind Institute. CMI – detect behavior with sensor data. Kaggle competition, 2025. URL https://www.kaggle.com/competitions/ cmi-detect-behavior-with-sensor-data . Wrist-worn Helios device: IMU, 5 thermopile and 5 time-of-flight sensors. Thomas M. Cover and Joy A. Thomas. Elements of Information Theory . Wiley-Interscience, 2 edition, 2006. Ian Covert, Scott M Lundberg, and Su-In Lee. Understanding global feature contributions with additive importance measures. Advances in neural information processing systems , 33:17212– 17223, 2020. Ian Covert, Chanwoo Kim, and Su-In Lee. Learning to estimate shapley values with vision trans-formers. arXiv preprint arXiv:2206.05282 , 2022. Jacob Devlin, Ming-Wei Chang, Kenton Lee, and Kristina Toutanova. Bert: Pre-training of deep bidirectional transformers for language understanding. In Proceedings of the 2019 conference of the North American chapter of the association for computational linguistics: human language technologies, volume 1 (long and short papers) , pp. 4171–4186, 2019. Siyi Du, Xinzhe Luo, Declan O’regan, and Chen Qin. Inference-time dynamic modality selection for incomplete multimodal classification. In International Conference on Learning Representations ,volume 2026, pp. 116887–116913, 2026. Damien Ernst, Pierre Geurts, and Louis Wehenkel. Tree-based batch mode reinforcement learn-ing. Journal of Machine Learning Research , 6:503–556, 2005. URL https://jmlr.org/ papers/v6/ernst05a.html .Omar Hamed, Souhail Bakkali, Matthew Blaschko, Marie-Francine Moens, and Jordy Van Lan-deghem. Multimodal adaptive inference for document image classification with anytime early exiting. In International Conference on Document Analysis and Recognition , pp. 270–286. Springer, 2024. Xing Han, Huy Nguyen, Carl Harris, Nhat Ho, and Suchi Saria. Fusemoe: Mixture-of-experts transformers for fleximodal fusion. In A. Globerson, L. Mackey, D. Belgrave, A. Fan, U. Paquet, J. Tomczak, and C. Zhang (eds.), Advances in Neural Information Processing Systems , volume 37, pp. 67850–67900. Curran Associates, Inc., 2024. 10 Preprint Yifei He, Runxiang Cheng, Gargi Balasubramaniam, Yao-Hung Hubert Tsai, and Han Zhao. Efficient modality selection in multimodal learning. Journal of Machine Learning Research , 25(47):1–39, 2024. Jannik Kossen, C˘ at˘ alina Cangea, Eszter Vértes, Andrew Jaegle, Viorica Patraucean, Ira Ktena, Nenad Tomasev, and Danielle Belgrave. Active acquisition for multimodal temporal data: A challenging decision-making task. arXiv preprint arXiv:2211.05039 , 2022. Min-Ho Lee, Adai Shomanov, Balgyn Begim, Zhuldyz Kabidenova, Aruna Nyssanbay, Adnan Yazici, and Seong-Whan Lee. Eav: Eeg-audio-video dataset for emotion recognition in conversational contexts. Scientific data , 11(1):1026, 2024. Paul Pu Liang, Yiwei Lyu, Xiang Fan, Zetian Wu, Yun Cheng, Jason Wu, Leslie (Yu-fan) Chen, Peter Wu, Michelle A. Lee, Yuke Zhu, Ruslan Salakhutdinov, and Louis-Philippe Morency. Multibench: Multiscale benchmarks for multimodal representation learning. In J. Vanschoren and S. Yeung (eds.), Proceedings of the Neural Information Processing Systems Track on Datasets and Benchmarks , volume 1, 2021. URL https: //datasets-benchmarks-proceedings.neurips.cc/paper_files/paper/ 2021/file/37693cfc748049e45d87b8c7d8b9aacd-Paper-round1.pdf .Paul Pu Liang, Yun Cheng, Xiang Fan, Chun Kai Ling, Suzanne Nie, Richard Chen, Zihao Deng, Nicholas Allen, Randy Auerbach, Faisal Mahmood, et al. Quantifying & modeling multimodal in-teractions: An information decomposition framework. Advances in Neural Information Processing Systems , 36:27351–27393, 2023. Payal Mohapatra, Akash Pandey, Sinan Keten, Wei Chen, and Qi Zhu. Person identification with wearable sensing using missing feature encoding and multi-stage modality fusion. In ICASSP 2023-2023 IEEE International Conference on Acoustics, Speech and Signal Processing (ICASSP) ,pp. 1–2. IEEE, 2023. Payal Mohapatra, Shamika Likhite, Subrata Biswas, Bashima Islam, and Qi Zhu. Missingness-resilient Video-enhanced Multimodal Disfluency Detection. In Interspeech 2024 , pp. 5093–5097, 2024. doi: 10.21437/Interspeech.2024-1458. Payal Mohapatra, Yueyuan Sui, Akash Pandey, Stephen Xia, and Qi Zhu. Maestro: Adaptive sparse attention and robust learning for multimodal dynamic time series. Advances in Neural Information Processing Systems , 38:80589–80620, 2025. Ryan L Murphy, Balasubramaniam Srinivasan, Vinayak Rao, and Bruno Ribeiro. Janossy pool-ing: Learning deep permutation-invariant functions for variable-size inputs. arXiv preprint arXiv:1811.01900 , 2018. Arsha Nagrani, Shan Yang, Anurag Arnab, Aren Jansen, Cordelia Schmid, and Chen Sun. Attention bottlenecks for multimodal fusion. Advances in neural information processing systems , 34:14200– 14213, 2021. Rameswar Panda, Chun-Fu Richard Chen, Quanfu Fan, Ximeng Sun, Kate Saenko, Aude Oliva, and Rogerio Feris. Adamml: Adaptive multi-modal learning for efficient video recognition. In 2021 IEEE/CVF International Conference on Computer Vision (ICCV) , pp. 7556–7565. IEEE, 2021. Matthew Peroni, Paul Pu Liang, and Dimitris Bertsimas. When is more better? efficient and adaptive modality acquisition in multimodal learning. Transactions on Machine Learning Research , 2026. Charles R Qi, Hao Su, Kaichun Mo, and Leonidas J Guibas. Pointnet: Deep learning on point sets for 3d classification and segmentation. In Proceedings of the IEEE conference on computer vision and pattern recognition , pp. 652–660, 2017. Chengxuan Qian, Shuo Xing, Li Li, Yue Zhao, and Zhengzhong Tu. Decalign: Hierarchical cross-modal alignment for decoupled multimodal representation learning. In International Conference on Learning Representations , volume 2026, pp. 152802–152824, 2026. Lloyd S. Shapley. A value for n-person games. In Harold W. Kuhn and Albert W. Tucker (eds.), 
+
+Contributions to the Theory of Games, Volume II , volume 28 of Annals of Mathematics Studies , pp. 307–317. Princeton University Press, 1953. 11 Preprint Hajin Shim, Sung Ju Hwang, and Eunho Yang. Joint active feature acquisition and classification with variable-size set encoding. Advances in neural information processing systems , 31, 2018. Oriane Siméoni, Huy V Vo, Maximilian Seitzer, Federico Baldassarre, Maxime Oquab, Cijo Jose, Vasil Khalidov, Marc Szafraniec, Seungeun Yi, Michaël Ramamonjisoa, et al. Dinov3. arXiv preprint arXiv:2508.10104 , 2025. Jayakumar Subramanian, Amit Sinha, Raihan Seraj, and Aditya Mahajan. Approximate information state for approximate planning and reinforcement learning in partially observed systems. Journal of Machine Learning Research , 23(12):1–83, 2022. URL https://www.jmlr.org/papers/ v23/20-1165.html .Yueyuan Sui, Payal Mohapatra, Do˘ gaç Eldenk, Haodong Yang, Yiting Zhang, Haoyan Zhang, Qi Zhu, and Stephen Xia. Modality-aware zero-shot pruning and sparse attention for efficient multimodal edge inference. arXiv preprint arXiv:2604.08971 , 2026. Vinitra Swamy, Malika Satayeva, Jibril Frej, Thierry Bossy, Thijs Vogels, Martin Jaggi, Tanja Käser, and Mary-Anne Hartley. Multimodn—multimodal, multi-task, interpretable modular networks. 
+
+Advances in neural information processing systems , 36:28115–28138, 2023. Cécile Trottet, Thijs Vogels, Kristina Keitel, Alexandra V Kulinkina, Rainer Tan, Ludovico Cobuccio, Martin Jaggi, and Mary-Anne Hartley. Modular clinical decision support networks (modn)—updatable, interpretable, and portable predictions for evolving clinical environments. 
+
+PLOS digital health , 2(7):e0000108, 2023. Hado Van Hasselt, Arthur Guez, and David Silver. Deep reinforcement learning with double q-learning. In Proceedings of the AAAI conference on artificial intelligence , volume 30, 2016. Hu Wang, Yuanhong Chen, Congbo Ma, Jodie Avery, Louise Hull, and Gustavo Carneiro. Multi-modal learning with missing modality via shared-specific feature modelling. In 2023 IEEE/CVF Conference on Computer Vision and Pattern Recognition (CVPR) , pp. 15878–15887. IEEE, 2023. Zejia Weng, Zuxuan Wu, Hengduo Li, Jingjing Chen, and Yu-Gang Jiang. Hcms: Hierarchical and conditional modality selection for efficient video recognition. ACM Transactions on Multimedia Computing, Communications and Applications , 20(2):1–18, 2023. Guangxuan Xiao, Ji Lin, Mickael Seznec, Hao Wu, Julien Demouth, and Song Han. Smoothquant: Accurate and efficient post-training quantization for large language models. In International conference on machine learning , pp. 38087–38099. PMLR, 2023. Zihui Xue and Radu Marculescu. Dynamic multimodal fusion. In 2023 IEEE/CVF Conference on Computer Vision and Pattern Recognition Workshops (CVPRW) , pp. 2575–2584. IEEE, 2023. Jianfei Yang, He Huang, Yunjiao Zhou, Xinyan Chen, Yuecong Xu, Shenghai Yuan, Han Zou, Chris Xiaoxuan Lu, and Lihua Xie. Mm-fi: Multi-modal non-intrusive 4d human dataset for versatile wireless sensing. Advances in Neural Information Processing Systems , 36:18756–18768, 2023. Zequn Yang, Hongfa Wang, and Di Hu. Efficient quantification of multimodal interaction at sample level. arXiv preprint arXiv:2506.17248 , 2025. Manzil Zaheer, Satwik Kottur, Siamak Ravanbakhsh, Barnabas Poczos, Russ R Salakhut-dinov, and Alexander Smola. Deep sets. In I. Guyon, U. Von Luxburg, S. Bengio, H. Wallach, R. Fergus, S. Vishwanathan, and R. Garnett (eds.), Ad-vances in Neural Information Processing Systems , volume 30. Curran Associates, Inc., 2017. URL https://proceedings.neurips.cc/paper_files/paper/2017/ file/f22e4747da1aa27e363d86d40ff442fe-Paper.pdf .Qingyang Zhang, Haitao Wu, Changqing Zhang, Qinghua Hu, Huazhu Fu, Joey Tianyi Zhou, and Xi Peng. Provable dynamic fusion for low-quality multimodal data. In International conference on machine learning , pp. 41753–41769. PMLR, 2023. 12 Preprint 
+
+A IMPLEMENTATION DETAILS OF THE SEMARC POLICY 
+
+The backbone is frozen before policy fitting. Cached ordered-prefix predictions define the transition samples, the class-conditional gain tables define the prior Q0, and a residual network is fitted with Double-DQN targets (Section 3.2). All of the following is per dataset and per fold. 
+
+Backbone configuration. Table 3 lists the dataset-specific S EMA configurations. All use d = 128 ,8 heads, K = 16 bottleneck tokens, dense attention, running-mean aggregation (Section 3.1), and randomized modality order. We train with AdamW (weight decay 0), a cosine learning-rate schedule from the listed initial rate to 10 −6, and gradient clipping at norm 1. Batch-level modality dropout retains at least one modality; its probability is 0 for the first Ew epochs, increases linearly over the next Er epochs, and remains at pmax thereafter. Each forward pass uniformly permutes the retained modalities. We optimize Equation 1 with λds = 1 .0, λkd = 0 .5, and uniform prefix weights. For each forward pass, let n be the number of retained modalities. The distillation target is ¯p = sg( pn),the detached prediction after processing all n retained modalities in the same sampled order and forward pass. Each prefix prediction is distilled toward this target, with gradients stopped through 
+
+¯p. The loss ℓ is cross-entropy; on IEMOCAP, it uses class weights N/ (CN c) computed from the training labels. We train one checkpoint per fold with the listed seed and retain the epoch with the best validation macro-F1. Table 3: S EMA training configuration per dataset ( E: epochs; Ew/E r: modality-dropout warm-up and ramp epochs; pmax : final modality-dropout probability; Le/L f : encoder and fusion blocks per branch; T : sequence length).                                                                
+
+> Dataset Seed EEw/E rpmax LR Batch Le/L fTFolds IEMOCAP 239 40 10/20 0.4 10 −432 3/3 100 0–2 MM-Fi 239 100 20/40 0.2 10 −416 2/4 128 0–2 CMI 239 40 10/20 0.4 10 −432 3/3 128 0–2 CZU-MHAD 239 100 20/40 0.2 10 −432 3/3 128 0–2 EAV 239 100 20/40 0.2 10 −432 3/3 128 0–2 UTD-MHAD 9100 20/40 0.4 10 −432 3/3 128 0–2
+
+Prefix cache. With M modalities, we run the frozen backbone once over every ordered modality prefix of every sample in each split (train, validation, test) and store the class posterior after each prefix. The cache is a complete depth-M prefix tree with PMk=0 M !/(M − k)! nodes: 1957 for IEMOCAP ( M =6 ), 13 700 for CMI and CZU-MHAD ( M =7 ), 326 for MM-Fi ( M =5 ), 65 for UTD-MHAD ( M =4 ) and 16 for EAV ( M =3 ). The cache supplies the backbone posteriors needed to construct states and gain tables, evaluate Bellman targets, and roll out policies. The residual MLP is still evaluated, but the backbone is not rerun during policy fitting or selection. Test-cache entries are reserved for final evaluation. 
+
+Data used at each stage. The policy is fitted entirely on the validation fold, because the backbone’s training-split predictions are overfit (correct at almost every prefix) and carry no acquisition signal. The validation samples are split once into a fit part and a holdout part: the N validation indices are permuted with NumPy’s default_rng(1000) , the first max(5 , ⌊0.2N ⌋) form the holdout and the rest the fit part, the same split for every seed, price and variant. The gain tables TS and the residual network are fitted on the fit part; the holdout part selects the FQI iteration to keep; the seed is selected on the validation fold; the test fold is touched once, for the reported numbers. The train split is not used by the policy at all. 
+
+State and prior. The state ψs ∈ R2M +C+4 in Equation 3 contains the acquired mask, availability mask, posterior, entropy, top-two margin, |Ss|/M , and |A| /M . The gain table of a held set S is 
+
+[TS ]c,j = Ei[vi(S ∪ { j}) − vi(S) | yi = c] , vi(S) = 1
+
+|Π( S)|
+
+X
+
+> π∈Π( S)
+
+⊮[ˆ yi(S, π ) = yi].
+
+Here vi(S) is the fraction of cached orderings of S under which the backbone classifies sample 
+
+i correctly. Correctness is evaluated separately for each ordering and then averaged. Tables are 13 Preprint Table 4: Per-fold settings of the deployed uniform-cost ARC. The prior is priced at λtrain during fitting and at inference on every fold.                             
+
+> Dataset MFold Seed λtrain
+> IEMOCAP 60 / 1 / 2 1 / 1 / 0 0.5 / 0.5 / 0.5 MM-Fi 50 / 1 / 2 2 / 0 / 0 0.5 / 0.5 / 1.0 CMI 70 / 1 / 2 1 / 2 / 0 0.5 / 0.5 / 0.5 CZU-MHAD 70 / 1 / 2 0 / 1 / 2 0.5 / 0.5 / 0.5 EAV 30 / 1 / 2 2 / 1 / 2 0.5 / 0.5 / 0.5 UTD-MHAD 43 / 4 / 5 0 / 1 / 2 0.5 / 0.5 / 0.5
+
+estimated on the validation fit part, with one C × M table for each of the 2M subsets. This differs from EAMA’s set-posterior cache, which averages the posteriors themselves. For the uniform-cost setting, the prior in Equation 7 is 
+
+Q(λ)0 (ψs, j ) = max  
+
+> c
+
+ps,c + [ p⊤ 
+
+> s
+
+TSs ]j − λ
+
+|A| , Q(λ)0 (ψs, STOP ) = max  
+
+> c
+
+ps,c ,
+
+with acquired and unavailable modalities masked. The prior cost, the acquisition cost in the Bellman targets and the prior used at inference all use the same per-fold price λtrain , so the deployed action values are exactly the fitted ones, Qθ = Q(λtrain )0 + Rθ .
+
+Residual network. Rθ is a three-layer MLP, (2 M + C + 4) → 64 → 64 → M +1 with ReLU activations and no normalization. Its output layer is zero-initialized, so Qθ = Q0 exactly before fitting and the prior is only ever corrected, never replaced. It has about 6 k parameters on IEMOCAP. 
+
+Fitted-Q iteration. We run 8 FQI iterations. Each iteration recomputes the Bellman target for every reachable (prefix, sample, legal action) triple in the fit part with a Double-DQN rule: the next action is the arg-max of the online network (residual plus prior), its value is read from a target copy, and the target copy is overwritten with the online weights at the end of the iteration. The terminal reward uses normalized inverse-frequency weights. Let Nfit be the number of validation-fit samples and let 
+
+freq( c) be the proportion with label c in that split. We use 
+
+wi = 1/freq( yi)
+
+N −1fit 
+
+PNfit  
+
+> k=1
+
+1/freq( yk) , RSTOP ,i = wi ⊮[ˆ yi = yi].
+
+The sample-mean weight is one, keeping the reward scale comparable to the acquisition price across datasets with different class counts. This weights minority-class correctness without directly optimiz-ing macro-F1. Each acquisition in the FQI target costs λtrain /|A| , and the return is undiscounted. Within an iteration the residual is regressed onto (target − prior) with a masked mean-squared error over the reachable triples for 40 full-batch epochs of Adam (learning rate 10 −3), 320 epochs in total. After each iteration the greedy policy is rolled out on the validation holdout and the iteration with the best holdout macro-F1 is kept. 
+
+Availability augmentation. To fit a policy that also works when modalities are missing, every sample’s available set is drawn as Bernoulli(0.7) per modality (at least one modality kept) and the draw is repeated at every FQI iteration, so each sample is seen under several availability patterns and the network sees the same sample with and without a given modality. The holdout is scored under one fixed draw. Unavailable modalities are removed from the action set and from the state’s availability mask; the training cost λtrain /|A| is normalized by the number that are actually available. 
+
+Deployed settings. Table 4 lists, for every fold, the settings of the deployed uniform-cost policy reported in Table 1. The training price λtrain enters the prior and the Bellman targets during fitting and the prior at inference, and actions are selected greedily on every fold. Seeds are selected on the validation sets. All policies are fitted in under a minute per fold on one GPU, since fitting runs on cached tables; at inference the policy adds one table lookup and one MLP evaluation per step, about 0.1 ms. 14 Preprint 
+
+B COMPLETE DATASET PREPARATION 
+
+B.1 DATASET PREPARATION 
+
+This section details the six datasets used for evaluation: modalities and their native sampling rates, the feature each modality is mapped to before fusion, class distributions, and the cross-subject splits. The train, validation and test partitions are subject-disjoint. Backbone and policy fitting and model selection use the designated training and validation data. Quantization calibration uses val-split examples, as specified in Appendix F.1. 
+
+Common preprocessing. Each modality is converted to a sequence (Tm, d m), either directly from the raw stream (sensor and motion-capture channels) or through a frozen extractor (DINOv3 ViT-L/16 (Siméoni et al., 2025) for image and depth frames, XLS-R (Babu et al., 2021) or wav2vec 2.0 (Baevski et al., 2020) for audio, BERT-base (Devlin et al., 2019) for text, and a frozen, randomly initialized PointNet (Qi et al., 2017) descriptor for point clouds). Preprocessing includes setting non-finite entries to zero, normalization by the largest per-timestep ℓ2 norm within each sequence, and temporal alignment to a common length T . The default temporal alignment uses zero-padding when shorter and linear interpolation when longer; the CZU-MHAD resampling and normalization order is specified below. T = 100 on IEMOCAP and T = 128 elsewhere. Per-modality extraction times for the explicitly labelled cost-weighted variants are measured on the same hardware for every dataset; the default policy uses uniform acquisition costs. 
+
+Extractor checkpoints and feature layers. All extractors are frozen. Image, audio, and text extractors use publicly released pretrained checkpoints without fine-tuning; the PointNet descriptors use fixed random weights, as specified below. The same frozen extractor weights produce the training features and server-side measurements and serve as the source for the ONNX graphs deployed on the phone. The extraction environment uses PyTorch 2.5.1, torchaudio 2.5.1, and Transformers 5.3.0. 
+
+Images and depth. DINOv3 ViT-L/16 uses the official repository’s 
+
+dinov3_vitl16_pretrain_lvd1689m weights, pretrained on LVD-1689M. Each frame is represented by the 1024-dimensional CLS token after the final LayerNorm ( x_norm_clstoken ). Frames are resized directly to 224 × 224 with bilinear interpolation, without center cropping, and ImageNet-normalized. RGB video frames are used as decoded. The 16-bit depth maps from MM-Fi and UTD-MHAD are clipped to 0.1–6 m, min–max scaled, and replicated to three channels; CZU-MHAD’s 8-bit depth frames are replicated to three channels. 
+
+Audio. IEMOCAP uses XLS-R 1B, torchaudio.pipelines.WAV2VEC2_XLSR_1B 
+
+(facebook/wav2vec2-xls-r-1b ), on 16 kHz mono audio cut or zero-padded to 12 s. Features come from the last Transformer layer, giving 599 × 1280 values per clip. EAV uses wav2vec 2.0 Base, torchaudio.pipelines.WAV2VEC2_BASE (facebook/wav2vec2-base ), pre-trained on LibriSpeech without fine-tuning. Its 20-second, 16 kHz mono clips produce 999 × 768 
+
+last-layer features. 
+
+Text. Hugging Face’s bert-base-uncased provides the 768-dimensional last hidden state of every WordPiece token, including [CLS] and [SEP] , with at most 256 tokens. 
+
+Point clouds. MM-Fi mmWave and LiDAR use a PointNet shared MLP with hidden widths 64 →
+
+128 → 128 , BatchNorm, ReLU, and max-pooling over points. The weights are randomly initialized with seed 42 and frozen, producing a fixed 128-dimensional random descriptor for each frame’s point set. Inputs are five-dimensional mmWave points (x, y, z, Doppler , intensity) and three-dimensional LiDAR points. This descriptor is not a pretrained PointNet checkpoint. 
+
+Raw streams. No extractor is applied to IEMOCAP MoCap (hand 18-d, head 6-d, rotated 165-d); EAV EEG (30 channels at 500 Hz, using each recorded 10,000-sample trial without filtering); MM-Fi infrared keypoints (34-d) and Wi-Fi CSI (3420-d); UTD-MHAD skeleton (20 joints × 3 coordinates, 60-d) and inertial data (6-d); CMI IMU (7-d), thermopile (5-d), and five 8 × 8 time-of-flight arrays (64-d each); or CZU-MHAD skeleton and IMU streams, whose construction is detailed below. Extractor outputs and raw streams then undergo the temporal alignment and normalization described in this section. 
+
+IEMOCAP. Five dyadic sessions with ten speakers (one female and one male per session), scripted and improvised. We keep the four emotions neutral , angry , happy and sad ; utterances labelled 15 Preprint otherwise (e.g. frustrated, excited) are excluded, leaving 4,457 utterances. The class distribution is imbalanced: neutral 1,704, angry 1,090, sad 1,077, happy 586. Splits are by session, hence by speaker (Table 5). Video is cut per utterance from the dialog recording and 100 frames are sampled uniformly; audio is padded or cut to 12 s before XLSR-1B; text is the reference transcript; the three motion-capture streams are used raw at their native 120 Hz.                           
+
+> Modality Sampling rate Variates video (DINOv3 ViT-L/16) 29.97 fps, 720 ×480 1024 audio (XLSR-1B) 16 kHz, mono 1280 text (BERT-base) –768 mocap_hand 120 Hz 18 mocap_head 120 Hz 6mocap_rotated 120 Hz 165 Fold Train Val Test 0Ses01–03 (2,755) Ses04 (793) Ses05 (909) 1Ses02,03,05 (2,722) Ses01 (942) Ses04 (793) 2Ses01,04,05 (2,644) Ses02 (813) Ses03 (1,000)
+
+Table 5: IEMOCAP modalities (left) and cross-session splits (right). Output classes: neutral, angry, happy, sad. 
+
+MM-Fi. Forty subjects in four environments perform 27 actions (14 daily, 13 rehabilitation), one 30 s recording per subject and action, giving 1,080 sequences and exactly 40 per class. All sensors are logged with timestamps and the release is resampled to a unified 10 Hz frame index, so every modality carries 297 synchronized frames per sequence. We use five modalities (Table 6): 2D keypoints from the infrared camera, WiFi CSI amplitude with the official NaN interpolation and per-frame min–max normalization, the mmWave and LiDAR point clouds encoded per frame by the fixed random PointNet descriptor, and the depth map. The stock split leaves one validation subject, too few to fit or select a policy, so validation is enlarged by moving whole subjects out of the test set; train subjects are untouched and all three sets remain subject-disjoint (Table 6).                              
+
+> Modality Native sensing Variates infra1 RealSense D435 IR, 30 Hz; 17 keypoints
+> (u, v )
+> 34 wifi TP-Link N750, 1 ×3 antennas, 114 subcar-riers; 1000 Hz raw, 10 packets per frame 3420 mmwave (PointNet) TI IWR6843AOP, 30 Hz; N×5
+> (x,y,z,Doppler,intensity) 128 lidar (PointNet) Ouster OS1-32, 20 Hz; N×3128 depth (DINOv3) RealSense D435, 30 fps, 640 ×480 16-bit 1024 Fold Train Val Test 0S14–S39 (702) S40, S01–S06 (189) S07–S13 (189) 1S01–S13, S27–S39 (702) S40, S14–S19 (189) S20–S26 (189) 2S01–S12, S14–S26 (675) S13, S27–S32 (189) S33–S40 (216)
+
+Table 6: MM-Fi modalities and cross-subject splits. All modalities share the 10 Hz unified frame index (297 frames per 30 s sequence). Output classes: 27 actions (stretching, chest expansion, twists, mark time, limb extension, lunges, squat, raising and waving hands, picking up, throwing, kicking, body extension, jumping, bowing). 
+
+CZU-MHAD. Five subjects perform 22 actions with 9–13 repetitions per subject–action pair. We form the index from the union of train.csv , val.csv , and test.csv , deduplicate by file_stem ,and require the depth, skeleton, and sensor .mat files for each trial. Of 1166 depth files, only 
+
+qyh_a10_t11 lacks the corresponding skeleton and sensor files and is excluded. No other trials are removed. The resulting 1165 trials contain 52–53 samples per class and 198, 220, 220, 241, and 16 Preprint 286 samples for subjects zyh, cyy, myj, qyh, and cx, respectively. Each split holds out one subject for testing and another for validation, giving test-set sizes of 198, 220, and 241 (Table 7). 
+
+CZU-MHAD feature construction. Depth recordings contain 31–132 frames of 424 ×512 uint8 im-ages. We uniformly sample 100 frames, repeating frames when necessary, extract a 1024-dimensional DINOv3-L CLS vector per frame, and interpolate the resulting 100 × 1024 sequence to T = 128 .Skeleton recordings contain 53–118 frames with 100 columns: 25 Kinect V2 joints, each represented by (x, y, z ) and a microsecond timestamp. The ten IMU streams each contain approximately 1500– 2100 rows with seven columns: three accelerometer axes, three gyroscope axes, and a microsecond timestamp. For each IMU pair, the second stream is linearly resampled to the first stream’s length and the two seven-column streams are concatenated, producing one of five 14-dimensional sensor streams. Timestamps remain input features in both the skeleton and IMU representations. All streams are linearly resampled to T = 128 and then divided by their maximum row ℓ2 norm within the sequence.                             
+
+> Modality Input / rate Variates depth (DINOv3) 100 sampled frames 1024 skeleton 25 joints 100 sensor_head ≈338 Hz, IMUs 0–1 14 sensor_torso ≈338 Hz, IMUs 2–3 14 sensor_rarm ≈338 Hz, IMUs 4–5 14 sensor_larm ≈338 Hz, IMUs 6–7 14 sensor_leg ≈338 Hz, IMUs 8–9 14 Fold Train Val Test 0cx, cyy, myj (726) qyh (241) zyh (198) 1cx, qyh, zyh (725) cyy (220) myj (220) 2cyy, myj, zyh (638) cx (286) qyh (241)
+
+Table 7: CZU-MHAD input representations (left) and cross-subject splits (right). Each paired-IMU input has 2 × (3 + 3 + 1) = 14 features, including timestamps; all streams use T = 128 . Output classes: right/left high wave, right/left horizontal wave, hammer, grasp, draw fork (right/left), draw circle (right/left), forward kick (right/left), side kick (right/left), clap, bend down, wave up and down, sur place, body turn (left/right), lateral movement (left/right). 
+
+EAV. Forty-two subjects each complete 200 twenty-second trials, five emotions × two tasks (listening, speaking) × 20 repetitions. Audio exists only for the speaking trials, so the trimodal set used here is the 100 speaking trials per subject, 4,200 in total and exactly balanced at 840 per class. EEG is used raw; audio is resampled from 44.1 kHz to 16 kHz and cut or padded to 20 s before wav2vec2-base; 100 video frames are sampled uniformly from each clip and encoded by DINOv3. We use three independently randomized cross-subject train/validation/test splits, with seeds 42, 123, and 456 and target proportions 70/15/15. Each split assigns 29 subjects to training, six to validation, and seven to testing, yielding 2900/600/700 speaking trials. Every partition is exactly class-balanced, with 580/120/140 trials per class. Subjects are disjoint within each split, but test sets overlap across splits. Table 9 lists the held-out subject IDs; the training subjects are the complement among IDs 1–42. The union of the test sets contains 14 subjects, leaving 28 subjects never used for testing. Thus these are three independent cross-subject splits, rather than a partition of subjects into non-overlapping test folds. We retain fold indices 0–2 as split identifiers in the result tables.           
+
+> Modality Sampling rate Variates eeg 500 Hz, 30 channels 30 audio (wav2vec2-base) 44.1 kHz →16 kHz, mono 768 video (DINOv3) 30 fps, 640 ×480 1024
+
+Table 8: EAV modalities. Output classes: neutral, anger, happiness, sadness, calmness (840 trials each). 
+
+CMI. The Child Mind Institute wrist-sensor dataset contains 8,151 gesture sequences from 81 participants recorded with the Helios device: an IMU providing three-axis acceleration and an 17 Preprint Table 9: EAV: three independent cross-subject splits. Validation and test IDs are listed explic-itly; the remaining subjects among IDs 1–42 form the training set. Each split contains 29/6/7 train/validation/test subjects. Test subjects can recur across splits.             
+
+> Split Seed Validation subjects Test subjects 042 4, 11, 24, 35, 38, 42 8, 15, 19, 21, 23, 29, 39 1123 1, 10, 15, 32, 33, 34 3, 18, 20, 23, 29, 38, 39 2456 3, 6, 12, 14, 15, 21 16, 18, 26, 28, 29, 38, 39
+
+orientation quaternion, five thermopiles, and five 8 × 8 time-of-flight proximity sensors. Sequences average 70.5 samples (29–700); the device sampling rate is not published with the data, so durations in seconds are not reported. Missing time-of-flight readings, encoded as −1, are set to zero. Eighteen gestures are labelled, eight body-focused repetitive behaviours and ten everyday actions, with class imbalance. Participants are sorted by identifier and split into three groups of 27 (Table 10). Class counts are computed after deduplicating train.csv by sequence_id . Label IDs follow lexicographic order of the gesture names and match the cached targets. Table 11 reports all 18 classes; the three test folds contain 2748, 2697 and 2706 sequences and partition all 8151 sequences.                         
+
+> Modality Sensor Variates imu 3-axis accelerometer + quaternion 7thm 5 thermopiles 5tof_1 – tof_5 five 8×8time-of-flight grids 64 each Fold Train Val Test 0B[9:] ∪C (4,485) B[:9] (918) A (2,748) 1A∪C[9:] (4,536) C[:9] (918) B (2,697) 2A[9:] ∪B (4,528) A[:9] (917) C (2,706)
+
+Table 10: CMI modalities (left) and cross-subject splits over participant groups A, B, C of 27 each (right). Output classes: above ear pull hair, cheek pinch skin, eyebrow pull hair, eyelash pull hair, forehead pull hairline, forehead scratch, neck pinch skin, neck scratch (BFRB-like); drink from bottle/cup, feel around in tray, glasses on/off, pinch knee/leg skin, pull air toward face, scratch knee/leg, text on phone, wave hello, write name in air, write name on leg. 
+
+UTD-MHAD. Eight subjects (four female, four male) perform 27 actions four times each; after removing three corrupted trials, 861 samples remain, 31–32 per class and 107–108 per subject. Skeleton, depth and RGB come from a Kinect v1; the release carries depth and skeleton at an effective 
+
+≈20 fps and RGB at 15 fps. The inertial sensor is worn on the right wrist for actions 1–21 and the right thigh for actions 22–27. We report the rebalanced cross-subject protocol with four training, two validation and two test subjects per fold (Table 12); it keeps the original test subjects and replaces the original single validation subject, which was too small for policy selection, with two. 
+
+C COMPLETE BASELINE IMPLEMENTATION DETAILS 
+
+C.1 BASELINE IMPLEMENTATIONS AND ADAPTATIONS 
+
+None of the baselines was designed for the setting evaluated here: per-sample acquisition of whole modalities from raw sensor streams, under cross-subject splits and test-time missingness. Each therefore needed some adaptation. We describe, per method, what is carried over from the original, what was changed, and why. The following descriptions distinguish the original methods from adaptations to our inputs and evaluation protocol. These adaptations can affect performance. 
+
+Common training protocol. All learned baselines are trained from scratch on the same per-modality features, the same cross-subject folds and the same data loader as our backbone, with the following default configuration, subject to the method-specific exceptions below: dmodel = 128 , eight heads, six encoder layers per modality, Adam at 10 −4, batch size 32, the same epochs as S EMARC, and model selection on validation macro-F1. Every baseline that has a notion of missing modalities is 18 Preprint Table 11: CMI class distribution after deduplication by sequence ID. BFRB denotes body-focused repetitive behaviour. IDs follow lexicographic gesture-name order. The three test-fold counts sum to the full class count; percentages are rounded independently.                                                                                                                                                                   
+
+> ID Gesture Type Total Share (%) Fold 0 Fold 1 Fold 2 0Above ear – pull hair BFRB 638 7.8 216 210 212 1Cheek – pinch skin BFRB 637 7.8 215 210 212 2Drink from bottle/cup non-BFRB 161 2.0 54 53 54 3Eyebrow – pull hair BFRB 638 7.8 216 210 212 4Eyelash – pull hair BFRB 640 7.9 216 212 212 5Feel around in tray and pull out an object non-BFRB 161 2.0 54 53 54 6Forehead – pull hairline BFRB 640 7.9 216 212 212 7Forehead – scratch BFRB 640 7.9 216 212 212 8Glasses on/off non-BFRB 161 2.0 54 53 54 9Neck – pinch skin BFRB 640 7.9 216 212 212 10 Neck – scratch BFRB 640 7.9 216 212 212 11 Pinch knee/leg skin non-BFRB 161 2.0 54 53 54 12 Pull air toward your face non-BFRB 477 5.9 160 159 158 13 Scratch knee/leg skin non-BFRB 161 2.0 54 53 54 14 Text on phone non-BFRB 640 7.9 216 212 212 15 Wave hello non-BFRB 478 5.9 161 159 158 16 Write name in air non-BFRB 477 5.9 160 159 158 17 Write name on leg non-BFRB 161 2.0 54 53 54 Total 8151 100.0 2748 2697 2706 Modality Sampling rate Variates skeleton Kinect, 20 joints ×(x,y,z) 60 inertial 50 Hz, 3-axis accel + 3-axis gyro 6depth (DINOv3) Kinect, 320 ×240 1024 rgb (DINOv3) 15 fps, 640 ×480 1024 Fold Train Val Test 3s3–s6 (431) s7, s8 (215) s1, s2 (215) 4s1, s2, s5, s6 (430) s7, s8 (215) s3, s4 (216) 5s1–s4 (431) s5, s6 (215) s7, s8 (215)
+
+Table 12: UTD-MHAD modalities (left) and 4/2/2 cross-subject splits (right). Output classes: swipe left, swipe right, wave, clap, throw, arm cross, basketball shoot, draw X, draw circle (CW), draw circle (CCW), draw triangle, bowling, boxing, baseball swing, tennis swing, arm curl, tennis serve, push, knock, catch, pickup and throw, jog, walk, sit to stand, stand to sit, lunge, squat. trained with the same reported modality-dropout schedule as S EMARC. Where a method has its own missingness mechanism (ShaSpec, MAESTRO), that mechanism is kept and the curriculum drives it. 
+
+Execution under missingness. Every baseline skips raw-data extraction for unavailable modalities. This is distinct from skipping a downstream encoder: the non-adaptive MBT, MAESTRO, ShaSpec, DecAlign, MultiModN and MMEE implementations retain their modality encoders and process zero-filled inputs at absent positions. Among AdaMML, DynMM and DyMo, AdaMML and DyMo can skip encoders, whereas DynMM cannot. MultiModN skips a missing modality’s state update but still executes its encoder. Acquisition methods mask unavailable actions. Modality utilization is normalized by the number of modalities available to the current sample, rather than the nominal total 
+
+M .
+
+Vanilla MBT is a plain Multimodal Bottleneck Transformer: the same shared-bottleneck-token fusion our backbone uses, with four bottleneck tokens introduced at layer three, but with no sequential ordering, no early exit and no policy. It is the non-adaptive counterpart of our fusion at identical width and depth. 19 Preprint 
+
+MAESTRO is run from the authors’ released model with every layer, buffer and parameter name unchanged, so the published checkpoints load strictly. It keeps its own ProbSparse attention, mixture-of-experts feed-forward and modality-dropout schedule with a learned dynamic factor; the only change is the input adapter that splits our concatenated per-modality tensor. 
+
+ShaSpec uses the original implementation, including its shared and modality-specific representations and missing-modality mechanism. The surrogate shared representation is the mean of the available shared features. 
+
+DecAlign is generalised from its original three modalities (text, audio, video) to M modalities. The heterogeneity alignment scales accordingly: the multi-marginal Sinkhorn transport runs over an 
+
+M -dimensional cost tensor, and the directed cross-attention branch has M (M − 1) pairs. Everything else, including the three-path fusion and the decoupling loss, is as published. 
+
+MultiModN is a faithful port of the sequential modular network: a shared state vector updated one modality at a time by an un-gated MLP that concatenates the modality feature with the running state, and a shared decoder readable after every prefix. Its per-modality encoder is the same six-layer Transformer as the other baselines, and all prefixes are supervised during training. A missing modality skips its state update, as in the original mechanism; raw-data extraction is skipped, while its downstream encoder still processes the zero-filled input. Because the model is order-sensitive, we report it in the order chosen on validation by exhaustive search over all M ! orders. 
+
+Modality-selective baselines. These make a per-sample decision about which modalities to process, and are measured live: the same forward pass that produces the prediction is what is timed and whose executed-path compute is reported. Under missingness, raw-data extraction is skipped for absent modalities, and unavailable actions are masked. Downstream encoder skipping is method-specific: AdaMML and DyMo can skip encoders, whereas DynMM retains encoder execution. 
+
+AdaMML keeps the official policy network: a lightweight network previews a cheap summary of the input and emits a per-modality keep/drop decision by hard, straight-through Gumbel-softmax with an annealed temperature. Two changes, both forced by the setting. The decision is made once per sample rather than per segment through an LSTM, since our inputs are single windows rather than long videos. The main network is a set of per-modality encoders with logit-level late fusion under learned weights, so that a dropped modality’s encoder is genuinely skipped at inference and the saving is real. Training follows the original three phases: encoder warm-up, joint policy and encoder training, and fine-tuning. 
+
+DynMM mirrors the official affect-recognition implementation: nested modality-subset experts, a per-sample gate trained with the FLOP-resource regulariser as its only auxiliary loss, and no distillation. Each expert is a set of MultiBench-style Transformer encoders with concatenation fusion. We use the two-branch configuration, a single-modality expert and a full expert, with the resource loss weight at 0.1 and a soft gate during training that is made hard at inference. 
+
+DyMo uses the original implementation, retaining its missing-modality recovery and per-sample selection mechanisms on the repository’s cross-modal Transformer backbone. The configuration uses prototype-distance quality with cosine temperature 0.1, per-subset Gaussian probabilities, the prototype training loss, per-epoch prototype recomputation as class means of projected class-token features, and greedy per-sample selection with reward R(u) = quality (S ∪ { u}) G − quality (S),with K = 4 and a 16-dimensional projection. Missing raw streams are not extracted, and the implementation can skip downstream encoders. 
+
+Early-exit baseline. MMEE ports the anytime early-exit mechanism, off-ramp heads on intermediate fusion layers with weighted multi-exit training, onto a generic concatenate-then-fuse Transformer. It exits in the depth axis, complementary to our exit in the modality axis, at the first head whose maximum softmax reaches 0.9. All available modalities are extracted, while missing raw streams are skipped. Downstream modality encoders still execute on zero-filled inputs for absent modalities. Its usage is 1.0 relative to the available modalities; early exit reduces fusion depth rather than selecting modalities. 
+
+Selection controllers on the shared backbone. Table 27 compares controllers coupled to the same frozen S EMA. EAMA and Joint-AFA are placed before the frozen backbone. These comparisons 20 Preprint evaluate the shared-backbone adaptations, with the original action spaces retained at modality granularity. 
+
+Greedy submodular selection is adapted to the frozen backbone. The reported implementation greedily adds the modality with the largest estimated gain using H(Y ) − N −1 P 
+
+> n
+
+H(p(y | xnS )) 
+
+on validation samples, averaging over cached orders. This predictive-entropy utility differs from the converged cross-entropy estimate described for the own-backbone implementation below and is an approximation rather than an identical reproduction. The budget is selected on validation. The GMS comparison evaluates the static subset selected under its configured budget as a static-selection baseline for S EMARC. 
+
+Joint-AFA adapts the authors’ released implementation from scalar features to modalities and keeps its original placement: the agent observes only the inputs acquired so far. It uses the same M + 1 
+
+discrete actions as ARC: acquire modality j, for any modality not yet acquired, or STOP . Acquired modalities are masked. The agent never reads a S EMA prediction during acquisition. Each set element combines a one-hot modality index with a per-modality linear projection of that modality’s raw preview: its input stream mean-pooled over time and z-scored with validation statistics. The attentive LSTM set encoder reads the acquired elements, and Joint-AFA’s dueling head scores the 
+
+M + 1 actions. We retain the log-likelihood terminal reward, per-acquisition cost, ϵ-greedy schedule from 1.0 to 0.1, and target network. After STOP , or once every modality is acquired, the frozen SEMA fuses the final set once. Its prediction, which also defines the terminal reward, is read from the prefix cache of that set. The agent is trained on the validation split with a per-acquisition cost of 0.05. 
+
+EAMA follows Algorithm 1 of EAMA: the selector acts on the raw inputs of the observed modalities, and the classifier is applied once, to the final acquired set. At stage s, let ps be the observed modalities and Us the unobserved ones. Each acquisition action is a nonempty subset q ⊆ Us, yielding 2|Us| − 1
+
+candidates: 63 initially on IEMOCAP and 127 on CMI and CZU-MHAD. The stage optimizer maximizes 
+
+Js(q) = score( q | ps) − λ X
+
+> j∈q
+
+zj , ∅̸ = q ⊆ Us,
+
+where the value model predicts score = P (gain) −P (loss) from the raw previews of ps, defined as for Joint-AFA and averaged after per-modality linear projections, together with unit-norm embeddings of ps and q. It never reads a S EMA prediction. Our datasets have no always-available context modality, so p1 = ∅ and the first stage selects the same subset for every sample. STOP is implicit: acquisition ends if the best returned objective is nonpositive or no modality remains unobserved. The reported controller uses the paper’s hybrid optimizer, randomized double greedy and greedy maximization, retaining the better candidate. We also solve the stage objective exactly by enumeration as an optimization upper bound; this does not replace the hybrid optimizer in the reported EAMA row. When acquisition ends, the frozen S EMA fuses the final set once, and its prediction is read from the cache of that set. Thus EAMA can add several modalities in one decision, whereas ARC and Joint-AFA add exactly one. We retain the three-class value target, computed from the correctness of this readout on ps and ps ∪ q, Algorithm 2 view sampling, and unit-norm subset embeddings. The value model is fitted on one part of the validation split; early stopping and the per-fold choice of λ use the other. The unqualified EAMA row uses uniform costs ( zj = z for all modalities). The separately labelled weighted-cost row uses modality-specific extraction-cost fractions. 
+
+MultiModN+ARC attaches our acquisition policy to the MultiModN backbone instead of ours, with the prefix cache rebuilt from MultiModN’s own per-prefix decoder. This tests whether the policy’s gains transfer to a backbone that was not trained to be order-robust. 
+
+Own-backbone variants. For the main table, greedy submodular selection and JAFA are also run end to end with their own classifiers trained from scratch, so that each method owns its full pipeline as its paper assumes. Both use the same neutral per-modality encoder, two 1D convolutions with global average pooling, which is EAMA’s stated time-series encoder, the natural sequence analogue of JAFA’s per-element embedder, and a mild strengthening of the MLP Cheng et al. use. For greedy selection, H(Y | S) is estimated by the converged training loss of a model trained on S, as in the paper’s Section 4.2, with one model per budget. JAFA is trained as the released code trains it: classifier pre-training on Bernoulli(0.5) subsets, then joint training with ϵ-greedy episodes, terminal reward log p(y | acquired ), cost 0.05 per acquisition, smooth-L1 loss, periodic target copies and double DQN. Under missingness, a selected modality that is absent is not acquired and its encoder is skipped; JAFA’s episodes mask unavailable actions. 21 Preprint 
+
+Ours without ARC. The backbone alone, consuming every available modality in the fold’s validation leave-one-out order and predicting once. This provides a full-modality reference for evaluating the policy’s accuracy–cost trade-off. 
+
+Missingness protocol. Test-time missingness is simulated by dropping each modality of each sample independently with probability ρ ∈ { 0.1, 0.2, 0.3, 0.4}, re-instating one uniformly chosen modality for any sample that would lose all of them, with a fixed seed per fold. Every method sees the same masks. All methods skip raw-data extraction for absent modalities. Fixed-width baselines process zero-filled features in their downstream encoders; AdaMML and DyMo can skip encoders, whereas DynMM cannot. Selective baselines and our policy are forbidden from choosing an unavailable modality. MU uses the number of available modalities for each sample as its denominator. 
+
+D EVALUATION METRICS 
+
+Predictive performance. Macro-F1 is computed separately within each test fold using scikit-learn 1.5.2, f1_score(average=’macro’) , with no explicit labels argument and the default 
+
+zero_division=’warn’ . The label set for fold f is Cf = unique( ytrue ,f ∪ ypred ,f ). Thus, 
+
+F1 macro ,f = 1
+
+|C f |
+
+X
+
+> c∈C f
+
+2TP f,c 
+
+2TP f,c + FP f,c + FN f,c 
+
+.
+
+The default zero-division rule assigns zero to an undefined class F1 and emits a warning. It is not triggered here: each included class occurs in either the true labels or the predictions, so its F1 denominator is positive. Classes absent from both are omitted from that fold’s macro average. Reported results average the three fold-level scores equally rather than pooling predictions across folds. Unless explicitly labelled accuracy, predictive results report macro-F1. 
+
+Computation. All GFLOPs use fvcore.FlopCountAnalysis , whose convention counts one multiply-add as one FLOP; these values are therefore MAC-equivalent operation counts. Total raw-to-logit cost is reported as extraction cost plus the executed downstream network cost GF f .Extraction is counted per unit and multiplied by the number of units actually read for the sample: DINOv3 costs 60.9 GFLOPs per frame, XLS-R-1B costs 603.6 GFLOPs per 12-second segment, and wav2vec2-base costs 139.3 GFLOPs per 20-second segment. BERT cost depends on token count, and PointNet cost uses the mean number of points per frame. Fusion cost is counted per executed branch step and accumulated along the realized prefix. An extraction or fusion step that is skipped contributes no operations. This follows actual execution: a non-adaptive encoder that still processes a zero-filled input remains counted, even though the absent raw stream is not extracted. The ARC selector evaluates an approximately 6k-parameter MLP once per step, costing approximately 10 −5 GFLOPs. AdaMML, DynMM and DyMo gating operations are inside their traced graphs and are included by fvcore. Reported total GFLOPs include extraction, downstream encoding and fusion, and controller computation along the executed path. 
+
+Modality utilization. For every method, MU = N −1 P 
+
+> i
+
+|Si|/|A i|, where Ai is the nonempty set of modalities available to sample i under the current missingness mask and Si ⊆ A i is the set acquired or retained by the method. Methods that use every available modality have MU = 1 even when some modalities are missing. At full availability, |A i| = M . MU measures modality use, not the number of downstream encoders executed; a method can retain fewer modalities without skipping its encoders. 
+
+Latency and energy. Measured latency is elapsed inference time per sample. GPU and CPU energy measurements use cumulative hardware-counter differences; phone energy integrates battery power and subtracts an idle baseline. Component-replacement latency is measured end-to-end. 
+
+Three-fold summary convention. For the full-availability experiment, the appendix fold entries are the numerical source of truth. For EAV, the three entries correspond to independent cross-subject splits with overlapping test subjects; their standard deviation measures variation across these splits. We compute ¯x = 13
+
+P2 
+
+> r=0
+
+xr and the F1 sample standard deviation s =
+
+q 12
+
+P2
+
+> r=0
+
+(xr − ¯x)2. Means 22 Preprint are equally weighted across folds. Calculations retain the precision of the listed fold entries until final display rounding: F1, its standard deviation, and post-extraction GFLOPs use two decimal places; total GFLOPs use two decimals below 100 and integers otherwise. Halfway values round upward. Rankings use distinct displayed values, with ties sharing marks. Six-dataset full-availability gains use the recomputed means before display rounding; if baseline F1 means tie, the lower-total-GF baseline is selected. No hidden precision is reconstructed from rounded fold values. 
+
+Aggregate comparisons. For a reference value b and our value o, a relative F1 gain is 100( o/b −
+
+1)% ; a cost reduction is 100(1 − o/b )% . F1 differences in percentage points are 100( o − b). Dataset means weight the six datasets equally. Hardware reductions compare against the best measured baseline for each metric in each dataset–platform condition before averaging. 
+
+E COMPLETE RESULTS 
+
+E.1 COMPLETE RESULTS FOR TABLE 1
+
+Per-fold results. Tables 13–18 report, for each of the six datasets, the per-fold numbers behind the fold means of Table 1: macro-F1, modality usage MU (the fraction of modalities acquired per test sample, averaged over the test set) and end-to-end GFLOPs per sample, with the fusion cost GF f in parentheses. Every value is measured under full modality availability on the same cross-subject test folds as the main table; the main table and the 0% missingness entries are now recomputed directly from these three-fold values. End-to-end GFLOPs count the whole pipeline from raw data to logits: the encoder cost of every modality a method actually reads, plus its fusion cost. The results show the fact that S EMARC keeps the best or second-best F1 on almost every fold rather than winning on average through one favourable split. Within each column, bold and underlining mark the best and second-best distinct displayed values (highest F1; lowest MU, GF and GF f ); ties share markings. Table 13: IEMOCAP , per fold, full modality availability: macro-F1 ( ↑), modality usage MU ( ↓) and end-to-end GFLOPs ( ↓; fusion cost GF f in parentheses). Fold means and sample standard deviations of these values are the cells of Table 1; F1 is shown to three decimals. Per column, bold and underlining mark the best and second-best distinct displayed values (F1 highest; MU, GF and GF f lowest, GF compared on the displayed total); ties share markings. 
+
+Type Method Fold 0 Fold 1 Fold 2 
+
+F1 ↑ MU ↓ GF (GF f ) ↓ F1 ↑ MU ↓ GF (GF f ) ↓ F1 ↑ MU ↓ GF (GF f ) ↓
+
+Monolithic 
+
+MAESTRO .472 1.0 6696 (.23) .559 1.0 6696 (.23) .496 1.0 6696 (.23) ShaSpec .623 1.0 6697 (1.51) .636 1.0 6697 (1.51) .584 1.0 6697 (1.51) MBT .656 1.0 6696 (.41) .627 1.0 6696 (.41) .626 1.0 6696 (.41) DecAlign .470 1.0 6707 (11.41) .484 1.0 6707 (11.41) .486 1.0 6707 (11.41) 
+
+Fixed-seq. MultiModN .514 1.0 6696 (.76) .602 1.0 6696 (.76) .632 1.0 6696 (.76) 
+
+Selective 
+
+GMS .628 .17 1.51 (.07 ) .471 .83 6696 (.30) .515 1.0 6696 (.31) AdaMML .568 .50 6696 (.20) .633 .50 6696 (.20) .583 .50 6696 (.20) DynMM .625 1.0 6698 (2.22) .623 .70 6697 (1.56) .612 .70 6697 (1.56) DyMo .502 .27 6696 (.47) .591 .35 6696 (.49) .583 .33 6696 (.48) MMEE .625 1.0 6696 (.41) .597 1.0 6696 (.37) .604 1.0 6696 (.37) 
+
+Proactive Joint-AFA .613 .32 2097 (.16) .562 .24 1367 (.11 ) .542 .22 1501 (.11 )
+
+SEMARC (Ours) .682 .59 2691 (.26) .682 .79 3820 (.34) .643 .57 3423 (.25) 
+
+E.2 CLASS -CONDITIONAL ACQUISITION ON THE REMAINING FIVE DATASETS 
+
+Figure 8 in the main text shows that S EMARC’s acquisitions separate by true class on IEMOCAP ,in a form—one bar panel per class—that only stays readable for a small label space. Figure 11 gives the same quantity, P (j ∈ S | y), for the other five datasets: a class ×modality image with a side strip for the per-class mean acquired-set size. They span C=5 –27 , where a panel per class is no longer legible. 23 Preprint Table 14: MM-Fi , per fold, full modality availability: macro-F1 ( ↑), modality usage MU ( ↓) and end-to-end GFLOPs ( ↓; fusion cost GF f in parentheses). Fold means and sample standard deviations of these values are the cells of Table 1; F1 is shown to three decimals. Per column, bold and underlining mark the best and second-best distinct displayed values (F1 highest; MU, GF and GF f lowest, GF compared on the displayed total); ties share markings. 
+
+Type Method Fold 0 Fold 1 Fold 2 
+
+F1 ↑ MU ↓ GF (GF f ) ↓ F1 ↑ MU ↓ GF (GF f ) ↓ F1 ↑ MU ↓ GF (GF f ) ↓
+
+Monolithic 
+
+MAESTRO .232 1.0 18098 (.28) .229 1.0 18098 (.28) .067 1.0 18098 (.28) ShaSpec .713 1.0 18099 (1.68) .691 1.0 18099 (1.68) .570 1.0 18099 (1.68) MBT .824 1.0 18098 (.46) .929 1.0 18098 (.46) .557 1.0 18098 (.46) DecAlign .120 1.0 18106 (8.45) .492 1.0 18106 (8.45) .236 1.0 18106 (8.45) 
+
+Fixed-seq. MultiModN .429 1.0 18098 (.84) .437 1.0 18098 (.84) .323 1.0 18098 (.84) 
+
+Selective 
+
+GMS .424 .40 18089 (.46) .490 .60 18089 (.48) .274 1.0 18098 (.53) AdaMML .960 .40 18098 (.17) .977 .40 18098 (.17) .937 .40 18098 (.17) DynMM .856 .74 18099 (1.79) .904 .78 18099 (1.88) .367 .20 18098 (.53) DyMo .574 .42 18098 (.52) .527 .41 18098 (.52) .512 .42 18098 (.52) MMEE .597 1.0 18098 (.59) .643 1.0 18098 (.59) .546 1.0 18098 (.59) 
+
+Proactive Joint-AFA .003 .20 0.35 (.35) .195 .20 18089 (.12) .141 .23 18089 (.16) 
+
+SEMARC (Ours) .946 .21 861 ( .07 ) .989 .22 766 (.07 ) .915 .21 586 (.07 )
+
+Table 15: CMI , per fold, full modality availability: macro-F1 ( ↑), modality usage MU ( ↓) and end-to-end GFLOPs ( ↓; fusion cost GF f in parentheses). Fold means and sample standard deviations of these values are the cells of Table 1; F1 is shown to three decimals. Per column, bold and underlining mark the best and second-best distinct displayed values (F1 highest; MU, GF and GF f lowest, GF compared on the displayed total); ties share markings. 
+
+Type Method Fold 0 Fold 1 Fold 2 
+
+F1 ↑ MU ↓ GF (GF f ) ↓ F1 ↑ MU ↓ GF (GF f ) ↓ F1 ↑ MU ↓ GF (GF f ) ↓
+
+Monolithic 
+
+MAESTRO .456 1.0 0.28 (.28) .487 1.0 0.28 (.28) .464 1.0 0.28 (.28) ShaSpec .544 1.0 2.14 (2.14) .516 1.0 2.14 (2.14) .539 1.0 2.14 (2.14) MBT .561 1.0 0.55 (.55) .543 1.0 0.55 (.55) .546 1.0 0.55 (.55) DecAlign .565 1.0 23.33 (23.33) .543 1.0 23.33 (23.33) .575 1.0 23.33 (23.33) 
+
+Fixed-seq. MultiModN .445 1.0 1.07 (1.07) .452 1.0 1.07 (1.07) .441 1.0 1.07 (1.07) 
+
+Selective 
+
+GMS .493 1.0 0.12 (.12) .471 .86 0.11 (.11) .484 .71 0.09 (.09) AdaMML .516 .83 0.51 (.51) .505 .86 0.53 (.53) .525 .80 0.49 (.49) DynMM .546 .94 3.04 (3.04) .528 .98 3.17 (3.17) .532 .98 3.17 (3.17) DyMo .371 .28 0.65 (.65) .362 .30 0.66 (.66) .375 .28 0.65 (.65) MMEE .486 1.0 0.70 (.70) .472 1.0 0.70 (.70) .481 1.0 0.70 (.70) 
+
+Proactive Joint-AFA .361 .36 0.06 (.06 ) .359 .38 0.07 (.07 ) .419 .46 0.08 (.08 )
+
+SEMARC (Ours) .544 .40 0.23 (.23) .562 .94 0.54 (.54) .561 .91 0.53 (.53) 
+
+24 Preprint Table 16: CZU-MHAD , per fold, full modality availability: macro-F1 ( ↑), modality usage MU ( ↓) and end-to-end GFLOPs ( ↓; fusion cost GF f in parentheses). Fold means and sample standard deviations of these values are the cells of Table 1; F1 is shown to three decimals. Per column, bold and underlining mark the best and second-best distinct displayed values (F1 highest; MU, GF and GF f lowest, GF compared on the displayed total); ties share markings. 
+
+Type Method Fold 0 Fold 1 Fold 2 
+
+F1 ↑ MU ↓ GF (GF f ) ↓ F1 ↑ MU ↓ GF (GF f ) ↓ F1 ↑ MU ↓ GF (GF f ) ↓
+
+Monolithic 
+
+MAESTRO .182 1.0 6091 (.30) .436 1.0 6091 (.30) .135 1.0 6091 (.30) ShaSpec .645 1.0 6093 (2.17) .587 1.0 6093 (2.17) .524 1.0 6093 (2.17) MBT .910 1.0 6091 (.56) .849 1.0 6091 (.56) .703 1.0 6091 (.56) DecAlign .352 1.0 6114 (23.37) .469 1.0 6114 (23.37) .265 1.0 6114 (23.37) 
+
+Fixed-seq. MultiModN .563 1.0 6092 (1.08) .459 1.0 6092 (1.08) .379 1.0 6092 (1.08) 
+
+Selective 
+
+GMS .497 .14 6091 (.11 ) .504 .71 6091 (.18) .331 .14 6091 (.11) AdaMML .842 .14 6091 (.17) .914 .14 6091 (.17) .733 .14 6091 (.17) DynMM .809 .56 6092 (1.85) .793 .37 6092 (1.26) .660 .46 6092 (1.52) DyMo .675 .39 6091 (.69) .758 .31 6091 (.67) .527 .37 6091 (.69) MMEE .664 1.0 6091 (.73) .560 1.0 6091 (.73) .478 1.0 6091 (.73) 
+
+Proactive Joint-AFA .333 .17 6091 (.13) .248 .20 6091 (.13 ) .254 .14 6091 (.12) 
+
+SEMARC (Ours) .960 .62 6091 (.37) .982 .35 6091 (.22) .800 .15 6091 (.10 )
+
+Table 17: EAV , per fold, full modality availability: macro-F1 ( ↑), modality usage MU ( ↓) and end-to-end GFLOPs ( ↓; fusion cost GF f in parentheses). Fold means and sample standard deviations of these values are the cells of Table 1; F1 is shown to three decimals. Per column, bold and underlining mark the best and second-best distinct displayed values (F1 highest; MU, GF and GF f lowest, GF compared on the displayed total); ties share markings. 
+
+Type Method Fold 0 Fold 1 Fold 2 
+
+F1 ↑ MU ↓ GF (GF f ) ↓ F1 ↑ MU ↓ GF (GF f ) ↓ F1 ↑ MU ↓ GF (GF f ) ↓
+
+Monolithic 
+
+MAESTRO .516 1.0 6230 (.15) .549 1.0 6230 (.15) .537 1.0 6230 (.15) ShaSpec .638 1.0 6231 (.97) .550 1.0 6231 (.97) .615 1.0 6231 (.97) MBT .639 1.0 6230 (.26) .588 1.0 6230 (.26) .604 1.0 6230 (.26) DecAlign .634 1.0 6232 (1.77) .613 1.0 6232 (1.77) .599 1.0 6232 (1.77) 
+
+Fixed-seq. MultiModN .692 1.0 6230 (.49) .610 1.0 6230 (.49) .642 1.0 6230 (.49) 
+
+Selective 
+
+GMS .654 .33 139 (.09 ) .619 .33 139 (.09 ) .702 .33 139 (.09 )AdaMML .690 .67 6230 (.17) .561 .67 6230 (.17) .680 .67 6230 (.17) DynMM .654 .33 6230 (.52) .662 .33 6230 (.52) .678 .37 6230 (.57) DyMo .645 .52 6230 (.28) .581 .52 6230 (.28) .567 .53 6230 (.28) MMEE .618 1.0 6230 (.18) .521 1.0 6230 (.11) .647 1.0 6230 (.26) 
+
+Proactive Joint-AFA .585 .73 4394 (.18) .526 .52 2767 (.15) .523 .52 2802 (.15) 
+
+SEMARC (Ours) .699 .33 139 (.09 ) .668 .39 870 (.11) .701 .39 1149 (.11) 
+
+25 Preprint Table 18: UTD-MHAD , per fold, full modality availability: macro-F1 ( ↑), modality usage MU ( ↓) and end-to-end GFLOPs ( ↓; fusion cost GF f in parentheses). Fold means and sample standard deviations of these values are the cells of Table 1; F1 is shown to three decimals. Per column, bold and underlining mark the best and second-best distinct displayed values (F1 highest; MU, GF and GF f lowest, GF compared on the displayed total); ties share markings.                                                                                                                                         
+
+> Type Method Fold 0 Fold 1 Fold 2
+> F1 ↑MU ↓GF (GF f)↓F1 ↑MU ↓GF (GF f)↓F1 ↑MU ↓GF (GF f)↓
+> Monolithic
+> MAESTRO .683 1.0 7306 (.19) .721 1.0 7306 (.19) .689 1.0 7306 (.19) ShaSpec .809 1.0 7307 (1.29) .765 1.0 7307 (1.29) .566 1.0 7307 (1.29) MBT .873 1.0 7306 (.35) .759 1.0 7306 (.35) .805 1.0 7306 (.35) DecAlign .838 1.0 7310 (4.21) .709 1.0 7310 (4.21) .692 1.0 7310 (4.21)
+> Fixed-seq. MultiModN .764 1.0 7306 (.64) .578 1.0 7306 (.64) .636 1.0 7306 (.64)
+> Selective
+> GMS .675 1.0 7306 (.26) .667 .50 4124 (.13) .502 .50 4124 (.13) AdaMML .792 .50 7306 (.19) .683 .50 7306 (.19) .788 .50 7306 (.19) DynMM .828 1.0 7308 (1.91) .721 1.0 7308 (1.91) .777 1.0 7308 (1.91) DyMo .634 .43 7306 (.38) .638 .42 7306 (.38) .538 .43 7306 (.38) MMEE .631 1.0 7306 (.44) .692 1.0 7306 (.44) .622 1.0 7306 (.44)
+> Proactive Joint-AFA .325 .26 0.02 (.02 ).331 .41 2246 (.09 ).256 .25 19.20 (.02 )
+> SEMARC (Ours) .931 .56 5204 (.21) .724 .41 3488 (.15) .826 .58 5426 (.21)
+
+The effect is not an IEMOCAP artifact. Mean acquired-set size varies by class on every dataset— 
+
+3.44 –5.76 of M =7 on CMI , 1.63 –3.67 of 7 on CZU-MHAD and 1.92 –3.50 of 4 on UTD-MHAD —so on every stack some classes are settled cheaply and others are not. The universal-probe pattern recurs as the dark column each panel carries: one stream the policy almost never skips, IMU on 
+
+CMI and inertial on UTD-MHAD as text is on IEMOCAP , with the remaining streams bought class-selectively around it. Two datasets sit at the extremes. MM-Fi is the narrowest at 1.00 –1.50 of 
+
+M =5 : several classes are settled by a single modality, consistent with its policy acquiring only 0.218 
+
+of the available streams in Table 27. EAV is flat for the opposite reason—with M =3 there is little to choose between, and the acquired set stays between 1.12 and 1.25 —which is worth reading as a limit of the method rather than a property of the data: adaptive acquisition needs something to trade off, and three streams barely provide it. 
+
+F COMPLETE ENERGY –L ATENCY STUDY RESULTS 
+
+Table 20 reports the hardware results supporting Figure 5. Across six datasets, S EMARC has the lowest reported latency in 10 of 12 GPU/CPU conditions and the lowest reported energy in 8 of 12, with mean reductions of 44.0% and 42.6%, respectively, relative to the best of the three adaptive baselines (AdaMML, DynMM and DyMo) for each metric. The exceptions are CMI, whose raw sensor streams are nearly free to extract, and CZU-MHAD, where S EMARC acquires the dominant depth stream for every sample and its GPU latency is within 0.3% of the fastest baseline. Android INT8 results cover all six datasets and are excluded from these GPU/CPU aggregate percentages. On Android INT8, S EMARC has the lowest reported latency and energy on all six datasets, with mean reductions of 47.2% and 49.7%, respectively, relative to the best of the same three adaptive baselines for each metric. These are equal-weight means of the six dataset-specific percentage reductions; the CMI energy comparison should be interpreted cautiously because of the small measured energies. 
+
+Measurement protocol for Table 20. GPU measurements use one NVIDIA L40 (48 GB) in a dual-socket Intel Xeon Platinum 8462Y+ server ( 2 × 32 cores), with the machine otherwise idle and the GPU dedicated to the benchmark. CPU measurements use the same server without GPU execution and with PyTorch’s default intra-op thread pool. Each method runs in eager PyTorch at batch size 1. For each sample, its required raw files are read and decoded, the corresponding frozen extractors and downstream encoders execute according to the method’s selection and missingness rules, and the fusion network and any acquisition loop produce the logits. All encoders are loaded 26 Preprint infra1 wifi mmwave lidar depth       
+
+> 012345678910 11 12 13 14 15 16 17 18 19 20 21 22 23 24 25 26
+> true class MM-Fi P(j∈S∣y)
+> 05
+> |S|
+> 0.0 0.5 1.0
+
+(a) MM-Fi IMU THM ToF 1       
+
+> ToF 2
+> ToF 3
+> ToF 4
+> ToF 5
+> 012345678910 11 12 13 14 15 16 17
+> true class CMI P(j∈S∣y)
+> 07
+> |S|
+> 0.0 0.5 1.0
+
+(b) CMI depth skeleton sensor_head sensor_torso sensor_rarm sensor_larm sensor_leg        
+
+> 012345678910 11 12 13 14 15 16 17 18 19 20 21
+> true class CZU-MHAD P(j∈S∣y)
+> 07
+> |S|
+> 0.0 0.5 1.0
+
+(c) CZU-MHAD skeleton inertial depth rgb       
+
+> 012345678910 11 12 13 14 15 16 17 18 19 20 21 22 23 24 25 26
+> true class UTD-MHAD P(j∈S∣y)
+> 04
+> |S|
+> 0.0 0.5 1.0
+
+(d) UTD-MHAD eeg audio video 01234       
+
+> true class EAV P(j∈S∣y)
+> 03
+> |S|
+> 0.0 0.5 1.0
+
+(e) EAV 
+
+Figure 11: Class-conditional acquisition on the five datasets outside the main text. Each cell is 
+
+P (j ∈ S | y), the probability that the deployed policy acquires modality j given true class y, at full availability with the test folds pooled; darker is more often acquired. The red strip right of each panel is that class’s mean acquired-set size |S| on a 0–M scale. Panels preserve their aspect ratios and fit within their columns; modality counts are M =3 –7 and class counts are C=5 –27 . IEMOCAP ,drawn the same way, is Figure 8. and one-time archive conversions are completed before timing. The first three samples of each fold are used for untimed warm-up on both GPU and CPU. Latency is wall-clock time from immediately before the first file read until the logits are returned. GPU timing synchronizes CUDA at both boundaries; CPU timing uses the same wall-clock boundaries without CUDA synchronization. GPU energy is the difference between readings of the board’s cumulative energy counter, nvmlDeviceGetTotalEnergyConsumption , at these boundaries. It requires no power sampling and includes the GPU’s idle draw during the timed interval. CPU energy is measured on the complete test set of each fold using the difference of four package-plus-DRAM RAPL counters, including idle consumption over the interval. Each baseline energy cell averages these samples within each fold and then averages the folds. 
+
+SEMARC under the deployed rule. SEMARC’s GPU and CPU latency is measured end to end under the deployed rule (Section 3.3) on the complete test folds, using the protocol above. Android deployment uses the same policy rule. For fairness we use the same mobile device for all measurements. Running takes very long due to the low processing speed. Thus, measurements on the phone are for the first 50 test samples of each fold. On every platform, the prior uses the same per-fold λtrain as policy fitting. Server prediction metrics are evaluated on the complete test set. Latency and energy are measured end to end for each baseline. For example, the IEMOCAP folds contain 909, 793 and 1000 test samples. Each reported mean averages samples within a fold and then weights the three folds equally. Fold-to-fold latency standard deviations are below 10% of the mean except on CZU-MHAD and UTD-MHAD, whose folds differ in clip length; per-fold measurements are retained with the raw result files. Component-replacement and cost-sensitivity latency measurements use the same L40 server and time each configuration end to end (Appendices H and J). 27 Preprint F.1 ON-D EVICE DEPLOYMENT AND QUANTIZATION 
+
+Hardware and runtime. On-device measurements use a OnePlus phone with a Qualcomm Snap-dragon 8 Gen 3 (SM8650: one Cortex-X4, five Cortex-A720 and two Cortex-A520 cores, Adreno 750 GPU, and Hexagon NPU), 16 GB RAM, and Android 16. One Kotlin application performs the complete pipeline at batch size 1: raw-file decoding, feature extraction, modality acquisition, fusion, and prediction. Inference uses ONNX Runtime for Android 1.19 ( onnxruntime-android from Maven), with the CPU execution provider and four intra-op threads. NNAPI, GPU and NPU execution providers are disabled. Encoder sessions are created once and remain resident, excluding session creation from timed samples. Latency is measured with System.nanoTime . Phone energy is calculated from the battery fuel gauge by integrating instantaneous current times voltage at 10 Hz and subtracting an idle baseline calibrated for 3 s before each run, with the phone unplugged and the screen on. For datasets whose samples are shorter than the gauge update interval, all measured samples are timed as one block and total latency and energy are divided by the sample count. To keep measurement time manageable, we perform measurements on a subset of the test samples. Every method uses the same fixed first 50 test samples of each fold, with per-sample records retained in the app’s result files. On-device macro-F1 is computed on these samples; server GPU/CPU macro-F1 uses the complete test folds. The quantization pilot below reports accuracy and is distinct from macro-F1. Thus, server and phone prediction metrics describe different evaluation populations. 
+
+Quantization. All deployed methods use post-training quantization without fine-tuning. Deploy-ment uses ONNX Runtime dynamic W8A8 quantization, with per-channel INT8 weights and runtime per-tensor INT8 activations for compute-dominant matrix multiplications, including linear and at-tention projections. Normalization, softmax, activation functions, and small Gemm /Conv layers remain fp32. SmoothQuant (Xiao et al., 2023) redistributes activation outliers into weights through an equivalent fp32 transformation. 
+
+Calibration data and label use. Calibration inputs come from the validation partitions. The initial IEMOCAP calibration for XLS-R, BERT, DINOv3, and the fusion graph uses eight samples from the val manifest, sampled with seed 0 and stratified by label (two samples per emotion). Fusion graphs for the other five datasets use the last eight samples in each val-fold manifest. The shared DINOv3 image encoder is subsequently recalibrated on a mixture of IEMOCAP video frames and frames from the first three staged val samples per source on UTD-MHAD (depth and RGB), CZU-MHAD (depth), and MM-Fi (depth), using 12 frames per source. SmoothQuant calibration itself uses channel-wise maxima of absolute input activations for each matrix multiplication and weight ranges, without a supervised loss or parameter fine-tuning. Dynamic W8A8 computes activation scales per tensor at runtime. Table 19 motivates this choice. Whole-stack accuracy on IEMOCAP varies by less than 0.5 percentage points across precisions, but deployment efficiency and feature fidelity differ substantially. fp16 causes ViT-L attention overflow and largely falls back to fp32 on the CPU; weight-only INT8 preserves fidelity but provides little speedup. W8A8 enables fast INT8 kernels, yet severely distorts DINOv3 and BERT features. SmoothQuant improves their cosine similarity to fp32 from 0.618 to 0.990 and from 0.938 to 0.979, respectively, while retaining accelerated inference. Fusion graphs operating on ℓ2-normalized features already preserve outputs under either variant (mean cosine 0.9999; argmax agreement 1.000). Across the adaptive methods, SmoothQuant increases end-to-end prediction agreement with fp32 from 81.2% to 93.8%, with exact agreement for S EMARC and DyMo (24 fold-0 IEMOCAP samples run end to end through the ONNX graphs, S EMARC under the deployed rule). We therefore deploy SmoothQuant W8A8 without fine-tuning for every method. 
+
+G COMPLETE MISSINGNESS STUDY RESULTS 
+
+Tables 21–26 report macro-F1 and total GFLOPs, with post-extraction cost GF f in parentheses. The primary-method entries at 0% missingness use the same recomputed three-fold means and sample standard deviations as Table 1. The 10–40% measurements are retained at their reported precision; missing standard deviations are not inferred. Among the 30 dataset–missingness conditions, 28 Preprint Table 19: Quantization pilot on IEMOCAP. Top: cross-subject test accuracy (three folds) for fp32, fp16, and two INT8 settings. QAT is included only as an experimental comparison; the deployed PTQ setting uses no fine-tuning. fp16 uses bf16 for the ViT-L encoder. Bottom: the shared encoders on Android phone with ONNX Runtime: size, output-feature cosine against fp32 on real inputs (min. per-token cosine in parentheses) and latency relative to fp32. W8A8 = plain dynamic INT8; SQ70 = SmoothQuant( α=0 .7) then the same quantizer, the deployed format. 
+
+Method fp32 fp16 INT8 (QAT) INT8 (PTQ) 
+
+SEMA+ARC (Ours) .696 .697 .696 .696 AdaMML .623 .624 .624 .619 DynMM .663 .661 .663 .663 DyMo .640 .639 .641 .642 
+
+Encoder / format MB cos (min tok.) latency vs fp32 
+
+DINOv3-L/16 fp32 1213 1.000 (1.000) 1.00 ×
+
+weight-only INT8 308 1.000 (–) ≈1.0 ×
+
+W8A8 308 0.618 (0.528) 0.24 ×
+
+SQ70 309 0.990 (0.973) 0.21 ×
+
+XLSR-1B fp32 3852 1.000 (1.000) 1.00 ×
+
+W8A8 1023 0.995 (0.252) 0.30 ×
+
+SQ70 1025 0.996 (0.384) 0.25 ×
+
+BERT-base fp32 436 1.000 (1.000) 1.00 ×
+
+W8A8 182 0.938 (0.117) 0.44 ×
+
+SQ70 182 0.979 (0.460) 0.40 ×
+
+Table 20: Latency and energy across compute platforms. Each entry reports latency (ms)/energy (J); lower is better. Bold and underlining denote the best and second-best values within each dataset and platform, ranked separately for latency and energy at full precision. Latency is measured end to end for every method and platform. S EMARC uses the deployed policy. Server prediction metrics on GPU and CPU use the complete test folds; phone metrics use the same 50 samples per fold for every method. GPU and CPU energy include idle consumption over the timed interval, whereas phone energy subtracts a calibrated idle baseline.                                                                                                 
+
+> Method IEMOCAP MM-Fi CMI CZU-MHAD EAV UTD-MHAD
+> GPU
+> MBT 1530.22/367.68 4234.19/804.09 15.12/2.15 1324.02/260.59 2032.22/321.31 1036.01/279.43 AdaMML 1595.15/385.60 4196.11/789.15 14.61/ 1.57 1312.38 /262.83 2011.12/316.99 1018.04/275.27 DynMM 1599.79/384.79 4194.79/796.49 17.98/1.64 1317.80/ 259.45 2017.36/319.48 1020.67/275.42 DyMo 1616.70/388.86 4208.37/799.10 35.50/3.75 1341.98/264.15 2028.04/322.96 1031.99/277.82
+> SEMARC (Ours) 732.23 /180.65 179.46 /32.84 14.39 /1.60 1315.73/260.54 224.42 /36.74 627.78 /169.99
+> CPU
+> MBT 14618.00/3844.30 19551.00/4509.80 35.01/3.80 6467.90/1360.10 8054.00/1246.80 8055.00/2308.20 AdaMML 14687.00/3693.60 19551.00/4429.50 23.00 /2.10 6437.00/ 1265.90 8076.00/1246.80 8062.00/2273.80 DynMM 13546.00/3844.30 19477.00/4646.50 41.00/4.40 6489.00/1420.30 7954.00/1319.00 8031.00/2390.10 DyMo 14618.00/3856.80 19567.00/4509.80 48.00/4.60 6498.00/1364.50 8054.00/1244.30 8055.00/2308.20
+> SEMARC (Ours) 7057.57 /1862.06 810.81 /186.88 30.64/2.94 6284.01 /1319.57 628.70 /97.13 4429.75 /1269.37
+> Android ONNX Runtime (INT8)
+> MBT 38229.44/169.40 100256.70/351.37 45.00/0.11 33891.60/174.72 37646.00/163.14 42716.00/165.44 AdaMML 38360.50/151.76 99529.80/354.73 47.00/0.18 34356.00/155.27 37445.30/167.97 47223.00/174.50 DynMM 39354.00/169.99 96346.60/381.87 59.00/0.21 34482.30/155.95 37498.70/163.76 45987.00/168.25 DyMo 37946.00/180.07 99350.50/350.61 46.00/0.13 34530.80/155.87 37460.70/159.65 43746.00/188.68
+> SEMARC (Ours) 19383.10 /88.21 2509.60 /12.23 39.80 /0.09 33058.10 /147.85 5909.90 /24.79 28305.00 /96.84
+
+29 Preprint Table 21: Macro-F1 ( ↑; mean ±std where available) and end-to-end GFLOPs ( ↓; fusion cost GF f in parentheses) on IEMOCAP under 0–40% test-time modality missingness. Per column, bold and underlining mark the best and second-best distinct displayed values (F1 highest; GF and GF f lowest); ties share markings; the backbone reference row is not ranked. The 0% primary-method entries use the recomputed three-fold summaries.                                                                                                                                                                
+
+> Method 0% 10% 20% 30% 40%
+> F1 ↑GF (GF f)↓F1 ↑GF (GF f)↓F1 ↑GF (GF f)↓F1 ↑GF (GF f)↓F1 ↑GF (GF f)↓
+> MBT .64 ±.02 6696 (.41) .61 6026 (.41) .60 ±.02 5357 (.41) .57 4688 (.41) .55 ±.03 4022 (.41) MAESTRO .51 ±.04 6696 (.23) .45 6026 (.23) .42 ±.02 5357 (.23) .38 4688 (.23) .36 ±.03 4022 (.23) ShaSpec .61 ±.03 6697 (1.51) .58 6027 (1.51) .56 ±.03 5358 (1.51) .55 4689 (1.51) .51 ±.03 4023 (1.51) DecAlign .48 ±.01 6707 (11.41) .46 6037 (11.41) .45 ±.01 5368 (11.41) .42 4699 (11.41) .42 ±.01 4033 (11.41) MultiModN .58 ±.06 6696 (.76) .57 6027 (.76) .55 ±.07 5357 (.76) .54 4688 (.76) .51 ±.06 4023 (.76) GMS .54 ±.08 4465 (.23) .52 ±.06 4046 (.20) .49 ±.05 3604 (.18) .47 ±.05 3146 (.16) .44 ±.04 2712 (.14) AdaMML .59 ±.03 6696 (.20) .55 6026 (.22) .55 ±.04 5357 (.20) .48 4688 (.22) .50 ±.02 4022 (.22) DynMM .62 ±.01 6697 (1.78) .58 6028 (1.79) .56 ±.01 5358 (1.81) .50 4690 (1.84) .48 ±.01 4024 (1.87) DyMo .56 ±.05 6696 (.48) .54 6026 (.48) .53 ±.05 5357 (.48) .51 4688 (.48) .49 ±.04 4022 (.48) MMEE .61 ±.01 6696 (.38) .58 6026 (.39) .56 ±.01 5357 (.40) .53 4688 (.41) .51 ±.01 4022 (.42) Joint-AFA .57 ±.04 1655 (.13 ).55 ±.03 1908 (.13 ).53 ±.03 2067 (.12 ).52 ±.01 2076 ( .12 ).49 ±.02 2038 ( .12 )SEMA (w/o ARC) .67 ±.01 6696 (.43) .63 6026 (.39) .64 ±.01 5357 (.34) .60 4688 (.30) .58 ±.03 4022 (.26)
+> SEMARC (Ours) .67 ±.02 3311 (.28) .65 ±.02 2589 (.23) .62 ±.00 2095 (.19) .60 ±.01 1764 (.16) .55 ±.03 1453 (.13)
+
+SEMARC attains the highest displayed F1 in 26 (including ties) and is Pareto non-dominated in 29 using total GFLOPs, or 29 using post-extraction GFLOPs. The backbone-only diagnostic is excluded from these rankings. These are displayed-precision counts, not claims about an unavailable higher-precision ranking. At 40% missingness, the displayed values imply the following relative F1 changes and total-GFLOP reductions against the highest-F1 baseline (ties broken by lower total GFLOPs): IEMOCAP (0.0%, 63.9%), MM-Fi (6.9%, 52.4%), CMI (0.0%, 60.0%), CZU-MHAD (7.0%, -2.6%), EAV (3.7%, 55.2%), UTD-MHAD (6.3%, 19.8%). A negative reduction denotes a cost increase. Post-extraction costs are separate and must not be substituted for total GFLOPs in these comparisons. 
+
+Experimental Setup for Missingness Study. We evaluate every method on the same six datasets and the same cross-subject test folds as Table 1, under test-time modality missingness at rates 
+
+ρ ∈ { 0.1, 0.2, 0.3, 0.4}; ρ = 0 is the full-availability setting of the main table. Missingness is simulated per test sample: each of the M modalities is dropped independently with probability ρ,and if every modality of a sample is dropped one is reinstated uniformly at random. The masks are drawn once per fold with a fixed seed and shared by all methods, so every method sees exactly the same set of absent modalities on every sample. All models use the checkpoints of the full-availability experiment, and S EMARC keeps its deployed acquisition policy unchanged across all levels. The policy is trained with modality-availability augmentation and absent modalities are in-distribution for it at test time. Every method skips raw-data extraction for absent modalities. MBT, MAESTRO, ShaSpec, DecAlign, MultiModN and MMEE still execute their downstream modality encoders with zero-filled inputs for absent positions; MultiModN separately skips the corresponding state updates. AdaMML and DyMo can skip encoders, whereas DynMM cannot. GMS, Joint-AFA and S EMARC request only available modalities through their selection or acquisition masks. MU is normalized per sample by the number of available modalities, and is therefore 1 for methods that retain all available inputs. End-to-end GFLOPs include the raw extraction actually performed and the downstream encoders, fusion, and controller computation executed at batch size 1. Macro-F1 is computed on the full test set of each fold and averaged over folds; standard deviations are given where all folds were measured under the three-trial protocol. 
+
+H COMPLETE COMPONENT REPLACEMENT STUDY RESULTS FOR TABLE 2
+
+Table 27 reports per-dataset macro-F1, modality utilization (MU), and latency for the configurations in Table 2, whose means weight all six datasets equally. 30 Preprint Table 22: Macro-F1 ( ↑; mean ±std where available) and end-to-end GFLOPs ( ↓; fusion cost GF f
+
+in parentheses) on MM-Fi under 0–40% test-time modality missingness. Per column, bold and underlining mark the best and second-best distinct displayed values (F1 highest; GF and GF f lowest); ties share markings; the backbone reference row is not ranked. The 0% primary-method entries use the recomputed three-fold summaries. 
+
+Method 0% 10% 20% 30% 40% 
+
+F1 ↑ GF (GF f ) ↓ F1 ↑ GF (GF f ) ↓ F1 ↑ GF (GF f ) ↓ F1 ↑ GF (GF f ) ↓ F1 ↑ GF (GF f ) ↓
+
+MBT .77 ±.19 18098 (.46) .69 16288 (.46) .63 ±.17 14480 (.46) .56 12678 (.46) .52 ±.14 10896 (.46) MAESTRO .18 ±.09 18098 (.28) .17 16288 (.28) .14 ±.07 14479 (.28) .14 12677 (.28) .14 ±.08 10896 (.28) ShaSpec .66 ±.08 18099 (1.68) .58 16289 (1.68) .56 ±.04 14481 (1.68) .47 12679 (1.68) .44 ±.05 10897 (1.68) DecAlign .28 ±.19 18106 (8.45) .24 16296 (8.45) .24 ±.12 14488 (8.45) .21 12685 (8.45) .19 ±.09 10904 (8.45) MultiModN .40 ±.06 18098 (.84) .37 16289 (.84) .35 ±.04 14480 (.84) .32 12678 (.84) .29 ±.07 10896 (.84) GMS .40 ±.11 18092 (.49) .36 ±.08 16429 (.44) .34 ±.06 15124 (.39) .30 ±.06 13346 (.35) .28 ±.06 11782 (.30) AdaMML .96 ±.02 18098 (.17) .88 16288 (.17) .87 ±.02 14479 (.17) .74 12677 (.17) .72 ±.03 10896 (.17) DynMM .71 ±.30 18099 (1.40) .66 16289 (1.35) .60 ±.24 14480 (1.33) .54 12678 (1.33) .47 ±.17 10897 (1.30) DyMo .54 ±.03 18098 (.52) .53 16288 (.52) .51 ±.04 14480 (.52) .49 12678 (.52) .45 ±.04 10896 (.52) MMEE .60 ±.05 18098 (.59) .56 16288 (.59) .53 ±.04 14480 (.59) .51 12678 (.59) .46 ±.06 10896 (.59) Joint-AFA .11 ±.10 12059 (.21) .11 ±.08 11099 (.21) .11 ±.08 10146 (.21) .10 ±.07 9070 (.21) .10 ±.07 8208 (.20) SEMA (w/o ARC) .94 ±.05 18098 (.48) .89 16288 (.44) .83 ±.06 14480 (.39) .76 12677 (.34) .69 ±.07 10896 (.30) 
+
+SEMARC (Ours) .95 ±.04 738 (.07 ) .91 ±.06 2592 (.08 ) .88 ±.06 4188 (.09 ) .83 ±.06 4659 (.09 ) .77 ±.09 5189 (.09 )
+
+Table 23: Macro-F1 ( ↑; mean ±std where available) and end-to-end GFLOPs ( ↓; fusion cost GF f in parentheses) on CMI under 0–40% test-time modality missingness. Per column, bold and underlining mark the best and second-best distinct displayed values (F1 highest; GF and GF f lowest); ties share markings; the backbone reference row is not ranked. The 0% primary-method entries use the recomputed three-fold summaries. 
+
+Method 0% 10% 20% 30% 40% 
+
+F1 ↑ GF (GF f ) ↓ F1 ↑ GF (GF f ) ↓ F1 ↑ GF (GF f ) ↓ F1 ↑ GF (GF f ) ↓ F1 ↑ GF (GF f ) ↓
+
+MBT .55 ±.01 0.55 (.55) .53 0.55 (.55) .52 ±.01 0.55 (.55) .47 0.55 (.55) .46 ±.02 0.55 (.55) MAESTRO .47 ±.02 0.28 (.28) .42 0.28 (.28) .37 ±.01 0.28 (.28) .32 0.28 (.28) .27 ±.02 0.28 (.28) ShaSpec .53 ±.01 2.14 (2.14) .52 2.14 (2.14) .50 ±.02 2.14 (2.14) .48 2.14 (2.14) .45 ±.01 2.14 (2.14) DecAlign .56 ±.02 23.33 (23.33) .54 23.33 (23.33) .52 ±.01 23.33 (23.33) .49 23.33 (23.33) .45 ±.01 23.33 (23.33) MultiModN .45 ±.01 1.07 (1.07) .44 1.07 (1.07) .43 ±.01 1.07 (1.07) .41 1.07 (1.07) .40 ±.02 1.07 (1.07) GMS .48 ±.01 0.11 (.11) .42 ±.01 0.10 (.10) .37 ±.01 0.09 (.09) .33 ±.01 0.07 (.07) .29 ±.02 0.06 (.06 )AdaMML .52 ±.01 0.51 (.51) .49 0.45 (.45) .47 ±.01 0.48 (.48) .41 0.43 (.43) .41 ±.02 0.44 (.44) DynMM .54 ±.01 3.13 (3.13) .51 3.12 (3.12) .49 ±.00 3.10 (3.10) .46 3.07 (3.07) .43 ±.01 3.02 (3.02) DyMo .37 ±.01 0.65 (.65) .38 0.65 (.65) .38 ±.01 0.65 (.65) .37 0.65 (.65) .37 ±.01 0.65 (.65) MMEE .48 ±.01 0.70 (.70) .46 0.70 (.70) .44 ±.01 0.70 (.70) .42 0.71 (.71) .39 ±.02 0.71 (.71) Joint-AFA .38 ±.03 0.07 (.07 ) .37 ±.03 0.07 (.07 ) .37 ±.02 0.06 (.06 ) .36 ±.02 0.06 (.06 ) .35 ±.02 0.06 (.06 )SEMA (w/o ARC) .57 ±.01 0.58 (.58) .55 0.52 (.52) .54 ±.01 0.46 (.46) .51 0.40 (.40) .49 ±.01 0.35 (.35) 
+
+SEMARC (Ours) .56 ±.01 0.43 (.43) .53 ±.01 0.37 (.37) .51 ±.02 0.31 (.31) .49 ±.03 0.26 (.26) .46 ±.02 0.22 (.22) 
+
+Latency. Component-replacement latency is measured end-to-end on one NVIDIA L40 GPU, on an otherwise idle server, with batch size 1 and no feature caching. For each sample i, the controller determines the acquired set Si and thus the raw-data extraction path; different controllers can request different raw modalities for the same sample. The result counts extraction only for those acquired modalities, together with the executed fusion steps, readouts, and selector calls. We average sample results within each dataset and weight the six dataset means equally. 
+
+Replacing the controller. SEMA + GMS provides a static-selection comparison using the same fusion backbone. At the reported operating points, S EMARC achieves both higher mean macro-F1 and lower mean latency across the six datasets (Table 2). This comparison supports the benefit of our controller beyond the choice of backbone, although the advantage varies by dataset and acquisition budget. EAMA and Joint-AFA replace ARC with pre-backbone selectors. Both select modalities from raw previews of the inputs acquired so far and never read an intermediate S EMA prediction. Joint-AFA acquires one modality per decision, whereas EAMA acquires a nonempty subset. After acquisition terminates, the frozen S EMA processes the final acquired set once. Their action spaces and stopping rules are detailed in Appendix C.1. 31 Preprint Table 24: Macro-F1 ( ↑; mean ±std where available) and end-to-end GFLOPs ( ↓; fusion cost GF f
+
+in parentheses) on CZU-MHAD under 0–40% test-time modality missingness. Per column, bold 
+
+and underlining mark the best and second-best distinct displayed values (F1 highest; GF and GF f
+
+lowest); ties share markings; the backbone reference row is not ranked. The 0% primary-method entries use the recomputed three-fold summaries. 
+
+Method 0% 10% 20% 30% 40% 
+
+F1 ↑ GF (GF f ) ↓ F1 ↑ GF (GF f ) ↓ F1 ↑ GF (GF f ) ↓ F1 ↑ GF (GF f ) ↓ F1 ↑ GF (GF f ) ↓
+
+MBT .82 ±.11 6091 (.56) .75 5482 (.56) .69 ±.10 4873 (.56) .65 4264 (.56) .57 ±.10 3656 (.56) MAESTRO .25 ±.16 6091 (.30) .22 5482 (.30) .20 ±.11 4873 (.30) .17 4264 (.30) .14 ±.07 3656 (.30) ShaSpec .59 ±.06 6093 (2.17) .54 5484 (2.17) .49 ±.04 4874 (2.17) .47 4266 (2.17) .42 ±.05 3658 (2.17) DecAlign .36 ±.10 6114 (23.37) .34 5505 (23.37) .29 ±.07 4896 (23.37) .30 4287 (23.37) .24 ±.05 3679 (23.37) MultiModN .47 ±.09 6092 (1.08) .44 5482 (1.08) .41 ±.09 4874 (1.08) .38 4265 (1.08) .34 ±.05 3657 (1.08) GMS .44 ±.10 6091 (.13 ) .41 ±.07 5487 (.12) .38 ±.07 4887 ( .11 ) .35 ±.07 4320 (.10) .32 ±.06 3749 ( .08 )AdaMML .83 ±.09 6091 (.17) .78 5482 (.09 ) .72 ±.08 4873 (.18) .69 4264 (.09 ) .56 ±.07 3656 (.19) DynMM .75 ±.08 6092 (1.54) .67 5483 (1.58) .62 ±.10 4874 (1.61) .57 4265 (1.70) .48 ±.05 3657 (1.75) DyMo .65 ±.12 6091 (.68) .61 5482 (.68) .56 ±.12 4873 (.68) .52 4264 (.68) .46 ±.10 3656 (.68) MMEE .57 ±.09 6091 (.73) .52 5482 (.73) .52 ±.10 4873 (.73) .47 4264 (.73) .42 ±.08 3656 (.73) Joint-AFA .28 ±.05 6091 (.13 ) .27 ±.04 5487 (.12) .26 ±.04 4887 (.12) .25 ±.04 4320 (.11) .23 ±.04 3750 (.10) SEMA (w/o ARC) .92 ±.07 6091 (.59) .84 5482 (.53) .76 ±.06 4873 (.47) .71 4264 (.41) .61 ±.03 3656 (.36) 
+
+SEMARC (Ours) .91 ±.10 6091 (.23) .83 ±.08 5487 (.22) .75 ±.07 4888 (.20) .68 ±.07 4321 (.19) .61 ±.05 3750 (.17) 
+
+Table 25: Macro-F1 ( ↑; mean ±std where available) and end-to-end GFLOPs ( ↓; fusion cost GF f in parentheses) on EAV under 0–40% test-time modality missingness. Per column, bold and underlining mark the best and second-best distinct displayed values (F1 highest; GF and GF f lowest); ties share markings; the backbone reference row is not ranked. The 0% primary-method entries use the recomputed three-fold summaries. 
+
+Method 0% 10% 20% 30% 40% 
+
+F1 ↑ GF (GF f ) ↓ F1 ↑ GF (GF f ) ↓ F1 ↑ GF (GF f ) ↓ F1 ↑ GF (GF f ) ↓ F1 ↑ GF (GF f ) ↓
+
+MBT .61 ±.03 6230 (.26) .58 5609 (.26) .55 ±.02 5001 (.26) .53 4417 (.26) .50 ±.01 3871 (.26) MAESTRO .53 ±.02 6230 (.15) .48 5609 (.15) .45 ±.01 5001 (.15) .41 4417 (.15) .36 ±.01 3871 (.15) ShaSpec .60 ±.05 6231 (.97) .58 5610 (.97) .56 ±.04 5001 (.97) .52 4418 (.97) .50 ±.02 3872 (.97) DecAlign .62 ±.02 6232 (1.77) .58 5611 (1.77) .55 ±.01 5002 (1.77) .51 4419 (1.77) .48 ±.01 3872 (1.77) MultiModN .65 ±.04 6230 (.49) .61 5609 (.49) .59 ±.04 5001 (.49) .56 4417 (.49) .54 ±.02 3871 (.49) GMS .66 ±.04 139 (.09 ) .61 ±.03 126 (.08 ) .57 ±.02 114 (.07 ) .52 ±.03 101 (.06 ) .48 ±.02 88.70 (.06 )AdaMML .64 ±.07 6230 (.17) .60 5609 (.18) .58 ±.06 5001 (.17) .52 4417 (.18) .51 ±.04 3871 (.17) DynMM .66 ±.01 6230 (.54) .61 5609 (.54) .58 ±.01 5001 (.54) .53 4417 (.54) .49 ±.01 3871 (.55) DyMo .60 ±.04 6230 (.28) .58 5609 (.28) .56 ±.04 5001 (.28) .53 4417 (.28) .50 ±.03 3871 (.28) MMEE .60 ±.07 6230 (.18) .56 5609 (.18) .52 ±.06 5001 (.18) .48 4417 (.18) .44 ±.06 3871 (.18) Joint-AFA .54 ±.03 3321 (.16) .53 ±.02 3235 (.15) .50 ±.02 3162 (.14) .47 ±.02 3022 (.13) .46 ±.01 2873 (.12) SEMA (w/o ARC) .67 ±.03 6230 (.27) .64 5609 (.25) .61 ±.03 5001 (.22) .58 4417 (.20) .56 ±.02 3871 (.17) 
+
+SEMARC (Ours) .69 ±.02 719 (.10) .65 ±.03 1075 (.10) .62 ±.02 1311 (.10) .59 ±.03 1557 (.10) .56 ±.01 1736 (.10) 
+
+Replacing the backbone. In MultiModN + ARC, the sequential fusion backbone S EMA is replaced by MultiModN with ARC stays the decider for modality acquisition and stop action. 
+
+I COMPLETE ABLATION RESULTS FOR FIGURE 7
+
+Table 28 gives the complete IEMOCAP ablation behind Figure 7. Every row changes exactly one component of S EMARC and is evaluated on the same three test folds under full modality availability. SEMA ablations retrain the backbone with the listed change and then fit ARC on the retrained backbone with the deployed per-fold seed and training price λ, the prior priced at the same λ; the column “S EMA F1” reports the retrained backbone alone, consuming all six modalities and averaged over the same 24 modality orders for every checkpoint, so that an order-fragile variant is not judged on a single favourable or unfavourable order. ARC ablations keep the deployed backbone and change only the controller, again at the deployed per-fold seed and λ. The relative change is taken with respect to the reference macro-F1 of .669 , as in Figure 7. The variants are defined as follows. Fixed modality order : S EMA is trained on one fixed modality order instead of a freshly sampled order per batch. No dropout curriculum : every training sample 32 Preprint Table 26: Macro-F1 ( ↑; mean ±std where available) and end-to-end GFLOPs ( ↓; fusion cost GF f
+
+in parentheses) on UTD-MHAD under 0–40% test-time modality missingness. Per column, bold 
+
+and underlining mark the best and second-best distinct displayed values (F1 highest; GF and GF f
+
+lowest); ties share markings; the backbone reference row is not ranked. The 0% primary-method entries use the recomputed three-fold summaries.                                                                                                                                                                
+
+> Method 0% 10% 20% 30% 40%
+> F1 ↑GF (GF f)↓F1 ↑GF (GF f)↓F1 ↑GF (GF f)↓F1 ↑GF (GF f)↓F1 ↑GF (GF f)↓
+> MBT .81 ±.06 7306 (.35) .79 ±.06 6576 (.34) .73 ±.05 5848 (.34) .67 ±.06 5129 (.34) .63 ±.06 4431 (.34) MAESTRO .70 ±.02 7306 (.19) .65 ±.01 6576 (.19) .57 ±.02 5848 (.19) .54 ±.02 5129 (.19) .49 ±.01 4430 (.19) ShaSpec .71 ±.13 7307 (1.29) .66 ±.11 6577 (1.29) .62 ±.08 5849 (1.29) .54 ±.08 5130 (1.29) .47 ±.06 4432 (1.29) DecAlign .75 ±.08 7310 (4.21) .71 ±.09 6580 (4.21) .62 ±.08 5852 (4.21) .59 ±.10 5133 (4.21) .56 ±.06 4434 (4.21) MultiModN .66 ±.10 7306 (.64) .62 ±.08 6576 (.64) .55 ±.06 5848 (.64) .46 ±.08 5130 (.64) .41 ±.07 4431 (.64) GMS .61 ±.10 5185 (.17) .51 ±.08 4706 (.15) .42 ±.06 4183 (.14) .34 ±.04 3695 (.12) .29 ±.02 3259 (.11) AdaMML .75 ±.06 7306 (.19) .73 ±.05 6576 (.19) .69 ±.06 5848 (.19) .67 ±.05 5129 (.19) .62 ±.03 4430 (.20) DynMM .78 ±.05 7308 (1.91) .73 ±.08 6577 (1.91) .66 ±.05 5850 (1.91) .63 ±.06 5131 (1.91) .56 ±.06 4432 (1.91) DyMo .60 ±.06 7306 (.38) .59 ±.06 6576 (.38) .57 ±.05 5848 (.38) .55 ±.04 5129 (.38) .52 ±.04 4431 (.38) MMEE .65 ±.04 7306 (.44) .63 ±.06 6576 (.44) .58 ±.03 5848 (.44) .55 ±.02 5129 (.44) .50 ±.02 4431 (.44) Joint-AFA .30 ±.04 755 (.04 ).28 ±.03 1272 (.06 ).27 ±.03 1587 (.07 ).26 ±.04 1860 (.08 ).24 ±.03 2171 (.09 )SEMA (w/o ARC) .86 ±.08 7306 (.36) .83 ±.07 6576 (.32) .77 ±.10 5848 (.29) .73 ±.10 5129 (.25) .70 ±.09 4430 (.22)
+> SEMARC (Ours) .83 ±.10 4706 (.19) .81 ±.09 4543 (.18) .75 ±.09 4223 (.16) .69 ±.09 3924 (.15) .67 ±.08 3553 (.13)
+
+Table 27: Complete component-replacement results: macro-F1 ( ↑), modality utilization MU ( ↓) and GPU latency t in ms ( ↓) per dataset. Table 2 reports the row means. EAMA and Joint-AFA are the pre-backbone adaptations of Appendix C.1; EAMA uses uniform costs and the hybrid optimizer. MultiModN F1 and MU are recomputed from the main-table three-fold source. F1 can be compared across backbones on the same task and test set, but only shared-backbone comparisons isolate controller changes.                                                                                                                                    
+
+> Configuration IEMOCAP MM-Fi CZU-MHAD EAV CMI UTD-MHAD
+> F1 MU Latency F1 MU Latency F1 MU Latency F1 MU Latency F1 MU Latency F1 MU Latency
+> SEMARC .669 .65 745 .950 .21 187 .914 .37 1301 .689 .37 217 .556 .75 12.6 .827 .52 659 MultiModN + ARC .535 .33 199 .377 .20 4004 .485 .16 1294 .647 .39 319 .386 .28 4.4 .734 .40 653 MultiModN .580 1.00 1530 .397 1.00 4234 .467 1.00 1324 .647 1.00 2032 .447 1.00 15.5 .660 1.00 1036 SEMA + EAMA .650 .53 338 .945 .22 282 .899 .23 1296 .687 .41 216 .523 .45 6.8 .757 .49 642 SEMA + Joint-AFA .621 .34 332 .945 .49 2485 .911 .61 1311 .683 .51 603 .517 .62 10.0 .817 .72 780 SEMA + GMS .676 .83 95.9 .759 .20 2677 .917 .57 1306 .688 .33 26.7 .567 .71 10.9 .793 .50 516
+
+keeps all modalities. Bottleneck tokens last : the fusion blocks append the bottleneck after the modality tokens instead of prepending it; this row averages three training seeds, since the two placements are the same function at initialization and differ only through optimization. Learnable aggregation : the running-mean aggregation is replaced by a learned element-wise gate. LCE : prefix supervision and prefix distillation are removed, leaving only the cross-entropy of the full retained prefix. Shapley + conf. exit : no learned controller; modalities are acquired in the population Shapley order and acquisition stops once max c ps,c ≥ 0.8. Zero value init. : the prior is removed ( Q0 ≡ 0) and the network learns the full action value by fitted-Q iteration. No STOP : the STOP action is removed, so every available modality is acquired and ARC only chooses the order. Conf. STOP : the learned STOP 
+
+is replaced by the confidence exit above. The two state rows feed the residual network only the masks 
+
+1Ss ∥1A, or only the posterior summary ps∥H(ps)∥ms, instead of the full state of Equation 3. Three observations complete the ablation discussion of Section 4. First, learning the controller matters more than any single part of it: the static Shapley order with a confidence exit, which uses the same marginal-gain information without learning, loses 3.68% at a low cost (MU .33 ), and replacing only the learned STOP by the confidence exit loses 3.44% . Without the prior, fitted-Q iteration still learns a usable controller but under-acquires (MU .56 versus .65 ) and loses 1.47% , so the prior mainly sets how much evidence is bought before stopping. Second, both parts of the state matter: masks alone acquire more (MU .70 ) and still lose 3.44% , while the posterior summary alone stays within 0.49% 
+
+at a higher cost (MU .69 ), so the posterior tells the controller when to stop and the masks mainly refine what to acquire. Third, only two changes do not reduce macro-F1. The learnable aggregation gate changes it by +0 .14% , well within its fold standard deviation of .040 . Removing STOP gains 33 Preprint Table 28: Complete S EMA and ARC ablations on IEMOCAP under full modality availability (mean over three test folds; subscripts are standard deviations over folds). “S EMA F1” is the retrained backbone alone on all modalities, averaged over 24 orders; ’F1’ is the backbone and policy both retrained; ∆ is the relative change of the controlled macro-F1 with respect to .669 . Bold marks the best value per metric.                                                                                   
+
+> Category Variant SEMA F1 F1 ↑∆GF f↓MU ↓
+> SEMA ablations
+> Training Fixed modality order .653 .644 ±.033 −3.69% .34 .79 No dropout curriculum .661 .637 ±.043 −4.76% .30 .70 Fusion Bottleneck tokens last .651 .645 ±.018 −3.54% .29 .67 Learnable aggregation .675 .670 ±.040 +0 .14% .27 .62 Loss LCE only .656 .652 ±.014 −2.46% .31 .72 ARC ablations
+> Static controller Shapley + conf. exit –.644 ±.014 −3.68% .14 .33
+> Value init. Zero ( Q0≡0)–.659 ±.012 −1.47% .24 .56 Action No STOP (acquire all) –.673 ±.012 +0 .65% .43 1.00 Conf. STOP –.646 ±.017 −3.44% .14 .33
+> State 1Ss∥1Aonly –.646 ±.047 −3.44% .30 .70
+> ps∥H(ps)∥msonly –.666 ±.014 −0.49% .30 .69
+> SEMARC .675 .669 ±.022 –.28 .65
+
+0.65% , but it acquires every modality and raises GF f by 53% , which is precisely the cost S EMARC is designed to avoid. On the backbone side, the dropout curriculum has the largest effect once the controller is attached ( −4.76% , the largest drop in the table), even though the backbone alone loses only 1.4 points, because without it the prefixes that ARC stops on are poorly calibrated. 
+
+J COMPLETE RESULTS FOR FIGURE 10 
+
+Figure 10 varies only the relative acquisition costs wm of Equation 4. We derive them from each modality’s measured per-sample extraction time tm on the same idle NVIDIA L40 server used for all latency measurements, 
+
+wm(γ) = 
+
+ tm
+
+min m′ tm′
+
+γ
+
+, (10) and price an acquisition exactly as in Equations 4 and 9, λw j / P 
+
+> m∈A
+
+wm. Thus γ = 0 is the uniform price λ/ |A| of S EMARC, γ = 1 splits λ in proportion to extraction time, and larger γ
+
+concentrates the price on the most expensive modality. Acquiring every available modality always costs λ, whatever γ.
+
+Protocol. Everything except γ is held at the settings of the deployed uniform-cost S EMARC policy, fold by fold and dataset by dataset: the per-fold seed, the per-fold training price λtrain (0.5 on every fold except MM-Fi fold 2, 1.0), the fitted-Q schedule and the availability augmentation (Appendix A). As in the deployed policy, the prior Q0 is priced at λtrain both during fitting and at inference, and actions are selected greedily. For every γ > 0, ARC is refitted on the deployed backbone with these settings; for γ = 0 the price reduces to λ/ |A| and we use the deployed networks themselves, so the 
+
+γ = 0 results are those of Table 1. Latency is measured end to end per sample on the idle L40, from raw-file reading to returned logits, including extraction, fusion, and policy decisions, using the timing protocol in Appendix F. Table 29 attributes every weight and price to its modality. Extraction times on IEMOCAP span three orders of magnitude, from 1.1 ms for the head MoCap stream to 1,433 ms for video (DINOv3-L on 100 frames), so video carries 69% of the total price already at γ = 0 .5 and 86% at γ = 0 .75 , while text and the MoCap streams become almost free. Table 30 lists the complete results behind Figure 10. As the price moves onto video, ARC stops acquiring it, from 47% of samples at γ = 0 to 11% at γ = 0 .5 and 1% at γ = 0 .75 , and acquires the nearly free MoCap streams on 80–97% of samples instead. At γ = 0 .75 this keeps macro-F1 unchanged ( .670 versus .669 ) while end-to-end latency falls from 745 to 87 ms ( −88 .3% ), because 34 Preprint Table 29: Per-modality extraction time tm (idle L40, ms per sample), relative cost wm(γ) of Equation 10, and the resulting price of acquiring each modality at λ = 0 .5 with all modalities available ( λw m/ P 
+
+> m′
+
+wm′ ) on IEMOCAP. 
+
+video audio text MoCap hand MoCap head MoCap rot. 
+
+tm (ms) 1432.6 64.7 4.1 2.6 1.1 18.4 
+
+Relative cost wm(γ)
+
+γ = 0 1 1 1 1 1 1
+
+γ = 0 .25 5.99 2.76 1.39 1.23 1 2.02 
+
+γ = 0 .5 35.9 7.62 1.93 1.52 1 4.07 
+
+γ = 0 .75 215 21.0 2.68 1.88 1 8.20 
+
+γ = 1 1287 58.1 3.72 2.31 1 16.5 
+
+γ = 1 .5 4.6×10 4 443 7.18 3.52 1 67.2 
+
+γ = 2 1.7×10 6 3376 13.9 5.35 1 273 
+
+Price at λ = 0 .5
+
+γ = 0 .083 .083 .083 .083 .083 .083 
+
+γ = 0 .25 .208 .096 .048 .043 .035 .070 
+
+γ = 0 .5 .345 .073 .019 .015 .010 .039 
+
+γ = 0 .75 .430 .042 .005 .004 .002 .016 
+
+γ = 1 .470 .021 .001 .001 .000 .006 
+
+γ = 1 .5 .494 .005 .000 .000 .000 .001 
+
+γ = 2 .499 .001 .000 .000 .000 .000 
+
+Table 30: Complete results for Figure 10 on IEMOCAP ( λ = 0 .5 with the prior priced at λ, deployed seeds; γ = 0 is the deployed S EMARC policy): macro-F1 and end-to-end GPU latency (mean ±std 
+
+over three test folds), modality utilization, post-extraction GFLOPs, the extraction part of the latency, and the fraction of test samples on which each modality is acquired.                                                                                          
+
+> Acquisition frequency
+> γF1 ↑MU GF f↓Lat. (ms) ↓Extr. vid. aud. text hand head rot. 0.669 ±.022 .65 .28 745 ±132 740 .47 .72 1.00 .56 .56 .59 0.25 .672 ±.007 .79 .34 630 ±519 624 .39 .81 1.00 .94 .94 .67 0.5 .658 ±.019 .72 .30 225 ±141 219 .11 .71 1.00 .87 .88 .74 0.75 .670 ±.011 .75 .31 87 ±26 81 .01 .75 1.00 .97 .95 .80 1.653 ±.007 .71 .30 81 ±17 76 .00 .81 .90 .80 .86 .88 1.5 .651 ±.013 .71 .30 82 ±17 76 .00 .83 .87 .85 .86 .87 2.658 ±.020 .76 .32 230 ±234 224 .10 .97 .88 .79 .86 .94
+
+video is by far the most expensive modality and adds little once text and audio are held. Modality utilization rises from .65 to .75 at the same time, which illustrates that MU counts modalities rather than cost: the extra modalities are the ones that cost a few milliseconds. Beyond γ = 0 .75 the cheap modalities are effectively free, so the price no longer discourages any of them and macro-F1 decreases slightly ( .651 –.658 ). The large latency spreads at γ = 0 .25 and γ = 2 come from single folds that still acquire video, on 43% and 73% of samples (folds 0 and 2) at γ = 0 .25 and on 29% (fold 0) at γ = 2 .Table 31 repeats the study on all six datasets. The effect follows how unevenly each dataset’s extraction cost is spread. Where one modality dominates the cost and is not needed by every sample, cost weighting removes most of the latency at little or no accuracy cost: at γ = 0 .75 , IEMOCAP keeps 
+
+.670 at 87 instead of 745 ms, EAV improves to .694 at 114 instead of 217 ms (29 ms at γ = 0 .25 ), and MM-Fi keeps .952 at 69 instead of 187 ms. On UTD-MHAD, where the two camera streams together make up nearly all of the cost, latency falls by 19% (659 to 537 ms) for a 3.9-point loss. CZU-MHAD’s predictions rest on its depth stream, which ARC acquires at every γ, so latency stays at 1.3 s while macro-F1 rises slightly (.914 to .922 at γ ≥ 1.5). CMI’s seven sensor streams all cost 0.7–1.5 ms, so the weights are nearly equal and γ has no systematic effect (.548–.556). Averaged over the six datasets, γ = 0 .75 lowers latency by 32% (520 to 355 ms) at −0.6 points of macro-F1. Finally, Table 32 varies the training price on IEMOCAP, λ ∈ { 0.05 , 0.1, 0.2, 0.5, 1, 2}, with the prior priced at the training λ in every cell, so each cell differs from its neighbours in exactly one knob; the 
+
+λ = 0 .5 column is the deployed setting of Table 30. The weights matter only when λ is large enough for the price to bind. For λ ≤ 0.1 even the most expensive modality costs at most λ, which rarely 35 Preprint Table 31: Macro-F1 / end-to-end GPU latency (ms) for every γ on the six datasets, each fold at its deployed uniform policy’s seed and λtrain , with the prior priced at λtrain (mean over three test folds). 
+
+γ = 0 is the deployed S EMARC policy.                                                         
+
+> γ= 0 0.25 0.50.75 11.52
+> IEMOCAP .669 / 745 .672 / 630 .658 / 225 .670 / 87 .653 / 81 .651 / 82 .658 / 230 MM-Fi .950 / 187 .946 / 58 .954 / 62 .952 / 69 .949 / 139 .947 / 134 .949 / 97 CMI .556 / 12.6 .548 / 10.1 .550 / 10.4 .552 / 12.2 .555 / 12.1 .554 / 12.2 .548 / 12.4 CZU-MHAD .914 / 1301 .914 / 1301 .920 / 1307 .916 / 1314 .920 / 1313 .922 / 1315 .922 / 1315 EAV .689 / 217 .690 / 29 .697 / 156 .694 / 114 .691 / 56 .691 / 55 .692 / 100 UTD-MHAD .827 / 659 .817 / 617 .800 / 599 .788 / 537 .791 / 544 .791 / 539 .797 / 566 Mean .767 / 520 .764 / 441 .763 / 393 .762 / 355 .760 / 358 .759 / 356 .761 / 387
+
+Table 32: Macro-F1 / end-to-end GPU latency (ms) on IEMOCAP for every (γ, λ ) pair (mean over three test folds, deployed seeds, prior priced at λ). The shaded cell is the deployed S EMARC policy. 
+
+γ \ λ 0.05 0.1 0.2 0.5 1 20 .661 / 1053 .675 / 994 .668 / 792 .669 / 745 .624 / 238 .598 / 5.5 0.25 .648 / 1207 .670 / 733 .672 / 877 .672 / 630 .620 / 23 .606 / 23 0.5 .664 / 751 .672 / 569 .678 / 818 .658 / 225 .640 / 44 .622 / 29 0.75 .678 / 1093 .676 / 535 .678 / 483 .670 / 87 .662 / 63 .640 / 42 1 .672 / 1097 .677 / 677 .671 / 93 .653 / 81 .656 / 89 .660 / 65 1.5 .670 / 695 .676 / 1082 .671 / 273 .651 / 82 .658 / 92 .647 / 81 2 .668 / 1245 .674 / 1082 .672 / 633 .658 / 230 .672 / 90 .656 / 89 
+
+outweighs its expected gain, so latency stays between 0.53 and 1.25 s for every γ; from λ = 0 .2 the weighted price starts to bind, and at λ = 0 .5 γ = 0 .75 reaches the macro-F1 of the uniform cost at under an eighth of its latency. Across λ ≤ 0.2 macro-F1 stays within .648 –.678 for every γ. At the highest prices the uniform cost fails: with λ = 1 or 2 it charges every modality alike, so ARC stops after one or two modalities (MU .36 and .17 ) and macro-F1 falls to .624 and .598 , whereas 
+
+γ ≥ 0.75 concentrates the price on video and keeps macro-F1 at .640 –.672 within 42–92 ms. In short, nonuniform costs let a single λ remove the expensive modality without also discouraging the cheap informative ones. 
+
+K THEORETICAL SUPPORT FOR BACKBONE –C ONTROLLER CO-D ESIGN 
+
+This appendix proves Proposition 3.1, supplies the accompanying same-forward distillation bound, derives Corollary 3.2 from the finite-horizon AIS result of Subramanian et al. (2022), and establishes the two interpretations of the acquisition prior in Section 3.2. Throughout, logarithms are natural and 
+
+TV( P, Q ) = sup E |P (E) − Q(E)|; for categorical distributions, this equals 12
+
+P 
+
+> k
+
+|P (k) − Q(k)|.Expectations in each result use the sampling distribution specified there. K.1 ORDER ROBUSTNESS OF SEMA We condition on a fixed available set A and evaluate a fixed backbone. Let B ⊆ A be a nonempty dropout-retained set, and let Π( S) denote the permutations of a nonempty acquired set S. The retained set is sampled independently of (X, Y ) conditional on A; conditional on that retained set, its permutation is sampled uniformly and independently of the sample. A prefix prediction depends only on the acquired inputs and their processing order. We suppress conditioning on A in expectations below. 
+
+Uniform sampling of prefix subsets and orders. Fix B, let n = |B| , and draw ω uniformly from 
+
+Π( B). For nonempty S ⊆ B with |S| = s, exactly s!( n − s)! full orders have S as their first-s set. Therefore, 
+
+P({ω1, . . . , ω s} = S | B ) = s!( n − s)! 
+
+n! =
+
+ns
+
+−1
+
+. (11) Conditional on this event, each ordered prefix in Π( S) has (n − s)! completions and hence probability 
+
+1/s !. This proves the main-text statement that randomized ordering samples acquired subsets 36 Preprint uniformly conditional on the retained set and prefix length, and samples their internal orders uniformly. It does not require different retained sets or prefix lengths to receive equal training weight. 
+
+Proof of Proposition 3.1. Fix a nonempty S ⊆ A , and define the common label posterior ηS (k) = 
+
+P(Y = k | XS , A). Let σ be uniform on Π( S) and independent of the sample. Conditioning on 
+
+(XS , σ ) gives 
+
+RS := E[− log pσS (Y )] = E
+
+"
+
+−
+
+> C
+
+X
+
+> k=1
+
+ηS (k) log pσS (k)
+
+#
+
+= H(Y | XS , A) + E[KL( ηS ∥pσS )] . (12) Thus, the excess prefix cross-entropy in the theorem is ϵS = E[KL( ηS ∥pσS )] . For two independent orders σ, τ evaluated on the same acquired evidence, the triangle inequality gives 
+
+TV( pσS , p τS ) ≤ TV( pσS , η S ) + TV( ηS , p τS ).
+
+The two terms have the same expectation. Applying Pinsker’s inequality (Cover & Thomas, 2006) and then Jensen’s inequality yields 
+
+DS := E[TV( pσS , p τS )] ≤ 2E[TV( ηS , p σS )] 
+
+≤ 2E
+
+q 12 KL( ηS ∥pσS )
+
+
+
+≤ √2ϵS . (13) The same argument also gives 
+
+E[TV( pσS , η S )] ≤ pϵS /2, (14) which establishes the main-text implication that low excess prefix risk brings predictions toward a common, order-independent posterior on average. The dropout curriculum changes the retained-set distribution, while random ordering and prefix supervision expose each retained set’s prefixes to the common label target. The theorem concerns the population prefix risks attained by a fixed predictor; it does not assert that optimizing the combined classification and distillation objective attains the Bayes minimum for every subset. Its expectations are over the specified sample/order distribution, not the distribution induced by conditioning on an adaptive controller visiting Ss = S.
+
+Supporting bound for same-forward distillation. Fix nonempty S ⊆ B ⊆ A , with s = |S|, and consider the full orders 
+
+Ω( B, S ) = {ω ∈ Π( B) : {ω1, . . . , ω s} = S}.
+
+Draw ω, ν independently and uniformly from Ω( B, S ), independently of the sample, and evaluate both orders on the same full retained input XB. Write pω1: s 
+
+> S
+
+for the prefix prediction and qω = sg( pω
+
+> B
+
+)
+
+for its same-forward full-prefix teacher. Stop-gradient leaves the numerical teacher distribution unchanged. Define 
+
+KS|B = EXB ,ω [KL( qω ∥pω1: s 
+
+> S
+
+)] ,Dfull ,S |B = EXB ,ω,ν [TV( qω , q ν )] . (15) Both quantities use the same prefix-set-conditioned order ensemble and average over the full retained inputs. By independent retention and the uniform-prefix argument above, the induced prefix orders are independent and uniform on Π( S), and their expected disagreement is the same DS as in Equation 13. We claim that 
+
+DS ≤ Dfull ,S |B +
+
+q
+
+2KS|B . (16) 
+
+Proof of Equation 16. Insert the two teachers between the prefix predictions: 
+
+TV( pω1: s 
+
+> S
+
+, p ν1: s 
+
+> S
+
+) ≤ TV( pω1: s 
+
+> S
+
+, q ω ) + TV( qω , q ν )+ TV( qν , p ν1: s 
+
+> S
+
+) .
+
+37 Preprint The middle term has expectation Dfull ,S |B . By symmetry, Pinsker’s inequality, and Jensen’s inequality, the expectations of the outer terms sum to at most 
+
+2E
+
+q 12 KL( qω ∥pω1: s 
+
+> S
+
+)
+
+
+
+≤
+
+q
+
+2KS|B .
+
+This proves the claim. Together with Proposition 3.1, this gives 
+
+DS ≤ min 
+
+n√2ϵS , D full ,S |B +
+
+q
+
+2KS|B 
+
+o
+
+. (17) The first bound follows from prefix supervision alone; the second supports the accompanying claim that same-forward distillation transfers full-prefix stability when its conditional teacher disagreement and prefix-to-teacher divergence are small. An unconditional full-order risk cannot replace Dfull ,S |B 
+
+without an additional argument. These results concern average predictive distributions, not identical hidden states or AIS transition sufficiency. Aggregate macro-F1 variation is complementary empirical evidence rather than a measurement of these bounds. K.2 AIS GUARANTEE FOR MODALITY ACQUISITION 
+
+This subsection proves Corollary 3.2. Let Ht = ( A, σ 1: t, X σ1 , . . . , X σt ) denote the complete acquired history at a decision step t ≥ 1. It excludes the label and unacquired inputs. With the backbone frozen, ψt is a deterministic function of Ht; a fixed rule resolves prediction ties. Let brstop and bP be the stopping-reward function and acquisition kernel of the compact model. Assume that, for every history reachable under any admissible acquisition policy, 
+
+|E[Rt | Ht] − brstop (ψt)| ≤ ϵr,
+
+TV 
+
+
+
+L(ψt+1 | Ht, a ), bP (· | ψt, a )
+
+
+
+≤ ϵp (18) for every legal acquisition a = acq( j), where the second line is the controlled law obtained by taking 
+
+a. Both processes preserve A, use the same acquired-set update St+1 = St ∪ { j}, and assign the same acquisition reward −λw j / P 
+
+> m∈A
+
+wm. STOP is always admissible, is the only action when 
+
+St = A, and its compact-model reward satisfies 0 ≤ brstop ≤ βmax .
+
+Proof strategy. The finite-horizon AIS framework uses a common action space. We therefore first rewrite the stopping problem as an equivalent fixed-horizon process with a common action alphabet. We then verify its reward and transition approximation errors and apply Theorem 9 of Subramanian et al. (2022). 
+
+Proof of Corollary 3.2. Fix a reachable history Hs and let n = |A| − s. Values below include the terminal reward and future acquisition costs; costs already incurred at Hs are common to both policies. 
+
+Step 1: Construct an equivalent fixed-horizon process. Use n + 1 decision stages. Acquisitions and their costs are unchanged. If STOP is selected early, move to a marked stopped state, take zero-reward no-ops until the final stage, and then pay the reward associated with the prediction retained at stopping. A trajectory that acquires all remaining modalities takes its forced STOP at the final stage. Because the objective is undiscounted, this padding leaves every policy’s return unchanged. To obtain a common action space, define otherwise-illegal active action labels as duplicates of STOP, and define all action labels in stopped states as duplicates of the forced no-op. These duplicate labels do not change values or the behavior of any legal action. Thus the padded process is value-equivalent to the original acquisition problem and has the form required by the finite-horizon AIS theorem. 
+
+Step 2: Verify the AIS errors and apply the theorem. During the first n stages, rewards are exact acquisition costs or zero, so the reward-approximation error is zero. Only the final stopping reward contributes ϵr. Acquisition transitions satisfy the bound in Equation 18; STOP and stopped-state no-ops have identical deterministic compact-state transitions. 38 Preprint At every stage, the compact model’s optimal continuation value satisfies 0 ≤ bV ∗ 
+
+> ℓ
+
+≤ βmax : stopping avoids further acquisition costs and yields a nonnegative reward, while the single terminal reward is bounded above by βmax . Hence span( bV ∗ 
+
+> ℓ
+
+) ≤ βmax . Under our TV convention, 
+
+Z
+
+f dP −
+
+Z
+
+f dQ ≤ span( f ) TV( P, Q ), span( f ) = sup f − inf f. 
+
+Therefore, Theorem 9 of Subramanian et al. (2022) gives 
+
+α ≤ ϵr +
+
+> n
+
+X
+
+> ℓ=1
+
+span( bV ∗
+
+> ℓ+1
+
+)ϵp ≤ ϵr + nβ max ϵp. (19) The source uses the full-L1 convention for TV; its transition error is therefore 2ϵp and its multiplier is 12 span( bV ∗
+
+> ℓ+1
+
+), yielding the same product. Let bV ∗(ψs) be the compact model’s optimal remaining value and let bπ be one of its optimal policies, executed in the original process through ψ. The same AIS result gives 
+
+V ⋆(Hs) − bV ∗(ψs) ≤ α, V bπ (Hs) − bV ∗(ψs) ≤ α. 
+
+Combining these inequalities with optimality of the full-history policy yields 
+
+0 ≤ V ⋆(Hs) − V bπ (Hs) ≤ 2α ≤ 2 [ ϵr + ( |A| − s)βmax ϵp] . (20) Value equivalence between the padded and original processes gives the stated corollary. K.3 SHAPLEY INTERPRETATION OF THE ACQUISITION PRIOR 
+
+This subsection supports the acquisition-prior interpretation in Section 3.2. We first establish an exact empirical connection to Shapley attribution, then state the conditions under which posterior-weighted gains equal conditional expected gains. Condition on the fitted backbone and cache. The Shapley identity uses a common offline cohort for which vi(S) is defined for every S ⊆ [M ], with at least one sample from each class represented in the tables. The empirical class average uses the same samples and weights for every coalition. We set vi(∅) = 0 solely to complete the attribution game; this does not define a backbone prediction at the empty prefix or a first-acquisition rule. Recall that 
+
+∆i,j (S) = vi(S ∪ { j}) − vi(S) and [TS ]k,j = Ei[∆ i,j (S) | yi = k].For the attribution identity, the empty-set convention also defines [T∅]k,j = Ei[vi({j}) | yi = k];this entry does not specify the controller’s first acquisition. Let ϕi,j denote the Shapley value of modality j for the set utility vi. Then 
+
+Ei[ϕi,j | yi = k] = X 
+
+> S⊆[M]\{ j}
+
+|S|!( M − | S| − 1)! 
+
+M ! [TS ]k,j . (21) 
+
+Proof of Equation 21. For the set utility vi, the Shapley value (Shapley, 1953) is 
+
+ϕi,j = X 
+
+> S⊆[M]\{ j}
+
+|S|! ( M − | S| − 1)! 
+
+M ! ∆i,j (S).
+
+Interchanging the finite class average and coalition sum gives 
+
+Ei[ϕi,j | yi = k] = X 
+
+> S⊆[M]\{ j}
+
+|S|! ( M − | S| − 1)! 
+
+M ! Ei[∆ i,j (S) | yi = k]= X 
+
+> S⊆[M]\{ j}
+
+|S|! ( M − | S| − 1)! 
+
+M ! [TS ]k,j .
+
+This proves Equation 21 exactly for the empirical tables. It requires neither posterior calibration nor exact order invariance: the order average already defines a set utility. The common-cohort requirement matters: averaging each coalition over a different eligible sample population does not automatically preserve this sample-level identity. If the attribution game is restricted to a fixed available set A, the same proof applies to j ∈ A using a common cohort, summing over S ⊆ A \ { j} and replacing M by |A| in the Shapley weights. 39 Preprint 
+
+Conditional expected-gain interpretation. For a random sample from the population of interest, let ∆j (S) be its order-averaged set-utility difference. For a legal acquisition j ∈ A \ Ss, suppose 
+
+ps(k) = P(Y = k | ψs), E[∆ j (Ss) | ψs, Y = k] = [ TSs ]k,j , (22) where the second condition is required for classes with positive conditional probability. Because Ss
+
+is determined by ψs, the law of total expectation yields 
+
+E[∆ j (Ss) | ψs] = 
+
+> C
+
+X
+
+> k=1
+
+P(Y = k | ψs) E[∆ j (Ss) | ψs, Y = k]=
+
+> C
+
+X
+
+> k=1
+
+ps(k)[ TSs ]k,j = [ p⊤ 
+
+> s
+
+TSs ]j . (23) This establishes the conditional expected-gain interpretation under Equation 22. Its conditional-mean assumption includes the availability and acquired-evidence information contained in ψs; conditioning only on class and set when defining the table does not establish that assumption. To distinguish estimation from this interpretation, the natural population table is [T pop  
+
+> S
+
+]k,j =
+
+E[∆ j (S) | Y = k]. The same proof applies with T pop when the corresponding conditional-mean assumption holds. The implemented T estimates such class means from the cache. The empirical Shapley identity is exact, but neither empirical averaging nor Equation 21 establishes equality with population means or correctness of ps; using the empirical table in Equation 23 requires its stated assumptions. Finally, ∆j (S) compares order-averaged set utilities, so it need not equal the realized gain from appending j to the current order. These utilities use unweighted correctness, and conf( ps) is an unweighted confidence proxy. The prior is therefore an initialization; the residual is trained against the class-weighted, multistep return defined in Equation 4. The identities above do not make Q0 aBellman-optimal value function or imply that fitted-Q learning eliminates its approximation errors. 40
