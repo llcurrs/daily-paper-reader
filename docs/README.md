@@ -6,36 +6,35 @@
 </div>
 
 ## 每次日报
-- 最新运行日期：2026-10-08
-- 运行时间：2026-10-08 00:17:58 UTC
+- 最新运行日期：2026-10-09
+- 运行时间：2026-10-09 00:25:05 UTC
 - 运行状态：成功
 - 本次总论文数：5
-- 精读区：0
-- 速读区：5
+- 精读区：1
+- 速读区：4
 
 ### 今日简报（AI）
-今日速读5篇，重点落在多模态推理与多组学/多模态时序的自适应学习。最值得看的是《Efficient Multimodal Inference through Adaptive Acquisition and Sequential Fusion》（7.0/10），关注如何按需获取并顺序融合模态以省算力；其次是多组学对齐表示与时序选择性测试时适应两篇（各6.0/10）。普通读者可先读7分那篇的摘要与方法图，理解“少看也能准”的思路即可。
-- 详情：[/202610/08/README](/202610/08/README)
+今日精选 5 篇，精读 SAR-EO 基础模型语义监督新作 SAREO-FM（8.0 分），速读覆盖红外-可见光融合、空中多模态数据集与音视频识别。最值得看的是 SAR-EO 基础模型的解耦语义监督思路，以及 CRT-HMAR 用因果需求追踪调控多智能体图像融合。普通读者可先读精读篇了解遥感基础模型进展，再按需挑一篇速读拓展视野。
+- 详情：[/202610/09/README](/202610/09/README)
 
 ### 精读区论文标签
-- 本次无精读推荐。
+1. [SAREO-FM: Decoupled Semantic Supervision for SAR-EO Foundation Models](/202610/09/2610.09317v1-sareo-fm-decoupled-semantic-supervision-for-sar-eo-foundation-models)  
+   标签：评分：8.0/10、query:multi-modal
+   evidence：SAR与光学遥感多模态基础模型融合
 
 ### 速读区论文标签
-1. [Efficient Multimodal Inference through Adaptive Acquisition and Sequential Fusion](/202610/08/2610.07466v1-efficient-multimodal-inference-through-adaptive-acquisition-and-sequential-fusion)  
+1. [CRT-HMAR: Causal Requirement Tracing-Guided Hierarchical Multi-Agent Regulation for Open-Task-Aware Infrared-Visible Image Fusion](/202610/09/2610.09330v1-crt-hmar-causal-requirement-tracing-guided-hierarchical-multi-agent-regulation-for-open-task-aware-infrared-visible-image-fusion)  
    标签：评分：7.0/10、query:multi-modal
-   evidence：自适应选择模态子集的多模态推理
-2. [ARO: Aligned Representation learning for multi-Omics data](/202610/08/2610.06443v1-aro-aligned-representation-learning-for-multi-omics-data)  
+   evidence：红外与可见光图像融合，整合互补多模态信息
+2. [MultiFly: A Real-World Multimodal Aerial Dataset with Annotation-Efficient Label Transfer and Cross-Modal Semantic Consistency](/202610/09/2610.10359v1-multifly-a-real-world-multimodal-aerial-dataset-with-annotation-efficient-label-transfer-and-cross-modal-semantic-consistency)  
+   标签：评分：7.0/10、query:multi-modal
+   evidence：融合RGB热成像LiDAR雷达多传感器的遥感数据集
+3. [MacJEPA: Missingness-Robust Audio-Visual Recognition from Untrimmed Egocentric Videos](/202610/09/2610.08192v1-macjepa-missingness-robust-audio-visual-recognition-from-untrimmed-egocentric-videos)  
    标签：评分：6.0/10、query:multi-modal
-   evidence：多组学缺失模态重建
-3. [Source-Learned Reliance for Selective Test-Time Adaptation of Multimodal Time Series](/202610/08/2610.07499v1-source-learned-reliance-for-selective-test-time-adaptation-of-multimodal-time-series)  
+   evidence：面向模态缺失的鲁棒视听识别
+4. [Shared Geometry As A Rosetta Stone: Cross-Modal Alignment Without Paired Data](/202610/09/2610.09411v1-shared-geometry-as-a-rosetta-stone-cross-modal-alignment-without-paired-data)  
    标签：评分：6.0/10、query:multi-modal
-   evidence：缺失模态鲁棒的多模态自适应
-4. [Dynamic Alignment and Calibration for Multimodal Learning](/202610/08/2610.07928v1-dynamic-alignment-and-calibration-for-multimodal-learning)  
-   标签：评分：6.0/10、query:multi-modal
-   evidence：样本级跨模态对齐与校准融合
-5. [RSJEV: Discriminative Remote Sensing Scene Classification with Multimodal Large Language Models](/202610/08/2610.08539v1-rsjev-discriminative-remote-sensing-scene-classification-with-multimodal-large-language-models)  
-   标签：评分：6.0/10、query:multi-modal
-   evidence：多模态大模型用于遥感场景分类
+   evidence：无配对数据的跨模态对齐
 
 
 <div class="dpr-home-promo-card">
